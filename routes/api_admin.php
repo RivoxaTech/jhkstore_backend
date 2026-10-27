@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BrandController;
+use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CompanyController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\SubCategoryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -39,6 +41,19 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin'])->group(function () {
     Route::get('brands/{brand}', [BrandController::class, 'show']);
     Route::match(['put', 'patch', 'post'], 'brands/{brand}', [BrandController::class, 'update']);
     Route::delete('brands/{brand}', [BrandController::class, 'destroy']);
+
+    // Categories and sub-categories
+    Route::get('categories/options', [CategoryController::class, 'options']);
+    Route::get('categories', [CategoryController::class, 'index']);
+    Route::post('categories', [CategoryController::class, 'store']);
+    Route::get('categories/{category}', [CategoryController::class, 'show']);
+    Route::match(['put', 'patch', 'post'], 'categories/{category}', [CategoryController::class, 'update']);
+    Route::delete('categories/{category}', [CategoryController::class, 'destroy']);
+    Route::post('categories/{category}/sub-categories', [SubCategoryController::class, 'store']);
+    Route::post('sub-categories/{parent}/children', [SubCategoryController::class, 'storeChild']);
+    Route::get('sub-categories/{subCategory}', [SubCategoryController::class, 'show']);
+    Route::match(['put', 'patch', 'post'], 'sub-categories/{subCategory}', [SubCategoryController::class, 'update']);
+    Route::delete('sub-categories/{subCategory}', [SubCategoryController::class, 'destroy']);
 
     // Settings
     Route::get('settings/delivery', [SettingController::class, 'showDelivery']);
