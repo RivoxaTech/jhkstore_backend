@@ -1,7 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Bell, Building2, ChevronsLeft, ChevronsRight, LayoutDashboard, LogOut, Menu, Search, Stethoscope } from '@lucide/vue'
+import { Bell, Building2, ChevronsLeft, ChevronsRight, FolderTree, LayoutDashboard, LogOut, Menu, Search, Stethoscope } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { api } from '@/api/client.js'
@@ -61,6 +61,9 @@ async function logout() {
         <RouterLink :to="{ name: 'companies' }" class="nav-item" :class="{ 'is-active': String(route.name).startsWith('compan') }" exact-active-class="" active-class="">
           <Building2 :size="19" /><span>Companies</span>
           <b v-if="ui.pendingCount" class="nav-badge" :title="`${ui.pendingCount} pending requests`">{{ ui.pendingCount }}</b>
+        </RouterLink>
+        <RouterLink :to="{ name: 'categories' }" class="nav-item" :class="{ 'is-active': route.name === 'categories' }" exact-active-class="" active-class="">
+          <FolderTree :size="19" /><span>Categories</span>
         </RouterLink>
       </nav>
       <div class="sidebar__foot">

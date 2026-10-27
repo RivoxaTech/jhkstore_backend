@@ -10,6 +10,7 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: '', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { title: 'Dashboard' } },
+      { path: 'categories', name: 'categories', component: () => import('@/views/CategoriesView.vue'), meta: { title: 'Categories' } },
       { path: 'companies', name: 'companies', component: () => import('@/views/CompaniesView.vue'), meta: { title: 'Companies' } },
       { path: 'companies/new', name: 'company-new', component: () => import('@/views/CompanyFormView.vue'), meta: { title: 'New company' } },
       { path: 'companies/:id(\\d+)', name: 'company', component: () => import('@/views/CompanyDetailView.vue'), meta: { title: 'Company' } },

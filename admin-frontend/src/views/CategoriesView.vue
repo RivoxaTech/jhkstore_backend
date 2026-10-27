@@ -1,0 +1,295 @@
+<script setup>
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
+import { ChevronRight, FolderTree, Pencil, Plus, Search, Trash2 } from '@lucide/vue'
+import { api } from '@/api/client.js'
+import { useUiStore } from '@/stores/ui.js'
+import LogoBox from '@/components/LogoBox.vue'
+import CategoryModal from '@/components/CategoryModal.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import TableSkeleton from '@/components/TableSkeleton.vue'
+import EmptyState from '@/components/EmptyState.vue'
+
+const MAX_TOP = 12 // top categories shown on the home screen (the API enforces it too)
+
+const ui = useUiStore()
+
+const categories = ref([])
+const loading = ref(true)
+const error = ref('')
+const search = ref('')
+const expanded = ref(new Set())  // 'c<id>' for a category, 's<id>' for a sub-category that has children
+const modal = ref(null)          // { item, parent } while the create/edit modal is open (parent = category or sub-category)
+const toDelete = ref(null)       // { item, level } level: 'category' | 'sub' | 'child'
+const busy = ref(false)
+
+const searching = computed(() => search.value.trim() !== '')
+const totalSubs = computed(() => categories.value.reduce((n, c) => n + (c.sub_categories?.length || 0), 0))
+const totalChildren = computed(() => categories.value.reduce((n, c) => n + c.sub_categories.reduce((m, s) => m + (s.children?.length || 0), 0), 0))
+const topCount = computed(() => categories.value.filter(c => c.is_top).length)
+const isOpen = (key) => searching.value || expanded.value.has(key)
+
+let seq = 0
+async function load() {
+  const mine = ++seq
+  error.value = ''
+  try {
+    const res = await api.get('admin/categories', { q: search.value.trim() })
+    if (mine !== seq) return // a newer request is already running
+    categories.value = res.data
+  } catch (e) {
+    if (mine === seq) error.value = e.message
+  } finally {
+    if (mine === seq) loading.value = false
+  }
+}
+onMounted(load)
+
+let t
+watch(search, () => { clearTimeout(t); t = setTimeout(load, 300) })
+onBeforeUnmount(() => clearTimeout(t))
+
+function toggle(key) {
+  const next = new Set(expanded.value)
+  next.has(key) ? next.delete(key) : next.add(key)
+  expanded.value = next
+}
+function expandAll() {
+  const keys = []
+  for (const c of categories.value) {
+    keys.push(`c${c.id}`)
+    for (const s of c.sub_categories) if (s.children?.length) keys.push(`s${s.id}`)
+  }
+  expanded.value = new Set(keys)
+}
+const collapseAll = () => { expanded.value = new Set() }
+
+const openCreate = () => { modal.value = { item: null, parent: null } }
+const openEdit = (item, parent = null) => { modal.value = { item, parent } }
+const openAdd = (parent) => { modal.value = { item: null, parent } } // parent: a category (adds a sub-category) or a sub-category (adds a sub-sub-category)
+
+async function onSaved(saved, wasEdit) {
+  const parent = modal.value?.parent
+  const level = !parent ? 'Category' : parent.category_id ? 'Sub-sub-category' : 'Sub-category'
+  modal.value = null
+  ui.toast(`${level} ${wasEdit ? 'updated' : 'added'}.`)
+  if (parent) expanded.value = new Set(expanded.value).add(`${parent.category_id ? 's' : 'c'}${parent.id}`)
+  await load()
+}
+
+// Inline switches save immediately; the row flips at once and goes back if the server refuses.
+async function flip(item, field, isSub) {
+  const value = !item[field]
+  item[field] = value
+  try {
+    await api.put(`admin/${isSub ? 'sub-categories' : 'categories'}/${item.id}`, { [field]: value })
+    if (field === 'is_active') {
+      ui.toast(value ? 'Visible to customers.' : `Hidden from customers${isSub ? '' : ' (with its sub-categories)'}.`, 'info')
+    } else if (field === 'is_top') {
+      ui.toast(value ? 'Shown on the home screen.' : 'Removed from the home screen.', 'info')
+    }
+  } catch (e) {
+    item[field] = !value
+    ui.toast(e.status === 422 ? Object.values(e.errors).flat()[0] || e.message : e.message, 'error')
+  }
+}
+
+const NOUN = { category: 'category', sub: 'sub-category', child: 'sub-sub-category' }
+async function confirmDelete() {
+  const { item, level } = toDelete.value
+  busy.value = true
+  try {
+    await api.del(`admin/${level === 'category' ? 'categories' : 'sub-categories'}/${item.id}`)
+    ui.toast(`${NOUN[level][0].toUpperCase()}${NOUN[level].slice(1)} deleted.`)
+    toDelete.value = null
+    await load()
+  } catch (e) {
+    toDelete.value = null
+    ui.toast(e.message, 'error', 7000) // e.g. "This category has 3 sub-categories. Deactivate it instead of deleting."
+  } finally {
+    busy.value = false
+  }
+}
+const deleteMessage = computed(() => {
+  if (!toDelete.value) return ''
+  const { item, level } = toDelete.value
+  if (level === 'child') return `Delete ${item.name}? A sub-sub-category that has products cannot be deleted - deactivate it instead.`
+  if (level === 'sub') return `Delete ${item.name}? A sub-category that has sub-sub-categories or products cannot be deleted - deactivate it instead.`
+  return `Delete ${item.name}? A category that has sub-categories or products cannot be deleted - deactivate it instead.`
+})
+</script>
+
+<template>
+  <div class="page-head">
+    <div>
+      <h1>Categories</h1>
+      <div class="crumbs"><RouterLink :to="{ name: 'dashboard' }">Dashboard</RouterLink> › <span>Categories</span></div>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-primary" type="button" @click="openCreate"><Plus :size="17" /> Add category</button>
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="toolbar">
+      <div class="field-inline">
+        <Search :size="16" />
+        <input v-model="search" class="input" type="search" placeholder="Search categories or sub-categories" aria-label="Search categories" />
+      </div>
+      <span v-if="!loading && categories.length" class="muted">
+        {{ categories.length }} categories · {{ totalSubs }} sub-categories<template v-if="totalChildren"> · {{ totalChildren }} sub-sub-categories</template>
+      </span>
+      <span v-if="!loading && categories.length" class="top-count" :class="{ 'is-full': topCount >= MAX_TOP }" title="Categories shown on the home screen" data-test="top-count">Home: {{ topCount }}/{{ MAX_TOP }}</span>
+      <div v-if="categories.length && !searching" style="margin-left: auto; display: flex; gap: 6px">
+        <button class="btn btn-outline btn-sm" type="button" @click="expandAll">Expand all</button>
+        <button class="btn btn-outline btn-sm" type="button" @click="collapseAll">Collapse all</button>
+      </div>
+    </div>
+
+    <div v-if="error" class="alert alert--error" style="margin: 0 12px 10px" role="alert">
+      {{ error }} <button class="btn btn-outline btn-sm" type="button" style="margin-left: auto" @click="load">Retry</button>
+    </div>
+
+    <TableSkeleton v-if="loading" :rows="8" />
+    <EmptyState v-else-if="!categories.length && !error" :title="searching ? 'No categories found' : 'No categories yet'" :text="searching ? 'Try a different search.' : 'Add the first category to organise your products.'">
+      <template #icon><FolderTree :size="42" /></template>
+      <button v-if="!searching" class="btn btn-primary" type="button" @click="openCreate"><Plus :size="17" /> Add category</button>
+    </EmptyState>
+
+    <div v-else class="table-wrap">
+      <table class="table cat-table">
+        <thead>
+          <tr>
+            <th class="sno">#</th><th>Name</th><th class="num">Sub-categories</th><th class="num">Products</th>
+            <th class="tog">Active</th><th class="tog" title="Shown on the home screen (max 12)">Home</th><th class="num">Order</th><th />
+          </tr>
+        </thead>
+        <tbody>
+          <template v-for="(c, ci) in categories" :key="c.id">
+            <tr class="row-link" :class="{ 'cat-row--open': isOpen(`c${c.id}`) }" data-kind="category" @click="toggle(`c${c.id}`)">
+              <td class="sno">{{ ci + 1 }}</td>
+              <td>
+                <div class="cell-main">
+                  <button class="chev" :class="{ 'is-open': isOpen(`c${c.id}`) }" type="button" :aria-expanded="isOpen(`c${c.id}`)" :aria-label="`${isOpen(`c${c.id}`) ? 'Collapse' : 'Expand'} ${c.name}`" @click.stop="toggle(`c${c.id}`)">
+                    <ChevronRight :size="16" />
+                  </button>
+                  <LogoBox :name="c.name" :src="c.icon_thumb_url" />
+                  <div style="min-width: 0">
+                    <strong class="truncate" :title="c.name">{{ c.name }}</strong>
+                    <small>{{ c.slug }}</small>
+                  </div>
+                  <span v-if="c.is_top" class="top-tag" title="Shown on the home screen">Top</span>
+                </div>
+              </td>
+              <td class="num">{{ c.sub_categories_count }}</td>
+              <td class="num">{{ c.products_count }}</td>
+              <td class="tog" @click.stop>
+                <label class="switch" :title="c.is_active ? 'Active' : 'Hidden from customers'"><input type="checkbox" :checked="c.is_active" :aria-label="`${c.name} active`" @change="flip(c, 'is_active', false)" /><span /></label>
+              </td>
+              <td class="tog" @click.stop>
+                <label class="switch" :title="c.is_top ? 'Shown on the home screen' : 'Not on the home screen'"><input type="checkbox" :checked="c.is_top" :aria-label="`${c.name} on home screen`" data-field="is_top" @change="flip(c, 'is_top', false)" /><span /></label>
+              </td>
+              <td class="num">{{ c.sort_order }}</td>
+              <td @click.stop>
+                <div class="row-actions">
+                  <button class="btn btn-soft btn-sm" type="button" title="Add sub-category" :aria-label="`Add sub-category to ${c.name}`" @click="openAdd(c)"><Plus :size="14" /> Sub</button>
+                  <button class="btn btn-outline btn-sm btn-icon" type="button" title="Edit" :aria-label="`Edit ${c.name}`" @click="openEdit(c)"><Pencil :size="14" /></button>
+                  <button class="btn btn-soft-danger btn-sm btn-icon" type="button" title="Delete" :aria-label="`Delete ${c.name}`" @click="toDelete = { item: c, level: 'category' }"><Trash2 :size="14" /></button>
+                </div>
+              </td>
+            </tr>
+
+            <template v-if="isOpen(`c${c.id}`)">
+              <template v-for="(s, si) in c.sub_categories" :key="`s${s.id}`">
+                <tr class="cat-sub" :class="{ 'row-link': s.children?.length }" data-kind="sub-category" @click="s.children?.length && toggle(`s${s.id}`)">
+                  <td class="sno">{{ ci + 1 }}.{{ si + 1 }}</td>
+                  <td>
+                    <div class="cell-main">
+                      <button v-if="s.children?.length" class="chev" :class="{ 'is-open': isOpen(`s${s.id}`) }" type="button" :aria-expanded="isOpen(`s${s.id}`)" :aria-label="`${isOpen(`s${s.id}`) ? 'Collapse' : 'Expand'} ${s.name}`" @click.stop="toggle(`s${s.id}`)">
+                        <ChevronRight :size="16" />
+                      </button>
+                      <span v-else class="chev-gap" />
+                      <LogoBox :name="s.name" :src="s.icon_thumb_url" small />
+                      <div style="min-width: 0">
+                        <strong class="truncate" :title="s.name">{{ s.name }}</strong>
+                        <small>{{ s.slug }}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="num" :class="{ muted: !s.children_count }">{{ s.children_count || '-' }}</td>
+                  <td class="num">{{ s.products_count }}</td>
+                  <td class="tog" @click.stop>
+                    <label class="switch" :title="s.is_active ? 'Active' : 'Hidden from customers'"><input type="checkbox" :checked="s.is_active" :aria-label="`${s.name} active`" @change="flip(s, 'is_active', true)" /><span /></label>
+                  </td>
+                  <td class="tog muted">-</td>
+                  <td class="num">{{ s.sort_order }}</td>
+                  <td @click.stop>
+                    <div class="row-actions">
+                      <button class="btn btn-soft-green btn-sm" type="button" title="Add sub-sub-category" :aria-label="`Add sub-sub-category to ${s.name}`" @click="openAdd(s)"><Plus :size="14" /> Sub-sub</button>
+                      <button class="btn btn-outline btn-sm btn-icon" type="button" title="Edit" :aria-label="`Edit ${s.name}`" @click="openEdit(s, c)"><Pencil :size="14" /></button>
+                      <button class="btn btn-soft-danger btn-sm btn-icon" type="button" title="Delete" :aria-label="`Delete ${s.name}`" @click="toDelete = { item: s, level: 'sub' }"><Trash2 :size="14" /></button>
+                    </div>
+                  </td>
+                </tr>
+
+                <template v-if="isOpen(`s${s.id}`)">
+                  <tr v-for="(k, ki) in s.children" :key="`k${k.id}`" class="cat-sub cat-sub--child" data-kind="sub-sub-category">
+                    <td class="sno">{{ ci + 1 }}.{{ si + 1 }}.{{ ki + 1 }}</td>
+                    <td>
+                      <div class="cell-main">
+                        <LogoBox :name="k.name" :src="k.icon_thumb_url" small />
+                        <div style="min-width: 0">
+                          <strong class="truncate" :title="k.name">{{ k.name }}</strong>
+                          <small>{{ k.slug }}</small>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="num muted">-</td>
+                    <td class="num">{{ k.products_count }}</td>
+                    <td class="tog">
+                      <label class="switch" :title="k.is_active ? 'Active' : 'Hidden from customers'"><input type="checkbox" :checked="k.is_active" :aria-label="`${k.name} active`" @change="flip(k, 'is_active', true)" /><span /></label>
+                    </td>
+                    <td class="tog muted">-</td>
+                    <td class="num">{{ k.sort_order }}</td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="btn btn-outline btn-sm btn-icon" type="button" title="Edit" :aria-label="`Edit ${k.name}`" @click="openEdit(k, s)"><Pencil :size="14" /></button>
+                        <button class="btn btn-soft-danger btn-sm btn-icon" type="button" title="Delete" :aria-label="`Delete ${k.name}`" @click="toDelete = { item: k, level: 'child' }"><Trash2 :size="14" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr class="cat-sub cat-sub--child cat-sub--add">
+                    <td />
+                    <td colspan="7">
+                      <button class="btn btn-soft-green btn-sm" type="button" @click="openAdd(s)"><Plus :size="14" /> Add sub-sub-category to {{ s.name }}</button>
+                    </td>
+                  </tr>
+                </template>
+              </template>
+              <tr class="cat-sub cat-sub--add">
+                <td />
+                <td colspan="7">
+                  <span v-if="!c.sub_categories.length" class="muted" style="margin-right: 10px">No sub-categories yet.</span>
+                  <button class="btn btn-soft btn-sm" type="button" @click="openAdd(c)"><Plus :size="14" /> Add sub-category</button>
+                </td>
+              </tr>
+            </template>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <CategoryModal v-if="modal" :item="modal.item" :parent="modal.parent" @close="modal = null" @saved="onSaved" />
+
+  <ConfirmDialog
+    v-if="toDelete"
+    :title="`Delete ${NOUN[toDelete.level]}`"
+    confirm-text="Delete"
+    tone="danger"
+    :busy="busy"
+    :message="deleteMessage"
+    @close="toDelete = null"
+    @confirm="confirmDelete"
+  />
+</template>
