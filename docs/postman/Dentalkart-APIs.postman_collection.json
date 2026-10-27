@@ -1,0 +1,322 @@
+{
+  "info": {
+    "_postman_id": "d4a6b2c1-7e3f-4a58-9c10-6b2f8e5d1a33",
+    "name": "Dentalkart APIs",
+    "description": "Customer APIs: 4 dropdown lists, register a company, brands list. Variable base_url = http://localhost:8000/api/v1",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Registration types",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "description": "Dropdown \"Company registered as\".",
+        "url": {
+          "raw": "{{base_url}}/store/lookups/registration-types",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "store",
+            "lookups",
+            "registration-types"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2. Vendor types",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "description": "Dropdown \"Vendor type\".",
+        "url": {
+          "raw": "{{base_url}}/store/lookups/vendor-types",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "store",
+            "lookups",
+            "vendor-types"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3. Countries",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "description": "Dropdown \"Origin country\".",
+        "url": {
+          "raw": "{{base_url}}/store/lookups/countries",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "store",
+            "lookups",
+            "countries"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "4. All dropdowns in one call",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "description": "Registration types, vendor types and countries together, plus the form limits.",
+        "url": {
+          "raw": "{{base_url}}/store/company-registration/options",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "store",
+            "company-registration",
+            "options"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5. Register a company",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "description": "Company registration (the \"Sell on Dentalkart\" form). multipart/form-data. The company waits in the admin panel (Companies > Pending) for approval. A new name and GST number are used on every send.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "name",
+              "value": "Sunrise Dental Supplies {{$timestamp}}",
+              "type": "text",
+              "description": "required"
+            },
+            {
+              "key": "registration_type_id",
+              "value": "1",
+              "type": "text",
+              "description": "required - id from API 1"
+            },
+            {
+              "key": "vendor_type_id",
+              "value": "1",
+              "type": "text",
+              "description": "required - id from API 2"
+            },
+            {
+              "key": "origin_country_id",
+              "value": "1",
+              "type": "text",
+              "description": "required - id from API 3"
+            },
+            {
+              "key": "email",
+              "value": "info@sunrise-dental.test",
+              "type": "text",
+              "description": "required"
+            },
+            {
+              "key": "contact_number",
+              "value": "+91 9876543210",
+              "type": "text",
+              "description": "required"
+            },
+            {
+              "key": "vat_gst_number",
+              "value": "27{{$timestamp}}A1Z5",
+              "type": "text",
+              "description": "required - must be new"
+            },
+            {
+              "key": "contact_name",
+              "value": "Asha Rao",
+              "type": "text",
+              "description": "required"
+            },
+            {
+              "key": "contact_mobile",
+              "value": "9876543210",
+              "type": "text",
+              "description": "required"
+            },
+            {
+              "key": "contact_email",
+              "value": "asha@sunrise-dental.test",
+              "type": "text",
+              "description": "required"
+            },
+            {
+              "key": "contact_whatsapp",
+              "value": "9876543210",
+              "type": "text",
+              "description": "optional",
+              "disabled": true
+            },
+            {
+              "key": "address",
+              "value": "12 Industrial Area, Phase 2",
+              "type": "text",
+              "description": "required"
+            },
+            {
+              "key": "landmark",
+              "value": "Near Metro Station",
+              "type": "text",
+              "description": "optional",
+              "disabled": true
+            },
+            {
+              "key": "city",
+              "value": "New Delhi",
+              "type": "text",
+              "description": "required"
+            },
+            {
+              "key": "zip_code",
+              "value": "110074",
+              "type": "text",
+              "description": "required"
+            },
+            {
+              "key": "promotion_support",
+              "value": "We will support Dentalkart with prominent banner placement, launch discounts, free product samples, clinical demonstrations, webinars and dedicated training for the sales team. Our technical staff will also share brochures, videos and after-sales assistance for every dental clinic customer.",
+              "type": "text",
+              "description": "required - 200 to 500 characters"
+            },
+            {
+              "key": "brands[0][name]",
+              "value": "Sunrise Dental Care",
+              "type": "text",
+              "description": "required - at least one brand"
+            },
+            {
+              "key": "brands[1][name]",
+              "value": "Sunrise Ortho",
+              "type": "text",
+              "description": "optional - another brand (brands[2][name], ...)"
+            },
+            {
+              "key": "brands[0][origin_country_id]",
+              "value": "1",
+              "type": "text",
+              "description": "optional - brand country",
+              "disabled": true
+            },
+            {
+              "key": "logo",
+              "type": "file",
+              "src": "E:/usman/Detalkart/backend/docs/postman/sample-logo.png",
+              "description": "required - company logo image (png, jpg, jpeg, webp, max 4 MB)"
+            },
+            {
+              "key": "catalogue[]",
+              "type": "file",
+              "src": [],
+              "description": "optional - private catalogue files",
+              "disabled": true
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/store/company-registrations",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "store",
+            "company-registrations"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "6. Brands list",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "description": "Brands to display on the website (active brands of approved companies).",
+        "url": {
+          "raw": "{{base_url}}/store/brands?per_page=30&page=1",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "store",
+            "brands"
+          ],
+          "query": [
+            {
+              "key": "per_page",
+              "value": "30"
+            },
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "q",
+              "value": "sunrise",
+              "description": "search by name",
+              "disabled": true
+            },
+            {
+              "key": "collection",
+              "value": "top",
+              "description": "top | featured | new | suggested",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1",
+      "type": "string"
+    }
+  ]
+}
