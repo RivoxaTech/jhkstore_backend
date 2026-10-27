@@ -1,65 +1,88 @@
 # Progress log
 
-Updated: 2026-10-27. Read together with `ARCHITECTURE.md` / `DATABASE.md` (design).
+Updated: 2026-10-28. Read together with `ARCHITECTURE.md` / `DATABASE.md` (design). Setup steps: `../README.md`.
+
+## Where we are
+
+| Area | State |
+|---|---|
+| Database schema (88 tables) | ✅ complete, migrated |
+| Auth (admin cookie + token, customer token) | ✅ |
+| Company module (register, approve, brands, logos) | ✅ |
+| Categories and sub-categories (admin + customer API) | ✅ |
+| Admin panel (`admin-frontend/`) | ✅ dashboard + companies + categories |
+| Products, catalog, reviews, wishlist | ⏳ next |
+| Cart, orders, payments, returns, rewards, membership, coupons, content | ⏳ later (schema ready) |
+
+Code is pushed to `startxlaravel02/DentalKart_backend` (`main`).
 
 ## Done
 
-### Phase 0 – Foundation
-* Laravel 13 project created in this folder (PHP 8.3, MySQL 8.4 `dentalkart_db`, Laragon).
-* Packages: Sanctum, spatie/laravel-permission, spatie/laravel-medialibrary, dedoc/scramble (API docs at `/docs/api`).
-* **All 87 tables migrated** (whole schema from `DATABASE.md`; categories and sub_categories are separate tables).
-  Migration files: `database/migrations/2026_10_27_00000{1..5}_*.php` + `0001_01_01_000000_create_users_table.php`.
-* Seeders (`php artisan migrate:fresh --seed`): admin `admin/admin`, customer `test@gmail.com/test`,
-  dropdown lookups (registration types, vendor types, 49 countries – placeholder values, admin-editable),
-  channels (`standard` 5 days, `instadent` 3 days, login required), settings (delivery fee ₹95, free above ₹2800),
-  in-house company "Dentalkart (In-house)".
-* Two auth sides: admin (`username`; cookie session for the admin panel, bearer token for tools) and customer (`email` or `mobile`;
-  bearer token). A credential only works on its own side (`actor:admin` / `actor:customer` middleware). Login throttled; public forms throttled.
-* CORS for the frontend origins in `.env` (`FRONTEND_URLS`).
-* Image URLs in every API response are absolute (`MediaUrl` helper) and `null` when missing. Run `php artisan storage:link` once.
+### Foundation
+* Laravel 13 (PHP 8.3, MySQL 8.4 `dentalkart_db`, Laragon). Packages: Sanctum, spatie/laravel-permission, spatie/laravel-medialibrary,
+  dedoc/scramble (generated API docs at `/docs/api`).
+* **All 88 tables migrated** (`database/migrations/`, six files: users, admin/addresses, companies, catalog, commerce, engagement/content,
+  sessions). `categories` and `sub_categories` are separate tables.
+* Seeders (`php artisan migrate:fresh --seed`): admin `admin`/`admin`, customer `test@gmail.com`/`test`, lookups (7 registration types,
+  7 vendor types, 49 countries – placeholder values), sales channels (`standard` 5 days, `instadent` 3 days and login-only),
+  settings (delivery fee ₹95, free above ₹2800), in-house company "Dentalkart (In-house)".
+* Auth: admin panel = HttpOnly cookie session + CSRF; Postman/scripts and the customer site = bearer tokens. A credential only works
+  on its own side. Login and public forms are throttled. CORS origins come from `.env` (`FRONTEND_URLS`).
+* Image URLs in API responses are absolute (and `null` when missing). Run `php artisan storage:link` once.
 
-### Phase 1 – Company module (done)
-* Customer "Sell on Dentalkart" registration: options endpoint + submit endpoint (multipart, logo + optional catalogue upload).
-  Creates a `pending` company with inactive brands. Rules: promotion text 200–500 chars, company logo required (png/jpg/jpeg/webp, ≤4 MB),
-  catalogue optional (png/jpg/jpeg/webp/pdf, ≤10 MB, ≤10 files), ≥1 brand, GST unique among non-rejected companies.
-* Admin: list (filters + status counts), create (auto-approved), detail (brands + catalogue), update, approve, reject (reason),
-  suspend, delete (blocked if it has products), private catalogue download.
-* Brands: admin CRUD per company (logo + banner upload, thumbnail generated), brands list for product forms.
-  Customer-side brands API shows only active brands of approved companies (`?collection=top|featured|new|suggested`, `?q=`).
-* Delivery settings: public read + admin update.
-* Tests: 16 PHPUnit tests, all passing (`php artisan test`, uses the `dentalkart_test` database).
-* Postman: one flat file `docs/postman/Dentalkart-APIs.postman_collection.json` with the 6 customer APIs (registration types, vendor types,
-  countries, all dropdowns in one call, register a company, brands list). `docs/postman/sample-logo.png` is the logo it uploads.
-  Live API docs are generated at `/docs/api` (Scramble).
+### Company and brand module
+* **Customer APIs** (`/api/v1/store`): dropdown lists (`lookups/registration-types`, `lookups/vendor-types`, `lookups/countries`,
+  combined `company-registration/options`), `POST company-registrations`, `brands`, `brands/{slug}`, `settings/delivery`, `auth/*`.
+* Registration rules: all company, contact and address fields; promotion text 200–500 characters; **company logo required**
+  (png/jpg/jpeg/webp, ≤ 4 MB); **at least one brand**; GST number unique among non-rejected companies; catalogue optional and private.
+  Creates a `pending` company with inactive brands; the admin approves it and its brands go live.
+* **Brands, not companies, are shown to customers.** A brand shows its own logo, else the company logo (`logo_source`, `has_own_logo`,
+  `remove_logo=1`). The last brand of a company cannot be deleted.
+* **Admin APIs** (`/api/v1/admin`): `dashboard`; companies (list with status counts, create = auto-approved, show, update incl. logo,
+  delete, approve, reject, suspend, private catalogue download); brands (per company and global list, create, update, delete);
+  delivery settings (fee, free-delivery limit, delivery days per channel). The company list is lean (no N+1).
 
-### Admin panel (done)
-* Separate Vue 3 app in `admin-frontend/` (dev: `npm run dev` -> http://localhost:5190; built: served by Laravel at `/admin`).
-  How to run: `admin-frontend/README.md`.
-* **Cookie login** (HttpOnly session + CSRF) for the panel; the same endpoints still accept bearer tokens for Postman/scripts.
-  Mode is chosen automatically from the request origin (`SANCTUM_STATEFUL_DOMAINS`). Sessions are stored in MySQL (`sessions` table).
-* Pages: login, dashboard (counts, pending requests, activity), companies list (tabs, search, filters, pagination),
-  create/edit company form, company detail (approve / reject / suspend / reactivate, catalogue download, brands add/edit/delete/on-off).
-* Sidebar has only Dashboard and Companies (more sections are added with each backend module).
-* New API: `GET /admin/dashboard`. Tests: 22 PHPUnit tests; real-browser run 31/31 checks (dev server and Laravel-served build).
+### Categories, sub-categories and sub-sub-categories
+* Two tables (`categories`, `sub_categories`; a sub-sub-category is a `sub_categories` row with `parent_id`, one level only), soft deletes, slug from the name (unique, regenerated on rename), each with an optional `icon`
+  (256px thumb) and `image` (spatie media, absolute URLs or `null`). `Domain/Catalog`: models, `SaveCategory`, `DeleteCategory`, `CategoryTree`.
+* **Admin APIs**: `categories` (list = every category with its sub-categories, `sub_categories_count`, `products_count`, `?q=`), `categories/options`
+  (light tree of active ones, for the product form), create, show, update (`POST` + `_method=PUT` with files, `remove_icon` / `remove_image`),
+  delete; `categories/{id}/sub-categories` (create); `sub-categories/{id}/children` (create a sub-sub-category); `sub-categories/{id}` (show, update, delete). Every write is audited and clears the cache.
+* **Top categories**: `categories.is_top` marks the (max 12) categories of the home screen; a 13th is refused with 422. A parent sub-category counts the products of its children.
+* **Delete rules**: category with sub-categories or products, or a sub-category with children or products → 422 "Deactivate it instead of deleting".
+  `is_active = false` hides it (and everything under it). There is no "show in menu" switch.
+* **Customer APIs**: `GET store/categories` (`?top=1` for the home screen; each sub-category has `children`) and `GET store/categories/{slug}` (404 when inactive), cached 10 minutes.
+* `CategorySeeder` (13 categories, 65 sub-categories from the frontend data, 11 example sub-sub-categories, the first 12 categories are top, no images; re-running it keeps admin edits).
 
-### Logo, compact UI, customer test page (done)
-* **Company logo** is required (public form and admin form); catalogue is optional and private. Brands show their own logo, else the
-  **company logo** by default (`logo_source`, `has_own_logo`; `remove_logo=1` clears a brand logo). Company update can replace the logo.
-* Admin list API is lean (`CompanyListResource`: logo, contact, city, vendor/type, brand names, catalogue count) – no N+1.
-* Admin UI made compact (13px base, ~48px table rows), richer companies table, sidebar **collapse inside the sidebar** (header
-  hamburger only on phones), dropdown data cached once per session (`stores/lookups.js`).
-* Public form rate limit is 500/hour in local mode (`FORMS_PER_HOUR`), 10/hour otherwise.
-* Dropdown data has one API per list (`/store/lookups/registration-types|vendor-types|countries`) plus a combined one
-  (`/store/company-registration/options`). A company needs at least one brand (form rule; the last brand cannot be deleted).
-* Tests: 25 PHPUnit, Postman 36 requests (58 assertions) and a real-browser run of 46 + 5 checks, all passing.
+### Admin panel (`admin-frontend/`, Vue 3)
+* Dev: `npm run dev` → http://localhost:5190 (proxies `/api`, `/sanctum`, `/storage`). Built: `npm run build`, served at `/admin`.
+* Companies and Categories tables start with an S.no column (`#`; categories number `1`, `1.1`, `1.1.1`).
+* Categories page: compact table (icon, name, slug, sub-category and product counts, Active / Home switches that save at once, order,
+  edit / delete, a "Top" tag and a Home n/12 counter), rows expand to their sub-categories, which expand to their sub-sub-categories, with "Add" buttons; create / edit in a modal with icon + image previews.
+* Pages: login, dashboard, companies (tabs, search, filters, compact table with logo, contact, location, vendor/type, GST, brand names,
+  status, date), create/edit company (logo, repeatable brands, catalogue), company detail (approve / reject / suspend / reactivate,
+  catalogue download, brands add / edit / delete / on-off, own-logo upload).
+* Compact layout; collapse button inside the sidebar (header menu button only on phones). Sidebar: Dashboard, Companies and Categories.
+
+### Tests
+* `php artisan test` → 55 PHPUnit feature tests pass (28 of them in `CategoryFlowTest`) (uses the `dentalkart_test` database; create it empty once).
+* A real-browser run of the admin panel (login, cookie, approve, brands, logos, forms, search, collapse, mobile) passed in full
+  on the dev server and on the Laravel-served build. The categories page was checked the same way (41 checks at first; after the top flag and sub-sub-categories were added, 38 more: S.no, top flag and its 12 limit,
+  three levels, adding / renaming / deleting a sub-sub-category with an icon, delete refusal, search, mobile width). The 6 Postman requests were run against the live API: all succeed.
+
+### Postman
+* `docs/postman/Dentalkart-APIs.postman_collection.json` – 8 plain requests (3 dropdown lists, all dropdowns, register a company,
+  brands list, categories tree, one category). `docs/postman/sample-logo.png` is the logo it uploads. If Postman shows a ⚠ next to the `logo` file it did not send
+  it: enable "Allow reading files outside working directory" in Postman settings and select the file again.
 
 ## Next
-1. Categories and sub-categories (admin CRUD with icon + image, customer tree endpoint).
-2. Products (variants, tags, channels + stock, auto discount, images, content tabs).
-3. Customer catalog (list, filters, search, detail, brand pages, Instadent gate).
-4. Reviews/ratings, wishlist, Q&A, feedback.
-5. Importer for the frontend's current demo data.
+1. Products (variants, tags, channels + stock, auto discount, images, content tabs).
+2. Customer catalog (list, filters, search, detail, brand pages, Instadent gate).
+3. Reviews and ratings, wishlist, Q&A, feedback.
+4. Importer for the frontend's current demo data.
+5. Admin screens for the dropdown lists (registration types, vendor types, countries) and brand "top / featured / new / suggested" flags.
 
-## Notes / decisions
-* Nothing from this work has been committed or pushed yet.
-* Admin brand logo update from a browser: send `POST` with `_method=PUT` when the request has files.
+## Notes
+* Admin file uploads from a browser: send `POST` with `_method=PUT` (a real PUT cannot carry files).
+* Production checklist: HTTPS, `SESSION_SECURE_COOKIE=true`, `SANCTUM_STATEFUL_DOMAINS` = the real admin domain, strong
+  `SEED_ADMIN_PASSWORD` (the seeder refuses weak passwords in production), `APP_URL` = public API URL (image URLs use it).

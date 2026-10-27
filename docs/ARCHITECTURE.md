@@ -1,6 +1,6 @@
 # Dentalkart Clone – Backend Architecture
 
-Status: **design, awaiting approval** (no Laravel code written yet).
+Status: **design approved; foundation, company/brand module, categories and admin panel are built** (see [PROGRESS.md](PROGRESS.md)).
 Companion document: [DATABASE.md](DATABASE.md) (every table, column and index).
 
 ---
@@ -28,7 +28,8 @@ Build order is in section 10. Phase 1 = company, brand, category, product, revie
 | Framework | **Laravel (latest stable), PHP 8.3+** | Requested. Eloquent, queues, policies, resources, testing built in. |
 | Database | **MySQL 8 (InnoDB, utf8mb4)** | Requested. |
 | Cache / queue / rate limit | **Redis** | Fast category tree, home sections, queues, throttling. |
-| Auth | **Laravel Sanctum** (bearer tokens), two guards: `admin`, `customer` | Stateless → easy to scale horizontally. |
+| Auth | **Laravel Sanctum**. Admin panel: HttpOnly **cookie session + CSRF** (session guard `admin`, sessions in MySQL). Customer site and tools (Postman): **bearer tokens** | Cookie is not readable by JavaScript; tokens keep the customer API stateless. |
+| Admin panel | **Vue 3 + Vite + Pinia + Vue Router** in `admin-frontend/` | Same stack as the customer site, kept in its own app so the two do not collide. |
 | Roles | **spatie/laravel-permission** | Standard, tables well known. |
 | Media | **spatie/laravel-medialibrary** | Icons, banners, product images, catalogue files, thumbnails; local disk now, S3/R2 later by config. |
 | API docs | **Scramble** (OpenAPI generated from code) | Frontend developer gets a live spec. |
@@ -72,11 +73,13 @@ app/
     Requests/                   FormRequest validation
     Resources/                  API Resources (response shape)
   Support/                      money, slug, settings, channel context helpers
-database/migrations, seeders, factories
-routes/api_store.php, api_admin.php
+database/migrations, seeders
+routes/api_store.php, api_admin.php, web.php (serves the admin panel at /admin)
 tests/Feature/…
-docs/
+admin-frontend/                 Vue admin panel (dev: npm run dev -> :5190; build -> public/admin-assets)
+docs/                           ARCHITECTURE, DATABASE, PROGRESS, postman/
 ```
+Only the modules built so far exist under `app/Domain` (Auth, Catalog, Company, Support); the others are added with their phase.
 
 Rules: controller → FormRequest → **Action class** → Eloquent → Resource.
 No business logic in controllers or models' magic. Policies for authorization.
@@ -88,10 +91,16 @@ Enums (PHP backed enums) for every status/type column.
 
 * **admins** table (separate from customers) – login by `username` (seed: `admin`), roles via spatie.
   Seed role `super_admin` first; `catalog_manager`, `order_manager`, `support` can be added without schema change.
-* **users** (customers) – login by email or mobile; seed: `test@gmail.com / test`.
+* **Admin login has two modes on the same endpoint** (`POST /admin/auth/login`), chosen by the request origin:
+  * the admin panel (origin listed in `SANCTUM_STATEFUL_DOMAINS`) gets an **HttpOnly session cookie**; state-changing calls
+    must send the CSRF token (`XSRF-TOKEN` cookie → `X-XSRF-TOKEN` header; the panel does this automatically);
+  * any other client (Postman, scripts) gets a **bearer token**.
+  Admin routes accept both (`auth:admin,sanctum`) and `actor:admin` checks the credential belongs to an admin.
+* **users** (customers) – login by email or mobile (bearer token); seed: `test@gmail.com / test`.
   Only **login** is built now. Register, OTP and forgot-password tables exist in the schema, endpoints later.
+* A customer credential never works on `/admin/*` and an admin credential never works on `/store/*` (`actor:` middleware).
 * Seed passwords come from `.env` and the seeders refuse to run with weak defaults when `APP_ENV=production`.
-* Throttling on login, OTP and every public form.
+* Throttling: login 8/min per name+IP; public forms 10/hour per IP (500 in local mode, `FORMS_PER_HOUR`).
 * **Instadent access:** the `sales_channels` row for `instadent` has `requires_login = true`.
   A `channel` middleware enforces it on the API, so a guest cannot read Instadent catalogue even by calling
   the API directly. Wishlist and review endpoints always require a customer token.
@@ -104,18 +113,30 @@ Enums (PHP backed enums) for every status/type column.
 * `companies` – the legal entity that registers (seller form). Internal, admin-facing.
 * `brands` – customer-facing label, **belongs to one company**; a company has many brands
   (e.g. one company → Waldent, Waldent Instruments, Waldent AlChem).
+* **The website shows brands, not companies** (like dentalkart.com). The customer brands API returns only active brands of
+  approved companies and never exposes company data.
+* **Logo rule:** a brand shows its own logo if the admin uploaded one, otherwise the **company logo** (`logo_source`:
+  `brand` | `company`; `has_own_logo` in the admin API; `remove_logo=1` clears a brand logo).
+* A company must keep **at least one brand**: registration requires one, and the last brand cannot be deleted.
 * Brand pages (`/brands/:brand`) list products by `brand_id`.
 * A product has **required `company_id` and `brand_id`**; validation enforces `brand.company_id = product.company_id`.
   Only **approved** companies appear in the product form.
 * Imported legacy/frontend products get a default company **"Dentalkart (In-house)"** and brands created from their brand names.
 
 ### 6.2 Company registration workflow (customer form + admin)
-Customer form (screens supplied by you), 2 steps + catalogue:
+Customer form, 2 steps:
 1. Company Name, Registered As (dropdown), Company Email, Origin Country (dropdown), Vendor Type (dropdown),
-   Company Contact Number, VAT/GST Number, Brands (name + country, repeatable via **Add**).
+   Company Contact Number, VAT/GST Number, **Brands (at least one**; name + optional country, repeatable via **Add**).
 2. Contact Name, Mobile, Contact Email, WhatsApp (optional), Company Address, Landmark (optional), City, ZIP/PIN,
-   "support you can provide to promote your products" (**200–500 characters**), **catalogue upload**
-   (PNG/JPG/JPEG/WEBP/PDF; "Register Now" stays disabled until a file is uploaded).
+   "support you can provide to promote your products" (**200–500 characters**), **company logo (required)** and an
+   optional private product catalogue (PNG/JPG/JPEG/WEBP/PDF).
+
+**Logo vs catalogue:** the logo is the company's picture (public, thumbnailed, default logo of its brands). The catalogue is
+private files for the team (price lists, brochures); only admins can download them. (Decision of the owner: the logo is required,
+the catalogue is optional.)
+
+**Dropdown data** is public: one API per list (`/store/lookups/registration-types`, `/vendor-types`, `/countries`) and a combined
+`/store/company-registration/options` (all three + the form limits).
 
 Statuses: `pending → approved | rejected`, plus `suspended`.
 * Public submission → `source = public_form`, `status = pending`, brands created inactive.
@@ -129,7 +150,15 @@ Statuses: `pending → approved | rejected`, plus `suspended`.
 Two tables, as decided by the owner: `categories` and `sub_categories` (`sub_categories.category_id` FK).
 Both have an icon and an image (media attachments). Products store **both** `category_id` and `sub_category_id` (nullable),
 so either filter is a single indexed lookup; validation guarantees the sub-category belongs to the chosen category.
-A third level is not supported by this schema (not needed on the live site).
+There are **three levels**: category → sub-category → sub-sub-category. A sub-sub-category is a row of `sub_categories` whose `parent_id`
+points to a first-level sub-category (one level only; the admin API refuses a child under a child). It has the same fields and icon / image.
+Only some sub-categories have children; one without children simply lists its products. A product's `sub_category_id` may be a
+sub-category or a sub-sub-category; `category_id` is always the top category. Up to **12** categories can be flagged `is_top` (home screen).
+
+Rules: slug comes from the name and is unique (regenerated when the name changes). A category that has sub-categories or products,
+and a sub-category that has children or products, cannot be deleted (422 "deactivate it instead"). `is_active = false` hides it from customers (a
+category or sub-category hides everything under it too); there is no separate "show in menu" switch. Lists are ordered by `sort_order`, then name.
+The customer tree (`sub_categories[].children[]`; `?top=1`) is cached for 10 minutes (`Domain/Catalog/CategoryTree`) and cleared on every admin write.
 
 ### 6.4 Product, variant, price
 * Every product has **at least one variant** (a hidden *default* variant is auto-created for products without
@@ -220,6 +249,18 @@ Order/Payment into a service (boundaries already modular).
 
 ## 8. API surface (versioned `/api/v1`)
 
+**Built so far**
+
+| Side | Endpoints |
+|---|---|
+| Customer (`/store`) | `auth/login`, `auth/logout`, `auth/me` · `lookups/registration-types`, `lookups/vendor-types`, `lookups/countries` · `company-registration/options` · `POST company-registrations` · `brands`, `brands/{slug}` · `categories` (`?menu=1`), `categories/{slug}` · `settings/delivery` |
+| Admin (`/admin`) | `auth/login|logout|me` · `dashboard` · `companies` (list with status counts, create, show, update, delete, `approve`, `reject`, `suspend`, private catalogue download, `options`) · `companies/{id}/brands`, `brands` (list, show, create, update, delete) · `categories` (list with sub-categories + counts, `options`, create, show, update, delete), `categories/{id}/sub-categories` (create), `sub-categories/{id}` (show, update, delete) · `settings/delivery` |
+
+Live reference generated from the code: `/docs/api` (Scramble). Postman: `docs/postman/Dentalkart-APIs.postman_collection.json`
+(the 8 customer APIs).
+
+**Planned (full surface)**
+
 **Store (customer)**
 auth (login, logout, me) · categories tree · products (list, filter, sort, search, suggestions, detail, related) ·
 brands (list, brand products) · collections / homepage sections per channel · reviews (list, create, edit) ·
@@ -250,11 +291,15 @@ admins & roles · audit log.
 
 ## 10. Build phases
 
-0. **Foundation** – Laravel install, MySQL/Redis config, **all migrations for the whole schema**, enums, seeders
-   (admin, test customer, lookups, channels, default company), Sanctum guards, roles, Scramble docs, PHPUnit setup, CI-ready `.env.example`.
-1. **Company module** – public registration (+ catalogue upload), admin list / create / approve / reject, brands.
-2. **Categories & sub-categories** – admin CRUD with icon + image.
-3. **Products** – admin CRUD, variants, tiers, tags, channels + stock, images, content tabs, auto discount.
+0. ✅ **Foundation** – Laravel 13, MySQL, **all migrations for the whole schema (88 tables)**, enums, seeders
+   (admin, test customer, lookups, channels, delivery settings, in-house company), auth (admin cookie + tokens, customer tokens),
+   roles, Scramble docs, PHPUnit setup, `.env.example`. (Redis is optional later; cache/queue/sessions use MySQL for now.)
+1. ✅ **Company module** – public registration (logo + optional catalogue), admin list / create / approve / reject / suspend, brands
+   (own logo or company logo), customer brands API, dropdown APIs, delivery settings.
+1b. ✅ **Admin panel** – login, dashboard, companies list/detail/form, brands management (see `admin-frontend/`).
+1c. ✅ **Categories & sub-categories** – admin CRUD with icon + image, delete rules, cached customer tree (`/store/categories`), seeder,
+   admin page with expandable rows and inline switches.
+3. **Products** *(next)* – admin CRUD, variants, tiers, tags, channels + stock, images, content tabs, auto discount.
 4. **Customer catalog** – listing, filters, search, detail, brand pages, Instadent (login-gated), homepage sections.
 5. **Reviews, ratings, wishlist, Q&A, feedback.**
 6. **Seed importer** – load the frontend's current products/brands/categories into the DB.
@@ -266,7 +311,8 @@ Each phase ends with: migrations (already done in phase 0), actions, endpoints, 
 
 ## 11. Assumptions and open items (to confirm)
 
-1. Dropdown options for **Company Registered As**, **Vendor Type**, **Country** were not visible → seeded with typical values, admin-editable.
+1. Dropdown options for **Company Registered As**, **Vendor Type**, **Country** were not visible on the live site → seeded with typical
+   values (7 / 7 / 49), editable in the database; an admin screen for them is not built yet.
 2. Dealer-enquiry and Waldent-dealership form fields beyond Personal Details were not visible → stored in `enquiries.payload` JSON.
 3. Courier, payment gateway, SMS and mail providers are not chosen → adapters + fake drivers for now.
 4. Instadent specifics (delivery ETA, serviceable pincodes) → modelled on `pincodes`; rules to be confirmed.

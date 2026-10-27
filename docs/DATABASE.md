@@ -127,7 +127,13 @@ channel    VARCHAR(10)   – sms | email | whatsapp
 purpose    VARCHAR(20)   – login | verify | reset
 code_hash  VARCHAR(255), attempts TINYINT default 0, expires_at, consumed_at NULL, ip VARCHAR(45)
 ```
-Also Laravel defaults: `password_reset_tokens`, `personal_access_tokens` (Sanctum), `jobs`, `failed_jobs`, `cache`, `cache_locks`, `job_batches`.
+### sessions  (admin panel cookie login)
+```
+id VARCHAR PK, user_id BIGINT NULL IX (the admin id), ip_address, user_agent, payload LONGTEXT, last_activity INT IX
+```
+Created by `2026_10_27_000006_create_sessions_table`. Stored in MySQL so several servers can share sessions.
+
+Also Laravel defaults: `password_reset_tokens`, `personal_access_tokens` (Sanctum bearer tokens), `jobs`, `failed_jobs`, `cache`, `cache_locks`, `job_batches`.
 
 ---
 
@@ -175,8 +181,11 @@ reviewed_at          TIMESTAMP NULL
 rejection_reason     VARCHAR(500) NULL
 is_in_house          BOOLEAN default 0               – the "Dentalkart (In-house)" company
 IX (status), IX (vat_gst_number), IX (name)
-media: logo, catalogue (many files, PNG/JPG/JPEG/WEBP/PDF)
+media: logo      – REQUIRED at registration; one image (PNG/JPG/JPEG/WEBP, ≤ 4 MB), public, 256 px thumbnail;
+                   also the default logo of the company's brands
+media: catalogue – OPTIONAL private files (PNG/JPG/JPEG/WEBP/PDF, ≤ 10 MB, ≤ 10 files), only admins can download
 ```
+A company must have at least one brand (enforced when registering; the last brand of a company cannot be deleted).
 
 ### brands  [P1]  SD
 ```
@@ -188,7 +197,8 @@ description  TEXT NULL
 is_active    BOOLEAN default 0                   – activated when the company is approved
 sort_order   INT default 0
 meta_title, meta_description NULL
-media: logo, banner
+media: logo   – OPTIONAL own logo; without it the API returns the company logo (logo_source = "company")
+media: banner – optional
 UQ (company_id, name)
 ```
 ### brand_collections  (Top / Featured / New / Suggested brand rails)
@@ -211,14 +221,15 @@ rating       DECIMAL(2,1) NULL                   – optional editorial rating s
 color        VARCHAR(9) NULL                     – tile colour
 sort_order   INT default 0
 is_active    BOOLEAN default 1
-show_in_menu BOOLEAN default 1                   – mega menu
+is_top       BOOLEAN default 0   IX             – shown on the home screen (max 12, enforced by SaveCategory)
 meta_title, meta_description NULL
 media: icon, image, banner
 ```
 ### sub_categories  [P2]  SD   (separate table, decided by the owner)
 ```
-category_id  → categories                        IX, required (RESTRICT on delete)
-name, slug (UQ per category_id), description, rating, color, sort_order, is_active, show_in_menu, meta_title, meta_description
+category_id  → categories                        IX, required (RESTRICT on delete) – always the TOP category, also for a child
+parent_id    → sub_categories NULL              – set = this is a sub-sub-category (one level only, enforced by the admin API)
+name, slug (UQ per category_id), description, rating, color, sort_order, is_active, meta_title, meta_description
 media: icon, image, banner                       – icon + image available on categories AND sub-categories
 UQ (category_id, slug)
 ```
@@ -739,7 +750,10 @@ changes JSON NULL, ip VARCHAR(45) NULL        IX (subject_type, subject_id), IX 
   orders never cascade from catalogue (they use snapshots).
 * **Constraints:** `selling_price <= mrp`, `rating BETWEEN 1 AND 5`, unique `(product_id, user_id)` review,
   unique `(variant_id, channel_id)` stock row, product `brand.company_id = company_id` (application + test).
-* **Counts of tables:** 87 in `dentalkart_db` including Laravel/spatie platform tables (all created by the migrations).
+* **Counts of tables:** 88 in `dentalkart_db` including Laravel/spatie platform tables (all created by the migrations; the schema is
+  complete, the code for most modules is still to be written – see `PROGRESS.md`).
+* **Built so far (tables in use):** users, admins, sessions, personal_access_tokens, roles/permissions, countries,
+  company_registration_types, vendor_types, companies, brands, categories, sub_categories (`2026_10_28_000001` adds `categories.is_top` and `sub_categories.parent_id`; `2026_10_28_000002` drops `show_in_menu`), media, audit_logs, site_settings, sales_channels.
 * **Delivery charge:** flat for every pincode and channel. `site_settings.delivery_fee` (₹95) and `free_delivery_min_cart` (₹2800)
   are admin-editable; `shipping_rules` is kept for future per-audience rules but is not used yet.
   Delivery time per channel = `sales_channels.delivery_days` (standard 5, Instadent 3).
