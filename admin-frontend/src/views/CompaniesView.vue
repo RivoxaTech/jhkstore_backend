@@ -119,12 +119,13 @@ onBeforeUnmount(() => clearTimeout(t))
       <table class="table">
         <thead>
           <tr>
-            <th>Company</th><th>Contact</th><th>Location</th><th>Vendor / type</th><th>GST / VAT</th>
+            <th class="sno">#</th><th>Company</th><th>Contact</th><th>Location</th><th>Vendor / type</th><th>GST / VAT</th>
             <th>Brands</th><th>Status</th><th>Submitted</th><th />
           </tr>
         </thead>
         <tbody>
-          <tr v-for="c in rows" :key="c.id" class="row-link" @click="router.push({ name: 'company', params: { id: c.id } })">
+          <tr v-for="(c, i) in rows" :key="c.id" class="row-link" @click="router.push({ name: 'company', params: { id: c.id } })">
+            <td class="sno">{{ (page - 1) * 15 + i + 1 }}</td>
             <td>
               <div class="cell-main">
                 <LogoBox :name="c.name" :src="c.logo_thumb_url" />
