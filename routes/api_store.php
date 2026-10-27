@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Store\AuthController;
 use App\Http\Controllers\Store\BrandController;
+use App\Http\Controllers\Store\CategoryController;
 use App\Http\Controllers\Store\CompanyRegistrationController;
 use App\Http\Controllers\Store\SettingController;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +24,10 @@ Route::get('settings/delivery', [SettingController::class, 'delivery']);
 // Brands (customer side)
 Route::get('brands', [BrandController::class, 'index']);
 Route::get('brands/{slug}', [BrandController::class, 'show']);
+
+// Categories (customer side): active tree with sub-categories, cached
+Route::get('categories', [CategoryController::class, 'index']);
+Route::get('categories/{slug}', [CategoryController::class, 'show']);
 
 // "Sell on Dentalkart" seller registration
 // Dropdown data: one call for all three lists ...
