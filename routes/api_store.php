@@ -4,7 +4,10 @@ use App\Http\Controllers\Store\AuthController;
 use App\Http\Controllers\Store\BrandController;
 use App\Http\Controllers\Store\CategoryController;
 use App\Http\Controllers\Store\CompanyRegistrationController;
+use App\Http\Controllers\Store\ProductController;
+use App\Http\Controllers\Store\ReviewController;
 use App\Http\Controllers\Store\SettingController;
+use App\Http\Controllers\Store\TagController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -28,6 +31,16 @@ Route::get('brands/{slug}', [BrandController::class, 'show']);
 // Categories (customer side): active tree with sub-categories, cached
 Route::get('categories', [CategoryController::class, 'index']);
 Route::get('categories/{slug}', [CategoryController::class, 'show']);
+
+// Products. `channel` middleware: ?channel=standard (default) | instadent (guests get 401)
+Route::middleware('channel')->group(function () {
+    Route::get('products', [ProductController::class, 'index']);
+    Route::get('products/{slug}', [ProductController::class, 'show']);
+});
+Route::get('tags', [TagController::class, 'index']);
+Route::get('products/{slug}/reviews', [ReviewController::class, 'index']);
+Route::post('products/{slug}/reviews', [ReviewController::class, 'store'])
+    ->middleware(['auth:sanctum', 'actor:customer', 'throttle:reviews']);
 
 // "Sell on Dentalkart" seller registration
 // Dropdown data: one call for all three lists ...

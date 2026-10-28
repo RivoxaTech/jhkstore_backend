@@ -23,6 +23,9 @@ class AppServiceProvider extends ServiceProvider
         // Login attempts: 8 per minute per login name + IP.
         RateLimiter::for('login', fn (Request $request) => Limit::perMinute(8)->by(strtolower((string) $request->input('login')).'|'.$request->ip()));
 
+        // Reviews: 30 per hour per customer (REVIEWS_PER_HOUR in .env to change).
+        RateLimiter::for('reviews', fn (Request $request) => Limit::perHour((int) env('REVIEWS_PER_HOUR', 30))->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
+
         // Public forms (seller registration, enquiries): 10 per hour per IP (more on a developer machine so testing is not blocked).
         // Override with FORMS_PER_HOUR in .env.
         RateLimiter::for('forms', fn (Request $request) => Limit::perHour(

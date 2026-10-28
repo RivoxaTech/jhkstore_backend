@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureActor;
+use App\Http\Middleware\ResolveChannel;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -20,7 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['actor' => EnsureActor::class]);
+        $middleware->alias(['actor' => EnsureActor::class, 'channel' => ResolveChannel::class]);
 
         // Requests from the admin panel origin (SANCTUM_STATEFUL_DOMAINS) get sessions + CSRF protection.
         // Everything else (customer site, Postman) stays stateless and uses bearer tokens.

@@ -13,9 +13,10 @@ class SettingController extends Controller
     public function delivery(): JsonResponse
     {
         return response()->json([
-            'currency' => 'INR',
-            'delivery_fee' => (float) SiteSetting::read('delivery_fee', 95),
-            'free_delivery_min_cart' => (float) SiteSetting::read('free_delivery_min_cart', 2800),
+            'currency' => SiteSetting::read('currency_code', 'PKR'),
+            'currency_symbol' => SiteSetting::read('currency_symbol', 'Rs'),
+            'delivery_fee' => (float) SiteSetting::read('delivery_fee', 300),
+            'free_delivery_min_cart' => (float) SiteSetting::read('free_delivery_min_cart', 8500),
             'channels' => DB::table('sales_channels')->where('is_active', true)->get(['code', 'name', 'delivery_days', 'requires_login']),
         ]);
     }
