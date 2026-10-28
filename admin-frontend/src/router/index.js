@@ -10,6 +10,9 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: '', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { title: 'Dashboard' } },
+      { path: 'products', name: 'products', component: () => import('@/views/ProductsView.vue'), meta: { title: 'Products' } },
+      { path: 'products/new', name: 'product-new', component: () => import('@/views/ProductFormView.vue'), meta: { title: 'New product' } },
+      { path: 'products/:id(\\d+)/edit', name: 'product-edit', component: () => import('@/views/ProductFormView.vue'), meta: { title: 'Edit product' } },
       { path: 'categories', name: 'categories', component: () => import('@/views/CategoriesView.vue'), meta: { title: 'Categories' } },
       { path: 'companies', name: 'companies', component: () => import('@/views/CompaniesView.vue'), meta: { title: 'Companies' } },
       { path: 'companies/new', name: 'company-new', component: () => import('@/views/CompanyFormView.vue'), meta: { title: 'New company' } },

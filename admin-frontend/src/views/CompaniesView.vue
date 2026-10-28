@@ -7,9 +7,11 @@ import { useUiStore } from '@/stores/ui.js'
 import LogoBox from '@/components/LogoBox.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
+import RowsPerPage from '@/components/RowsPerPage.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { formatDate } from '@/utils/format.js'
+import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -27,6 +29,8 @@ const search = ref(String(route.query.q || ''))
 const status = computed(() => String(route.query.status || ''))
 const source = computed(() => String(route.query.source || ''))
 const page = computed(() => Number(route.query.page || 1))
+const perPage = computed(() => (isValidPerPage(route.query.per_page) ? Number(route.query.per_page) : storedPerPage()))
+function setPerPage(n) { rememberPerPage(n); go({ per_page: n, page: undefined }) }
 
 const tabs = computed(() => [
   { key: '', label: 'All', count: Object.values(counts.value).reduce((a, b) => a + Number(b), 0) },
@@ -43,7 +47,7 @@ async function load() {
   error.value = ''
   try {
     const res = await api.get('admin/companies', {
-      status: status.value, source: source.value, q: route.query.q, page: page.value, per_page: 15,
+      status: status.value, source: source.value, q: route.query.q, page: page.value, per_page: perPage.value,
     })
     if (mine !== seq) return // a newer request is already running
     rows.value = res.data
@@ -91,6 +95,7 @@ onBeforeUnmount(() => clearTimeout(t))
       <button v-for="tab in tabs" :key="tab.key" class="tab" :class="{ 'is-active': status === tab.key }" type="button" role="tab" :aria-selected="status === tab.key" @click="go({ status: tab.key, page: undefined })">
         {{ tab.label }} <span v-if="loadedOnce" class="count">{{ tab.count }}</span>
       </button>
+      <RowsPerPage :model-value="perPage" @update:model-value="setPerPage" />
     </div>
 
     <div class="toolbar">
@@ -125,7 +130,7 @@ onBeforeUnmount(() => clearTimeout(t))
         </thead>
         <tbody>
           <tr v-for="(c, i) in rows" :key="c.id" class="row-link" @click="router.push({ name: 'company', params: { id: c.id } })">
-            <td class="sno">{{ (page - 1) * 15 + i + 1 }}</td>
+            <td class="sno">{{ (page - 1) * perPage + i + 1 }}</td>
             <td>
               <div class="cell-main">
                 <LogoBox :name="c.name" :src="c.logo_thumb_url" />

@@ -1,7 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Bell, Building2, ChevronsLeft, ChevronsRight, FolderTree, LayoutDashboard, LogOut, Menu, Search, Stethoscope } from '@lucide/vue'
+import { Bell, Building2, ChevronsLeft, ChevronsRight, FolderTree, LayoutDashboard, LogOut, Menu, Package, Search, Stethoscope } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { api } from '@/api/client.js'
@@ -64,6 +64,9 @@ async function logout() {
         </RouterLink>
         <RouterLink :to="{ name: 'categories' }" class="nav-item" :class="{ 'is-active': route.name === 'categories' }" exact-active-class="" active-class="">
           <FolderTree :size="19" /><span>Categories</span>
+        </RouterLink>
+        <RouterLink :to="{ name: 'products' }" class="nav-item" :class="{ 'is-active': String(route.name).startsWith('product') }" exact-active-class="" active-class="">
+          <Package :size="19" /><span>Products</span>
         </RouterLink>
       </nav>
       <div class="sidebar__foot">

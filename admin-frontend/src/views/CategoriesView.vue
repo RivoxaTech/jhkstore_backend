@@ -9,12 +9,21 @@ import CategoryModal from '@/components/CategoryModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import PaginationBar from '@/components/PaginationBar.vue'
+import RowsPerPage from '@/components/RowsPerPage.vue'
+import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 
 const MAX_TOP = 12 // top categories shown on the home screen (the API enforces it too)
 
 const ui = useUiStore()
 
 const categories = ref([])
+const meta = ref(null)                       // pagination of the top-level categories
+const counts = ref({ categories: 0, top: 0, sub_categories: 0, children: 0 }) // totals of everything (not only this page)
+const page = ref(1)
+const perPage = ref(storedPerPage())
+const PER_PAGE = computed(() => perPage.value)
+function setPerPage(n) { perPage.value = n; rememberPerPage(n); page.value = 1; load() }
 const loading = ref(true)
 const error = ref('')
 const search = ref('')
@@ -24,9 +33,7 @@ const toDelete = ref(null)       // { item, level } level: 'category' | 'sub' | 
 const busy = ref(false)
 
 const searching = computed(() => search.value.trim() !== '')
-const totalSubs = computed(() => categories.value.reduce((n, c) => n + (c.sub_categories?.length || 0), 0))
-const totalChildren = computed(() => categories.value.reduce((n, c) => n + c.sub_categories.reduce((m, s) => m + (s.children?.length || 0), 0), 0))
-const topCount = computed(() => categories.value.filter(c => c.is_top).length)
+const topCount = computed(() => counts.value.top)
 const isOpen = (key) => searching.value || expanded.value.has(key)
 
 let seq = 0
@@ -34,9 +41,13 @@ async function load() {
   const mine = ++seq
   error.value = ''
   try {
-    const res = await api.get('admin/categories', { q: search.value.trim() })
+    const res = await api.get('admin/categories', { q: search.value.trim(), page: page.value, per_page: perPage.value })
     if (mine !== seq) return // a newer request is already running
     categories.value = res.data
+    meta.value = res.meta
+    counts.value = res.counts
+    // the last row of the last page was deleted: go back one page
+    if (!res.data.length && page.value > 1) { page.value = res.meta.last_page; return load() }
   } catch (e) {
     if (mine === seq) error.value = e.message
   } finally {
@@ -46,7 +57,8 @@ async function load() {
 onMounted(load)
 
 let t
-watch(search, () => { clearTimeout(t); t = setTimeout(load, 300) })
+watch(search, () => { clearTimeout(t); t = setTimeout(() => { page.value = 1; load() }, 300) })
+const goPage = (n) => { page.value = n; load() }
 onBeforeUnmount(() => clearTimeout(t))
 
 function toggle(key) {
@@ -83,6 +95,7 @@ async function flip(item, field, isSub) {
   item[field] = value
   try {
     await api.put(`admin/${isSub ? 'sub-categories' : 'categories'}/${item.id}`, { [field]: value })
+    if (field === 'is_top') counts.value.top += value ? 1 : -1
     if (field === 'is_active') {
       ui.toast(value ? 'Visible to customers.' : `Hidden from customers${isSub ? '' : ' (with its sub-categories)'}.`, 'info')
     } else if (field === 'is_top') {
@@ -137,13 +150,14 @@ const deleteMessage = computed(() => {
         <input v-model="search" class="input" type="search" placeholder="Search categories or sub-categories" aria-label="Search categories" />
       </div>
       <span v-if="!loading && categories.length" class="muted">
-        {{ categories.length }} categories · {{ totalSubs }} sub-categories<template v-if="totalChildren"> · {{ totalChildren }} sub-sub-categories</template>
+        {{ counts.categories }} categories · {{ counts.sub_categories }} sub-categories<template v-if="counts.children"> · {{ counts.children }} sub-sub-categories</template>
       </span>
       <span v-if="!loading && categories.length" class="top-count" :class="{ 'is-full': topCount >= MAX_TOP }" title="Categories shown on the home screen" data-test="top-count">Home: {{ topCount }}/{{ MAX_TOP }}</span>
       <div v-if="categories.length && !searching" style="margin-left: auto; display: flex; gap: 6px">
         <button class="btn btn-outline btn-sm" type="button" @click="expandAll">Expand all</button>
         <button class="btn btn-outline btn-sm" type="button" @click="collapseAll">Collapse all</button>
       </div>
+      <RowsPerPage :style="{ marginLeft: categories.length && !searching ? '0' : 'auto' }" :model-value="perPage" @update:model-value="setPerPage" />
     </div>
 
     <div v-if="error" class="alert alert--error" style="margin: 0 12px 10px" role="alert">
@@ -167,7 +181,7 @@ const deleteMessage = computed(() => {
         <tbody>
           <template v-for="(c, ci) in categories" :key="c.id">
             <tr class="row-link" :class="{ 'cat-row--open': isOpen(`c${c.id}`) }" data-kind="category" @click="toggle(`c${c.id}`)">
-              <td class="sno">{{ ci + 1 }}</td>
+              <td class="sno">{{ (page - 1) * PER_PAGE + ci + 1 }}</td>
               <td>
                 <div class="cell-main">
                   <button class="chev" :class="{ 'is-open': isOpen(`c${c.id}`) }" type="button" :aria-expanded="isOpen(`c${c.id}`)" :aria-label="`${isOpen(`c${c.id}`) ? 'Collapse' : 'Expand'} ${c.name}`" @click.stop="toggle(`c${c.id}`)">
@@ -202,7 +216,7 @@ const deleteMessage = computed(() => {
             <template v-if="isOpen(`c${c.id}`)">
               <template v-for="(s, si) in c.sub_categories" :key="`s${s.id}`">
                 <tr class="cat-sub" :class="{ 'row-link': s.children?.length }" data-kind="sub-category" @click="s.children?.length && toggle(`s${s.id}`)">
-                  <td class="sno">{{ ci + 1 }}.{{ si + 1 }}</td>
+                  <td class="sno">{{ (page - 1) * PER_PAGE + ci + 1 }}.{{ si + 1 }}</td>
                   <td>
                     <div class="cell-main">
                       <button v-if="s.children?.length" class="chev" :class="{ 'is-open': isOpen(`s${s.id}`) }" type="button" :aria-expanded="isOpen(`s${s.id}`)" :aria-label="`${isOpen(`s${s.id}`) ? 'Collapse' : 'Expand'} ${s.name}`" @click.stop="toggle(`s${s.id}`)">
@@ -234,7 +248,7 @@ const deleteMessage = computed(() => {
 
                 <template v-if="isOpen(`s${s.id}`)">
                   <tr v-for="(k, ki) in s.children" :key="`k${k.id}`" class="cat-sub cat-sub--child" data-kind="sub-sub-category">
-                    <td class="sno">{{ ci + 1 }}.{{ si + 1 }}.{{ ki + 1 }}</td>
+                    <td class="sno">{{ (page - 1) * PER_PAGE + ci + 1 }}.{{ si + 1 }}.{{ ki + 1 }}</td>
                     <td>
                       <div class="cell-main">
                         <LogoBox :name="k.name" :src="k.icon_thumb_url" small />
@@ -278,6 +292,8 @@ const deleteMessage = computed(() => {
         </tbody>
       </table>
     </div>
+
+    <PaginationBar :meta="meta" @page="goPage" />
   </section>
 
   <CategoryModal v-if="modal" :item="modal.item" :parent="modal.parent" @close="modal = null" @saved="onSaved" />

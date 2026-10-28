@@ -1,6 +1,7 @@
 <script setup>
 import { ChevronLeft, ChevronRight } from '@lucide/vue'
 
+// Pager under every table: "Showing 1-25 of 130" and Prev / Next. (Rows per page is the RowsPerPage box at the top of the table.)
 defineProps({ meta: { type: Object, default: null } })
 const emit = defineEmits(['page'])
 </script>

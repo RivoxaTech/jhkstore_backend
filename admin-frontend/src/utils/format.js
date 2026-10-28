@@ -50,5 +50,24 @@ export const ACTION_LABELS = {
   'subcategory.created': 'added sub-category',
   'subcategory.updated': 'updated sub-category',
   'subcategory.deleted': 'deleted sub-category',
+  'product.created': 'added product',
+  'product.updated': 'updated product',
+  'product.deleted': 'deleted product',
+  'product.status_changed': 'changed the status of product',
+  'product.tags_changed': 'changed the tags of product',
+  'product.images_added': 'added pictures to product',
+  'product.image_deleted': 'deleted a picture of product',
+  'product.images_reordered': 'reordered the pictures of product',
+  'tag.created': 'added tag',
+  'tag.updated': 'updated tag',
+  'tag.deleted': 'deleted tag',
   'settings.delivery_updated': 'updated delivery settings',
+}
+
+// Money: the symbol comes from the site settings (currency_symbol, default Rs for PKR) and is set once when the product screens load.
+let currencySymbol = 'Rs'
+export const setCurrency = (symbol) => { if (symbol) currencySymbol = symbol }
+export function money(value) {
+  if (value === null || value === undefined || value === '') return '-'
+  return `${currencySymbol} ${Number(value).toLocaleString('en-PK', { maximumFractionDigits: 2 })}`
 }

@@ -83,6 +83,7 @@ export const api = {
   get: (path, query) => request('GET', path, { query }),
   post: (path, json) => request('POST', path, { json }),
   put: (path, json) => request('PUT', path, { json }),
+  patch: (path, json) => request('PATCH', path, { json }),
   del: (path) => request('DELETE', path),
   /** multipart POST (use `_method=PUT` inside the FormData when updating with files) */
   postForm: (path, form) => request('POST', path, { form }),
