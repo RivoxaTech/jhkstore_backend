@@ -12,12 +12,14 @@ class SettingsSeeder extends Seeder
     {
         // Same delivery charge for every pincode and both channels; free above a cart value.
         $defaults = [
-            ['shipping', 'delivery_fee', 95],
-            ['shipping', 'free_delivery_min_cart', 2800],
-            ['rewards', 'coin_value', 0.5],
+            ['shipping', 'delivery_fee', 300],
+            ['shipping', 'free_delivery_min_cart', 8500],
+            ['rewards', 'coin_value', 1.5],
             ['rewards', 'reward_expiry_days', 365],
-            ['orders', 'cod_max_amount', 49000],
+            ['orders', 'cod_max_amount', 150000],
             ['orders', 'return_window_days', 10],
+            ['general', 'currency_code', 'PKR'],
+            ['general', 'currency_symbol', 'Rs'],
         ];
 
         foreach ($defaults as [$group, $key, $value]) {

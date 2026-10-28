@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             CustomerSeeder::class,
             InHouseCompanySeeder::class,
             CategorySeeder::class,
+            TagSeeder::class,
         ]);
     }
 }
