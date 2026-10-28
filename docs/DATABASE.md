@@ -7,7 +7,7 @@ Phase-1 tables are marked **[P1]**.
 
 * Engine InnoDB, charset `utf8mb4`. PK = `id BIGINT UNSIGNED AUTO_INCREMENT`. FK column = `<singular>_id`.
 * `created_at`, `updated_at` on every table (omitted below). `SD` = also `deleted_at` (soft delete).
-* Money `DECIMAL(12,2)` (INR). Percent `DECIMAL(5,2)`. Coins `INT`.
+* Money `DECIMAL(12,2)` (PKR). Percent `DECIMAL(5,2)`. Coins `INT`.
 * `status` / `type` columns are `VARCHAR(30)` mapped to PHP backed enums (not MySQL ENUM → easy to extend). Allowed values are listed in the notes.
 * `JSON` columns for flexible, non-filtered data only.
 * Images/files use **spatie medialibrary** (`media` table). A note like "media: icon, image" means those media collections exist on the model; no column.
@@ -504,7 +504,7 @@ IX (order_id, created_at)
 payable_type VARCHAR(40), payable_id BIGINT                           IX (payable_type, payable_id)
 method VARCHAR(20), gateway VARCHAR(30) NULL
 gateway_order_id VARCHAR(80) NULL UQ, gateway_payment_id VARCHAR(80) NULL UQ
-amount DECIMAL(12,2), currency CHAR(3) default 'INR'
+amount DECIMAL(12,2), currency CHAR(3) default 'PKR'
 status VARCHAR(20)  – initiated | authorized | captured | failed | refunded | cod_pending | cod_collected
 failure_reason VARCHAR(255) NULL, response JSON NULL, paid_at NULL
 ```
@@ -720,7 +720,7 @@ min_cart_value DECIMAL(10,2) default 0, fee DECIMAL(8,2), is_active, priority IN
 ```
 group_key VARCHAR(40), key VARCHAR(80) UQ, value JSON      – contact info, coin value, COD max, redemption caps, return window days…
 ```
-(Seeds: coin_value 0.5, cod_max_amount 49000, reward_expiry_days 365, return_window_days 10, damage_report_hours 48,
+(Seeds: coin_value 1.5, cod_max_amount 150000, reward_expiry_days 365, return_window_days 10, damage_report_hours 48,
 max_redeem_coins_per_order 5000, support phone/email/hours.)
 
 ---
@@ -753,8 +753,13 @@ changes JSON NULL, ip VARCHAR(45) NULL        IX (subject_type, subject_id), IX 
 * **Counts of tables:** 88 in `dentalkart_db` including Laravel/spatie platform tables (all created by the migrations; the schema is
   complete, the code for most modules is still to be written – see `PROGRESS.md`).
 * **Built so far (tables in use):** users, admins, sessions, personal_access_tokens, roles/permissions, countries,
-  company_registration_types, vendor_types, companies, brands, categories, sub_categories (`2026_10_28_000001` adds `categories.is_top` and `sub_categories.parent_id`; `2026_10_28_000002` drops `show_in_menu`), media, audit_logs, site_settings, sales_channels.
-* **Delivery charge:** flat for every pincode and channel. `site_settings.delivery_fee` (₹95) and `free_delivery_min_cart` (₹2800)
+  company_registration_types, vendor_types, companies, brands, categories, sub_categories (`2026_10_28_000001` adds `categories.is_top` and `sub_categories.parent_id`; `2026_10_28_000002` drops `show_in_menu`), media, audit_logs, site_settings, sales_channels, **products, product_variants, variant_channel_stock, inventory_movements, product_channels, product_images, product_content_tabs, product_tag, tags, product_relations, variant_price_tiers, product_reviews, product_rating_stats** (`2026_10_28_000003` adds `products.return_days`, default 10; `2026_10_28_000004` adds the search indexes `products(name)`, `brands(name)`, `companies(email)`, FULLTEXT `companies(name)` and renames old "Default" options to their product name).
+* **Product tables - how they are used** (no migration was needed): `product_variants` holds price / MRP / `discount_percent` (calculated on save) / `reward_points` / expiry;
+  `variant_channel_stock` one row per variant and channel (quantity is separate per channel, `reserved_qty` is for the future cart); every change of it writes `inventory_movements`
+  (`initial`, `adjustment`). `product_channels.is_active` is the on/off toggle per channel. Uploaded pictures are `media` rows (collection `images` of `Product`);
+  `product_images.url` only carries remote urls of imported data. `products.min_price`, `max_discount_percent`, `is_in_stock`, `rating_avg`, `rating_count` are denormalized and kept by code.
+  `tags.is_system` marks the 7 undeletable tags. `variant_price_tiers` = quantity prices; `product_relations` = hand-picked related products; a picture of an option is a `media` row with custom property `variant_id`. Currency: `site_settings` `currency_code` (PKR) and `currency_symbol` (Rs). Unused for now: `collections`, `collection_product`, `search_terms`, `product_questions`, `product_feedback`, wishlists.
+* **Delivery charge:** flat for every pincode and channel. `site_settings.delivery_fee` (Rs 300) and `free_delivery_min_cart` (Rs 8,500)
   are admin-editable; `shipping_rules` is kept for future per-audience rules but is not used yet.
   Delivery time per channel = `sales_channels.delivery_days` (standard 5, Instadent 3).
 * Coupon targets / banner links use `category | sub_category | brand | product` as target types.

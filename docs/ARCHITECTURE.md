@@ -1,6 +1,6 @@
 # Dentalkart Clone – Backend Architecture
 
-Status: **design approved; foundation, company/brand module, categories and admin panel are built** (see [PROGRESS.md](PROGRESS.md)).
+Status: **design approved; foundation, company/brand module, categories, products (admin + customer catalogue + reviews) and admin panel are built** (see [PROGRESS.md](PROGRESS.md)).
 Companion document: [DATABASE.md](DATABASE.md) (every table, column and index).
 
 ---
@@ -79,7 +79,7 @@ tests/Feature/…
 admin-frontend/                 Vue admin panel (dev: npm run dev -> :5190; build -> public/admin-assets)
 docs/                           ARCHITECTURE, DATABASE, PROGRESS, postman/
 ```
-Only the modules built so far exist under `app/Domain` (Auth, Catalog, Company, Support); the others are added with their phase.
+Only the modules built so far exist under `app/Domain` (Auth, Catalog, Company, Review, Support); the others are added with their phase.
 
 Rules: controller → FormRequest → **Action class** → Eloquent → Resource.
 No business logic in controllers or models' magic. Policies for authorization.
@@ -161,16 +161,39 @@ category or sub-category hides everything under it too); there is no separate "s
 The customer tree (`sub_categories[].children[]`; `?top=1`) is cached for 10 minutes (`Domain/Catalog/CategoryTree`) and cleared on every admin write.
 
 ### 6.4 Product, variant, price
-* Every product has **at least one variant** (a hidden *default* variant is auto-created for products without
-  options). Price, MRP, coins, SKU-level stock, cart lines, order lines, wishlist lines all point to a **variant**.
-  This is what keeps cart/orders simple and scalable.
+* **A product is the parent, its options (variants) are the children** - like dentalkart.com: opening a product lists its options as separate items
+  (even a product with one model has exactly one option, with its own name), the product page shows the general pictures and each option its own pictures,
+  the **starting price is the cheapest option**, and only an option is added to the cart. Price, MRP, coins, SKU-level stock, cart lines, order lines and
+  wishlist lines all point to a **variant**. This keeps cart/orders simple and scalable. At least one option is required.
 * `discount_percent = round((mrp − selling_price) / mrp × 100, 2)`, calculated on save (backend), stored for sort/filter.
   Validation: `selling_price ≤ mrp`. The UI shows e.g. "50% off" from this value.
 * Product keeps denormalized `min_price`, `max_discount_percent`, `rating_avg`, `rating_count`,
   `is_in_stock` – refreshed by observers/jobs – so listing pages never aggregate.
+* **Options in the API:** `variants` list (an `id` keeps a variant, missing ones are removed - or only switched off when an order uses them); every option needs a
+  name. Exactly one option is the default. A shortcut for scripts: flat `mrp`, `selling_price`, `reward_points`, `expiry_date`, `stock` creates one option named like the
+  product. The customer card shows price / MRP / points of the **cheapest** option and `options_count`.
+  A product with **one** option is shown as that option (card `name` = option name, direct price, `show_starting_at: false`, `badge_label` "3 Offers" = its bulk prices, or "1 Option" when it has none; detail `display_mode: single_option`). With several options the card keeps the parent name, `show_starting_at: true` and `badge_label` "N Options" (`display_mode: multiple_options`).
+* **Dentalkart-style product page:** every option (variant) has its own **name** (e.g. "Maarc Pure Eugenol (15ml) (3002/015)"), SKU, price, points, expiry, weight and its own
+  **pictures** (spatie media of the product with the custom property `variant_id`; max 12 per gallery; the product keeps its own main gallery; an option without pictures
+  falls back to the product's primary picture, a product without own pictures falls back to its options' pictures). The detail API also returns `return_days`
+  ("10-Days Returnable", `products.return_days`, only when returnable), `delivery` (`days` and `arrives_by` from the channel's `delivery_days`), per-option `low_stock`
+  ("Only 2 left", from `low_stock_threshold`) and `is_cod_available` (an option may override the product), `meta_title` / `meta_description`, and **related products**
+  (hand-picked through `related_ids` -> `product_relations`, otherwise popular products of the same category).
+* **Currency is PKR** (`site_settings` `currency_code` = PKR, `currency_symbol` = Rs; returned by `/store/settings/delivery` and `/admin/products/options`; the admin panel formats prices with it).
+  Tax fields keep their column names (`hsn_code`, `gst_rate`) but are labelled **HS code** and **Sales tax %** in the admin panel.
+* `SaveProduct` writes product + variants + stock + tags + channels + content tabs in one transaction, then `RefreshProductSummary`
+  refreshes `min_price`, `max_discount_percent`, `is_in_stock`. Every stock change writes `inventory_movements` (`initial` / `adjustment`).
+* Slug is generated from the name, unique, and **stays the same on rename** (an admin may set it). SKU and slug stay reserved after a soft delete.
+* **Pictures can be dragged anywhere:** uploaded and imported (remote) pictures of a gallery share one order (`order_column` / `sort_order`, written as 1..n by
+  `PUT products/{id}/images/order`, which takes media ids and `r<id>` for imported ones); the first is the primary picture. New uploads go to the end.
+* **Pictures:** uploaded ones are spatie media (collection `images`, conversions `thumb` 256 and `medium` 512, max 12 per product);
+  imported/demo products may keep remote urls in `product_images.url`. APIs return one `images` list for both (uploaded first, first = primary).
+* **Visibility on the website** (`Product::scopeStorefront`): status `active` AND brand live (active brand of an approved company) AND category and
+  sub-category (and its parent) active AND the requested channel row active. Out-of-stock products still list, with `in_stock = false`.
 * Detail tabs (Features, Description, Packaging, Key Specifications, Direction To Use, Additional Info,
   Warranty) live in `product_content_tabs` – flexible, no schema change per tab.
-* Quantity tier pricing ("Buy 2+ for ₹X each") → `variant_price_tiers`.
+* Quantity prices ("Buy 5+ for Rs 152 each") → `variant_price_tiers`: up to 5 per variant, quantity >= 2, each price below the selling price and lower again
+  for a higher quantity. The customer API adds `extra_discount_percent` ("extra 5% off").
 * Tax: `hsn_code` + `gst_rate` per product → needed for invoices.
 
 ### 6.5 Sales channels (Standard vs Instadent)
@@ -184,13 +207,17 @@ The customer tree (`sub_categories[].children[]`; `?top=1`) is cached for 10 min
 
 ### 6.6 Tags and collections
 * **Tags** (Best Seller, New Arrival, Hot Selling, Freebie, Featured, Most Searched, custom…) = labels on a product (`product_tag`).
+  Admin-managed; the 7 system tags (`best-seller`, `hot-selling`, `new-arrival`, `best-price-zone`, `featured`, `most-searched`, `freebie`) are seeded
+  by `TagSeeder` and cannot be deleted. **Homepage sections are the product list with a tag:** `GET /store/products?tag=best-seller&per_page=10`.
 * **Collections** = curated/rule lists used for homepage sliders ("Hot Selling", "Dentaltech"), with their own title/banner.
 * `homepage_sections` makes the homepage data-driven per channel (hero, brands slider, category grid, product sliders, promo banners…).
 
 ### 6.7 Reviews and rating
 * `product_reviews` (rating 1–5, title, body, status, verified-purchase flag later). One review per user per product.
-* `products.rating_avg / rating_count` + `product_rating_stats` (1–5 distribution) recomputed by a **queued job**
-  on create / edit / delete / status change. Pages read the cached numbers only.
+* `products.rating_avg / rating_count` + `product_rating_stats` (1–5 distribution) are recomputed from the published reviews by
+  `RecomputeProductRating` **inside the transaction** that saves the review (cheap, so no queue needed yet; a queued job can wrap it later).
+  Pages read the cached numbers only. `POST /store/products/{slug}/reviews` (customer token, throttled) creates the review (201) or updates the
+  customer's existing one (200).
 * Also designed: `product_questions` (customer Q&A, admin answers) and `product_feedback`
   (the private "Valuable Feedback" form: quality / price / overall rating + purchased yes/no).
 
@@ -209,7 +236,7 @@ The customer tree (`sub_categories[].children[]`; `?top=1`) is cached for 10 min
 * `reward_transactions` is an **append-only ledger** (earn / redeem / expire / adjust / reverse / referral).
   Each *earn* row is a batch with `expires_at = credited + 365 days`; redemption consumes the earliest-expiring
   batches first (`reward_redemptions`). `reward_wallets` caches balances.
-* Rules live in data, not code: coin value (₹0.5), redemption caps (10% / 20% of order, 20% / 40% of balance,
+* Rules live in data, not code: coin value (Rs 1.5), redemption caps (10% / 20% of order, 20% / 40% of balance,
   max 5,000 coins) in `site_settings` and `membership_plans`.
 * `membership_plans` (Plan-I 6 months ₹499, Plan-II 12 months ₹799; multiplier 2×, free shipping from ₹499,
   20% redemption cap, priority processing, education pass) and `user_memberships` (starts/ends, status, payment).
@@ -230,10 +257,10 @@ A new form = a new `type` and validation rule, no migration.
 
 | Risk | Design answer |
 |---|---|
-| Slow listing / filters | Targeted composite indexes (see DATABASE.md §Indexes), denormalized price/rating/stock on `products`, cursor pagination for deep pages |
+| Slow listing / filters (every admin list is **paginated**: products, companies, brands, categories, tags; store lists too) | Targeted composite indexes (see DATABASE.md §Indexes), denormalized price/rating/stock on `products`, cursor pagination for deep pages |
 | N+1 queries | Eager loading enforced (`Model::preventLazyLoading()` in non-production), lean API Resources |
 | Repeated reads | Redis cache: category tree, tags, brands, homepage sections, settings. Tag-based invalidation on admin writes |
-| Search over 20k+ products | FULLTEXT now, Scout + Meilisearch later (same endpoint) |
+| Search over 20k+ products | **Indexed search now** (`ProductSearch`): FULLTEXT(name, short_description) for words (each typed word matches as a word start), unique index for SKU / variant SKU starts, index on brand name starts; words shorter than 3 letters fall back to LIKE. Company search: FULLTEXT(name) + index on GST number and email. Scout + Meilisearch later (same endpoint) |
 | Heavy side effects | Queue: rating recompute, images/thumbnails, emails/SMS, webhook processing, reservation release |
 | Images | Thumbnails (256/512) generated by medialibrary, served from CDN/object storage |
 | Overselling | Transactional stock reservation + `inventory_movements` audit trail |
@@ -253,11 +280,11 @@ Order/Payment into a service (boundaries already modular).
 
 | Side | Endpoints |
 |---|---|
-| Customer (`/store`) | `auth/login`, `auth/logout`, `auth/me` · `lookups/registration-types`, `lookups/vendor-types`, `lookups/countries` · `company-registration/options` · `POST company-registrations` · `brands`, `brands/{slug}` · `categories` (`?menu=1`), `categories/{slug}` · `settings/delivery` |
-| Admin (`/admin`) | `auth/login|logout|me` · `dashboard` · `companies` (list with status counts, create, show, update, delete, `approve`, `reject`, `suspend`, private catalogue download, `options`) · `companies/{id}/brands`, `brands` (list, show, create, update, delete) · `categories` (list with sub-categories + counts, `options`, create, show, update, delete), `categories/{id}/sub-categories` (create), `sub-categories/{id}` (show, update, delete) · `settings/delivery` |
+| Customer (`/store`) | `auth/login`, `auth/logout`, `auth/me` · `lookups/registration-types`, `lookups/vendor-types`, `lookups/countries` · `company-registration/options` · `POST company-registrations` · `brands`, `brands/{slug}` · `categories` (`?menu=1`), `categories/{slug}` · `settings/delivery` · `products` (filters `tag`, `category`, `sub_category`, `brand`, `q`, `min_price`, `max_price`, `in_stock`, `rating`, `channel`, `sort`, `page`, `per_page`), `products/{slug}` (`?channel=`), `tags`, `products/{slug}/reviews` (GET list + summary, POST with customer token). `channel=instadent` needs a customer token (guests get 401) |
+| Admin (`/admin`) | `auth/login|logout|me` · `dashboard` · `companies` (list with status counts, create, show, update, delete, `approve`, `reject`, `suspend`, private catalogue download, `options`) · `companies/{id}/brands`, `brands` (list, show, create, update, delete) · `categories` (list with sub-categories + counts, `options`, create, show, update, delete), `categories/{id}/sub-categories` (create), `sub-categories/{id}` (show, update, delete) · `products` (lean list with filters `q`, `status`, `company_id`, `brand_id`, `category_id`, `sub_category_id`, `tag`, `channel`; create, show, update, delete), `products/options`, `PATCH products/{id}/status`, `PUT products/{id}/tags`, `POST products/{id}/images`, `PUT products/{id}/images/order`, `DELETE products/{id}/images/{mediaId}` · `tags` (CRUD, system tags cannot be deleted) · `settings/delivery` |
 
 Live reference generated from the code: `/docs/api` (Scramble). Postman: `docs/postman/Dentalkart-APIs.postman_collection.json`
-(the 8 customer APIs).
+(12 plain requests: dropdowns, register a company, brands, products list / detail, tags, reviews list, customer login, post a review).
 
 **Planned (full surface)**
 
@@ -299,10 +326,10 @@ admins & roles · audit log.
 1b. ✅ **Admin panel** – login, dashboard, companies list/detail/form, brands management (see `admin-frontend/`).
 1c. ✅ **Categories & sub-categories** – admin CRUD with icon + image, delete rules, cached customer tree (`/store/categories`), seeder,
    admin page with expandable rows and inline switches.
-3. **Products** *(next)* – admin CRUD, variants, tiers, tags, channels + stock, images, content tabs, auto discount.
-4. **Customer catalog** – listing, filters, search, detail, brand pages, Instadent (login-gated), homepage sections.
-5. **Reviews, ratings, wishlist, Q&A, feedback.**
-6. **Seed importer** – load the frontend's current products/brands/categories into the DB.
+3. ✅ **Products** – admin CRUD, variants (simple or with options), tags, channels + stock per channel, images, content tabs, automatic discount, inventory log, admin pages (list, form, tags).
+4. ✅ **Customer catalog** – listing, filters, search, sort, detail, related products, brand pages, Instadent (login-gated), homepage sections through tags. (`collections` / `homepage_sections` tables are still unused: banners and curated lists come with the content module.)
+5. **Reviews, ratings** ✅ (list, post, stats). **Wishlist, Q&A, feedback, review moderation** still to do.
+6. ✅ **Demo data** – optional `ProductDemoSeeder` loads the frontend's products (`php artisan db:seed --class=ProductDemoSeeder`).
 7. Later modules on the same schema: cart → checkout → payments → orders/tracking → returns/refunds → rewards → membership → coupons → enquiries → content/events.
 
 Each phase ends with: migrations (already done in phase 0), actions, endpoints, PHPUnit tests, OpenAPI docs.
@@ -318,4 +345,4 @@ Each phase ends with: migrations (already done in phase 0), actions, endpoints, 
 4. Instadent specifics (delivery ETA, serviceable pincodes) → modelled on `pincodes`; rules to be confirmed.
 5. Guest checkout: schema supports guest carts (`guest_token`); orders require a logged-in customer unless you decide otherwise.
 6. Review moderation: default is "published immediately", with an admin switch to require approval.
-7. ~~Free-shipping threshold~~ – resolved: flat ₹95 delivery, free above ₹2800, both admin-editable; delivery days standard 5 / Instadent 3.
+7. ~~Free-shipping threshold~~ – resolved: flat Rs 300 delivery, free above Rs 8,500, both admin-editable; delivery days standard 5 / Instadent 3.
