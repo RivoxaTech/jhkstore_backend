@@ -17,6 +17,7 @@ use App\Http\Requests\Admin\UpdateCompanyRequest;
 use App\Http\Resources\CompanyListResource;
 use App\Http\Resources\CompanyResource;
 use App\Support\Audit;
+use App\Support\FullTextSearch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -60,9 +61,13 @@ class CompanyController extends Controller
             ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v))
             ->when($request->query('source'), fn ($q, $v) => $q->where('source', $v))
             ->when($request->query('q'), function ($q, $term) {
-                $q->where(fn ($w) => $w->where('name', 'like', "%$term%")
-                    ->orWhere('vat_gst_number', 'like', "%$term%")
-                    ->orWhere('email', 'like', "%$term%"));
+                // indexed: FULLTEXT on the name (word starts), index on GST number and on email (start of the text)
+                $like = FullTextSearch::like(trim($term));
+                $boolean = FullTextSearch::booleanQuery($term);
+                $q->where(function ($w) use ($like, $boolean) {
+                    $boolean ? $w->whereRaw('MATCH(companies.name) AGAINST (? IN BOOLEAN MODE)', [$boolean]) : $w->where('companies.name', 'like', "%$like%");
+                    $w->orWhere('companies.vat_gst_number', 'like', "$like%")->orWhere('companies.email', 'like', "$like%");
+                });
             })
             ->latest('id')
             ->paginate((int) $request->query('per_page', 20))

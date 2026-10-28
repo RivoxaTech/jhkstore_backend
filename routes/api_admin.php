@@ -5,8 +5,10 @@ use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CompanyController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\SubCategoryController;
+use App\Http\Controllers\Admin\TagController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -54,6 +56,26 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin'])->group(function () {
     Route::get('sub-categories/{subCategory}', [SubCategoryController::class, 'show']);
     Route::match(['put', 'patch', 'post'], 'sub-categories/{subCategory}', [SubCategoryController::class, 'update']);
     Route::delete('sub-categories/{subCategory}', [SubCategoryController::class, 'destroy']);
+
+    // Products (variants, tags, channels + stock per channel, content tabs in the JSON body; pictures separately)
+    Route::get('products/options', [ProductController::class, 'options']);
+    Route::get('products', [ProductController::class, 'index']);
+    Route::post('products', [ProductController::class, 'store']);
+    Route::get('products/{product}', [ProductController::class, 'show']);
+    Route::match(['put', 'patch'], 'products/{product}', [ProductController::class, 'update']);
+    Route::delete('products/{product}', [ProductController::class, 'destroy']);
+    Route::patch('products/{product}/status', [ProductController::class, 'status']);
+    Route::put('products/{product}/tags', [ProductController::class, 'tags']);
+    Route::post('products/{product}/images', [ProductController::class, 'addImages']);
+    Route::put('products/{product}/images/order', [ProductController::class, 'reorderImages']);
+    Route::delete('products/{product}/images/{image}', [ProductController::class, 'deleteImage']);
+
+    // Tags (system tags cannot be deleted)
+    Route::get('tags', [TagController::class, 'index']);
+    Route::post('tags', [TagController::class, 'store']);
+    Route::get('tags/{tag}', [TagController::class, 'show']);
+    Route::match(['put', 'patch'], 'tags/{tag}', [TagController::class, 'update']);
+    Route::delete('tags/{tag}', [TagController::class, 'destroy']);
 
     // Settings
     Route::get('settings/delivery', [SettingController::class, 'showDelivery']);

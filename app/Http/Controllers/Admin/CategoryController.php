@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Domain\Catalog\Actions\DeleteCategory;
 use App\Domain\Catalog\Actions\SaveCategory;
 use App\Domain\Catalog\Models\Category;
+use App\Domain\Catalog\Models\SubCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\SaveCategoryRequest;
 use App\Http\Resources\CategoryResource;
@@ -14,12 +15,12 @@ use Illuminate\Http\Request;
 class CategoryController extends Controller
 {
     /**
-     * All categories (not paginated - there are few), each with its sub-categories and counts.
+     * Categories (paginated: ?page ?per_page, default 15), each with its sub-categories and counts; `counts` has the totals of everything.
      * Query: ?q= matches a category name, or the name of one of its sub-categories or sub-sub-categories.
      */
     public function index(Request $request)
     {
-        $request->validate(['q' => ['nullable', 'string', 'max:100']]);
+        $request->validate(['q' => ['nullable', 'string', 'max:100'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
 
         $categories = Category::query()
             ->withProductCounts()
@@ -29,9 +30,15 @@ class CategoryController extends Controller
                 ->orWhereHas('subCategories', fn ($s) => $s->where('name', 'like', "%$term%")
                     ->orWhereHas('children', fn ($c) => $c->where('name', 'like', "%$term%")))))
             ->orderBy('sort_order')->orderBy('name')
-            ->get();
+            ->paginate((int) $request->query('per_page', 15))
+            ->withQueryString();
 
-        return CategoryResource::collection($categories);
+        return CategoryResource::collection($categories)->additional(['counts' => [
+            'categories' => Category::count(),
+            'top' => Category::where('is_top', true)->count(),
+            'sub_categories' => SubCategory::whereNull('parent_id')->count(),
+            'children' => SubCategory::whereNotNull('parent_id')->count(),
+        ]]);
     }
 
     /** Light tree of ACTIVE categories, sub-categories and sub-sub-categories (`children`), for dropdowns (e.g. the product form). */

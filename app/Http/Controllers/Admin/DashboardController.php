@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Auth\Models\Admin;
+use App\Domain\Catalog\Models\Product;
+use App\Domain\Catalog\Models\Tag;
 use App\Domain\Company\Models\Brand;
 use App\Domain\Company\Models\Company;
 use App\Domain\Support\Models\AuditLog;
@@ -31,6 +33,8 @@ class DashboardController extends Controller
         $adminNames = Admin::whereIn('id', $activity->where('actor_type', 'admin')->pluck('actor_id')->filter()->unique())->pluck('name', 'id');
         $companyNames = Company::withTrashed()->whereIn('id', $activity->where('subject_type', 'Company')->pluck('subject_id')->filter()->unique())->pluck('name', 'id');
         $brandNames = Brand::withTrashed()->whereIn('id', $activity->where('subject_type', 'Brand')->pluck('subject_id')->filter()->unique())->pluck('name', 'id');
+        $productNames = Product::withTrashed()->whereIn('id', $activity->where('subject_type', 'Product')->pluck('subject_id')->filter()->unique())->pluck('name', 'id');
+        $tagNames = Tag::whereIn('id', $activity->where('subject_type', 'Tag')->pluck('subject_id')->filter()->unique())->pluck('name', 'id');
 
         return response()->json([
             'companies' => [
@@ -54,6 +58,8 @@ class DashboardController extends Controller
                 'subject_name' => match ($log->subject_type) {
                     'Company' => $companyNames[$log->subject_id] ?? null,
                     'Brand' => $brandNames[$log->subject_id] ?? null,
+                    'Product' => $productNames[$log->subject_id] ?? null,
+                    'Tag' => $tagNames[$log->subject_id] ?? null,
                     default => null,
                 },
                 'created_at' => $log->created_at,

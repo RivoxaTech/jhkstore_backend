@@ -14,8 +14,8 @@ class SettingController extends Controller
     public function showDelivery(): JsonResponse
     {
         return response()->json([
-            'delivery_fee' => (float) SiteSetting::read('delivery_fee', 95),
-            'free_delivery_min_cart' => (float) SiteSetting::read('free_delivery_min_cart', 2800),
+            'delivery_fee' => (float) SiteSetting::read('delivery_fee', 300),
+            'free_delivery_min_cart' => (float) SiteSetting::read('free_delivery_min_cart', 8500),
             'channels' => DB::table('sales_channels')->get(['id', 'code', 'name', 'is_active', 'delivery_days']),
         ]);
     }
