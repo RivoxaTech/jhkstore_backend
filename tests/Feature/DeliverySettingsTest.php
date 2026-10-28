@@ -15,8 +15,8 @@ class DeliverySettingsTest extends TestCase
 
         $this->getJson('/api/v1/store/settings/delivery')
             ->assertOk()
-            ->assertJsonPath('delivery_fee', 95)
-            ->assertJsonPath('free_delivery_min_cart', 2800)
+            ->assertJsonPath('delivery_fee', 300)
+            ->assertJsonPath('free_delivery_min_cart', 8500)
             ->assertJsonFragment(['code' => 'standard', 'delivery_days' => 5])
             ->assertJsonFragment(['code' => 'instadent', 'delivery_days' => 3]);
     }
