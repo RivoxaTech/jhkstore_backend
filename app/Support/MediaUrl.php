@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Domain\Company\Models\Brand;
 use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
  * Image/file URLs for API responses.
@@ -20,6 +21,14 @@ class MediaUrl
         if ($url === '') {
             return null;
         }
+
+        return str_starts_with($url, 'http') ? $url : url($url);
+    }
+
+    /** URL of one media item (or one of its conversions, when that conversion exists); absolute. */
+    public static function media(Media $media, string $conversion = ''): string
+    {
+        $url = ($conversion !== '' && $media->hasGeneratedConversion($conversion)) ? $media->getUrl($conversion) : $media->getUrl();
 
         return str_starts_with($url, 'http') ? $url : url($url);
     }

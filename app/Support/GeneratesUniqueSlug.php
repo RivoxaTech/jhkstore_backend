@@ -16,7 +16,7 @@ trait GeneratesUniqueSlug
         while (static::query()
             ->when($ignoreId, fn ($q) => $q->whereKeyNot($ignoreId))
             ->where('slug', $slug)
-            ->withTrashed()
+            ->when(method_exists(static::class, 'bootSoftDeletes'), fn ($q) => $q->withTrashed())
             ->exists()) {
             $slug = $base.'-'.$i++;
         }

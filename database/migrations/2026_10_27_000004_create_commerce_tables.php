@@ -182,7 +182,7 @@ return new class extends Migration
             $table->string('gateway_order_id', 80)->nullable()->unique();
             $table->string('gateway_payment_id', 80)->nullable()->unique();
             $table->decimal('amount', 12, 2);
-            $table->char('currency', 3)->default('INR');
+            $table->char('currency', 3)->default('PKR');
             $table->string('status', 20)->default('initiated');
             $table->string('failure_reason')->nullable();
             $table->json('response')->nullable();
