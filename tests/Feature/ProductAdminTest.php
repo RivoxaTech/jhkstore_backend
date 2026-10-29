@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Domain\Catalog\Models\InventoryMovement;
 use App\Domain\Catalog\Models\Product;
+use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\Models\Tag;
 use App\Domain\Support\Models\AuditLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -293,6 +294,38 @@ class ProductAdminTest extends TestCase
         // selling out everything flips is_in_stock
         $this->putJson(self::ADMIN."/products/{$product->id}", ['mrp' => 1000, 'selling_price' => 600, 'stock' => ['standard' => 0, 'instadent' => 0]])
             ->assertOk()->assertJsonPath('data.is_in_stock', false);
+    }
+
+    public function test_saving_an_old_form_does_not_give_sold_units_back(): void
+    {
+        $this->actingAsAdmin();
+        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory(), ['stock' => ['standard' => 100, 'instadent' => 20]]);
+        $variantId = $product->variants()->value('id');
+        $stock = fn (string $code) => (int) DB::table('variant_channel_stock')->where('variant_id', $variantId)->where('channel_id', SalesChannel::idsByCode()[$code])->value('stock_qty');
+
+        // 9 units were sold while the admin had the form open (the form still shows 100)
+        DB::table('variant_channel_stock')->where('variant_id', $variantId)->where('channel_id', SalesChannel::idsByCode()['standard'])->update(['stock_qty' => 91]);
+
+        $form = fn (array $stock, array $was) => [
+            'mrp' => 1000, 'selling_price' => 700, 'stock' => $stock, 'stock_was' => $was,
+        ];
+
+        // price edited only, stock box untouched (100 = 100): the live 91 stays
+        $this->putJson(self::ADMIN."/products/{$product->id}", $form(['standard' => 100, 'instadent' => 20], ['standard' => 100, 'instadent' => 20]))->assertOk();
+        $this->assertSame(91, $stock('standard'));
+
+        // the admin really adds 10 (100 -> 110): applied on top of what is really left
+        $this->putJson(self::ADMIN."/products/{$product->id}", $form(['standard' => 110, 'instadent' => 20], ['standard' => 100, 'instadent' => 20]))->assertOk();
+        $this->assertSame(101, $stock('standard'));
+        $this->assertSame(20, $stock('instadent'));
+
+        // removing more than is left never goes below zero
+        $this->putJson(self::ADMIN."/products/{$product->id}", $form(['standard' => 0, 'instadent' => 20], ['standard' => 500, 'instadent' => 20]))->assertOk();
+        $this->assertSame(0, $stock('standard'));
+
+        // without stock_was (API clients) the number is absolute, as before
+        $this->putJson(self::ADMIN."/products/{$product->id}", ['mrp' => 1000, 'selling_price' => 700, 'stock' => ['standard' => 33, 'instadent' => 20]])->assertOk();
+        $this->assertSame(33, $stock('standard'));
     }
 
     public function test_update_keeps_the_slug_and_changes_only_what_is_sent(): void

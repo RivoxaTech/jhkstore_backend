@@ -51,6 +51,7 @@ class SaveProductRequest extends FormRequest
                 'reward_points' => $this->input('reward_points'),
                 'expiry_date' => $this->input('expiry_date'),
                 'stock' => $this->input('stock', []),
+                'stock_was' => $this->input('stock_was', []),
             ];
             foreach (['price_tiers', 'weight_grams', 'barcode'] as $key) {
                 if ($this->has($key)) {
@@ -107,6 +108,8 @@ class SaveProductRequest extends FormRequest
             'variants.*.sort_order' => ['sometimes', 'integer', 'min:0'],
             'variants.*.stock' => ['nullable', 'array'],
             'variants.*.stock.*' => ['nullable', 'integer', 'min:0', 'max:10000000'],
+            'variants.*.stock_was' => ['nullable', 'array'],
+            'variants.*.stock_was.*' => ['nullable', 'integer', 'min:0', 'max:10000000'],
             'variants.*.price_tiers' => ['sometimes', 'nullable', 'array', 'max:5'],
             'variants.*.price_tiers.*.min_qty' => ['required', 'integer', 'min:2', 'max:65535', 'distinct'],
             'variants.*.price_tiers.*.price' => ['required', 'numeric', 'min:0', 'max:99999999'],
@@ -268,7 +271,7 @@ class SaveProductRequest extends FormRequest
     public function productData(): array
     {
         $data = $this->validated();
-        unset($data['mrp'], $data['selling_price'], $data['reward_points'], $data['expiry_date'], $data['stock']);
+        unset($data['mrp'], $data['selling_price'], $data['reward_points'], $data['expiry_date'], $data['stock'], $data['stock_was']);
         if (array_key_exists('return_days', $data) && $data['return_days'] === null) {
             unset($data['return_days']); // keeps the default (10)
         }

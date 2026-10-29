@@ -137,7 +137,7 @@ function applyProduct(p) {
   const toRow = (v) => blankVariant({
     id: v.id, name: v.name, sku: v.sku, mrp: v.mrp, selling_price: v.selling_price, reward_points: v.reward_points,
     expiry_date: v.expiry_date ?? '', weight_grams: v.weight_grams ?? '', is_active: v.is_active, is_default: v.is_default,
-    price_tiers: v.price_tiers.map(t => ({ min_qty: t.min_qty, price: t.price })), stock: { ...blankStock(), ...v.stock },
+    price_tiers: v.price_tiers.map(t => ({ min_qty: t.min_qty, price: t.price })), stock: { ...blankStock(), ...v.stock }, stock_was: { ...v.stock },
   })
   variants.value = p.variants.map(toRow)
   channels.value.forEach((c) => {
@@ -218,6 +218,8 @@ function variantPayload(v, index) {
     id: v.id, name: v.name.trim(), sku: v.sku.trim() || undefined, is_default: Boolean(v.is_default), mrp: v.mrp, selling_price: v.selling_price,
     reward_points: Number(v.reward_points) || 0, expiry_date: v.expiry_date || null, weight_grams: String(v.weight_grams).trim() === '' ? null : Number(v.weight_grams),
     is_active: v.is_active, sort_order: index, stock,
+    // the quantity this form showed when it was opened: lets the server apply the edit as a change, so sales made meanwhile are not undone
+    ...(v.id && v.stock_was ? { stock_was: v.stock_was } : {}),
     price_tiers: v.price_tiers.map(t => ({ min_qty: Number(t.min_qty), price: Number(t.price) })),
   }
 }
