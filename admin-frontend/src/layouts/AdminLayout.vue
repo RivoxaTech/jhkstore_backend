@@ -1,7 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Bell, Building2, ChevronsLeft, ChevronsRight, FolderTree, LayoutDashboard, LogOut, Menu, Package, Search, Stethoscope } from '@lucide/vue'
+import { Bell, Building2, ChevronsLeft, ChevronsRight, FolderTree, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Stethoscope } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { api } from '@/api/client.js'
@@ -20,7 +20,9 @@ async function refreshPending() {
   try {
     const res = await api.get('admin/companies', { status: 'pending', per_page: 1 })
     ui.pendingCount = res.counts?.pending ?? 0
-  } catch { /* the badge is optional */ }
+    const orders = await api.get('admin/orders', { per_page: 1 })
+    ui.pendingOrders = orders.counts?.pending ?? 0
+  } catch { /* the badges are optional */ }
 }
 let timer
 onMounted(() => {
@@ -67,6 +69,17 @@ async function logout() {
         </RouterLink>
         <RouterLink :to="{ name: 'products' }" class="nav-item" :class="{ 'is-active': String(route.name).startsWith('product') }" exact-active-class="" active-class="">
           <Package :size="19" /><span>Products</span>
+        </RouterLink>
+
+        <p class="nav-label" style="margin-top: 18px">Sales</p>
+        <RouterLink :to="{ name: 'orders' }" class="nav-item" :class="{ 'is-active': route.name === 'orders' || route.name === 'order' }" exact-active-class="" active-class="">
+          <ShoppingBag :size="19" /><span>Orders</span>
+          <b v-if="ui.pendingOrders" class="nav-badge" :title="`${ui.pendingOrders} orders waiting`">{{ ui.pendingOrders }}</b>
+        </RouterLink>
+
+        <p class="nav-label" style="margin-top: 18px">System</p>
+        <RouterLink :to="{ name: 'settings' }" class="nav-item" :class="{ 'is-active': route.name === 'settings' }" exact-active-class="" active-class="">
+          <Settings :size="19" /><span>Settings</span>
         </RouterLink>
       </nav>
       <div class="sidebar__foot">

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 const props = defineProps({ status: { type: String, required: true } })
-const label = computed(() => props.status.charAt(0).toUpperCase() + props.status.slice(1))
+const label = computed(() => { const s = props.status.replace(/_/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1) })
 </script>
 
 <template>

@@ -8,6 +8,7 @@ export const useUiStore = defineStore('ui', () => {
   const mobileSidebarOpen = ref(false)
   const toasts = ref([])
   const pendingCount = ref(0) // shown as a badge on the sidebar and the bell
+  const pendingOrders = ref(0) // orders waiting for a decision, badge on the Orders item
 
   function toggleSidebar() {
     if (window.innerWidth < 960) {
@@ -26,5 +27,5 @@ export const useUiStore = defineStore('ui', () => {
 
   const dismiss = (id) => { toasts.value = toasts.value.filter(t => t.id !== id) }
 
-  return { sidebarCollapsed, mobileSidebarOpen, toasts, pendingCount, toggleSidebar, toast, dismiss }
+  return { sidebarCollapsed, mobileSidebarOpen, toasts, pendingCount, pendingOrders, toggleSidebar, toast, dismiss }
 })

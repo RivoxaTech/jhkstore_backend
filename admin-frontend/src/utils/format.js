@@ -62,6 +62,11 @@ export const ACTION_LABELS = {
   'tag.updated': 'updated tag',
   'tag.deleted': 'deleted tag',
   'settings.delivery_updated': 'updated delivery settings',
+  'settings.commerce_updated': 'updated the shop settings',
+  'order.status_changed': 'changed the status of order',
+  'order.cancelled': 'cancelled order',
+  'order.note_updated': 'updated the note of order',
+  'inventory.low_stock': 'was told that an option is running low after a sale',
 }
 
 // Money: the symbol comes from the site settings (currency_symbol, default Rs for PKR) and is set once when the product screens load.
