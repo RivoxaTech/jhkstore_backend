@@ -16,7 +16,7 @@ class ResolveChannel
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $code = (string) $request->query('channel', SalesChannel::STANDARD);
+        $code = (string) ($request->query('channel') ?? $request->input('channel') ?? SalesChannel::STANDARD);
         $channel = SalesChannel::query()->where('code', $code)->where('is_active', true)->first();
 
         if (! $channel) {

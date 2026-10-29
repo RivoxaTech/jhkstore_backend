@@ -26,6 +26,16 @@ class AppServiceProvider extends ServiceProvider
         // Reviews: 30 per hour per customer (REVIEWS_PER_HOUR in .env to change).
         RateLimiter::for('reviews', fn (Request $request) => Limit::perHour((int) env('REVIEWS_PER_HOUR', 30))->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
 
+        // Cart: 120 requests a minute per customer (or per guest cart token, else per IP).
+        RateLimiter::for('cart', fn (Request $request) => Limit::perMinute((int) env('CART_PER_MINUTE', 120))
+            ->by($request->user('sanctum')?->getAuthIdentifier() ?: ($request->header('X-Cart-Token') ?: $request->ip())));
+
+        // Checkout, cancel and reorder: 20 a minute per customer.
+        RateLimiter::for('orders', fn (Request $request) => Limit::perMinute((int) env('ORDERS_PER_MINUTE', 20))->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
+
+        // Address book and order history: 60 a minute per customer.
+        RateLimiter::for('account', fn (Request $request) => Limit::perMinute((int) env('ACCOUNT_PER_MINUTE', 60))->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
+
         // Public forms (seller registration, enquiries): 10 per hour per IP (more on a developer machine so testing is not blocked).
         // Override with FORMS_PER_HOUR in .env.
         RateLimiter::for('forms', fn (Request $request) => Limit::perHour(

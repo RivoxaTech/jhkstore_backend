@@ -1,9 +1,12 @@
 <?php
 
+use App\Http\Controllers\Store\AddressController;
 use App\Http\Controllers\Store\AuthController;
 use App\Http\Controllers\Store\BrandController;
+use App\Http\Controllers\Store\CartController;
 use App\Http\Controllers\Store\CategoryController;
 use App\Http\Controllers\Store\CompanyRegistrationController;
+use App\Http\Controllers\Store\OrderController;
 use App\Http\Controllers\Store\ProductController;
 use App\Http\Controllers\Store\ReviewController;
 use App\Http\Controllers\Store\SettingController;
@@ -16,6 +19,7 @@ use Illuminate\Support\Facades\Route;
 
 // Auth
 Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
+Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:forms');
 Route::middleware(['auth:sanctum', 'actor:customer'])->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('auth/me', [AuthController::class, 'me']);
@@ -50,3 +54,34 @@ Route::get('lookups/registration-types', [CompanyRegistrationController::class, 
 Route::get('lookups/vendor-types', [CompanyRegistrationController::class, 'vendorTypes']);
 Route::get('lookups/countries', [CompanyRegistrationController::class, 'countries']);
 Route::post('company-registrations', [CompanyRegistrationController::class, 'store'])->middleware('throttle:forms');
+
+// Cart (stored in the database). Guest: X-Cart-Token header; customer: Bearer token. ?channel=standard|instadent picks the cart.
+Route::middleware(['channel', 'throttle:cart'])->prefix('cart')->group(function () {
+    Route::get('/', [CartController::class, 'show']);
+    Route::delete('/', [CartController::class, 'clear']);
+    Route::post('items', [CartController::class, 'add']);
+    Route::put('items/{variantId}', [CartController::class, 'update'])->whereNumber('variantId');
+    Route::delete('items/{variantId}', [CartController::class, 'remove'])->whereNumber('variantId');
+    Route::put('coins', [CartController::class, 'coins'])->middleware(['auth:sanctum', 'actor:customer']);
+});
+
+// Address book, checkout and orders: customer token required. Everything is scoped to the logged-in customer.
+Route::middleware(['auth:sanctum', 'actor:customer'])->group(function () {
+    Route::middleware('throttle:account')->group(function () {
+        Route::get('addresses', [AddressController::class, 'index']);
+        Route::post('addresses', [AddressController::class, 'store']);
+        Route::get('addresses/{id}', [AddressController::class, 'show'])->whereNumber('id');
+        Route::match(['put', 'patch'], 'addresses/{id}', [AddressController::class, 'update'])->whereNumber('id');
+        Route::post('addresses/{id}/default', [AddressController::class, 'makeDefault'])->whereNumber('id');
+        Route::delete('addresses/{id}', [AddressController::class, 'destroy'])->whereNumber('id');
+
+        Route::get('orders', [OrderController::class, 'index']);
+        Route::get('orders/{orderNumber}', [OrderController::class, 'show']);
+    });
+
+    Route::middleware('throttle:orders')->group(function () {
+        Route::post('orders', [OrderController::class, 'store'])->middleware('channel');
+        Route::post('orders/{orderNumber}/cancel', [OrderController::class, 'cancel']);
+        Route::post('orders/{orderNumber}/reorder', [OrderController::class, 'reorder']);
+    });
+});
