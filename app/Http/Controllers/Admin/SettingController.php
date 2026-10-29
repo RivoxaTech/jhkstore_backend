@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Domain\Support\CommerceSettings;
 use App\Domain\Support\Models\SiteSetting;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\UpdateCommerceSettingsRequest;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +20,33 @@ class SettingController extends Controller
             'free_delivery_min_cart' => (float) SiteSetting::read('free_delivery_min_cart', 8500),
             'channels' => DB::table('sales_channels')->get(['id', 'code', 'name', 'is_active', 'delivery_days']),
         ]);
+    }
+
+    /**
+     * Every shop rule of the Settings screen: delivery fee, free-delivery limit (0 = never free), coin value (money per coin),
+     * cash-on-delivery limit (0 = no limit), minimum order amount (0 = none), the coin redemption caps and the delivery days per channel.
+     */
+    public function showCommerce(CommerceSettings $settings): JsonResponse
+    {
+        return response()->json($settings->all() + [
+            'currency' => $settings->currencyCode(),
+            'currency_symbol' => $settings->currencySymbol(),
+            'channels' => DB::table('sales_channels')->orderBy('id')->get(['id', 'code', 'name', 'is_active', 'delivery_days']),
+        ]);
+    }
+
+    public function updateCommerce(UpdateCommerceSettingsRequest $request, CommerceSettings $settings): JsonResponse
+    {
+        $data = $request->validated();
+        $settings->update($data);
+
+        foreach ($data['channels'] ?? [] as $channel) {
+            DB::table('sales_channels')->where('code', $channel['code'])->update(['delivery_days' => $channel['delivery_days'], 'updated_at' => now()]);
+        }
+
+        Audit::log($request->user(), 'settings.commerce_updated', null, $data);
+
+        return $this->showCommerce($settings);
     }
 
     /** Update the flat delivery charge, the free-delivery cart value and delivery days per channel. */

@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CompanyController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\SubCategoryController;
@@ -77,7 +78,16 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin'])->group(function () {
     Route::match(['put', 'patch'], 'tags/{tag}', [TagController::class, 'update']);
     Route::delete('tags/{tag}', [TagController::class, 'destroy']);
 
+    // Orders
+    Route::get('orders/options', [OrderController::class, 'options']);
+    Route::get('orders', [OrderController::class, 'index']);
+    Route::get('orders/{order}', [OrderController::class, 'show'])->whereNumber('order');
+    Route::post('orders/{order}/status', [OrderController::class, 'status'])->whereNumber('order');
+    Route::patch('orders/{order}/note', [OrderController::class, 'note'])->whereNumber('order');
+
     // Settings
+    Route::get('settings/commerce', [SettingController::class, 'showCommerce']);
+    Route::put('settings/commerce', [SettingController::class, 'updateCommerce']);
     Route::get('settings/delivery', [SettingController::class, 'showDelivery']);
     Route::put('settings/delivery', [SettingController::class, 'updateDelivery']);
 });
