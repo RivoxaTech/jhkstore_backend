@@ -115,10 +115,15 @@ Profile "completion %" is computed from these columns (not stored). Avatar = med
 user_id → users           IX
 label        VARCHAR(40) NULL                  – Home / Clinic
 type         VARCHAR(20) default 'home'        – home | clinic | other
-name, phone, line1, line2 NULL, landmark NULL, city, state, pincode VARCHAR(10), country default 'India'
-gst_number   VARCHAR(20) NULL                  – for business invoices
-is_default   BOOLEAN default 0
+name, phone, alt_phone NULL
+line1        VARCHAR(255)                      – clinic name / house no. / building / apartment
+area         VARCHAR(255)                      – area / street / sector / village   (was `line2`; migration `2026_10_29_000001`)
+landmark NULL, city, state, postcode VARCHAR(10)  (was `pincode`), country default 'Pakistan'
+gst_number   VARCHAR(20) NULL                  – GSTIN (15 characters, validated, stored upper case)
+latitude, longitude DECIMAL(10,7) NULL
+is_default   BOOLEAN default 0                 – exactly one default per customer once they have an address
 ```
+`type` = clinic | home | other. The first address is the default automatically; deleting the default hands it to the newest remaining one.
 
 ### otp_codes
 ```
@@ -443,6 +448,11 @@ status VARCHAR(15) default 'active'              – active | converted | abando
 expires_at TIMESTAMP NULL
 IX (user_id, channel_id, status)
 ```
+**One cart per customer (or per guest token) AND per channel** - a Standard cart and an Instadent cart are two rows and never mix.
+A guest cart has `guest_token` (created by the server, sent back as the `X-Cart-Token` header) and `expires_at` = last activity + 30 days;
+`php artisan carts:prune` deletes expired guest carts and customer carts that are empty and untouched for 90 days.
+A customer cart is kept after checkout (emptied, `coins_to_redeem` reset), so `converted` / `abandoned` are not used yet. Logging in or registering merges the guest cart into the customer cart (the guest row is deleted).
+`cart_items.unit_price` = the option price when the customer last touched the line; it only drives the "price changed" warning, the real price is always recalculated.
 ### cart_items
 ```
 cart_id → carts, variant_id → product_variants, qty SMALLINT, unit_price DECIMAL(12,2)   – price when added (re-validated at checkout)
@@ -451,36 +461,43 @@ UQ (cart_id, variant_id)
 
 ### orders
 ```
-order_number   VARCHAR(30) UQ                    – e.g. DK26-000123
+order_number   VARCHAR(30) UQ                    – DK-2026-000123 = DK-<year>-<order id, 6 digits>
 user_id → users, channel_id → sales_channels
-status         VARCHAR(25)     – pending_payment | placed | confirmed | processing | packed | shipped |
-                                 out_for_delivery | delivered | cancelled | return_in_progress | returned
-payment_status VARCHAR(20)     – pending | paid | failed | partially_refunded | refunded | cod_pending
+customer_name VARCHAR(120), customer_email VARCHAR(190), customer_phone VARCHAR(20)   – snapshot of the customer, searchable
+status         VARCHAR(25)     – pending | confirmed | packed | shipped | delivered | cancelled   (+ returned, reserved for the returns module)
+payment_status VARCHAR(20)     – pending | paid | failed | cancelled | refunded | cod_pending   (COD: cod_pending -> paid when delivered, cancelled with the order)
 fulfillment_status VARCHAR(20) – unfulfilled | partial | fulfilled
 payment_method VARCHAR(20)     – cod | upi | card | netbanking | wallet | emi
-items_subtotal DECIMAL(12,2)   – at selling price
-mrp_total      DECIMAL(12,2)   – at MRP (for "You Save")
-discount_total DECIMAL(12,2)   – coupon + membership discounts
+items_count    SMALLINT        – units in the order
+mrp_total      DECIMAL(12,2)   – every line at MRP (for "You Save")
+product_discount_total DECIMAL(12,2) – MRP -> the option price
+bulk_discount_total    DECIMAL(12,2) – option price -> the bulk ("Buy 5+") price
+items_subtotal DECIMAL(12,2)   – mrp_total - product_discount_total - bulk_discount_total (what the lines cost)
+discount_total DECIMAL(12,2)   – coupon + membership discounts (not used yet, 0)
 coupon_id → coupons NULL, coupon_code VARCHAR(40) NULL
 coins_redeemed INT default 0, coins_discount DECIMAL(12,2) default 0
 shipping_fee DECIMAL(12,2), cod_fee DECIMAL(12,2) default 0
 tax_total DECIMAL(12,2)        – GST included
-grand_total DECIMAL(12,2)
+grand_total DECIMAL(12,2)   – items_subtotal - coins_discount + shipping_fee (+ cod_fee); shipping_fee = the flat delivery charge or 0
 coins_to_earn INT default 0
 customer_gst_number VARCHAR(20) NULL, customer_note VARCHAR(500) NULL
+admin_note TEXT NULL                        – internal, never shown to the customer
+idempotency_key VARCHAR(64) NULL            – UQ (user_id, idempotency_key): the same key returns the same order
 estimated_delivery_date DATE NULL
 placed_at, confirmed_at, shipped_at, delivered_at, cancelled_at  TIMESTAMP NULL
 cancel_reason VARCHAR(255) NULL, cancelled_by VARCHAR(20) NULL  – customer | admin | system
 source VARCHAR(10) default 'web'               – web | app
 membership_applied BOOLEAN default 0
-IX (user_id, created_at), IX (status, created_at), IX (payment_status), IX (channel_id, status)
+IX (user_id, created_at), IX (status, created_at), IX (payment_status), IX (channel_id, status), IX (created_at), IX (customer_email), IX (customer_phone), FULLTEXT (customer_name)
 ```
+Admin search (`Domain/Order/OrderSearch`) uses only these indexes: order number prefix, email prefix, phone prefix or order id, customer name FULLTEXT (LIKE for words under 3 letters).
 ### order_items  (snapshots)
 ```
 order_id → orders, product_id, variant_id, company_id, brand_id
-sku, name VARCHAR(255), image_url VARCHAR(500) NULL,
-mrp DECIMAL(12,2), unit_price DECIMAL(12,2), qty SMALLINT,
-discount DECIMAL(12,2), tax_rate DECIMAL(4,2), tax_amount DECIMAL(12,2), line_total DECIMAL(12,2),
+sku, name VARCHAR(255) (the product), option_name VARCHAR(255) (the option), brand_name, company_name VARCHAR(160), image_url VARCHAR(500) NULL (absolute url when ordered),
+mrp DECIMAL(12,2), base_price DECIMAL(12,2) (the option's own price), unit_price DECIMAL(12,2) (charged per unit = the bulk price when one applied),
+bulk_min_qty SMALLINT NULL (the bulk tier used: "Buy 5+"), qty SMALLINT,
+discount DECIMAL(12,2) (product + bulk discount of the line), bulk_discount DECIMAL(12,2), tax_rate DECIMAL(4,2) (sales tax % at that time), tax_amount DECIMAL(12,2) (already inside line_total), line_total DECIMAL(12,2),
 coins_earned INT default 0, expiry_date DATE NULL, hsn_code VARCHAR(12) NULL,
 status VARCHAR(20) default 'active'            – active | cancelled | returned | partially_returned
 cancelled_qty SMALLINT default 0, returned_qty SMALLINT default 0
@@ -488,9 +505,9 @@ IX (order_id), IX (product_id)
 ```
 ### order_addresses  (snapshots)
 ```
-order_id → orders, type VARCHAR(10) – shipping | billing,
-name, phone, line1, line2 NULL, landmark NULL, city, state, pincode, country, gst_number NULL
-UQ (order_id, type)
+order_id → orders, type VARCHAR(10) – shipping | billing, address_type VARCHAR(20) NULL – clinic | home | other,
+name, phone, alt_phone NULL, line1, area NULL, landmark NULL, city, state, postcode, country, gst_number NULL, latitude, longitude NULL
+UQ (order_id, type)      – same fields as user_addresses, copied when the order is placed (later edits of the address book never change an order)
 ```
 ### order_status_history  (drives the Track Order timeline)
 ```
@@ -499,7 +516,10 @@ changed_by_type VARCHAR(10) – admin | system | customer, changed_by_id BIGINT 
 IX (order_id, created_at)
 ```
 
+Status history rows: `changed_by_type` = admin | customer | system; `note` carries the reason / "Shipped via TCS, AWB ...".
+
 ### payments  (polymorphic: order or membership purchase)
+Cash on delivery today: one row per order (`payable_type = 'order'`, method `cod`, status `cod_pending` -> `cod_collected` when delivered, `cancelled` with the order). Online gateways add their own rows later.
 ```
 payable_type VARCHAR(40), payable_id BIGINT                           IX (payable_type, payable_id)
 method VARCHAR(20), gateway VARCHAR(30) NULL
@@ -585,6 +605,10 @@ initiated_by → admins NULL, completed_at NULL
 ```
 user_id PK/FK → users, available INT default 0, pending INT default 0, lifetime_earned INT default 0, lifetime_redeemed INT default 0
 ```
+**How the ledger is used (cart / orders):** the spendable coins of a customer = the sum of `remaining` of their *batches* (types `earn`, `reverse`, `adjust`, status `available`, not expired).
+Placing an order writes a `redeem` row (negative coins, source = the order) and consumes batches earliest-expiry first (`reward_redemptions`); delivery writes an `earn` batch
+(expires after `reward_expiry_days`); cancelling writes a `reverse` batch with the redeemed coins (fresh expiry). `php artisan rewards:expire` marks old batches `expired`.
+`reward_wallets.available` is the cached sum. The seeded customer gets one `adjust` batch of 500 demo coins.
 ### reward_transactions  (append-only ledger)
 ```
 user_id → users
@@ -720,8 +744,10 @@ min_cart_value DECIMAL(10,2) default 0, fee DECIMAL(8,2), is_active, priority IN
 ```
 group_key VARCHAR(40), key VARCHAR(80) UQ, value JSON      – contact info, coin value, COD max, redemption caps, return window days…
 ```
-(Seeds: coin_value 1.5, cod_max_amount 150000, reward_expiry_days 365, return_window_days 10, damage_report_hours 48,
-max_redeem_coins_per_order 5000, support phone/email/hours.)
+(Seeds: delivery_fee 300, free_delivery_min_cart 8500, coin_value **1** (1 coin = Rs 1), cod_max_amount 150000, min_order_amount 0, reward_expiry_days 365,
+max_redeem_coins_per_order 5000, redeem_cap_order_percent 100, redeem_cap_balance_percent 100, return_window_days 10, currency PKR / Rs; damage_report_hours and the support contact are not seeded yet.)
+All commerce keys are read through `Domain/Support/CommerceSettings` and edited in the admin Settings screen (`GET|PUT /admin/settings/commerce`).
+**0 means "off"**: `free_delivery_min_cart` 0 = delivery is never free, `cod_max_amount` 0 = no COD limit, `min_order_amount` 0 = no minimum, `delivery_fee` 0 = free delivery on every order.
 
 ---
 
@@ -762,4 +788,11 @@ changes JSON NULL, ip VARCHAR(45) NULL        IX (subject_type, subject_id), IX 
 * **Delivery charge:** flat for every pincode and channel. `site_settings.delivery_fee` (Rs 300) and `free_delivery_min_cart` (Rs 8,500)
   are admin-editable; `shipping_rules` is kept for future per-audience rules but is not used yet.
   Delivery time per channel = `sales_channels.delivery_days` (standard 5, Instadent 3).
+* **Cart, checkout, orders, addresses, rewards (migration `2026_10_29_000001`):** address columns renamed (`line2` -> `area`, `pincode` -> `postcode`) and extended (alt phone, coordinates), country default Pakistan;
+  `orders` gets customer snapshot columns + indexes, `items_count`, `product_discount_total`, `bulk_discount_total`, `admin_note`, `idempotency_key`, default status `pending`;
+  `order_items` gets `option_name`, `brand_name`, `company_name`, `base_price`, `bulk_min_qty`, `bulk_discount`; new settings (`min_order_amount`, redemption caps) and the old untouched `coin_value` 1.5 becomes 1.
+  Tables now in use: carts, cart_items, user_addresses, orders, order_items, order_addresses, order_status_history, payments, shipments, reward_wallets, reward_transactions, reward_redemptions, inventory_movements (types `sale`, `cancel`), audit_logs.
+  Still unused: coupons, coupon_usages, invoices, refunds, returns, memberships.
+* **Stock at checkout:** `variant_channel_stock.stock_qty` is reduced when the order is placed (movement `sale`, rows locked with `FOR UPDATE` in variant order) and put back on cancel (movement `cancel`);
+  `reserved_qty` stays untouched (for online payments later). Available = `stock_qty - reserved_qty`.
 * Coupon targets / banner links use `category | sub_category | brand | product` as target types.

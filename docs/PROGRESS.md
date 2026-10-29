@@ -1,6 +1,6 @@
 # Progress log
 
-Updated: 2026-10-28 (products added). Read together with `ARCHITECTURE.md` / `DATABASE.md` (design). Setup steps: `../README.md`.
+Updated: 2026-10-29 (cart, addresses, checkout, orders and coins added). Read together with `ARCHITECTURE.md` / `DATABASE.md` (design). Setup steps: `../README.md`.
 
 ## Where we are
 
@@ -12,9 +12,10 @@ Updated: 2026-10-28 (products added). Read together with `ARCHITECTURE.md` / `DA
 | Categories and sub-categories (admin + customer API) | ✅ |
 | Products (admin CRUD, variants, tags, channels + stock, images, content tabs) | ✅ |
 | Customer catalogue (list, filters, sort, detail, tags, Instadent gate) + reviews | ✅ |
-| Admin panel (`admin-frontend/`) | ✅ dashboard + companies + categories + products + tags |
+| Cart (guest + customer, bulk prices, coins, delivery), addresses, checkout (COD), orders + status flow, coins (earn / redeem / refund / expire) | ✅ |
+| Admin panel (`admin-frontend/`) | ✅ dashboard (with order cards) + companies + categories + products + tags + **orders** + **settings** |
 | Wishlist, Q&A, feedback, review moderation | ⏳ next |
-| Cart, orders, payments, returns, rewards, membership, coupons, content | ⏳ later (schema ready) |
+| Online payments, returns / refunds / invoices, membership, coupons, content | ⏳ later (schema ready) |
 
 Code is pushed to `startxlaravel02/DentalKart_backend` (`main`).
 
@@ -109,10 +110,30 @@ Code is pushed to `startxlaravel02/DentalKart_backend` (`main`).
 * Pages: login, dashboard, companies (tabs, search, filters, compact table with logo, contact, location, vendor/type, GST, brand names,
   status, date), create/edit company (logo, repeatable brands, catalogue), company detail (approve / reject / suspend / reactivate,
   catalogue download, brands add / edit / delete / on-off, own-logo upload).
-* Compact layout; collapse button inside the sidebar (header menu button only on phones). Sidebar: Dashboard, Companies and Categories.
+* Compact layout; collapse button inside the sidebar (header menu button only on phones). Sidebar: Dashboard, Companies, Categories, Products, Orders, Settings.
+
+### Cart, addresses, checkout, orders and coins (fourth pass)
+Full rules in ARCHITECTURE 6.12; tables in DATABASE section 7 / 9. Migration `2026_10_29_000001`.
+* **Domain:** `Domain/Cart` (`CartPricing` = the one price calculator, `ManageCartItems`, `CartResolver`, `MergeGuestCart`), `Domain/Order` (`PlaceOrder`, `ChangeOrderStatus`, `ReorderOrder`, `OrderSearch`, enums `OrderStatus` / `PaymentStatus` / `PaymentMethod`, `CommerceException`),
+  `Domain/Address`, `Domain/Reward` (`RewardLedger`), `Domain/Support/CommerceSettings`. Commands `carts:prune` and `rewards:expire` (scheduled daily).
+* **Customer APIs** (`/api/v1/store`): `cart` (get, add, set quantity, remove, clear, `cart/coins`), guest carts through `X-Cart-Token` merged on `auth/login` and the new `auth/register`, `addresses` (list, create, update, delete, set default),
+  `orders` (place with an `Idempotency-Key`, list, detail by order number, cancel, reorder). Placing an order needs a login. A Standard and an Instadent cart are separate carts.
+* **Pricing:** unit price = option price or the bulk price of the highest tier reached; MRP total, product discount, bulk-offer discount, subtotal, coins discount (server clamps to wallet, items subtotal and the caps), flat delivery fee (free from `free_delivery_min_cart`, 0 = never free), grand total, coins to earn, total savings;
+  "Buy 5+ for Rs 152 each" hint for the next tier; warnings (price changed, low stock, out of stock, only N left, unavailable) that keep the line visible. Prices are tax inclusive; the tax rate is kept on the order line.
+* **Checkout:** one transaction with row locks (cart -> stock rows -> coin batches), everything re-validated, order + line / address snapshots + payment + history, stock deducted (movement `sale`), coins debited, cart emptied, low-stock alert logged. Order numbers `DK-2026-000123`.
+  Verified with 8 real parallel processes fighting for 3 units: exactly 3 orders, stock 0, never negative.
+* **Status flow:** pending -> confirmed -> packed -> shipped (courier + AWB required) -> delivered; cancel while pending / confirmed / packed (customer or admin, stock and coins come back). Delivered marks COD paid and credits the earned coins. History + audit entries for every change.
+* **Admin:** `admin/orders` (paginated list with status counts, indexed search, filters, detail, status changes, internal note), `admin/settings/commerce`, dashboard order cards (orders today, revenue today, pending, low stock).
+* **Admin panel:** sidebar **Orders** (with a pending badge) and **Settings**. Orders list: status tabs with counts, "Rows [25]" at the top right, search, channel / payment / date filters (all kept in the URL), pagination. Order detail: customer, shipping and billing address snapshots, items with pictures, bulk-offer prices and coins, price breakdown, payment (COD "to collect"), shipment, timeline (who / when), notes, status buttons (ship and cancel ask for their details), print invoice and packing slip.
+  Settings: delivery charge, free-delivery limit, delivery days, coin value, coin caps, COD limit, minimum order amount.
+* **Extras added without being asked:** customer registration (merges the guest cart), `expected_total` price-change guard (409), per-option / per-postcode COD rules, serviceable postcodes (from `pincodes`), minimum order amount, "price changed" warnings, low-stock audit entries, abandoned-cart cleanup command, coin expiry command, rate limits (cart 120/min, checkout 20/min, account 60/min), stable error codes with ready-to-show messages, reorder, internal order notes, printable invoice / packing slip, `APP_TIMEZONE` (Asia/Karachi), CORS exposes `X-Cart-Token`.
+* **Demo orders:** optional `OrderDemoSeeder` (`php artisan db:seed --class=OrderDemoSeeder`, run after `ProductDemoSeeder`, not in `DatabaseSeeder`) places 15 real orders through `PlaceOrder` / `ChangeOrderStatus` (so stock, coins, history and payments are consistent): 5 customers (test@gmail.com + 4 demo ones, password `test`), both channels, every status, coins used on some, dates spread over three weeks. It does nothing when orders already exist.
+* **Load / chaos test (2026-10-29):** run against an isolated copy of the database with 10 php servers working in parallel: 300 customers placing the same 50-unit product together (exactly 50 orders, 250 clean 422, stock 0), 3 units left with 30 buyers, random multi-line orders from 200 customers (no deadlock), price raised / dropped between cart and order (409 `price_changed` with the new total; without `expected_total` the order uses the live price), delivery fee changed, 10 parallel taps with different and with the same idempotency key (one order), coins spent twice at once (never more than the wallet), 10 parallel cancels / confirms / deliveries (one wins, stock and coins moved once), cancel vs ship race, guest cart merge twice, 43 hostile requests (no 5xx), rate limit (429). Every run was followed by a consistency check of stock, movements, totals, payments, history and coins.
+* **Found and fixed by that test:** saving an OLD admin product form put sold units back into the stock (form showed 100, 9 were sold, saving reset it to 100). The form now also sends `stock_was` (what it showed) and the server applies the edit as a CHANGE under the row lock (an untouched stock box changes nothing; without `stock_was`, API clients still set an absolute number).
+* **Seeds:** the seeded customer `test@gmail.com` / `test` gets 500 demo coins and a default address; `coin_value` is now 1 (1 coin = Rs 1).
 
 ### Tests
-* `php artisan test` → PHPUnit feature tests pass (CategoryFlowTest, ProductAdminTest, ProductStoreTest, ProductSearchTest ...: see `php artisan test`) (uses the `dentalkart_test` database; create it empty once).
+* `php artisan test` → 229 PHPUnit feature tests pass (97 new: CartTest, AddressTest, OrderTest, AdminOrderTest, OrderSearchTest, CommerceSettingsTest). Earlier groups: CategoryFlowTest, ProductAdminTest, ProductStoreTest, ProductSearchTest ...: see `php artisan test`) (uses the `dentalkart_test` database; create it empty once).
 * A real-browser run of the admin panel (login, cookie, approve, brands, logos, forms, search, collapse, mobile) passed in full
   on the dev server and on the Laravel-served build. The categories page was checked the same way (41 checks at first; after the top flag and sub-sub-categories were added, 38 more: S.no, top flag and its 12 limit,
   three levels, adding / renaming / deleting a sub-sub-category with an icon, delete refusal, search, mobile width). The 6 Postman requests were run against the live API: all succeed.
@@ -121,7 +142,11 @@ Code is pushed to `startxlaravel02/DentalKart_backend` (`main`).
   rename, delete, system tag locked), empty-form errors, company -> brand filtering, live discount, price > MRP check, channels + stock, tags, pictures (choose, make primary, reorder, upload, delete), product with options,
   server error under an option SKU, channel toggle, what the website API then returns, delete, 400px width. All passed.
 
+* Orders: a real-browser run (Playwright, 92 checks, all passing) of the Laravel-served admin build: dashboard cards, Orders list (columns, status tabs with counts, Rows control at the top right, search by number / name / phone / email, channel / payment / date filters, URL state after reload, empty state),
+  order detail (every section), the whole flow confirm -> pack -> ship (validation) -> deliver, cancel (reason required, stock back), print layout of the invoice and the packing slip (print media), Settings (validation, save, website API follows, restore), 400px width.
+
 ### Postman
+* `docs/postman/Dentalkart-Cart-Orders.postman_collection.json` – customer side only (for the frontend developer, no admin requests): 27 flat numbered requests: guest cart (saves `cart_token`), login + merge (saves `customer_token`), register, customer cart, quantity, coins, Instadent cart, addresses CRUD, place order (with idempotency key and a replay), my orders, order detail, cancel, reorder, second order, delete address, clear cart, public shop settings. Run top to bottom against the seeded database: all 27 return 2xx and the scripts save the variables. The admin order APIs are covered by the PHPUnit and browser tests and are not part of this collection.
 * `docs/postman/Dentalkart-Products-Frontend.postman_collection.json` – for the frontend developer: 32 flat requests that SHOW products (login, tags, product list with every filter / sort / section / paging / Instadent, single-option and multi-option product pages, reviews list, post a review). Seed with `migrate:fresh --seed` + `ProductDemoSeeder`, press Send; the login request saves `customer_token` by itself.
 * `docs/postman/Dentalkart-APIs.postman_collection.json` – 12 plain requests, one flat list (3 dropdown lists, all dropdowns, register a company, brands list, products list (`tag=best-seller`),
   product detail, tags, product reviews, customer login, post a review - paste the login token into the variable `customer_token`). Categories are in `Category-Display.postman_collection.json`. `docs/postman/sample-logo.png` is the logo it uploads. If Postman shows a ⚠ next to the `logo` file it did not send
@@ -129,11 +154,13 @@ Code is pushed to `startxlaravel02/DentalKart_backend` (`main`).
 
 ## Next
 1. Wishlist, Q&A, feedback, review moderation (admin), product relations / price tiers in the admin form.
-2. Cart, checkout and orders (stock reservation uses `reserved_qty` and `RefreshProductSummary`).
+2. Online payments (use `reserved_qty` to hold stock while a payment is pending), returns / refunds / invoices (`returned` status), coupons, membership.
 3. Collections / homepage sections / banners (content module).
-4. Admin screens for the dropdown lists (registration types, vendor types, countries) and brand "top / featured / new / suggested" flags.
+4. Admin screens for the dropdown lists (registration types, vendor types, countries), brand "top / featured / new / suggested" flags, a customers screen (the order detail only links to that customer's orders), order emails / SMS (queue + adapters).
+5. Customer OTP / email verification and forgot-password (registration is minimal: name, email, mobile, password).
 
 ## Notes
 * Admin file uploads from a browser: send `POST` with `_method=PUT` (a real PUT cannot carry files).
+* Cron: `* * * * * php artisan schedule:run` (cart cleanup 03:15, coin expiry 03:30). Set `APP_TIMEZONE` (default UTC when missing) before the first real order: stored dates follow it.
 * Production checklist: HTTPS, `SESSION_SECURE_COOKIE=true`, `SANCTUM_STATEFUL_DOMAINS` = the real admin domain, strong
   `SEED_ADMIN_PASSWORD` (the seeder refuses weak passwords in production), `APP_URL` = public API URL (image URLs use it).

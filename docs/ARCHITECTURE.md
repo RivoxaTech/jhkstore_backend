@@ -1,6 +1,6 @@
 # Dentalkart Clone – Backend Architecture
 
-Status: **design approved; foundation, company/brand module, categories, products (admin + customer catalogue + reviews) and admin panel are built** (see [PROGRESS.md](PROGRESS.md)).
+Status: **design approved; foundation, company/brand module, categories, products (admin + customer catalogue + reviews), cart / addresses / checkout / orders / coins and the admin panel are built** (see [PROGRESS.md](PROGRESS.md)).
 Companion document: [DATABASE.md](DATABASE.md) (every table, column and index).
 
 ---
@@ -79,7 +79,7 @@ tests/Feature/…
 admin-frontend/                 Vue admin panel (dev: npm run dev -> :5190; build -> public/admin-assets)
 docs/                           ARCHITECTURE, DATABASE, PROGRESS, postman/
 ```
-Only the modules built so far exist under `app/Domain` (Auth, Catalog, Company, Review, Support); the others are added with their phase.
+Only the modules built so far exist under `app/Domain` (Address, Auth, Cart, Catalog, Company, Order, Review, Reward, Support); the others are added with their phase.
 
 Rules: controller → FormRequest → **Action class** → Eloquent → Resource.
 No business logic in controllers or models' magic. Policies for authorization.
@@ -221,7 +221,7 @@ The customer tree (`sub_categories[].children[]`; `?top=1`) is cached for 10 min
 * Also designed: `product_questions` (customer Q&A, admin answers) and `product_feedback`
   (the private "Valuable Feedback" form: quality / price / overall rating + purchased yes/no).
 
-### 6.8 Orders, payment, tracking, returns (designed now, coded after phase 1)
+### 6.8 Orders, payment, tracking, returns (orders built; returns / refunds / invoices later)
 * `orders` + `order_items` (**snapshots** of name/sku/price/tax so history never changes) + `order_addresses` (snapshot)
   + `order_status_history` (this is the timeline shown in *Track Order*).
 * `payments` is polymorphic (`payable` = order **or** membership purchase) – COD, UPI, card, net banking, wallet, EMI;
@@ -230,14 +230,55 @@ The customer tree (`sub_categories[].children[]`; `?top=1`) is cached for 10 min
   `order_number + mobile/email` for guests, or by token for logged-in users.
 * `return_requests` (+ items, media, status history): replace first, refund if out of stock; refund to original / bank / store coupon.
 * `refunds`, `invoices` (GST invoice number + PDF).
-* Stock safety: reserve inside a DB transaction with row locks; a scheduled job releases reservations of unpaid orders.
+* Stock safety: stock is deducted inside a DB transaction with row locks (see 6.12); `reserved_qty` is kept for online payments later.
+
+### 6.12 Cart, addresses, checkout and orders (built)
+**Cart** (`Domain/Cart`, stored in `carts` / `cart_items`, APIs under `/store/cart`):
+* One cart per customer **and channel**: a Standard cart and an Instadent cart are separate carts (the channel is `?channel=`, Instadent needs a login). Add-to-cart is always on an **option** (`variant_id`);
+  the option and its product must be shown on the website for that channel, active, and in stock there.
+* Guests have a cart too: the server creates a 40-character `guest_token` on the first add and returns it (`data.token` + the `X-Cart-Token` response header); the client sends it back as the `X-Cart-Token` request header.
+  A guest cart lives 30 days from its last use. **Login and registration merge the guest cart** into the customer's cart of the same channel (same option: quantities added, capped by `max_order_qty` and the stock; options no longer sold are skipped; the guest cart is deleted, so a token works once). **Placing an order needs a customer token.**
+* Every write checks `min_order_qty`, `max_order_qty` and the available stock (`stock_qty - reserved_qty` of the channel) and answers 422 with a stable `code` (`below_min_qty`, `above_max_qty`, `insufficient_stock`, `out_of_stock`, `unavailable`, `not_in_cart`, `cart_full`) and a message that can be shown as is.
+* **Every cart answer is recalculated on the server** (`CartPricing`, the only price calculator - the cart screen and checkout share it; amounts are handled in whole cents): unit price = the option price, or the **bulk price of the highest tier whose `min_qty` <= qty** (a tier that is not cheaper than the option price is ignored);
+  line total, MRP total, product saving, bulk saving, the next bulk offer as a hint (`"Buy 5+ for Rs 152 each"`, `add_qty`, `extra_discount_percent`), the coins a line earns, and **warnings that never drop a line silently**:
+  `price_changed` (price differs from what the customer saw), `low_stock` ("Only 3 left."), `insufficient_stock`, `out_of_stock`, `unavailable`, `below_min_qty`, `above_max_qty`. A line that can no longer be sold at all (`unavailable` / `out_of_stock`) stays visible but is not in the totals; a line with a wrong quantity is counted but blocks the checkout (`can_checkout: false`, `issues[]`).
+* **Summary:** `items_total` (everything at MRP) - `product_discount` (MRP -> option price) - `bulk_discount` (option price -> bulk price) = `subtotal`; `coins` (requested / applied / limited_by) and `coins_discount`; `delivery_fee`; `grand_total` = subtotal - coins_discount + delivery_fee;
+  `coins_to_earn`, `total_savings` (product + bulk + coins discounts), `tax_included` (+ `tax_note`: "Inclusive of all taxes"), `items_count` (units), `min_order_amount`.
+* **Coins:** the customer may use coins from their wallet (`PUT /store/cart/coins` or `coins_to_redeem` at checkout). The server cuts the request down to the smallest of: the spendable wallet (non-expired batches), the items subtotal (coins never pay for delivery), `max_redeem_coins_per_order`, `redeem_cap_order_percent` of the subtotal and `redeem_cap_balance_percent` of the wallet;
+  `limited_by` names the limit that applied. **1 coin = Rs 1** by default (`site_settings.coin_value`, editable). Coins are earned as `sum(option reward_points x qty)`, **credited when the order is delivered** (never when it is placed); redeemed coins are debited when the order is placed and refunded when it is cancelled.
+* **Delivery:** ONE flat charge, `site_settings.delivery_fee` (default Rs 300), on every order, every postcode and both channels; free when the subtotal reaches `free_delivery_min_cart` (**0 = never free**); nothing for an empty cart. Prices are **tax inclusive**; the product's sales-tax rate and HS code are copied to the order line for invoices.
+* `min_order_amount` (new, 0 = none) is checked against the subtotal. Rate limits: cart 120 / min (per customer, cart token or IP), checkout / cancel / reorder 20 / min per customer, address book + order history 60 / min.
+* `php artisan carts:prune` (daily): deletes expired guest carts and empty customer carts untouched for 90 days.
+
+**Addresses** (`Domain/Address`, `/store/addresses`): the Dentalkart edit-address form (name, phone, alternate phone, `line1` = clinic / house / building / apartment, `area`, landmark, city, state, `postcode`, GSTIN validated, `type` clinic | home | other, optional latitude / longitude, `is_default`).
+The first address is the default; deleting the default promotes the newest one. Another customer's address always answers 404.
+
+**Checkout** (`POST /store/orders`, `Domain/Order/Actions/PlaceOrder`): ONE transaction: lock the cart row -> lock the stock rows (`FOR UPDATE`, in variant order, so two checkouts cannot deadlock) -> lock the coin batches -> price the cart again from live data ->
+validate (stock, quantity limits, minimum order, COD limit and per-option COD flag, postcode serviceability from `pincodes` when listed, address ownership, and optionally `expected_total`) -> write the order, lines (snapshots: product + option name, SKU, brand, company, picture, MRP, option price, bulk tier used, unit price, qty, tax rate / amount, coins, expiry),
+shipping + billing address snapshots, history row, payment row -> deduct the stock -> debit the coins -> empty the cart.
+* **Stock is DEDUCTED when the order is placed** (`stock_qty - qty`, movement type `sale`), not reserved; cancelling adds it back (movement `cancel`). `reserved_qty` stays free for online payments (hold while a payment is pending). Overselling is impossible: the check and the deduction happen under the row lock. An admin stock edit is applied as a change too: the product form sends `stock_was` (the number it showed) and the server adds (typed - shown) to the live quantity under the same lock, so saving an old form never gives sold units back (API clients without `stock_was` set an absolute number).
+  After a sale the product summary (`is_in_stock`) is refreshed and a **low-stock alert** (`inventory.low_stock` audit entry) is written when the available quantity is at or below `low_stock_threshold`.
+* **Double submit:** the cart row lock makes a second tap wait, then it finds an empty cart (422 `cart_empty`). With an `Idempotency-Key` header the second request returns the **same order** (200 + `Idempotency-Replayed: true`).
+* **Order number:** `DK-<year>-<order id, 6 digits>` (e.g. `DK-2026-000123`), unique and gap-free per id.
+* **Payment:** cash on delivery only (`payment_method = cod`, `payment_status = cod_pending`, a `payments` row `cod_pending`); online payment gets its own branch in `PlaceOrder::validate` and a pending status later. Marked paid when delivered. COD is refused above `cod_max_amount` (0 = no limit), for options with COD switched off and for postcodes with `cod_available = false`.
+* The checkout accepts `address_id` or an inline `address` (saved to the address book unless `save_address` is false), `billing_address_id` (default: same as shipping), `customer_note`, `coins_to_redeem` and `expected_total` (409 `price_changed` when the total moved).
+
+**Status flow** (`ChangeOrderStatus`, the only place a status changes): `pending -> confirmed -> packed -> shipped -> delivered`, one step at a time, and `cancelled` while the order is pending / confirmed / packed (`returned` is reserved for the returns module).
+The customer may only cancel (before it ships); the admin may do every allowed step. Shipping needs a **courier and an AWB / tracking number** (a `shipments` row is created); cancelling by the admin needs a reason.
+* `delivered`: the COD payment becomes paid, the earned coins are credited. `cancelled`: stock returns (movement `cancel`), redeemed coins are refunded as a fresh batch, the payment is voided, order lines are marked cancelled. Both are idempotent.
+* Every change writes a history row (who: admin / customer / system, when, note) and an `audit_logs` entry (`order.status_changed`, `order.cancelled`).
+* Customer APIs: my orders (paginated), order detail (by order number, with timeline, tracking, totals), cancel, **reorder** (adds the options to the cart, quantities cut down to what is sold today, skipped ones reported).
+
+**Admin** (`/admin/orders`, `/admin/settings/commerce`): paginated orders list (`per_page` max 100) with status counts, search (order number / email / phone / id / customer name - all index based), filters (status, channel, payment status, payment method, dates, customer), full detail,
+status changes, internal note; Settings for delivery fee, free-delivery limit, delivery days, coin value, coin caps, COD limit and minimum order; dashboard cards (orders today, revenue today, pending, low stock).
+Errors of the cart / checkout flow are `CommerceException`s rendered as `{ message, code, errors: { field: [message] } }` (422; 409 for a changed price; 404 `not_in_cart`; 403 for a forbidden status change).
 
 ### 6.9 Rewards (Dentacoins) and membership
 * `reward_transactions` is an **append-only ledger** (earn / redeem / expire / adjust / reverse / referral).
   Each *earn* row is a batch with `expires_at = credited + 365 days`; redemption consumes the earliest-expiring
   batches first (`reward_redemptions`). `reward_wallets` caches balances.
-* Rules live in data, not code: coin value (Rs 1.5), redemption caps (10% / 20% of order, 20% / 40% of balance,
-  max 5,000 coins) in `site_settings` and `membership_plans`.
+* Rules live in data, not code: coin value (Rs 1 per coin, `site_settings.coin_value`), redemption caps (`max_redeem_coins_per_order` 5,000, `redeem_cap_order_percent` and `redeem_cap_balance_percent`, both 100 = no extra cap by default; the membership plans will bring 10% / 20% of order and 20% / 40% of balance)
+  in `site_settings` and `membership_plans`. Built: `Domain/Reward/Actions/RewardLedger` (spendable balance, FIFO redeem, refund on cancel, credit on delivery, admin gift, expiry via `rewards:expire`).
 * `membership_plans` (Plan-I 6 months ₹499, Plan-II 12 months ₹799; multiplier 2×, free shipping from ₹499,
   20% redemption cap, priority processing, education pass) and `user_memberships` (starts/ends, status, payment).
 
@@ -280,8 +321,8 @@ Order/Payment into a service (boundaries already modular).
 
 | Side | Endpoints |
 |---|---|
-| Customer (`/store`) | `auth/login`, `auth/logout`, `auth/me` · `lookups/registration-types`, `lookups/vendor-types`, `lookups/countries` · `company-registration/options` · `POST company-registrations` · `brands`, `brands/{slug}` · `categories` (`?menu=1`), `categories/{slug}` · `settings/delivery` · `products` (filters `tag`, `category`, `sub_category`, `brand`, `q`, `min_price`, `max_price`, `in_stock`, `rating`, `channel`, `sort`, `page`, `per_page`), `products/{slug}` (`?channel=`), `tags`, `products/{slug}/reviews` (GET list + summary, POST with customer token). `channel=instadent` needs a customer token (guests get 401) |
-| Admin (`/admin`) | `auth/login|logout|me` · `dashboard` · `companies` (list with status counts, create, show, update, delete, `approve`, `reject`, `suspend`, private catalogue download, `options`) · `companies/{id}/brands`, `brands` (list, show, create, update, delete) · `categories` (list with sub-categories + counts, `options`, create, show, update, delete), `categories/{id}/sub-categories` (create), `sub-categories/{id}` (show, update, delete) · `products` (lean list with filters `q`, `status`, `company_id`, `brand_id`, `category_id`, `sub_category_id`, `tag`, `channel`; create, show, update, delete), `products/options`, `PATCH products/{id}/status`, `PUT products/{id}/tags`, `POST products/{id}/images`, `PUT products/{id}/images/order`, `DELETE products/{id}/images/{mediaId}` · `tags` (CRUD, system tags cannot be deleted) · `settings/delivery` |
+| Customer (`/store`) | `auth/login` (+ `cart_token` merge), `auth/register`, `auth/logout`, `auth/me` · **cart** `GET cart`, `POST cart/items`, `PUT cart/items/{variantId}`, `DELETE cart/items/{variantId}`, `DELETE cart`, `PUT cart/coins` (all `?channel=`) · **addresses** `GET|POST addresses`, `GET|PUT addresses/{id}`, `POST addresses/{id}/default`, `DELETE addresses/{id}` · **orders** `POST orders`, `GET orders`, `GET orders/{orderNumber}`, `POST orders/{orderNumber}/cancel`, `POST orders/{orderNumber}/reorder` · `lookups/registration-types`, `lookups/vendor-types`, `lookups/countries` · `company-registration/options` · `POST company-registrations` · `brands`, `brands/{slug}` · `categories` (`?menu=1`), `categories/{slug}` · `settings/delivery` · `products` (filters `tag`, `category`, `sub_category`, `brand`, `q`, `min_price`, `max_price`, `in_stock`, `rating`, `channel`, `sort`, `page`, `per_page`), `products/{slug}` (`?channel=`), `tags`, `products/{slug}/reviews` (GET list + summary, POST with customer token). `channel=instadent` needs a customer token (guests get 401) |
+| Admin (`/admin`) | `auth/login|logout|me` · `dashboard` · `companies` (list with status counts, create, show, update, delete, `approve`, `reject`, `suspend`, private catalogue download, `options`) · `companies/{id}/brands`, `brands` (list, show, create, update, delete) · `categories` (list with sub-categories + counts, `options`, create, show, update, delete), `categories/{id}/sub-categories` (create), `sub-categories/{id}` (show, update, delete) · `products` (lean list with filters `q`, `status`, `company_id`, `brand_id`, `category_id`, `sub_category_id`, `tag`, `channel`; create, show, update, delete), `products/options`, `PATCH products/{id}/status`, `PUT products/{id}/tags`, `POST products/{id}/images`, `PUT products/{id}/images/order`, `DELETE products/{id}/images/{mediaId}` · `tags` (CRUD, system tags cannot be deleted) · `settings/delivery` · `orders` (list + `options`, detail, `POST orders/{id}/status`, `PATCH orders/{id}/note`) · `settings/commerce` (GET, PUT) |
 
 Live reference generated from the code: `/docs/api` (Scramble). Postman: `docs/postman/Dentalkart-APIs.postman_collection.json`
 (12 plain requests: dropdowns, register a company, brands, products list / detail, tags, reviews list, customer login, post a review).
@@ -330,7 +371,8 @@ admins & roles · audit log.
 4. ✅ **Customer catalog** – listing, filters, search, sort, detail, related products, brand pages, Instadent (login-gated), homepage sections through tags. (`collections` / `homepage_sections` tables are still unused: banners and curated lists come with the content module.)
 5. **Reviews, ratings** ✅ (list, post, stats). **Wishlist, Q&A, feedback, review moderation** still to do.
 6. ✅ **Demo data** – optional `ProductDemoSeeder` loads the frontend's products (`php artisan db:seed --class=ProductDemoSeeder`).
-7. Later modules on the same schema: cart → checkout → payments → orders/tracking → returns/refunds → rewards → membership → coupons → enquiries → content/events.
+7. ✅ **Cart, addresses, checkout (COD), orders, status flow, coins (earn on delivery, redeem, refund)** and the admin Orders / Settings screens (6.12).
+8. Later modules on the same schema: online payments → returns/refunds/invoices → membership → coupons → enquiries → content/events.
 
 Each phase ends with: migrations (already done in phase 0), actions, endpoints, PHPUnit tests, OpenAPI docs.
 
@@ -343,6 +385,8 @@ Each phase ends with: migrations (already done in phase 0), actions, endpoints, 
 2. Dealer-enquiry and Waldent-dealership form fields beyond Personal Details were not visible → stored in `enquiries.payload` JSON.
 3. Courier, payment gateway, SMS and mail providers are not chosen → adapters + fake drivers for now.
 4. Instadent specifics (delivery ETA, serviceable pincodes) → modelled on `pincodes`; rules to be confirmed.
-5. Guest checkout: schema supports guest carts (`guest_token`); orders require a logged-in customer unless you decide otherwise.
+5. ~~Guest checkout~~ – decided: guests have a cart (`X-Cart-Token`) that is merged on login / registration; **placing an order requires a login**.
 6. Review moderation: default is "published immediately", with an admin switch to require approval.
+8. Defaults chosen while building the orders (change any of them without a schema change): stock is deducted at placement, not reserved; order numbers are `DK-<year>-<id>`; a customer may cancel while the order is pending / confirmed / packed; the admin moves an order one step at a time;
+   coin caps by percentage default to 100 (off); new customer registration is minimal (name, email, mobile, password - no OTP yet); the shop time zone is `APP_TIMEZONE` (Asia/Karachi); an inline checkout address is saved to the address book by default; the sales-tax amount is computed on the line total before the coins discount.
 7. ~~Free-shipping threshold~~ – resolved: flat Rs 300 delivery, free above Rs 8,500, both admin-editable; delivery days standard 5 / Instadent 3.
