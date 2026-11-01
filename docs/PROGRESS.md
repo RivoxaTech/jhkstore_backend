@@ -22,7 +22,7 @@ Code is pushed to `startxlaravel02/DentalKart_backend` (`main`).
 ## Done
 
 ### Foundation
-* Laravel 13 (PHP 8.3, MySQL 8.4 `dentalkart_db`, Laragon). Packages: Sanctum, spatie/laravel-permission, spatie/laravel-medialibrary,
+* Laravel 13 (PHP 8.3, MySQL 8.4 `jhkstore_db`, Laragon). Packages: Sanctum, spatie/laravel-permission, spatie/laravel-medialibrary,
   dedoc/scramble (generated API docs at `/docs/api`).
 * **All 88 tables migrated** (`database/migrations/`, six files: users, admin/addresses, companies, catalog, commerce, engagement/content,
   sessions). `categories` and `sub_categories` are separate tables.
@@ -133,7 +133,7 @@ Full rules in ARCHITECTURE 6.12; tables in DATABASE section 7 / 9. Migration `20
 * **Seeds:** the seeded customer `test@gmail.com` / `test` gets 500 demo coins and a default address; `coin_value` is now 1 (1 coin = Rs 1).
 
 ### Tests
-* `php artisan test` → 229 PHPUnit feature tests pass (97 new: CartTest, AddressTest, OrderTest, AdminOrderTest, OrderSearchTest, CommerceSettingsTest). Earlier groups: CategoryFlowTest, ProductAdminTest, ProductStoreTest, ProductSearchTest ...: see `php artisan test`) (uses the `dentalkart_test` database; create it empty once).
+* `php artisan test` → 229 PHPUnit feature tests pass (97 new: CartTest, AddressTest, OrderTest, AdminOrderTest, OrderSearchTest, CommerceSettingsTest). Earlier groups: CategoryFlowTest, ProductAdminTest, ProductStoreTest, ProductSearchTest ...: see `php artisan test`) (uses the `jhkstore_test` database; create it empty once).
 * A real-browser run of the admin panel (login, cookie, approve, brands, logos, forms, search, collapse, mobile) passed in full
   on the dev server and on the Laravel-served build. The categories page was checked the same way (41 checks at first; after the top flag and sub-sub-categories were added, 38 more: S.no, top flag and its 12 limit,
   three levels, adding / renaming / deleting a sub-sub-category with an icon, delete refusal, search, mobile width). The 6 Postman requests were run against the live API: all succeed.

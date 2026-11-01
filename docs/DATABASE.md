@@ -776,7 +776,7 @@ changes JSON NULL, ip VARCHAR(45) NULL        IX (subject_type, subject_id), IX 
   orders never cascade from catalogue (they use snapshots).
 * **Constraints:** `selling_price <= mrp`, `rating BETWEEN 1 AND 5`, unique `(product_id, user_id)` review,
   unique `(variant_id, channel_id)` stock row, product `brand.company_id = company_id` (application + test).
-* **Counts of tables:** 88 in `dentalkart_db` including Laravel/spatie platform tables (all created by the migrations; the schema is
+* **Counts of tables:** 88 in `jhkstore_db` including Laravel/spatie platform tables (all created by the migrations; the schema is
   complete, the code for most modules is still to be written – see `PROGRESS.md`).
 * **Built so far (tables in use):** users, admins, sessions, personal_access_tokens, roles/permissions, countries,
   company_registration_types, vendor_types, companies, brands, categories, sub_categories (`2026_10_28_000001` adds `categories.is_top` and `sub_categories.parent_id`; `2026_10_28_000002` drops `show_in_menu`), media, audit_logs, site_settings, sales_channels, **products, product_variants, variant_channel_stock, inventory_movements, product_channels, product_images, product_content_tabs, product_tag, tags, product_relations, variant_price_tiers, product_reviews, product_rating_stats** (`2026_10_28_000003` adds `products.return_days`, default 10; `2026_10_28_000004` adds the search indexes `products(name)`, `brands(name)`, `companies(email)`, FULLTEXT `companies(name)` and renames old "Default" options to their product name).

@@ -33,7 +33,7 @@ Build order is in section 10. Phase 1 = company, brand, category, product, revie
 | Roles | **spatie/laravel-permission** | Standard, tables well known. |
 | Media | **spatie/laravel-medialibrary** | Icons, banners, product images, catalogue files, thumbnails; local disk now, S3/R2 later by config. |
 | API docs | **Scramble** (OpenAPI generated from code) | Frontend developer gets a live spec. |
-| Tests | **PHPUnit** feature tests per endpoint (`php artisan test`, separate `dentalkart_test` database) | Ships with Laravel; no extra dependency. |
+| Tests | **PHPUnit** feature tests per endpoint (`php artisan test`, separate `jhkstore_test` database) | Ships with Laravel; no extra dependency. |
 | Search | MySQL FULLTEXT first → **Meilisearch via Laravel Scout** when catalogue is large | Same API either way. |
 | Style | **API-first modular monolith** | One deployable unit, clear module boundaries. No microservices at this size. |
 
