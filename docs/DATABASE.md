@@ -5,8 +5,7 @@ sub-categories, products and reviews. Money `DECIMAL(12,2)` (cart maths use whol
 Files use spatie medialibrary (`media` table). "Snapshot" = copied at the time of the event so history never changes.
 
 The database name comes from `DB_DATABASE` in `.env` (`jhkstore_db`; tests use `jhkstore_test` from `phpunit.xml`). It is not hard-coded anywhere else.
-Migrations are additive history: the original schema plus `2026_11_01_*` migrations that removed the company flow, sales channels and the third category level and
-made tax/address/profile columns market-neutral. A fresh install runs them all (`php artisan migrate:fresh --seed`).
+The whole schema is ONE baseline migration, `database/migrations/0001_01_01_000000_create_baseline_schema.php` (squashed from the earlier history; tables first, foreign keys afterwards). A fresh install runs it with `php artisan migrate --seed`. Every later change is a new migration file after it. A database that ran the old, un-squashed migrations cannot be upgraded in place: rebuild it with `php artisan migrate:fresh --seed`.
 
 ## Relationships (text ERD)
 

@@ -5,7 +5,7 @@
 The project was cleaned up from a single-shop clone into a neutral, reusable e-commerce base (one deployment per client).
 
 ### Removed
-- **Unused tables** (migration `2026_11_02_000001`): memberships, returns, OTP codes, referrals (and `users.referral_code` / `referred_by_user_id`), events, shipping rules, search terms, enquiries – 14 tables. Kept for the next phase: wishlist, coupons, reviews/Q&A, CMS, notifications, refunds, invoices, webhook events, shipment items/events.
+- **Unused tables**: memberships, returns, OTP codes, referrals (and `users.referral_code` / `referred_by_user_id`), events, shipping rules, search terms, enquiries – 14 tables. Kept for the next phase: wishlist, coupons, reviews/Q&A, CMS, notifications, refunds, invoices, webhook events, shipment items/events.
 - **Seller / company onboarding**: companies, vendor types, registration types and countries (tables, models, services, controllers, requests, routes, admin pages, seeders, tests, docs). Products and order lines no longer reference companies.
 - **Sales channels** (standard / express): `sales_channels`, `product_channels`, `variant_channel_stock`, the channel middleware and query parameter, channel filters and switches in the admin panel.
 - **Third category level** (sub-sub-categories): `sub_categories.parent_id`, the `children` API field, nested admin UI and queries. Existing products of a sub-sub-category move up to its parent sub-category.
@@ -13,6 +13,7 @@ The project was cleaned up from a single-shop clone into a neutral, reusable e-c
 - **Original-shop data and branding**: dental categories, demo products with hot-linked images, in-house company, demo orders, the `DK-` order prefix, admin branding, old Postman collections and docs.
 
 ### Added
+- **One baseline migration**: all earlier migrations were squashed into `0001_01_01_000000_create_baseline_schema.php` for fresh installs (verified identical to the previous schema: 66 tables, columns, defaults, indexes and foreign keys). Existing development databases must be rebuilt with `migrate:fresh`.
 - **Settings**: cached key/value `settings` table, one `Settings` service, admin **Settings** page (generic, built from the definitions), public `GET /store/settings`. Store name, logo, contact, currency (code, symbol, decimals), tax (rate, inclusive/exclusive, label), order number prefix, delivery, minimum order and COD limit are settings ([docs/SETTINGS.md](docs/SETTINGS.md)).
 - **Optional brands** (`Enable brands`, default on) – brand is nullable on products; brand CRUD is a top-level admin page.
 - **Optional reward points** (`Enable reward points`, default off) with earn rate and redeem rate; all points logic is behind `RewardLedger`.
