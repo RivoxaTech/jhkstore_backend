@@ -25,7 +25,7 @@ use App\Domain\Order\Models\OrderItem;
 use App\Domain\Order\Models\OrderStatusHistory;
 use App\Domain\Order\Models\Payment;
 use App\Domain\Reward\Actions\RewardLedger;
-use App\Domain\Support\CommerceSettings;
+use App\Domain\Support\Settings;
 use App\Support\Audit;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
@@ -48,7 +48,7 @@ class PlaceOrder
 {
     public function __construct(
         private readonly CartPricing $pricing,
-        private readonly CommerceSettings $settings,
+        private readonly Settings $settings,
         private readonly RewardLedger $ledger,
         private readonly SaveAddress $addresses,
         private readonly RefreshProductSummary $refreshProduct,
@@ -142,9 +142,9 @@ class PlaceOrder
             throw new CommerceException('below_min_order', "The minimum order amount is $min. Add items worth $more more.", 'cart');
         }
 
-        if (isset($input['expected_total']) && CommerceSettings::cents($input['expected_total']) !== $priced->grandTotal) {
+        if (isset($input['expected_total']) && app(Settings::class)->cents($input['expected_total']) !== $priced->grandTotal) {
             throw new CommerceException('price_changed', 'The prices in your cart have changed. Please check the new total.', 'expected_total', 409, [
-                'expected_total' => (float) $input['expected_total'], 'current_total' => CommerceSettings::money($priced->grandTotal),
+                'expected_total' => (float) $input['expected_total'], 'current_total' => app(Settings::class)->money($priced->grandTotal),
             ]);
         }
 
@@ -220,17 +220,17 @@ class PlaceOrder
             'fulfillment_status' => 'unfulfilled',
             'payment_method' => PaymentMethod::Cod->value,
             'items_count' => $priced->unitsCount,
-            'mrp_total' => CommerceSettings::money($priced->itemsTotal),
-            'product_discount_total' => CommerceSettings::money($priced->productDiscount),
-            'bulk_discount_total' => CommerceSettings::money($priced->bulkDiscount),
-            'items_subtotal' => CommerceSettings::money($priced->subtotal),
+            'mrp_total' => app(Settings::class)->money($priced->itemsTotal),
+            'product_discount_total' => app(Settings::class)->money($priced->productDiscount),
+            'bulk_discount_total' => app(Settings::class)->money($priced->bulkDiscount),
+            'items_subtotal' => app(Settings::class)->money($priced->subtotal),
             'discount_total' => 0,
             'coins_redeemed' => $priced->coins['applied'],
-            'coins_discount' => CommerceSettings::money($priced->coinsDiscount),
-            'shipping_fee' => CommerceSettings::money($priced->deliveryFee),
+            'coins_discount' => app(Settings::class)->money($priced->coinsDiscount),
+            'shipping_fee' => app(Settings::class)->money($priced->deliveryFee),
             'cod_fee' => 0,
-            'tax_total' => CommerceSettings::money($priced->taxIncluded),
-            'grand_total' => CommerceSettings::money($priced->grandTotal),
+            'tax_total' => app(Settings::class)->money($priced->taxIncluded),
+            'grand_total' => app(Settings::class)->money($priced->grandTotal),
             'coins_to_earn' => $priced->coinsToEarn,
             'customer_gst_number' => $shipping['gst_number'] ?? null,
             'customer_note' => trim((string) ($input['customer_note'] ?? '')) ?: null,
@@ -239,7 +239,7 @@ class PlaceOrder
             'source' => 'web',
             'idempotency_key' => $key,
         ]);
-        $order->forceFill(['order_number' => sprintf('DK-%s-%06d', now()->format('Y'), $order->id)])->save();
+        $order->forceFill(['order_number' => sprintf('%s-%s-%06d', strtoupper((string) app(Settings::class)->get('order_number_prefix')), now()->format('Y'), $order->id)])->save();
 
         foreach (['shipping' => $shipping, 'billing' => $billing] as $type => $address) {
             OrderAddress::create(['order_id' => $order->id, 'type' => $type, 'address_type' => $address['type'] ?? null]
@@ -253,7 +253,7 @@ class PlaceOrder
 
         Payment::create([
             'payable_type' => Payment::ORDER, 'payable_id' => $order->id, 'method' => PaymentMethod::Cod->value,
-            'amount' => CommerceSettings::money($priced->grandTotal), 'currency' => $this->settings->currencyCode(), 'status' => Payment::COD_PENDING,
+            'amount' => app(Settings::class)->money($priced->grandTotal), 'currency' => $this->settings->currencyCode(), 'status' => Payment::COD_PENDING,
         ]);
 
         return $order;
@@ -276,16 +276,16 @@ class PlaceOrder
                 'option_name' => $variant->name,
                 'brand_name' => $product->brand?->name,
                 'image_url' => $own['medium_url'] ?? ProductImages::primary($product)['image_url'],
-                'mrp' => CommerceSettings::money($line->mrp),
-                'base_price' => CommerceSettings::money($line->basePrice),
-                'unit_price' => CommerceSettings::money($line->unitPrice),
+                'mrp' => app(Settings::class)->money($line->mrp),
+                'base_price' => app(Settings::class)->money($line->basePrice),
+                'unit_price' => app(Settings::class)->money($line->unitPrice),
                 'bulk_min_qty' => $line->bulk['min_qty'] ?? null,
                 'qty' => $line->qty,
-                'discount' => CommerceSettings::money($line->productDiscount() + $line->bulkDiscount()),
-                'bulk_discount' => CommerceSettings::money($line->bulkDiscount()),
+                'discount' => app(Settings::class)->money($line->productDiscount() + $line->bulkDiscount()),
+                'bulk_discount' => app(Settings::class)->money($line->bulkDiscount()),
                 'tax_rate' => $product->gst_rate,
-                'tax_amount' => CommerceSettings::money($line->taxIncluded()),
-                'line_total' => CommerceSettings::money($line->lineTotal()),
+                'tax_amount' => app(Settings::class)->money($line->taxIncluded()),
+                'line_total' => app(Settings::class)->money($line->lineTotal()),
                 'coins_earned' => $line->coinsToEarn(),
                 'expiry_date' => $variant->expiry_date,
                 'hsn_code' => $product->hsn_code,

@@ -7,6 +7,7 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\Models\SubCategory;
 use App\Domain\Catalog\Models\Brand;
+use App\Domain\Support\Settings;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -90,7 +91,7 @@ class ProductListing
                 ->pluck('id');
             $query->whereIn('products.sub_category_id', SubCategory::query()->whereIn('parent_id', $subs)->pluck('id')->merge($subs));
         }
-        if (! empty($f['brand'])) {
+        if (! empty($f['brand']) && app(Settings::class)->brandsEnabled()) {
             $query->whereIn('products.brand_id', Brand::query()->where('slug', $f['brand'])->select('id'));
         }
         if (! empty($f['q'])) {

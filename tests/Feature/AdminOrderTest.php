@@ -50,7 +50,7 @@ class AdminOrderTest extends TestCase
         $this->getJson(self::ADMIN.'/orders')->assertStatus(401);
         $this->getJson(self::ADMIN."/orders/{$order->id}")->assertStatus(401);
         $this->postJson(self::ADMIN."/orders/{$order->id}/status", ['status' => 'confirmed'])->assertStatus(401);
-        $this->getJson(self::ADMIN.'/settings/commerce')->assertStatus(401);
+        $this->getJson(self::ADMIN.'/settings')->assertStatus(401);
 
         $this->assertSame('pending', DB::table('orders')->where('id', $order->id)->value('status'));
     }

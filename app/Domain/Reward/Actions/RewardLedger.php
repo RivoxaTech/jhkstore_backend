@@ -6,7 +6,7 @@ use App\Domain\Order\Exceptions\CommerceException;
 use App\Domain\Order\Models\Order;
 use App\Domain\Reward\Models\RewardTransaction;
 use App\Domain\Reward\Models\RewardWallet;
-use App\Domain\Support\CommerceSettings;
+use App\Domain\Support\Settings;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  */
 class RewardLedger
 {
-    public function __construct(private readonly CommerceSettings $settings) {}
+    public function __construct(private readonly Settings $settings) {}
 
     /** Coins a customer can spend right now (sum of the batches that are available and not expired). */
     public function spendable(int $userId, bool $lock = false): int

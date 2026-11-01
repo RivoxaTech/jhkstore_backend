@@ -2,27 +2,55 @@
 
 namespace App\Http\Controllers\Store;
 
-use App\Domain\Support\CommerceSettings;
-use App\Domain\Support\Models\SiteSetting;
+use App\Domain\Support\Settings;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
 
 class SettingController extends Controller
 {
-    /** Delivery charge, free-delivery limit and delivery time per channel (all editable by admin). */
-    public function delivery(CommerceSettings $settings): JsonResponse
+    /** Public store configuration: profile, currency, tax, delivery and which optional features are on. */
+    public function show(Settings $settings): JsonResponse
     {
+        $rewards = $settings->rewardsEnabled();
+
         return response()->json([
-            'currency' => SiteSetting::read('currency_code', 'PKR'),
-            'currency_symbol' => SiteSetting::read('currency_symbol', 'Rs'),
-            'delivery_fee' => $settings->get('delivery_fee'),
-            'free_delivery_min_cart' => $settings->get('free_delivery_min_cart'),   // 0 = no free delivery
-            'coin_value' => $settings->get('coin_value'),                           // money per coin
-            'min_order_amount' => $settings->get('min_order_amount'),               // 0 = no minimum
-            'cod_max_amount' => $settings->get('cod_max_amount'),                   // 0 = no limit
-            'tax_note' => 'Prices are inclusive of all taxes',
-            'channels' => DB::table('sales_channels')->where('is_active', true)->get(['code', 'name', 'delivery_days', 'requires_login']),
+            'store' => [
+                'name' => $settings->get('store_name'),
+                'tagline' => $settings->get('store_tagline'),
+                'logo_url' => $settings->logoUrl(),
+                'email' => $settings->get('store_email'),
+                'phone' => $settings->get('store_phone'),
+                'address' => $settings->get('store_address'),
+                'country' => $settings->get('store_country'),
+            ],
+            'currency' => [
+                'code' => $settings->currencyCode(),
+                'symbol' => $settings->currencySymbol(),
+                'decimals' => $settings->decimals(),
+            ],
+            'tax' => [
+                'rate' => $settings->get('tax_rate'),
+                'inclusive' => (bool) $settings->get('tax_inclusive'),
+                'label' => $settings->get('tax_label'),
+            ],
+            'delivery' => [
+                'fee' => $settings->get('delivery_fee'),
+                'free_delivery_min_cart' => $settings->get('free_delivery_min_cart'),   // 0 = never free
+                'days' => $settings->get('delivery_days'),
+            ],
+            'orders' => [
+                'min_order_amount' => $settings->get('min_order_amount'),               // 0 = no minimum
+                'cod_max_amount' => $settings->get('cod_max_amount'),                   // 0 = no limit
+            ],
+            'features' => [
+                'brands' => $settings->brandsEnabled(),
+                'rewards' => $rewards,
+            ],
+            // only present when reward points are switched on
+            'rewards' => $rewards ? [
+                'earn_rate' => $settings->get('reward_earn_rate'),
+                'redeem_rate' => $settings->get('reward_redeem_rate'),
+            ] : null,
         ]);
     }
 }

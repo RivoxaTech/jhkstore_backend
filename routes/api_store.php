@@ -24,8 +24,8 @@ Route::middleware(['auth:sanctum', 'actor:customer'])->group(function () {
     Route::get('auth/me', [AuthController::class, 'me']);
 });
 
-// Public site settings (delivery charge, free-delivery limit, delivery days)
-Route::get('settings/delivery', [SettingController::class, 'delivery']);
+// Public store settings (profile, currency, tax, delivery, enabled features)
+Route::get('settings', [SettingController::class, 'show']);
 
 // Brands (customer side)
 Route::get('brands', [BrandController::class, 'index']);

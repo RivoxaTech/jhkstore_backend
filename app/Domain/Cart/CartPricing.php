@@ -8,7 +8,7 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\Models\VariantChannelStock;
 use App\Domain\Reward\Actions\RewardLedger;
-use App\Domain\Support\CommerceSettings;
+use App\Domain\Support\Settings;
 use Illuminate\Support\Collection;
 
 /**
@@ -24,7 +24,7 @@ use Illuminate\Support\Collection;
  */
 class CartPricing
 {
-    public function __construct(private readonly CommerceSettings $settings, private readonly RewardLedger $ledger) {}
+    public function __construct(private readonly Settings $settings, private readonly RewardLedger $ledger) {}
 
     /** Relations the calculation needs (and the cart screen shows). Stock rows are limited to the channel. */
     public static function relations(SalesChannel $channel): array
@@ -68,8 +68,8 @@ class CartPricing
             $stock = $stocks ? $stocks->get($variant->id) : $variant->stocks->first();
 
             $qty = (int) $item->qty;
-            $mrp = CommerceSettings::cents($variant->mrp);
-            $base = CommerceSettings::cents($variant->selling_price);
+            $mrp = app(Settings::class)->cents($variant->mrp);
+            $base = app(Settings::class)->cents($variant->selling_price);
             [$bulk, $next] = $this->tiers($variant->priceTiers, $base, $qty, (int) $product->max_order_qty);
             $unit = $bulk['price'] ?? $base;
 
@@ -95,7 +95,7 @@ class CartPricing
                     $issues[] = $this->issue('above_max_qty', "You can buy at most {$product->max_order_qty} of \"$name\".", true);
                 }
             }
-            $snapshot = CommerceSettings::cents($item->unit_price);
+            $snapshot = app(Settings::class)->cents($item->unit_price);
             if ($snapshot !== $base) {
                 $word = $base > $snapshot ? 'increased' : 'dropped';
                 $issues[] = $this->issue('price_changed', "The price of \"$name\" has $word from ".$this->fmt($snapshot, $symbol).' to '.$this->fmt($base, $symbol).'.', false);
@@ -147,7 +147,7 @@ class CartPricing
         $next = null;
 
         foreach ($tiers->sortBy('min_qty') as $tier) {
-            $price = CommerceSettings::cents($tier->price);
+            $price = app(Settings::class)->cents($tier->price);
             if ($price >= $base) {
                 continue; // a tier that is not cheaper than the option price is no offer
             }
@@ -171,7 +171,7 @@ class CartPricing
      */
     private function clampCoins(int $requested, int $wallet, int $subtotal): array
     {
-        $value = $this->settings->coinValueCents();
+        $value = $this->settings->rewardRedeemCents();
         $requested = max(0, $requested);
 
         $limits = [

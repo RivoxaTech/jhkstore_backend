@@ -237,7 +237,7 @@ class CartTest extends TestCase
         $this->assertEquals(1, $s['coins']['coin_value']);
         $this->assertEquals(50, $s['coins_discount']);
 
-        $this->setSetting('coin_value', 2.5);
+        $this->setSetting('reward_redeem_rate', 2.5);
         $s = $this->cart()->json('data.summary');
         $this->assertEquals(2.5, $s['coins']['coin_value']);
         $this->assertEquals(125, $s['coins_discount']);

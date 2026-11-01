@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Domain\Support\Settings;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -12,7 +13,8 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // One copy per request: the settings are read many times while pricing a cart.
+        $this->app->singleton(Settings::class);
     }
 
     public function boot(): void

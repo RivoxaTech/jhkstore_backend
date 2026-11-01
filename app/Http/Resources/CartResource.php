@@ -7,7 +7,7 @@ use App\Domain\Cart\PricedCart;
 use App\Domain\Cart\PricedLine;
 use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\ProductImages;
-use App\Domain\Support\CommerceSettings;
+use App\Domain\Support\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -28,8 +28,8 @@ class CartResource extends JsonResource
         /** @var PricedCart $c */
         $c = $this->resource;
         $pricing = app(CartPricing::class);
-        $settings = app(CommerceSettings::class);
-        $money = fn (int $cents) => CommerceSettings::money($cents);
+        $settings = app(Settings::class);
+        $money = fn (int $cents) => app(Settings::class)->money($cents);
         $symbol = $settings->currencySymbol();
 
         $lines = array_map(fn (PricedLine $l) => $this->line($l, $pricing, $money), $c->lines);
@@ -105,7 +105,7 @@ class CartResource extends JsonResource
             'sku' => $v->sku,
             'image_url' => $own['medium_url'] ?? $primary['image_url'],
             'thumb_url' => $own['thumb_url'] ?? $primary['thumb_url'],
-            'brand' => ['name' => $p->brand->name, 'slug' => $p->brand->slug],
+            'brand' => ($p->brand && app(Settings::class)->brandsEnabled()) ? ['name' => $p->brand->name, 'slug' => $p->brand->slug] : null,
             'qty' => $l->qty,
             'min_order_qty' => (int) $p->min_order_qty,
             'max_order_qty' => (int) $p->max_order_qty,

@@ -755,7 +755,7 @@ class ProductStoreTest extends TestCase
 
     public function test_the_currency_is_pkr(): void
     {
-        $this->getJson(self::STORE.'/settings/delivery')->assertOk()->assertJsonPath('currency', 'PKR')->assertJsonPath('currency_symbol', 'Rs');
+        $this->getJson(self::STORE.'/settings')->assertOk()->assertJsonPath('currency.code', 'PKR')->assertJsonPath('currency.symbol', 'Rs');
     }
 
     public function test_the_review_list_is_paginated(): void

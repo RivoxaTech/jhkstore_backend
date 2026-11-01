@@ -73,8 +73,8 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin'])->group(function () {
     Route::patch('orders/{order}/note', [OrderController::class, 'note'])->whereNumber('order');
 
     // Settings
-    Route::get('settings/commerce', [SettingController::class, 'showCommerce']);
-    Route::put('settings/commerce', [SettingController::class, 'updateCommerce']);
-    Route::get('settings/delivery', [SettingController::class, 'showDelivery']);
-    Route::put('settings/delivery', [SettingController::class, 'updateDelivery']);
+    Route::get('settings', [SettingController::class, 'show']);
+    Route::put('settings', [SettingController::class, 'update']);
+    Route::post('settings/logo', [SettingController::class, 'uploadLogo']);
+    Route::delete('settings/logo', [SettingController::class, 'deleteLogo']);
 });

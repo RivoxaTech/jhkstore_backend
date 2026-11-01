@@ -3,6 +3,7 @@
 namespace App\Domain\Catalog\Models;
 
 use App\Domain\Catalog\Enums\ProductStatus;
+use App\Domain\Support\Settings;
 use App\Support\GeneratesUniqueSlug;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -114,7 +115,7 @@ class Product extends Model implements HasMedia
     {
         return $query
             ->where('products.status', ProductStatus::Active->value)
-            ->where(fn ($q) => $q->whereNull('products.brand_id')->orWhereHas('brand', fn ($b) => $b->storefront()))
+            ->when(app(Settings::class)->brandsEnabled(), fn ($q) => $q->where(fn ($w) => $w->whereNull('products.brand_id')->orWhereHas('brand', fn ($b) => $b->storefront())))
             ->whereExists(fn ($q) => $q->select(DB::raw(1))->from('product_variants as av')   // at least one active option to sell
                 ->whereColumn('av.product_id', 'products.id')->where('av.is_active', true))
             ->whereHas('category', fn ($q) => $q->where('is_active', true))

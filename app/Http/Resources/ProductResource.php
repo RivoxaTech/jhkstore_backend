@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Domain\Catalog\ProductImages;
+use App\Domain\Support\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -19,7 +20,7 @@ class ProductResource extends JsonResource
 
         return [
             'id' => $this->id,
-            'brand' => $this->brand ? ['id' => $this->brand->id, 'name' => $this->brand->name] : null,
+            'brand' => ($this->brand && app(Settings::class)->brandsEnabled()) ? ['id' => $this->brand->id, 'name' => $this->brand->name] : null,
             'category' => $ref('category'),
             'sub_category' => $ref('subCategory'),
             'name' => $this->name,

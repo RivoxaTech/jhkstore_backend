@@ -11,9 +11,9 @@ use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\Models\SubCategory;
 use App\Domain\Catalog\Models\Tag;
+use App\Domain\Support\Settings;
 use App\Domain\Catalog\ProductImages;
 use App\Domain\Catalog\ProductSearch;
-use App\Domain\Support\Models\SiteSetting;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ReorderProductImagesRequest;
 use App\Http\Requests\Admin\SaveProductRequest;
@@ -35,13 +35,14 @@ class ProductController extends Controller
     ];
 
     /** What the dropdowns of the product form need: active brands, tags, channels, statuses. */
-    public function options(): JsonResponse
+    public function options(Settings $settings): JsonResponse
     {
         return response()->json([
-            'brands' => Brand::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'brands' => $settings->brandsEnabled() ? Brand::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']) : [],
+            'features' => ['brands' => $settings->brandsEnabled(), 'rewards' => $settings->rewardsEnabled()],
             'tags' => Tag::query()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'slug', 'color', 'is_active']),
             'channels' => SalesChannel::query()->orderBy('id')->get(['code', 'name', 'requires_login']),
-            'currency' => ['code' => SiteSetting::read('currency_code', 'PKR'), 'symbol' => SiteSetting::read('currency_symbol', 'Rs')],
+            'currency' => ['code' => $settings->currencyCode(), 'symbol' => $settings->currencySymbol(), 'decimals' => $settings->decimals()],
             'statuses' => ProductStatus::values(),
             'content_tabs' => collect(ProductContentTab::TABS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label])->values(),
         ]);

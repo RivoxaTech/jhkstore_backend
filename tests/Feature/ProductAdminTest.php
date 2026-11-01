@@ -842,6 +842,6 @@ class ProductAdminTest extends TestCase
     {
         $this->actingAsAdmin();
 
-        $this->getJson(self::ADMIN.'/products/options')->assertOk()->assertJsonPath('currency', ['code' => 'PKR', 'symbol' => 'Rs']);
+        $this->getJson(self::ADMIN.'/products/options')->assertOk()->assertJsonPath('currency', ['code' => 'PKR', 'symbol' => 'Rs', 'decimals' => 2]);
     }
 }

@@ -68,7 +68,7 @@ trait BuildsCatalog
         $n++;
 
         return array_merge([
-            'brand_id' => $this->defaultBrand()->id,
+            'brand_id' => array_key_exists('brand_id', $overrides) ? $overrides['brand_id'] : $this->defaultBrand()->id,
             'category_id' => $category->id,
             'name' => "Test Product $n",
             'sku' => "SKU-$n",

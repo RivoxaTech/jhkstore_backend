@@ -3,6 +3,7 @@
 namespace App\Domain\Catalog;
 
 use App\Domain\Catalog\Models\Brand;
+use App\Domain\Support\Settings;
 use App\Support\FullTextSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -31,8 +32,10 @@ class ProductSearch
             } else {
                 $w->where('products.name', 'like', "%$like%")->orWhere('products.short_description', 'like', "%$like%");
             }
-            $w->orWhere('products.sku', 'like', "$like%")
-                ->orWhereIn('products.brand_id', Brand::query()->where('name', 'like', "$like%")->select('id'));
+            $w->orWhere('products.sku', 'like', "$like%");
+            if (app(Settings::class)->brandsEnabled()) {
+                $w->orWhereIn('products.brand_id', Brand::query()->where('name', 'like', "$like%")->select('id'));
+            }
             if ($includeVariantSku) {
                 $w->orWhereExists(fn ($q) => $q->select(DB::raw(1))->from('product_variants')
                     ->whereColumn('product_variants.product_id', 'products.id')->where('product_variants.sku', 'like', "$like%"));

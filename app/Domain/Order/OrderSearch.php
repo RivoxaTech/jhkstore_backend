@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Admin order search, answered by indexes only:
- *   "DK-2026-0001"   -> order_number starts with it (unique index)
+ *   "ORD-2026-0001" -> order_number starts with it (a prefix of letters/digits, then a dash; unique index)
  *   "ali@x.com"      -> customer_email starts with it (index)
  *   "0300 123" digits -> order id (primary key) or customer_phone starts with the digits (index)
  *   anything else    -> customer name: FULLTEXT word starts ("ahm kha"), LIKE for words shorter than 3 letters
@@ -21,7 +21,7 @@ class OrderSearch
             return $query;
         }
 
-        if (preg_match('/^DK-/i', $t)) {
+        if (preg_match('/^[A-Za-z][A-Za-z0-9]{0,11}-/', $t)) {
             return $query->where('orders.order_number', 'like', FullTextSearch::like(strtoupper($t)).'%');
         }
         if (str_contains($t, '@')) {

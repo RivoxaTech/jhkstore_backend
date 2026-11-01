@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Domain\Catalog\ProductImages;
 use App\Support\MediaUrl;
+use App\Domain\Support\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -33,7 +34,7 @@ class StoreProductCardResource extends JsonResource
             'short_description' => $this->short_description,
             'image_url' => $images['image_url'],
             'thumb_url' => $images['thumb_url'],
-            'brand' => $this->brand ? [
+            'brand' => ($this->brand && app(Settings::class)->brandsEnabled()) ? [
                 'name' => $this->brand->name,
                 'slug' => $this->brand->slug,
                 'logo_thumb_url' => MediaUrl::of($this->brand, 'logo', 'thumb'),

@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers\Store;
 
-use App\Domain\Company\Models\Brand;
+use App\Domain\Catalog\Models\Brand;
+use App\Domain\Support\Settings;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StoreBrandResource;
 use Illuminate\Http\Request;
@@ -13,8 +14,9 @@ class BrandController extends Controller
      * Brands shown on the storefront (active brands).
      * Query: ?collection=top|featured|new|suggested  ?q=search  ?per_page=1..100  ?page=
      */
-    public function index(Request $request)
+    public function index(Request $request, Settings $settings)
     {
+        abort_unless($settings->brandsEnabled(), 404, 'Brands are not enabled.');
         $request->validate([
             'collection' => ['nullable', 'in:top,featured,new,suggested'],
             'q' => ['nullable', 'string', 'max:100'],
@@ -38,8 +40,9 @@ class BrandController extends Controller
         return StoreBrandResource::collection($brands);
     }
 
-    public function show(string $slug)
+    public function show(string $slug, Settings $settings)
     {
+        abort_unless($settings->brandsEnabled(), 404, 'Brands are not enabled.');
         $brand = Brand::query()->storefront()->with(['media', 'collections'])->where('brands.slug', $slug)->firstOrFail();
 
         return new StoreBrandResource($brand);

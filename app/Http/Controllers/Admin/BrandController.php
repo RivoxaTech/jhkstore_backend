@@ -7,6 +7,7 @@ use App\Domain\Catalog\Models\Brand;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\SaveBrandRequest;
 use App\Http\Resources\BrandResource;
+use App\Domain\Support\Settings;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,11 @@ use Illuminate\Support\Facades\DB;
 
 class BrandController extends Controller
 {
+    public function __construct(Settings $settings)
+    {
+        abort_unless($settings->brandsEnabled(), 404, 'Brands are not enabled. Turn on "Enable brands" in Settings.');
+    }
+
     /** Query: ?active=1 (only active brands) ?q= ?per_page= */
     public function index(Request $request)
     {

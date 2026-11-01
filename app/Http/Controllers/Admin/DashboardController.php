@@ -8,6 +8,7 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\Tag;
 use App\Domain\Order\Models\Order;
 use App\Domain\Support\Models\AuditLog;
+use App\Domain\Support\Settings;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -18,9 +19,10 @@ class DashboardController extends Controller
      * Numbers and lists for the admin dashboard. A few small aggregate queries + one short list,
      * so it stays fast however many products and orders exist.
      */
-    public function __invoke(): JsonResponse
+    public function __invoke(Settings $settings): JsonResponse
     {
-        $brands = Brand::query()->selectRaw('COUNT(*) as total, COALESCE(SUM(is_active), 0) as active')->first();
+        $brandsOn = $settings->brandsEnabled();
+        $brands = $brandsOn ? Brand::query()->selectRaw('COUNT(*) as total, COALESCE(SUM(is_active), 0) as active')->first() : null;
 
         $activity = AuditLog::query()->latest('id')->limit(8)->get();
         $adminNames = Admin::whereIn('id', $activity->where('actor_type', 'admin')->pluck('actor_id')->filter()->unique())->pluck('name', 'id');
@@ -41,10 +43,7 @@ class DashboardController extends Controller
                 'pending' => Order::query()->where('status', 'pending')->count(),
                 'low_stock' => $lowStock,
             ],
-            'brands' => [
-                'total' => (int) $brands->total,
-                'active' => (int) $brands->active,
-            ],
+            'brands' => $brands ? ['total' => (int) $brands->total, 'active' => (int) $brands->active] : null,
             'recent_activity' => $activity->map(fn ($log) => [
                 'id' => $log->id,
                 'action' => $log->action,

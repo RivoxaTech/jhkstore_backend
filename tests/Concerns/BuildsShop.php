@@ -94,7 +94,7 @@ trait BuildsShop
 
     protected function setSetting(string $key, mixed $value): void
     {
-        \App\Domain\Support\Models\SiteSetting::write('test', $key, $value);
+        app(\App\Domain\Support\Settings::class)->set([$key => $value]);
     }
 
     /** Logs in as an admin (the customer in front of the request is forgotten). */

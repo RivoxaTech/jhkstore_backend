@@ -8,6 +8,7 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\Models\SubCategory;
+use App\Domain\Support\Settings;
 use App\Domain\Catalog\Models\Brand;
 use Illuminate\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -261,6 +262,9 @@ class SaveProductRequest extends FormRequest
     public function productData(): array
     {
         $data = $this->validated();
+        if (! app(Settings::class)->brandsEnabled()) {
+            unset($data['brand_id']); // brands are switched off: a product keeps whatever brand it had
+        }
         unset($data['mrp'], $data['selling_price'], $data['reward_points'], $data['expiry_date'], $data['stock'], $data['stock_was']);
         if (array_key_exists('return_days', $data) && $data['return_days'] === null) {
             unset($data['return_days']); // keeps the default (10)
