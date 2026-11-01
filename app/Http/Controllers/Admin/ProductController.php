@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Domain\Catalog\Models\Brand;
 use App\Domain\Catalog\Actions\ManageProductImages;
 use App\Domain\Catalog\Actions\SaveProduct;
 use App\Domain\Catalog\Enums\ProductStatus;
+use App\Domain\Catalog\Models\Brand;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\Models\Tag;
-use App\Domain\Support\Settings;
 use App\Domain\Catalog\ProductImages;
 use App\Domain\Catalog\ProductSearch;
+use App\Domain\Support\Settings;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ReorderProductImagesRequest;
 use App\Http\Requests\Admin\SaveProductRequest;

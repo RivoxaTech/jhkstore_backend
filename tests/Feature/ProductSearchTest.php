@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Domain\Company\Models\Company;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\BuildsCatalog;
@@ -17,6 +16,7 @@ class ProductSearchTest extends TestCase
     use BuildsCatalog, DatabaseTruncation;
 
     private const ADMIN = '/api/v1/admin';
+
     private const STORE = '/api/v1/store';
 
     protected function setUp(): void

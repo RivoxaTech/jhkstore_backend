@@ -26,7 +26,7 @@ class ProductSearch
         $like = FullTextSearch::like($term);
         $boolean = FullTextSearch::booleanQuery($term);
 
-        $query->where(function ($w) use ($term, $like, $boolean, $includeVariantSku) {
+        $query->where(function ($w) use ($like, $boolean, $includeVariantSku) {
             if ($boolean) {
                 $w->whereRaw('MATCH(products.name, products.short_description) AGAINST (? IN BOOLEAN MODE)', [$boolean]);
             } else {

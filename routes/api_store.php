@@ -43,7 +43,6 @@ Route::get('products/{slug}/reviews', [ReviewController::class, 'index']);
 Route::post('products/{slug}/reviews', [ReviewController::class, 'store'])
     ->middleware(['auth:sanctum', 'actor:customer', 'throttle:reviews']);
 
-
 // Cart (stored in the database). Guest: X-Cart-Token header; customer: Bearer token.
 Route::middleware(['throttle:cart'])->prefix('cart')->group(function () {
     Route::get('/', [CartController::class, 'show']);

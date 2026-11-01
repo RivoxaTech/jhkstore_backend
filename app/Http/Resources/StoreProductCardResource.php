@@ -45,7 +45,7 @@ class StoreProductCardResource extends JsonResource
             'options_count' => $variants->count(),
             'has_single_option' => $single,
             'offers_count' => $offers,
-            'show_starting_at' => ! $single,                                    // "Starting at Rs 265" vs a direct price
+            'show_starting_at' => ! $single,                                    // "Starting at $ 265" vs a direct price
             'badge_label' => $single ? ($offers > 0 ? $offers.' '.str('Offer')->plural($offers) : '1 Option') : $variants->count().' Options',
             'price' => $cheapest ? (float) $cheapest->selling_price : null,   // the starting price: the cheapest option
             'mrp' => $cheapest ? (float) $cheapest->mrp : null,

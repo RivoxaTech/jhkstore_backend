@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Catalog\Actions\SaveBrand;
 use App\Domain\Catalog\Models\Brand;
+use App\Domain\Support\Settings;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\SaveBrandRequest;
 use App\Http\Resources\BrandResource;
-use App\Domain\Support\Settings;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

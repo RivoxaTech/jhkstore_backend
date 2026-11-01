@@ -25,14 +25,14 @@ class Settings
         // --- store profile
         'store_name' => ['general', 'string', 'My Store', 'Store name'],
         'store_tagline' => ['general', 'string', '', 'Tagline'],
-        'store_logo' => ['general', 'file', '', 'Logo', 'Upload from the Settings page (PNG, JPG, WEBP, SVG).'],
+        'store_logo' => ['general', 'file', '', 'Logo', 'Upload from the Settings page (PNG, JPG or WEBP).'],
         'store_email' => ['general', 'string', '', 'Contact email'],
         'store_phone' => ['general', 'string', '', 'Contact phone'],
         'store_address' => ['general', 'text', '', 'Address'],
         'store_country' => ['general', 'string', '', 'Country', 'Used as the default country of addresses.'],
 
         // --- currency and tax
-        'currency_code' => ['currency', 'string', 'USD', 'Currency code', 'ISO code, e.g. USD, EUR, PKR.'],
+        'currency_code' => ['currency', 'string', 'USD', 'Currency code', 'ISO code, e.g. USD, EUR, GBP.'],
         'currency_symbol' => ['currency', 'string', '$', 'Currency symbol'],
         'currency_decimals' => ['currency', 'int', 2, 'Decimals', 'Decimal places shown and calculated (0, 1 or 2).', 0, 2],
         'tax_rate' => ['tax', 'percent', 0, 'Default tax rate (%)', 'Used for products without their own rate. 0 = no tax.'],

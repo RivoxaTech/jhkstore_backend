@@ -24,7 +24,6 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin'])->group(function () {
 
     Route::get('dashboard', DashboardController::class);
 
-
     // Brands
     Route::get('brands', [BrandController::class, 'index']);
     Route::post('brands', [BrandController::class, 'store']);

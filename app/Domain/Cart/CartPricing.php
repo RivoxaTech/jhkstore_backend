@@ -205,12 +205,12 @@ class CartPricing
         return ['code' => $code, 'message' => $message, 'blocking' => $blocking];
     }
 
-    /** "Rs 152" / "Rs 1,520.50" */
+    /** "$ 152" / "$ 1,520.50" */
     public function fmt(int $cents, ?string $symbol = null): string
     {
         $symbol ??= $this->settings->currencySymbol();
         $decimals = $this->settings->decimals();
-        $whole = $cents % (10 ** $decimals) === 0;   // "Rs 152" when there is nothing after the point, "Rs 1,520.50" otherwise
+        $whole = $cents % (10 ** $decimals) === 0;   // "$ 152" when there is nothing after the point, "$ 1,520.50" otherwise
         $amount = number_format($this->settings->money($cents), $whole ? 0 : $decimals);
 
         return "$symbol $amount";

@@ -1,9 +1,9 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "jhkstore/ecommerce-base",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Neutral, API-driven e-commerce backend (Laravel) with a Vue admin panel. One deployment per client.",
+    "keywords": ["laravel", "ecommerce", "api"],
     "license": "MIT",
     "require": {
         "php": "^8.3",

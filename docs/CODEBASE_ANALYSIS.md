@@ -1,3 +1,5 @@
+> **Historical snapshot.** This is the audit of the ORIGINAL single-shop codebase, written before the clean-up into the neutral base. It describes the old state (companies, sales channels, three category levels, shop-specific data) and is kept only as the record of what was removed and why. For the current system read README.md, docs/ARCHITECTURE.md and docs/FEATURES.md.
+
 # Codebase Analysis (read-only audit)
 
 Date: 2026-11-01 · Branch `main` @ `6b89d70` · Scope: whole repo (`app/`, `routes/`, `database/`, `config/`, `tests/`, `docs/`, `admin-frontend/`).
