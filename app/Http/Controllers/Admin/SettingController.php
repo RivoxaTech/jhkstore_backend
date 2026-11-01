@@ -56,7 +56,8 @@ class SettingController extends Controller
             throw ValidationException::withMessages(array_fill_keys($unknown, ['Unknown setting.']));
         }
 
-        $data = $request->validate($settings->rules(array_keys($request->all())));
+        $keys = array_keys($request->all());
+        $data = $request->validate($settings->rules($keys), $settings->messages($keys), $settings->attributes($keys));
         $settings->set($data);
         Audit::log($request->user(), 'settings.updated', null, $data);
 

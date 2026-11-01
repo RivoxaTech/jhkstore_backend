@@ -138,7 +138,8 @@ class BannerTest extends TestCase
         $this->create([], UploadedFile::fake()->create('banner.svg', 10, 'image/svg+xml'))->assertStatus(422)->assertJsonValidationErrors('desktop_image');
         $this->create([], UploadedFile::fake()->create('banner.gif', 10, 'image/gif'))->assertStatus(422)->assertJsonValidationErrors('desktop_image');
         $this->create([], $this->image('big.jpg', 1600, 600)->size(6000))->assertStatus(422)->assertJsonValidationErrors('desktop_image');          // > 5 MB
-        $this->create([], $this->image('tiny.jpg', 200, 100))->assertStatus(422)->assertJsonValidationErrors('desktop_image');                      // narrower than 300 px
+        $this->create([], $this->image('tiny.jpg', 200, 100))->assertStatus(422)->assertJsonValidationErrors('desktop_image')                       // narrower than 300 px
+            ->assertJsonPath('errors.desktop_image.0', 'The banner picture must be at least 300 px wide and at most 6000 x 6000 px.');
         $this->create([], $this->image('huge.jpg', 7000, 100))->assertStatus(422)->assertJsonValidationErrors('desktop_image');                     // wider than 6000 px
         $this->create(['mobile_image' => $this->image('m.jpg', 800, 800)->size(4000)])->assertStatus(422)->assertJsonValidationErrors('mobile_image'); // > 3 MB
         $this->create(['mobile_image' => UploadedFile::fake()->create('m.txt', 1, 'text/plain')])->assertStatus(422)->assertJsonValidationErrors('mobile_image');

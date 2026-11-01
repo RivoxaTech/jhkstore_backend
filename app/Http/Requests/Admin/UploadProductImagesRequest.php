@@ -13,6 +13,20 @@ class UploadProductImagesRequest extends FormRequest
         return true;
     }
 
+    public function attributes(): array
+    {
+        return ['images' => 'pictures', 'images.*' => 'picture'];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'images.*.max' => 'Each picture must be 8 MB or smaller.',
+            'images.*.mimes' => 'Pictures must be PNG, JPG or WEBP.',
+            'images.*.dimensions' => 'Each picture must be between 100 and 8000 px on each side.',
+        ];
+    }
+
     public function rules(): array
     {
         return [

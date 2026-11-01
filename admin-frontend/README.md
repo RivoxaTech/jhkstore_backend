@@ -29,6 +29,10 @@ once with `php artisan db:seed`). Authentication is a cookie session (HttpOnly) 
 * Backend requirements: `SANCTUM_STATEFUL_DOMAINS` must include the admin host (`localhost:5190` and `localhost:8000` locally).
   Production: HTTPS, `SESSION_SECURE_COOKIE=true`, the real admin domain in `SANCTUM_STATEFUL_DOMAINS` and a new admin password.
 
+## Browser smoke test
+
+`npm run e2e` (needs Chrome, the API running on a freshly seeded database with the DemoSeeder, and `npm run build`): logs in, opens every screen, checks the product-edit route, the settings tabs and links editor and the limited panel of a staff user. See the header of `e2e/smoke.mjs` for the environment variables.
+
 ## Pages
 
 Dashboard, Categories (two levels: category and sub-category), Banners (per placement, drag to reorder), Users & roles (super admin only), Products (list, form with options, prices, stock,

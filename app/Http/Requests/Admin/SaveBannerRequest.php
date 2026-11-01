@@ -52,7 +52,19 @@ class SaveBannerRequest extends FormRequest
     {
         return [
             'desktop_image.required' => 'Choose the banner picture.',
+            'desktop_image.max' => 'The banner picture must be 5 MB or smaller.',
+            'desktop_image.dimensions' => 'The banner picture must be at least 300 px wide and at most 6000 x 6000 px.',
+            'mobile_image.max' => 'The mobile picture must be 3 MB or smaller.',
+            'mobile_image.dimensions' => 'The mobile picture must be at least 300 px wide and at most 6000 x 6000 px.',
             'placement.in' => 'Choose where the banner is shown.',
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'desktop_image' => 'banner picture', 'mobile_image' => 'mobile picture', 'link_url' => 'link', 'button_text' => 'button text',
+            'starts_at' => 'start date', 'ends_at' => 'end date',
         ];
     }
 

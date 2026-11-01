@@ -38,7 +38,8 @@ export function formatBytes(bytes) {
 }
 
 export function initials(name = '') {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase()).join('') || '?'
+  // the first letter of the first two words; a lone "&" or "-" is not a word
+  return name.split(/\s+/).filter(p => /[\p{L}\p{N}]/u.test(p[0] || '')).slice(0, 2).map(p => p[0].toUpperCase()).join('') || '?'
 }
 
 export const ACTION_LABELS = {

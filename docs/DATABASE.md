@@ -63,4 +63,4 @@ settings (key/value)        pincodes (optional serviceability / COD per postcode
 
 Dropped because nothing used them and they are not part of the plan: `membership_plans`, `user_memberships`, `return_reasons`, `return_requests`,
 `return_request_items`, `return_status_history`, `otp_codes`, `referrals`, `events`, `event_registrations`, `shipping_rules`, `search_terms`, `enquiries`, `enquiry_notes`
-(and the columns `users.referral_code`, `users.referred_by_user_id` and `refunds.return_request_id`). The database has **67 tables**.
+(and the columns `users.referral_code`, `users.referred_by_user_id` and `refunds.return_request_id`). The database has **65 tables**. Removed with the brands: `brands`, `brand_collections`, `products.brand_id`, `order_items.brand_id` and `order_items.brand_name`.

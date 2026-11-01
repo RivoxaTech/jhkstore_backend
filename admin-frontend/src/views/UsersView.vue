@@ -16,14 +16,13 @@ const ui = useUiStore()
 const users = ref([])
 const roles = ref([])          // [{ key, label, description, permissions[] }]
 const permissions = ref([])    // [{ key, label }]
-const loading = ref(true)
+const loading = ref(true)      // only until the first answer: later reloads keep the list on screen
 const error = ref('')
 const modal = ref(null)        // { item } while the modal is open (item null = create)
 const toDelete = ref(null)
 const busy = ref(false)
 
 async function load() {
-  loading.value = true
   error.value = ''
   try {
     const [list, meta] = await Promise.all([api.get('admin/users'), api.get('admin/roles')])

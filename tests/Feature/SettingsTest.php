@@ -81,6 +81,7 @@ class SettingsTest extends TestCase
         $this->asAdmin();
 
         $this->putJson(self::ADMIN.'/settings', ['delivery_fee' => -1])->assertStatus(422)->assertJsonValidationErrors('delivery_fee');
+        $this->putJson(self::ADMIN.'/settings', ['delivery_days' => 99])->assertStatus(422)->assertJsonPath('errors.delivery_days.0', 'The delivery time (days) field must not be greater than 60.');
         $this->putJson(self::ADMIN.'/settings', ['redeem_cap_order_percent' => 101])->assertStatus(422)->assertJsonValidationErrors('redeem_cap_order_percent');
         $this->putJson(self::ADMIN.'/settings', ['reward_redeem_rate' => 0])->assertStatus(422)->assertJsonValidationErrors('reward_redeem_rate');
         $this->putJson(self::ADMIN.'/settings', ['currency_decimals' => 3])->assertStatus(422)->assertJsonValidationErrors('currency_decimals');
@@ -222,7 +223,8 @@ class SettingsTest extends TestCase
         $this->asAdmin();
         $put = fn (array $links) => $this->putJson(self::ADMIN.'/settings', ['social_links' => $links]);
 
-        $put([$this->link('facebook', 'not a url')])->assertStatus(422)->assertJsonValidationErrors('social_links.0.url');
+        $res = $put([$this->link('facebook', 'not a url')])->assertStatus(422)->assertJsonValidationErrors('social_links.0.url');
+        $this->assertSame('Enter a full web address starting with http:// or https://.', $res->json('errors')['social_links.0.url'][0]);   // a human message
         $put([$this->link('facebook', 'javascript:alert(1)')])->assertStatus(422)->assertJsonValidationErrors('social_links.0.url');
         $put([$this->link('facebook', 'ftp://example.com/file')])->assertStatus(422)->assertJsonValidationErrors('social_links.0.url');
         $put([$this->link('facebook', '')])->assertStatus(422)->assertJsonValidationErrors('social_links.0.url');

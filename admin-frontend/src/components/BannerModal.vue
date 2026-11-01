@@ -20,7 +20,7 @@ const isEdit = computed(() => Boolean(props.item))
 const local = (iso) => (iso ? iso.slice(0, 16) : '')
 
 const form = reactive({
-  placement: props.item?.placement ?? props.defaultPlacement ?? props.placements[0]?.key ?? '',
+  placement: props.item?.placement || props.defaultPlacement || props.placements[0]?.key || '',
   title: props.item?.title ?? '',
   subtitle: props.item?.subtitle ?? '',
   button_text: props.item?.button_text ?? '',
@@ -136,7 +136,7 @@ async function save() {
             <img v-if="desktopShown" :src="desktopShown" alt="Banner picture preview" />
             <span v-else class="muted">No picture yet</span>
           </div>
-          <div style="margin-top: 6px">
+          <div style="margin-top: 6px; display: flex; gap: 6px">
             <label class="btn btn-outline btn-sm" style="cursor: pointer; margin: 0">
               {{ desktopShown ? 'Change picture' : 'Choose picture' }}
               <input type="file" accept=".png,.jpg,.jpeg,.webp" hidden aria-label="Banner picture" @change="pickDesktop" />

@@ -20,7 +20,7 @@ const canManage = computed(() => auth.can('banners.manage'))   // staff can look
 
 const banners = ref([])
 const placements = ref([])      // [{ key, label }]
-const loading = ref(true)
+const loading = ref(true)      // only until the first answer: later reloads keep the list on screen
 const error = ref('')
 const modal = ref(null)         // { item, placement } while the create/edit modal is open
 const toDelete = ref(null)
@@ -31,7 +31,6 @@ const over = ref(null)          // { placement, index }
 const groups = computed(() => placements.value.map(p => ({ ...p, items: banners.value.filter(b => b.placement === p.key) })))
 
 async function load() {
-  loading.value = true
   error.value = ''
   try {
     const [list, options] = await Promise.all([api.get('admin/banners'), api.get('admin/banners/options')])

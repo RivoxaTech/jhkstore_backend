@@ -211,6 +211,39 @@ class Settings
         ])->values()->all();
     }
 
+    /** Names used in validation messages: "The delivery time (days) field must not be greater than 60." */
+    public function attributes(array $keys): array
+    {
+        $out = [];
+        foreach ($keys as $key) {
+            $out[$key] = lcfirst(self::DEFINITIONS[$key][3]);
+            if (self::DEFINITIONS[$key][1] === 'links') {
+                $out["$key.*.platform"] = 'platform';
+                $out["$key.*.label"] = 'label';
+                $out["$key.*.url"] = 'link address';
+                $out["$key.*.active"] = 'active switch';
+            }
+        }
+
+        return $out;
+    }
+
+    /** Clearer messages for the rows of a `links` setting. */
+    public function messages(array $keys): array
+    {
+        $out = [];
+        foreach ($keys as $key) {
+            if (self::DEFINITIONS[$key][1] === 'links') {
+                $out["$key.*.url.required"] = 'Enter the link address.';
+                $out["$key.*.url.url"] = 'Enter a full web address starting with http:// or https://.';
+                $out["$key.*.platform.in"] = 'Choose one of the platforms.';
+                $out["$key.*.label.max"] = 'The label can have at most 60 characters.';
+            }
+        }
+
+        return $out;
+    }
+
     /** Validation rules by setting type for the keys that are sent (the admin API uses them; the service itself does not validate on set). */
     public function rules(array $keys): array
     {
