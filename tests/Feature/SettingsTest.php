@@ -37,7 +37,6 @@ class SettingsTest extends TestCase
         $this->assertEquals(0, $s->get('tax_rate'));
         $this->assertTrue($s->get('tax_inclusive'));
         $this->assertSame('ORD', $s->get('order_number_prefix'));
-        $this->assertTrue($s->brandsEnabled());
         $this->assertFalse($s->rewardsEnabled());          // reward points are off until the client switches them on
     }
 
@@ -66,7 +65,7 @@ class SettingsTest extends TestCase
         $this->getJson(self::STORE.'/settings')->assertOk()
             ->assertJsonPath('store.name', 'Acme Shop')->assertJsonPath('delivery.fee', 250)
             ->assertJsonPath('tax.rate', 12.5)->assertJsonPath('tax.inclusive', false)
-            ->assertJsonPath('currency.symbol', 'Rs')->assertJsonPath('features.brands', true);
+            ->assertJsonPath('currency.symbol', 'Rs')->assertJsonMissingPath('features.brands');
 
         // and so does the cart
         $variant = $this->variantOf($this->shopProduct());
@@ -128,46 +127,6 @@ class SettingsTest extends TestCase
         $order = $this->orderFor($this->customer(), 1);
 
         $this->assertMatchesRegularExpression('/^JHK-\d{4}-\d{6}$/', $order->order_number);
-    }
-
-    // ------------------------------------------------------------------ brands switch
-
-    public function test_brands_can_be_switched_off(): void
-    {
-        $category = $this->makeCategory('Cat');
-        $brand = $this->makeBrand('Acme Brand');
-        $product = $this->makeProduct($category, ['brand_id' => $brand->id, 'name' => 'Branded']);
-
-        $this->getJson(self::STORE.'/brands')->assertOk()->assertJsonCount(1, 'data');
-        $this->getJson(self::STORE.'/products')->assertJsonPath('data.0.brand.name', 'Acme Brand');
-
-        $this->setSetting('brands_enabled', false);
-
-        // storefront: no brand pages, no brand in product responses, no brand filter, no brand-name search
-        $this->getJson(self::STORE.'/brands')->assertNotFound();
-        $this->getJson(self::STORE.'/brands/'.$brand->slug)->assertNotFound();
-        $this->getJson(self::STORE.'/products')->assertJsonPath('data.0.brand', null);
-        $this->getJson(self::STORE.'/products/'.$product->slug)->assertOk()->assertJsonPath('data.brand', null);
-        $this->assertCount(1, $this->getJson(self::STORE.'/products?brand=nothing')->json('data'));   // the filter is ignored
-        $this->assertCount(0, $this->getJson(self::STORE.'/products?q=acme')->json('data'));          // the brand name is not searched
-        $this->getJson(self::STORE.'/settings')->assertJsonPath('features.brands', false);
-
-        // admin: brand endpoints are hidden, the product form has no brands, a product cannot change its brand
-        $this->asAdmin();
-        $this->getJson(self::ADMIN.'/brands')->assertNotFound();
-        $this->postJson(self::ADMIN.'/brands', ['name' => 'New'])->assertNotFound();
-        $this->getJson(self::ADMIN.'/products/options')->assertJsonPath('brands', [])->assertJsonPath('features.brands', false);
-        $this->getJson(self::ADMIN.'/products/'.$product->id)->assertJsonPath('data.brand', null);
-        $this->putJson(self::ADMIN.'/products/'.$product->id, ['brand_id' => null, 'name' => 'Renamed'])->assertOk();
-        $this->assertSame($brand->id, $product->fresh()->brand_id);   // untouched while brands are off
-        $this->getJson(self::ADMIN.'/dashboard')->assertJsonPath('brands', null);
-
-        // an inactive brand no longer hides its products while brands are off
-        $brand->update(['is_active' => false]);
-        $this->actAs(null);
-        $this->assertCount(1, $this->getJson(self::STORE.'/products')->json('data'));
-        $this->setSetting('brands_enabled', true);
-        $this->assertCount(0, $this->getJson(self::STORE.'/products')->json('data'));
     }
 
     // ------------------------------------------------------------------ rewards

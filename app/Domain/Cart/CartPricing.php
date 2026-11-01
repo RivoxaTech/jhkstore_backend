@@ -28,9 +28,8 @@ class CartPricing
     public static function relations(): array
     {
         return [
-            // a product or brand deleted after the customer added it must still load (the line is then reported as unavailable)
-            'variant.product' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug', 'sku', 'brand_id', 'status', 'tax_rate', 'min_order_qty', 'max_order_qty', 'is_cod_available']),
-            'variant.product.brand' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug']),
+            // a product deleted after the customer added it must still load (the line is then reported as unavailable)
+            'variant.product' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug', 'sku', 'status', 'tax_rate', 'min_order_qty', 'max_order_qty', 'is_cod_available']),
             'variant.product.media', 'variant.product.remoteImages',
             'variant.priceTiers',
         ];

@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Store\AddressController;
 use App\Http\Controllers\Store\AuthController;
-use App\Http\Controllers\Store\BrandController;
 use App\Http\Controllers\Store\CartController;
 use App\Http\Controllers\Store\CategoryController;
 use App\Http\Controllers\Store\OrderController;
@@ -26,10 +25,6 @@ Route::middleware(['auth:sanctum', 'actor:customer'])->group(function () {
 
 // Public store settings (profile, currency, tax, delivery, enabled features)
 Route::get('settings', [SettingController::class, 'show']);
-
-// Brands (customer side)
-Route::get('brands', [BrandController::class, 'index']);
-Route::get('brands/{slug}', [BrandController::class, 'show']);
 
 // Categories (customer side): active tree with sub-categories, cached
 Route::get('categories', [CategoryController::class, 'index']);

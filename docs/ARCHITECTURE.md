@@ -20,7 +20,7 @@ the admin panel is a Vue single-page app that talks to the same API. **One deplo
 | Database | MySQL 8 (FULLTEXT search, row locks – SQLite is not supported) |
 | Auth | Laravel Sanctum: customers = bearer tokens; admin panel = HttpOnly session cookie + CSRF (same endpoint also issues a token to non-browser clients) |
 | Roles | spatie/laravel-permission is installed (a `super_admin` role is seeded) but permissions are **not enforced yet** – every admin can do everything |
-| Media | spatie/laravel-medialibrary (category icons, brand logos, product pictures) |
+| Media | spatie/laravel-medialibrary (category icons, product pictures) |
 | API docs | dedoc/scramble → `/docs/api` |
 | Admin panel | Vue 3 + Vite + Pinia + Vue Router in `admin-frontend/` (builds into `public/admin-assets`, served at `/admin`) |
 | Tests | PHPUnit feature tests against a MySQL test database (`jhkstore_test`) |
@@ -49,8 +49,6 @@ Rule: controller → FormRequest → **Action class** → Eloquent → Resource.
 ## Settings and optional features
 
 * `Settings` (`app/Domain/Support/Settings.php`) is the only reader/writer of store configuration (see [SETTINGS.md](SETTINGS.md)).
-* **Brands** are optional (`brands_enabled`, default on): products have a nullable `brand_id`; when the switch is off the brand pages, filters, admin screens
-  and response fields disappear. Checked through `Settings::brandsEnabled()`.
 * **Reward points** are optional (`rewards_enabled`, default off): *all* points logic goes through `RewardLedger` (`enabled()`, `pointsForLine()`,
   `spendable()`, `credit()`, `redeem()`, `refund()`). Off = nothing earned, redeemed or shown (cart, checkout, orders, products, admin). Data is kept.
 * Money: amounts are `DECIMAL(12,2)`; cart maths run in whole minor units (`Settings::cents()/money()`), the number of decimals comes from `currency_decimals` (0–2).
@@ -60,7 +58,7 @@ Rule: controller → FormRequest → **Action class** → Eloquent → Resource.
 * **Categories** – two levels: `categories` → `sub_categories`. A product has `category_id` (required) and `sub_category_id` (optional, must belong to the category).
   Customers see a cached tree (`CategoryTree`, 10 minutes, cleared on every admin write).
 * **Products are parents of options (variants).** Price, MRP, stock, points, expiry, SKU and pictures are per option; the listing shows the cheapest option.
-  A product is shown on the storefront when it is `active`, its brand (if brands are on) is active, its category and sub-category are active and it has an active option.
+  A product is shown on the storefront when it is `active`, its category and sub-category are active and it has an active option.
 * **Stock** lives on the option (`stock_qty`, `reserved_qty`, `low_stock_threshold`); every change writes `inventory_movements`.
 * **Bulk prices** (`variant_price_tiers`): "buy N or more for X each", up to 5 per option.
 * **Tags** – labels such as `best-seller`; the storefront builds home page sections with `GET /products?tag=best-seller`. The seven system tags are created by the demo seeder.

@@ -208,8 +208,6 @@ img { max-width: 100%; display: block; }
 .file-row { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .file-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-row small { color: var(--text-3); }
-.brand-rows { display: grid; gap: 8px; }
-.brand-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; }
 .alert { padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; display: flex; gap: 10px; align-items: flex-start; }
 .alert--error { background: var(--danger-soft); color: #9f1239; }
 .alert--info { background: var(--primary-soft); color: var(--primary-dark); }

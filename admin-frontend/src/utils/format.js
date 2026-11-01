@@ -42,9 +42,6 @@ export function initials(name = '') {
 }
 
 export const ACTION_LABELS = {
-  'brand.created': 'added brand',
-  'brand.updated': 'updated brand',
-  'brand.deleted': 'deleted brand',
   'category.created': 'added category',
   'category.updated': 'updated category',
   'category.deleted': 'deleted category',

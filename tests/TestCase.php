@@ -21,7 +21,7 @@ abstract class TestCase extends BaseTestCase
         app(Settings::class)->set([
             'currency_code' => 'PKR', 'currency_symbol' => 'Rs', 'order_number_prefix' => 'DK',
             'delivery_fee' => 300, 'free_delivery_min_cart' => 8500, 'delivery_days' => 5, 'cod_max_amount' => 150000,
-            'brands_enabled' => true, 'rewards_enabled' => true, 'tax_rate' => 18, 'tax_inclusive' => true, 'store_country' => 'Pakistan',
+            'rewards_enabled' => true, 'tax_rate' => 18, 'tax_inclusive' => true, 'store_country' => 'Pakistan',
         ]);
         app(Settings::class)->all();   // warm the per-request copy so query-count tests do not see the one-off load
     }

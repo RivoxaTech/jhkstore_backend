@@ -32,7 +32,7 @@ const pendingProduct = ref([])     // pictures chosen for the product gallery be
 const related = ref([])            // [{ id, name, sku, thumb_url }]
 
 const form = reactive({
-  brand_id: '', category_id: '', sub_category_id: '',
+  category_id: '', sub_category_id: '',
   name: '', sku: '', short_description: '', description: '', badge_text: '', tax_rate: '',
   country_of_origin: '', warranty_text: '', min_order_qty: 1, max_order_qty: 10,
   is_returnable: true, return_days: 10, is_cod_available: true, status: 'draft',
@@ -43,7 +43,6 @@ const tabs = reactive({})          // key -> { content, format, manual_url }
 const openTabs = ref(new Set())
 
 const symbol = computed(() => catalog.currency.symbol)
-const showBrands = computed(() => catalog.features.brands)
 const showRewards = computed(() => catalog.features.rewards)
 const taxPlaceholder = computed(() => (site.tax.rate !== null && site.tax.rate !== undefined && site.tax.rate !== '' ? `Store default (${site.tax.rate}%)` : 'Store default'))
 
@@ -53,13 +52,7 @@ const blankVariant = (over = {}) => ({
 })
 const variants = ref([])   // the options: every product has at least one; the cheapest one gives the starting price
 
-// ---- dropdowns (the saved brand / category stay selectable even if switched off since)
-const brandOptions = computed(() => {
-  const list = [...catalog.options.brands]
-  const b = product.value?.brand
-  if (b && !list.some(x => x.id === b.id)) list.push({ id: b.id, name: `${b.name} (inactive)` })
-  return list
-})
+// ---- dropdowns (the saved category stays selectable even if switched off since)
 const categoryOptions = computed(() => {
   const list = [...catalog.categories]
   const p = product.value
@@ -120,7 +113,7 @@ function applyProduct(p) {
   pendingProduct.value = []
   related.value = p.related.map(r => ({ id: r.id, name: r.name, sku: r.sku, thumb_url: r.thumb_url }))
   Object.assign(form, {
-    brand_id: p.brand?.id ?? '', category_id: p.category?.id ?? '', sub_category_id: p.sub_category?.id ?? '',
+    category_id: p.category?.id ?? '', sub_category_id: p.sub_category?.id ?? '',
     name: p.name, sku: p.sku, short_description: p.short_description ?? '', description: p.description ?? '', badge_text: p.badge_text ?? '',
     tax_rate: p.tax_rate ?? '', country_of_origin: p.country_of_origin ?? '', warranty_text: p.warranty_text ?? '',
     min_order_qty: p.min_order_qty, max_order_qty: p.max_order_qty, is_returnable: p.is_returnable, return_days: p.return_days ?? 10,
@@ -217,7 +210,6 @@ function variantPayload(v, index) {
 function buildPayload() {
   const text = (v) => (String(v).trim() === '' ? null : String(v).trim())
   return {
-    ...(showBrands.value ? { brand_id: form.brand_id ? Number(form.brand_id) : null } : {}),
     category_id: Number(form.category_id),
     sub_category_id: form.sub_category_id ? Number(form.sub_category_id) : null,
     name: form.name.trim(), sku: form.sku.trim(), short_description: text(form.short_description), description: text(form.description),
@@ -321,14 +313,6 @@ function showErrors(message) {
           <div class="card__head"><h2>Basic details</h2></div>
           <div class="card__body">
             <div class="form-grid">
-              <div v-if="showBrands" class="field">
-                <label for="brand">Brand</label>
-                <select id="brand" v-model="form.brand_id" class="select" :class="{ 'has-error': err('brand_id') }" @change="clearError('brand_id')">
-                  <option value="">No brand</option>
-                  <option v-for="b in brandOptions" :key="b.id" :value="b.id">{{ b.name }}</option>
-                </select>
-                <p v-if="err('brand_id')" class="err">{{ err('brand_id') }}</p>
-              </div>
               <div class="field">
                 <label for="category">Category <span class="req">*</span></label>
                 <select id="category" v-model="form.category_id" class="select" :class="{ 'has-error': err('category_id') }" @change="clearError('category_id', 'sub_category_id')">
@@ -497,7 +481,7 @@ function showErrors(message) {
               <select id="status" v-model="form.status" class="select" :class="{ 'has-error': err('status') }">
                 <option v-for="s in catalog.options.statuses" :key="s" :value="s">{{ s[0].toUpperCase() + s.slice(1) }}</option>
               </select>
-              <p class="hint">Only <strong>Active</strong> products show on the website, and only when their category<template v-if="showBrands"> and brand</template> are active too.</p>
+              <p class="hint">Only <strong>Active</strong> products show on the website, and only when their category and sub-category are active too.</p>
             </div>
           </div>
         </section>

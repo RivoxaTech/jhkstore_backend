@@ -5,7 +5,6 @@ namespace App\Domain\Catalog;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\SubCategory;
-use App\Domain\Catalog\Models\Brand;
 use App\Domain\Support\Settings;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,7 +24,6 @@ class ProductListing
     public static function cardRelations(): array
     {
         return [
-            'brand.media',
             'category:id,name,slug',
             'tags' => fn ($q) => $q->where('tags.is_active', true),
             'media', 'remoteImages',
@@ -35,7 +33,7 @@ class ProductListing
     }
 
     /**
-     * @param  array{tag?:string,category?:string,sub_category?:string,brand?:string,q?:string,min_price?:numeric,max_price?:numeric,in_stock?:bool,rating?:int,sort?:string}  $filters
+     * @param  array{tag?:string,category?:string,sub_category?:string,q?:string,min_price?:numeric,max_price?:numeric,in_stock?:bool,rating?:int,sort?:string}  $filters
      */
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
     {
@@ -88,9 +86,6 @@ class ProductListing
                 ->when(! empty($f['category']), fn ($q) => $q->whereIn('category_id', Category::query()->where('slug', $f['category'])->select('id')))
                 ->pluck('id');
             $query->whereIn('products.sub_category_id', $subs);
-        }
-        if (! empty($f['brand']) && app(Settings::class)->brandsEnabled()) {
-            $query->whereIn('products.brand_id', Brand::query()->where('slug', $f['brand'])->select('id'));
         }
         if (! empty($f['q'])) {
             ProductSearch::apply($query, $f['q']);

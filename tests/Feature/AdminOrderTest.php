@@ -187,7 +187,7 @@ class AdminOrderTest extends TestCase
         $this->assertSame('27ABCDE1234F1Z5', $d['billing_address']['tax_number']);
 
         $item = $d['items'][0];
-        $this->assertSame(['id', 'product_id', 'variant_id', 'name', 'option_name', 'sku', 'image_url', 'brand', 'qty', 'mrp', 'price', 'unit_price', 'bulk_applied', 'discount', 'bulk_discount', 'line_total', 'tax_rate', 'tax_amount', 'expiry_date', 'status', 'coins_earned'], array_keys($item));
+        $this->assertSame(['id', 'product_id', 'variant_id', 'name', 'option_name', 'sku', 'image_url', 'qty', 'mrp', 'price', 'unit_price', 'bulk_applied', 'discount', 'bulk_discount', 'line_total', 'tax_rate', 'tax_amount', 'expiry_date', 'status', 'coins_earned'], array_keys($item));
         $this->assertSame(5, $item['qty']);
         $this->assertEquals(152, $item['unit_price']);
         $this->assertEquals(160, $item['price']);

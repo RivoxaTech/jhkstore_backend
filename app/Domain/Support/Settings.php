@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Storage;
  *
  * Every setting is declared in DEFINITIONS with its group, type, default and label, so a missing row falls back to the default,
  * the admin Settings page can be built from the list, and writes are validated by type. Client values (store name, currency, tax, …)
- * live here, not in code. Feature switches (`brands_enabled`, `rewards_enabled`) are read through the helpers at the bottom,
+ * live here, not in code. Feature switches (`rewards_enabled`) are read through the helpers at the bottom,
  * so every module checks them in the same way.
  *
  * Types: string | text | bool | int | money | percent | url
@@ -49,7 +49,6 @@ class Settings
         'delivery_days' => ['shipping', 'int', 5, 'Delivery time (days)', 'Shown to customers as the delivery estimate.', 0, 60],
 
         // --- optional features
-        'brands_enabled' => ['features', 'bool', true, 'Enable brands', 'Off: brands are hidden everywhere (admin, API, product pages).'],
         'rewards_enabled' => ['features', 'bool', false, 'Enable reward points', 'Off: no points are earned, shown or redeemed anywhere.'],
 
         // --- reward points (only used when `rewards_enabled` is on)
@@ -116,11 +115,6 @@ class Settings
     }
 
     // ------------------------------------------------------------------ feature switches (the single place they are read)
-
-    public function brandsEnabled(): bool
-    {
-        return (bool) $this->get('brands_enabled');
-    }
 
     public function rewardsEnabled(): bool
     {

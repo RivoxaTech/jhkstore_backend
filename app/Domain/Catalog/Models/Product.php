@@ -21,7 +21,7 @@ class Product extends Model implements HasMedia
     use GeneratesUniqueSlug, InteractsWithMedia, SoftDeletes;
 
     protected $fillable = [
-        'brand_id', 'category_id', 'sub_category_id', 'name', 'sku', 'short_description', 'description',
+        'category_id', 'sub_category_id', 'name', 'sku', 'short_description', 'description',
         'badge_text', 'tax_rate', 'country_of_origin', 'warranty_text', 'min_order_qty', 'max_order_qty',
         'is_returnable', 'return_days', 'is_cod_available', 'status', 'meta_title', 'meta_description',
     ];
@@ -54,11 +54,6 @@ class Product extends Model implements HasMedia
     }
 
     // ------------------------------------------------------------------ relations
-
-    public function brand(): BelongsTo
-    {
-        return $this->belongsTo(Brand::class);
-    }
 
     public function category(): BelongsTo
     {
@@ -99,14 +94,13 @@ class Product extends Model implements HasMedia
     // ------------------------------------------------------------------ scopes
 
     /**
-     * What customers may see: an active product whose brand (when it has one) is active, whose
-     * category and sub-category are active, and that has at least one active option.
+     * What customers may see: an active product whose category and sub-category are
+     * active and that has at least one active option.
      */
     public function scopeStorefront(Builder $query): Builder
     {
         return $query
             ->where('products.status', ProductStatus::Active->value)
-            ->when(app(Settings::class)->brandsEnabled(), fn ($q) => $q->where(fn ($w) => $w->whereNull('products.brand_id')->orWhereHas('brand', fn ($b) => $b->storefront())))
             ->whereExists(fn ($q) => $q->select(DB::raw(1))->from('product_variants as av')   // at least one active option to sell
                 ->whereColumn('av.product_id', 'products.id')->where('av.is_active', true))
             ->whereHas('category', fn ($q) => $q->where('is_active', true))

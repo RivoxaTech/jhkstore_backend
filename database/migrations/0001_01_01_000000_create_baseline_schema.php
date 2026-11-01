@@ -306,30 +306,6 @@ return new class extends Migration
             $table->unique(['category_id', 'slug'], 'sub_categories_category_id_slug_unique');
         });
 
-        Schema::create('brands', function (Blueprint $table) {
-            $table->id();
-            $table->string('name', 160);
-            $table->string('slug', 180);
-            $table->text('description')->nullable();
-            $table->boolean('is_active')->default(true);
-            $table->unsignedInteger('sort_order')->default(0);
-            $table->string('meta_title', 255)->nullable();
-            $table->string('meta_description', 255)->nullable();
-            $table->softDeletes();
-            $table->timestamps();
-            $table->index(['name'], 'brands_name_index');
-            $table->unique(['slug'], 'brands_slug_unique');
-        });
-
-        Schema::create('brand_collections', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('brand_id');
-            $table->string('collection', 20);
-            $table->unsignedInteger('sort_order')->default(0);
-            $table->timestamps();
-            $table->unique(['brand_id', 'collection'], 'brand_collections_brand_id_collection_unique');
-        });
-
         Schema::create('tags', function (Blueprint $table) {
             $table->id();
             $table->string('name', 60);
@@ -345,7 +321,6 @@ return new class extends Migration
 
         Schema::create('products', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('brand_id')->nullable();
             $table->unsignedBigInteger('category_id');
             $table->unsignedBigInteger('sub_category_id')->nullable();
             $table->string('name', 255);
@@ -374,7 +349,6 @@ return new class extends Migration
             $table->string('meta_description', 255)->nullable();
             $table->softDeletes();
             $table->timestamps();
-            $table->index(['brand_id', 'status'], 'products_brand_id_status_index');
             $table->index(['category_id', 'status', 'min_price'], 'products_category_id_status_min_price_index');
             $table->index(['name'], 'products_name_index');
             $table->fullText(['name', 'short_description'], 'products_name_short_description_fulltext');
@@ -735,11 +709,9 @@ return new class extends Migration
             $table->unsignedBigInteger('order_id');
             $table->unsignedBigInteger('product_id');
             $table->unsignedBigInteger('variant_id');
-            $table->unsignedBigInteger('brand_id')->nullable();
             $table->string('sku', 80);
             $table->string('name', 255);
             $table->string('option_name', 255)->nullable();
-            $table->string('brand_name', 160)->nullable();
             $table->string('image_url', 500)->nullable();
             $table->decimal('mrp', 12, 2);
             $table->decimal('base_price', 12, 2)->nullable();
@@ -757,7 +729,6 @@ return new class extends Migration
             $table->unsignedSmallInteger('cancelled_qty')->default(0);
             $table->unsignedSmallInteger('returned_qty')->default(0);
             $table->timestamps();
-            $table->index(['brand_id'], 'order_items_brand_id_foreign');
             $table->index(['order_id'], 'order_items_order_id_foreign');
             $table->index(['product_id'], 'order_items_product_id_index');
             $table->index(['variant_id'], 'order_items_variant_id_foreign');
@@ -1018,12 +989,7 @@ return new class extends Migration
             $table->foreign('category_id', 'sub_categories_category_id_foreign')->references('id')->on('categories')->onDelete('restrict');
         });
 
-        Schema::table('brand_collections', function (Blueprint $table) {
-            $table->foreign('brand_id', 'brand_collections_brand_id_foreign')->references('id')->on('brands')->onDelete('cascade');
-        });
-
         Schema::table('products', function (Blueprint $table) {
-            $table->foreign('brand_id', 'products_brand_id_foreign')->references('id')->on('brands')->onDelete('set null');
             $table->foreign('category_id', 'products_category_id_foreign')->references('id')->on('categories')->onDelete('restrict');
             $table->foreign('sub_category_id', 'products_sub_category_id_foreign')->references('id')->on('sub_categories')->onDelete('restrict');
         });
@@ -1131,7 +1097,6 @@ return new class extends Migration
         });
 
         Schema::table('order_items', function (Blueprint $table) {
-            $table->foreign('brand_id', 'order_items_brand_id_foreign')->references('id')->on('brands')->onDelete('set null');
             $table->foreign('order_id', 'order_items_order_id_foreign')->references('id')->on('orders')->onDelete('cascade');
             $table->foreign('product_id', 'order_items_product_id_foreign')->references('id')->on('products')->onDelete('restrict');
             $table->foreign('variant_id', 'order_items_variant_id_foreign')->references('id')->on('product_variants')->onDelete('restrict');
@@ -1234,8 +1199,6 @@ return new class extends Migration
             'product_variants',
             'products',
             'tags',
-            'brand_collections',
-            'brands',
             'sub_categories',
             'categories',
             'pincodes',

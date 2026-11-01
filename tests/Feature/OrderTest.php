@@ -76,7 +76,6 @@ class OrderTest extends TestCase
         $product = DB::table('product_variants')->where('id', $variant)->first();
         $this->assertSame($product->sku, $item['sku']);
         $this->assertSame($product->name, $item['option_name']);
-        $this->assertSame('Test Brand', $item['brand']);
         $this->assertSame(5, $item['qty']);
         $this->assertEquals(200, $item['mrp']);
         $this->assertEquals(160, $item['price']);

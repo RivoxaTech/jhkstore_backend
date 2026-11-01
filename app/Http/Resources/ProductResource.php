@@ -3,14 +3,13 @@
 namespace App\Http\Resources;
 
 use App\Domain\Catalog\ProductImages;
-use App\Domain\Support\Settings;
 use App\Domain\Reward\Actions\RewardLedger;
 use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * Full admin view of a product (everything the edit form needs). Needs brand, category, subCategory, tags,
+ * Full admin view of a product (everything the edit form needs). Needs category, subCategory, tags,
  * contentTabs, media, remoteImages, related (with media + remoteImages) and variants.priceTiers loaded.
  * Every product has at least one option (variant); the cheapest one gives the starting price.
  */
@@ -22,7 +21,6 @@ class ProductResource extends JsonResource
 
         $out = [
             'id' => $this->id,
-            'brand' => ($this->brand && app(Settings::class)->brandsEnabled()) ? ['id' => $this->brand->id, 'name' => $this->brand->name] : null,
             'category' => $ref('category'),
             'sub_category' => $ref('subCategory'),
             'name' => $this->name,

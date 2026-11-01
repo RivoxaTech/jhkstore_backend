@@ -17,7 +17,7 @@ export const useSiteStore = defineStore('site', () => {
   const name = computed(() => (store.value.name || '').trim() || 'Store')
   const logoUrl = computed(() => store.value.logo_url || '')
   const tax = computed(() => data.value?.tax || { rate: null, inclusive: true, label: 'Tax' })
-  const features = computed(() => ({ brands: false, rewards: false, ...(data.value?.features || {}) }))
+  const features = computed(() => ({ rewards: false, ...(data.value?.features || {}) }))
 
   function load(force = false) {
     if (loaded.value && !force) return Promise.resolve()

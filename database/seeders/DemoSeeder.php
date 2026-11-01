@@ -6,7 +6,6 @@ use App\Domain\Address\Actions\SaveAddress;
 use App\Domain\Auth\Models\Admin;
 use App\Domain\Auth\Models\User;
 use App\Domain\Catalog\Actions\SaveProduct;
-use App\Domain\Catalog\Models\Brand;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\SubCategory;
 use App\Domain\Catalog\Models\Tag;
@@ -16,7 +15,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * OPTIONAL sample data to try the shop out (not part of DatabaseSeeder): neutral categories, brands, tags, products
+ * OPTIONAL sample data to try the shop out (not part of DatabaseSeeder): neutral categories, tags, products
  * with options and quantity prices, and one demo customer. Safe to run again: everything is matched by slug / SKU / email.
  *
  *   php artisan db:seed --class=DemoSeeder
@@ -34,51 +33,49 @@ class DemoSeeder extends Seeder
         ['Sports & Outdoors', 'sports-outdoors', ['Fitness', 'Camping']],
     ];
 
-    private const BRANDS = ['Acme', 'Globex', 'Initech', 'Umbrella', 'Stark'];
-
-    /** [name, sku, category slug, sub-category name, brand, tags, [options...]] where an option is [name, sku, mrp, price, stock, points, [min_qty => price]] */
+    /** [name, sku, category slug, sub-category name, tags, [options...]] where an option is [name, sku, mrp, price, stock, points, [min_qty => price]] */
     private const PRODUCTS = [
-        ['Wireless Headphones', 'DEMO-WH', 'electronics', 'Audio', 'Acme', ['best-seller', 'featured'], [
+        ['Wireless Headphones', 'DEMO-WH', 'electronics', 'Audio', ['best-seller', 'featured'], [
             ['Black', 'DEMO-WH-BK', 120, 89, 40, 10, [3 => 82]],
             ['White', 'DEMO-WH-WH', 120, 89, 25, 10, [3 => 82]],
         ]],
-        ['Bluetooth Speaker', 'DEMO-BS', 'electronics', 'Audio', 'Globex', ['hot-selling'], [
+        ['Bluetooth Speaker', 'DEMO-BS', 'electronics', 'Audio', ['hot-selling'], [
             ['Standard', 'DEMO-BS-1', 60, 45, 60, 5, [5 => 40, 10 => 36]],
         ]],
-        ['USB-C Charging Cable', 'DEMO-CC', 'electronics', 'Accessories', 'Initech', ['best-price-zone'], [
+        ['USB-C Charging Cable', 'DEMO-CC', 'electronics', 'Accessories', ['best-price-zone'], [
             ['1 m', 'DEMO-CC-1', 12, 7, 200, 1, [5 => 6]],
             ['2 m', 'DEMO-CC-2', 15, 9, 150, 1, [5 => 8]],
         ]],
-        ['Ultrabook 14"', 'DEMO-UB', 'electronics', 'Laptops', 'Stark', ['featured', 'new-arrival'], [
+        ['Ultrabook 14"', 'DEMO-UB', 'electronics', 'Laptops', ['featured', 'new-arrival'], [
             ['8 GB / 256 GB', 'DEMO-UB-8', 899, 799, 12, 80, []],
             ['16 GB / 512 GB', 'DEMO-UB-16', 1099, 979, 8, 98, []],
         ]],
-        ['Non-stick Frying Pan', 'DEMO-FP', 'home-kitchen', 'Cookware', 'Umbrella', ['best-seller'], [
+        ['Non-stick Frying Pan', 'DEMO-FP', 'home-kitchen', 'Cookware', ['best-seller'], [
             ['24 cm', 'DEMO-FP-24', 30, 22, 50, 2, [4 => 20]],
             ['28 cm', 'DEMO-FP-28', 36, 27, 40, 3, [4 => 24]],
         ]],
-        ['Electric Kettle 1.7 L', 'DEMO-EK', 'home-kitchen', 'Appliances', 'Acme', ['new-arrival'], [
+        ['Electric Kettle 1.7 L', 'DEMO-EK', 'home-kitchen', 'Appliances', ['new-arrival'], [
             ['Standard', 'DEMO-EK-1', 40, 32, 35, 3, []],
         ]],
-        ['Storage Box Set', 'DEMO-SB', 'home-kitchen', 'Storage', 'Globex', ['freebie'], [
+        ['Storage Box Set', 'DEMO-SB', 'home-kitchen', 'Storage', ['freebie'], [
             ['Set of 3', 'DEMO-SB-3', 25, 18, 80, 2, [3 => 16]],
         ]],
-        ['Cotton T-Shirt', 'DEMO-TS', 'clothing', 'Men', 'Initech', ['best-seller', 'hot-selling'], [
+        ['Cotton T-Shirt', 'DEMO-TS', 'clothing', 'Men', ['best-seller', 'hot-selling'], [
             ['Small', 'DEMO-TS-S', 20, 14, 70, 1, [5 => 12]],
             ['Medium', 'DEMO-TS-M', 20, 14, 90, 1, [5 => 12]],
             ['Large', 'DEMO-TS-L', 20, 14, 60, 1, [5 => 12]],
         ]],
-        ['Summer Dress', 'DEMO-SD', 'clothing', 'Women', 'Stark', ['new-arrival', 'most-searched'], [
+        ['Summer Dress', 'DEMO-SD', 'clothing', 'Women', ['new-arrival', 'most-searched'], [
             ['Medium', 'DEMO-SD-M', 55, 39, 30, 4, []],
         ]],
-        ['Hardcover Notebook', 'DEMO-NB', 'books-stationery', 'Notebooks', 'Umbrella', ['best-price-zone'], [
+        ['Hardcover Notebook', 'DEMO-NB', 'books-stationery', 'Notebooks', ['best-price-zone'], [
             ['A5', 'DEMO-NB-A5', 9, 6, 300, 1, [10 => 5]],
             ['A4', 'DEMO-NB-A4', 12, 8, 250, 1, [10 => 7]],
         ]],
-        ['Yoga Mat', 'DEMO-YM', 'sports-outdoors', 'Fitness', 'Acme', ['featured', 'most-searched'], [
+        ['Yoga Mat', 'DEMO-YM', 'sports-outdoors', 'Fitness', ['featured', 'most-searched'], [
             ['6 mm', 'DEMO-YM-6', 35, 24, 45, 2, [3 => 21]],
         ]],
-        ['2-Person Camping Tent', 'DEMO-CT', 'sports-outdoors', 'Camping', 'Globex', ['hot-selling'], [
+        ['2-Person Camping Tent', 'DEMO-CT', 'sports-outdoors', 'Camping', ['hot-selling'], [
             ['Standard', 'DEMO-CT-1', 150, 119, 15, 12, []],
         ]],
     ];
@@ -89,24 +86,12 @@ class DemoSeeder extends Seeder
         $admin = Admin::query()->first() ?? Admin::create(['username' => 'demo', 'name' => 'Demo', 'password' => 'demo-password', 'is_active' => true]);
 
         $categories = $this->categories();
-        $brands = collect(self::BRANDS)->mapWithKeys(function ($name, $i) {
-            $brand = Brand::query()->firstOrNew(['name' => $name]);
-            if (! $brand->exists) {
-                $brand->fill(['is_active' => true, 'sort_order' => $i]);
-                $brand->slug = Brand::uniqueSlug($name);
-                $brand->save();
-            }
-
-            return [$name => $brand];
-        });
-
-        foreach (self::PRODUCTS as [$name, $sku, $categorySlug, $subName, $brandName, $tagSlugs, $options]) {
+        foreach (self::PRODUCTS as [$name, $sku, $categorySlug, $subName, $tagSlugs, $options]) {
             if (DB::table('products')->where('sku', $sku)->exists()) {
                 continue;
             }
             $category = $categories[$categorySlug];
             app(SaveProduct::class)->create([
-                'brand_id' => $brands[$brandName]->id,
                 'category_id' => $category->id,
                 'sub_category_id' => SubCategory::query()->where('category_id', $category->id)->where('name', $subName)->value('id'),
                 'name' => $name,

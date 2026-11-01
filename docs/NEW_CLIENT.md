@@ -55,13 +55,13 @@ Log in at `/admin` and set, in this order (see [SETTINGS.md](SETTINGS.md) for ev
 2. **Currency** – code, symbol and decimals (e.g. `EUR`, `€`, 2).
 3. **Tax** – default rate, whether prices include tax, and the label ("VAT", "GST", …). A product can override the rate.
 4. **Orders and delivery** – order number prefix, delivery charge, free-delivery limit, delivery days, minimum order, cash-on-delivery limit.
-5. **Features** – *Enable brands* (default on) and *Enable reward points* (default off). With points on, also set the earn rate, redeem rate and limits.
+5. **Features** – *Enable reward points* (default off). With points on, also set the earn rate, redeem rate and limits.
 
 Then change the admin password (create a new admin or update the seeded one) and remove the demo data if you loaded it.
 
 ## 5. Add the catalogue
 
-Admin panel → **Categories** (two levels), **Brands** (if enabled), **Tags**, **Products** (options, prices, bulk prices, stock, pictures).
+Admin panel → **Categories** (two levels), **Tags**, **Products** (options, prices, bulk prices, stock, pictures).
 To try the shop first, load the neutral sample data: `php artisan db:seed --class=DemoSeeder` (never on a production site; it also creates a demo customer).
 
 ## 6. Connect the storefront

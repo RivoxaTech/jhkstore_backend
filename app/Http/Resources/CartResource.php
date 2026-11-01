@@ -112,7 +112,6 @@ class CartResource extends JsonResource
             'sku' => $v->sku,
             'image_url' => $own['medium_url'] ?? $primary['image_url'],
             'thumb_url' => $own['thumb_url'] ?? $primary['thumb_url'],
-            'brand' => ($p->brand && app(Settings::class)->brandsEnabled()) ? ['name' => $p->brand->name, 'slug' => $p->brand->slug] : null,
             'qty' => $l->qty,
             'min_order_qty' => (int) $p->min_order_qty,
             'max_order_qty' => (int) $p->max_order_qty,

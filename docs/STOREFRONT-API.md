@@ -14,11 +14,11 @@ The OpenAPI reference is generated at `/docs/api`; a Postman collection is in `d
   "tax": {"rate","inclusive","label"},
   "delivery": {"fee","free_delivery_min_cart","days"},
   "orders": {"min_order_amount","cod_max_amount"},
-  "features": {"brands": true, "rewards": false},
+  "features": {"rewards": false},
   "rewards": null }
 ```
 
-`features.brands` / `features.rewards` tell you which UI to build. When rewards are off, no points fields appear anywhere in the API; when brands are off, `brand` is `null` and `/brands` answers 404.
+`features.rewards` tells you whether to build the points UI. When rewards are off, no points fields appear anywhere in the API.
 Prices in all responses are plain numbers in the store currency.
 
 ## 2. Catalogue
@@ -27,10 +27,9 @@ Prices in all responses are plain numbers in the store currency.
 |---|---|
 | `GET /categories` (`?top=1`) | tree: `data[]` category `{id,name,slug,description,is_top,icon_url,image_url,sub_categories:[{id,name,slug,icon_url,image_url}]}`. Only active items, already ordered, cached 10 min. **Two levels** |
 | `GET /categories/{slug}` | one category (404 when inactive) |
-| `GET /products` | filters `tag`, `category`, `sub_category` (slugs; add `category` to disambiguate), `brand`, `q`, `min_price`, `max_price`, `in_stock=1`, `rating`, `sort` (`popularity`,`newest`,`price_asc`,`price_desc`,`discount`,`rating`), `page`, `per_page` ≤ 100. Home page sections = the list with a tag, e.g. `?tag=best-seller&per_page=10` |
+| `GET /products` | filters `tag`, `category`, `sub_category` (slugs; add `category` to disambiguate), `q`, `min_price`, `max_price`, `in_stock=1`, `rating`, `sort` (`popularity`,`newest`,`price_asc`,`price_desc`,`discount`,`rating`), `page`, `per_page` ≤ 100. Home page sections = the list with a tag, e.g. `?tag=best-seller&per_page=10` |
 | `GET /products/{slug}` | detail: options (`variants[]` with price, stock `qty`, `low_stock`, bulk `price_tiers`, own pictures), images, content tabs, `delivery.arrives_by`, related products |
 | `GET /tags` | active tags |
-| `GET /brands`, `GET /brands/{slug}` | only when `features.brands` |
 | `GET /products/{slug}/reviews`, `POST …/reviews` | list + summary; posting needs a customer token (one review per customer; posting again updates it) |
 
 A product is the parent of its **options**; only an option (`variant_id`) goes into the cart. A product with one option is shown as that option (`has_single_option`).

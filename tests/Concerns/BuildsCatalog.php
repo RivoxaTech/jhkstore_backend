@@ -4,14 +4,13 @@ namespace Tests\Concerns;
 
 use App\Domain\Auth\Models\Admin;
 use App\Domain\Catalog\Actions\SaveProduct;
-use App\Domain\Catalog\Models\Brand;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\SubCategory;
 use App\Domain\Catalog\Models\Tag;
 use Database\Seeders\TagSeeder;
 
-/** Fixtures for the product tests: brands, categories and fully saved products. */
+/** Fixtures for the product tests: categories and fully saved products. */
 trait BuildsCatalog
 {
     protected function seedCatalog(): void
@@ -24,21 +23,6 @@ trait BuildsCatalog
     protected function plainAdmin(): Admin
     {
         return Admin::query()->first() ?? Admin::create(['username' => 'seeder', 'name' => 'Seeder', 'password' => 'secret-pass', 'is_active' => true]);
-    }
-
-    protected function makeBrand(string $name, bool $active = true): Brand
-    {
-        $brand = new Brand(['name' => $name, 'is_active' => $active]);
-        $brand->slug = Brand::uniqueSlug($name);
-        $brand->save();
-
-        return $brand;
-    }
-
-    /** The brand products get when a test does not name one. */
-    protected function defaultBrand(): Brand
-    {
-        return Brand::query()->where('name', 'Test Brand')->first() ?? $this->makeBrand('Test Brand');
     }
 
     protected function makeCategory(string $name = 'Restorative', bool $active = true): Category
@@ -67,7 +51,6 @@ trait BuildsCatalog
         $n++;
 
         return array_merge([
-            'brand_id' => array_key_exists('brand_id', $overrides) ? $overrides['brand_id'] : $this->defaultBrand()->id,
             'category_id' => $category->id,
             'name' => "Test Product $n",
             'sku' => "SKU-$n",

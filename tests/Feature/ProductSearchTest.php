@@ -39,12 +39,10 @@ class ProductSearchTest extends TestCase
 
     private function catalogue(): void
     {
-        $acme = $this->makeBrand('Acme Dental Supplies');
-        $waldent = $this->makeBrand('Waldent');
         $category = $this->makeCategory();
-        $this->makeProduct($category, ['name' => 'Prime-Dent Hybrid Composite Kit', 'short_description' => 'Light cured restorative', 'sku' => 'PD-100', 'brand_id' => $acme->id]);
-        $this->makeProduct($category, ['name' => 'Rotary Endo File Set', 'short_description' => 'Nickel titanium files', 'sku' => 'RF-200', 'brand_id' => $waldent->id]);
-        $this->makeProduct($category, ['name' => '3M ESPE Cavit G Filling', 'short_description' => 'Temporary filling material', 'sku' => 'CV-300', 'brand_id' => $acme->id]);
+        $this->makeProduct($category, ['name' => 'Prime-Dent Hybrid Composite Kit', 'short_description' => 'Light cured restorative', 'sku' => 'PD-100']);
+        $this->makeProduct($category, ['name' => 'Rotary Endo File Set', 'short_description' => 'Nickel titanium files', 'sku' => 'RF-200']);
+        $this->makeProduct($category, ['name' => '3M ESPE Cavit G Filling', 'short_description' => 'Temporary filling material', 'sku' => 'CV-300']);
     }
 
     public function test_the_store_search_finds_words_anywhere_in_the_name_and_description(): void
@@ -61,13 +59,11 @@ class ProductSearchTest extends TestCase
         $this->assertSame([], $this->slugs('zebra'));
     }
 
-    public function test_the_store_search_also_matches_the_sku_start_and_the_brand_start(): void
+    public function test_the_store_search_also_matches_the_sku_start(): void
     {
         $this->catalogue();
 
         $this->assertSame(['rotary-endo-file-set'], $this->slugs('RF-2'));
-        $this->assertSame(['rotary-endo-file-set'], $this->slugs('walde'));                      // brand "Waldent"
-        $this->assertCount(2, $this->slugs('Acme'));                                              // the two products of the brand "Acme Dental Supplies"
     }
 
     public function test_short_words_and_stop_words_fall_back_to_a_plain_search(): void

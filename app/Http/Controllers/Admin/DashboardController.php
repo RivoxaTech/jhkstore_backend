@@ -3,12 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Auth\Models\Admin;
-use App\Domain\Catalog\Models\Brand;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\Tag;
 use App\Domain\Order\Models\Order;
 use App\Domain\Support\Models\AuditLog;
-use App\Domain\Support\Settings;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -19,14 +17,10 @@ class DashboardController extends Controller
      * Numbers and lists for the admin dashboard. A few small aggregate queries + one short list,
      * so it stays fast however many products and orders exist.
      */
-    public function __invoke(Settings $settings): JsonResponse
+    public function __invoke(): JsonResponse
     {
-        $brandsOn = $settings->brandsEnabled();
-        $brands = $brandsOn ? Brand::query()->selectRaw('COUNT(*) as total, COALESCE(SUM(is_active), 0) as active')->first() : null;
-
         $activity = AuditLog::query()->latest('id')->limit(8)->get();
         $adminNames = Admin::whereIn('id', $activity->where('actor_type', 'admin')->pluck('actor_id')->filter()->unique())->pluck('name', 'id');
-        $brandNames = Brand::withTrashed()->whereIn('id', $activity->where('subject_type', 'Brand')->pluck('subject_id')->filter()->unique())->pluck('name', 'id');
         $productNames = Product::withTrashed()->whereIn('id', $activity->where('subject_type', 'Product')->pluck('subject_id')->filter()->unique())->pluck('name', 'id');
         $orderNumbers = Order::whereIn('id', $activity->where('subject_type', 'Order')->pluck('subject_id')->filter()->unique())->pluck('order_number', 'id');
         $tagNames = Tag::whereIn('id', $activity->where('subject_type', 'Tag')->pluck('subject_id')->filter()->unique())->pluck('name', 'id');
@@ -43,7 +37,6 @@ class DashboardController extends Controller
                 'pending' => Order::query()->where('status', 'pending')->count(),
                 'low_stock' => $lowStock,
             ],
-            'brands' => $brands ? ['total' => (int) $brands->total, 'active' => (int) $brands->active] : null,
             'recent_activity' => $activity->map(fn ($log) => [
                 'id' => $log->id,
                 'action' => $log->action,
@@ -51,7 +44,6 @@ class DashboardController extends Controller
                 'subject_type' => $log->subject_type,
                 'subject_id' => $log->subject_id,
                 'subject_name' => match ($log->subject_type) {
-                    'Brand' => $brandNames[$log->subject_id] ?? null,
                     'Product' => $productNames[$log->subject_id] ?? null,
                     'Tag' => $tagNames[$log->subject_id] ?? null,
                     'Order' => $orderNumbers[$log->subject_id] ?? null,

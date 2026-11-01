@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Admin\AuthController;
-use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\OrderController;
@@ -23,13 +22,6 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin'])->group(function () {
     Route::get('auth/me', [AuthController::class, 'me']);
 
     Route::get('dashboard', DashboardController::class);
-
-    // Brands
-    Route::get('brands', [BrandController::class, 'index']);
-    Route::post('brands', [BrandController::class, 'store']);
-    Route::get('brands/{brand}', [BrandController::class, 'show']);
-    Route::match(['put', 'patch', 'post'], 'brands/{brand}', [BrandController::class, 'update']);
-    Route::delete('brands/{brand}', [BrandController::class, 'destroy']);
 
     // Categories and sub-categories
     Route::get('categories/options', [CategoryController::class, 'options']);

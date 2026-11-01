@@ -43,16 +43,14 @@ class ProductStoreTest extends TestCase
     {
         $category = $this->makeCategory('Restorative');
         $product = $this->makeProduct($category, [
-            'brand_id' => $this->makeBrand('Acme Brand')->id, 'name' => 'Prime Kit', 'short_description' => 'A kit', 'badge_text' => 'MADE IN USA', 'mrp' => 4500, 'selling_price' => 2495, 'reward_points' => 25,
+            'name' => 'Prime Kit', 'short_description' => 'A kit', 'badge_text' => 'MADE IN USA', 'mrp' => 4500, 'selling_price' => 2495, 'reward_points' => 25,
         ], ['hot-selling', 'best-seller']);
-        $brandId = $product->brand_id;
 
         $res = $this->getJson(self::STORE.'/products')->assertOk();
         $card = $res->json('data.0');
 
-        $this->assertSame(['id', 'name', 'slug', 'short_description', 'image_url', 'thumb_url', 'brand', 'category', 'options_count', 'has_single_option', 'offers_count', 'show_starting_at', 'badge_label', 'price', 'mrp', 'discount_percent',
+        $this->assertSame(['id', 'name', 'slug', 'short_description', 'image_url', 'thumb_url', 'category', 'options_count', 'has_single_option', 'offers_count', 'show_starting_at', 'badge_label', 'price', 'mrp', 'discount_percent',
             'reward_points', 'rating_avg', 'rating_count', 'badge_text', 'tags', 'in_stock'], array_keys($card));
-        $this->assertSame(['name', 'slug', 'logo_thumb_url'], array_keys($card['brand']));
         $this->assertSame('Prime Kit', $card['name']);
         $this->assertSame('prime-kit', $card['slug']);
         $this->assertEquals(2495, $card['price']);
@@ -62,13 +60,10 @@ class ProductStoreTest extends TestCase
         $this->assertSame('MADE IN USA', $card['badge_text']);
         $this->assertEqualsCanonicalizing(['hot-selling', 'best-seller'], $card['tags']);
         $this->assertSame(['name' => 'Restorative', 'slug' => 'restorative'], $card['category']);
-        $this->assertSame('Acme Brand', $card['brand']['name']);
         $this->assertTrue($card['in_stock']);
-        // no picture and no brand logo yet: null everywhere (the frontend shows its placeholder)
+        // no picture yet: null everywhere (the frontend shows its placeholder)
         $this->assertNull($card['image_url']);
         $this->assertNull($card['thumb_url']);
-        $this->assertNull($card['brand']['logo_thumb_url']);
-        $this->assertSame($brandId, $product->brand_id);
         $res->assertJsonStructure(['data', 'links', 'meta' => ['current_page', 'last_page', 'per_page', 'total']]);
     }
 
@@ -97,15 +92,6 @@ class ProductStoreTest extends TestCase
         $this->assertStringStartsWith('http', $images[1]['url']);
         $remoteImages = $this->getJson(self::STORE.'/products/'.$remote->slug)->json('data.images');
         $this->assertSame(['https://cdn.example.com/1.jpg', 'https://cdn.example.com/2.jpg'], array_column($remoteImages, 'url'));
-    }
-
-    public function test_the_brand_logo_is_an_absolute_url(): void
-    {
-        $this->defaultBrand()->addMedia(\Illuminate\Http\UploadedFile::fake()->image('logo.png', 300, 300))->toMediaCollection('logo');
-        $this->makeProduct($this->makeCategory());
-
-        $logo = $this->getJson(self::STORE.'/products')->json('data.0.brand.logo_thumb_url');
-        $this->assertStringStartsWith('http', $logo);
     }
 
     // ------------------------------------------------------------------ filters and sorting
@@ -138,7 +124,7 @@ class ProductStoreTest extends TestCase
         $this->assertNotNull($product);
     }
 
-    public function test_category_sub_category_and_brand_filters(): void
+    public function test_category_and_sub_category_filters(): void
     {
         $restorative = $this->makeCategory('Restorative');
         $composites = $this->makeSub($restorative, 'Composites');
@@ -146,10 +132,9 @@ class ProductStoreTest extends TestCase
         $endo = $this->makeCategory('Endo');
         $files = $this->makeSub($endo, 'Files');
         $filesDuplicate = $this->makeSub($restorative, 'Files');                          // same slug in another category
-        $waldent = $this->makeBrand('Waldent');
 
         $this->makeProduct($restorative, ['name' => 'P1', 'sub_category_id' => $composites->id]);
-        $this->makeProduct($restorative, ['name' => 'P2', 'sub_category_id' => $nano->id, 'brand_id' => $waldent->id]);
+        $this->makeProduct($restorative, ['name' => 'P2', 'sub_category_id' => $nano->id]);
         $this->makeProduct($endo, ['name' => 'P3', 'sub_category_id' => $files->id]);
         $this->makeProduct($restorative, ['name' => 'P4', 'sub_category_id' => $filesDuplicate->id]);
 
@@ -159,25 +144,20 @@ class ProductStoreTest extends TestCase
         $this->assertSame(['p2'], $this->slugs('sub_category=nano-composites'));
         $this->assertSame(['p3'], $this->slugs('category=endo&sub_category='.$files->slug));            // narrowed by the category
         $this->assertSame(['p4'], $this->slugs('category=restorative&sub_category='.$filesDuplicate->slug));
-        $this->assertSame(['p2'], $this->slugs('brand=waldent'));                                      // brand page
-        $this->assertCount(3, $this->slugs('brand=test-brand'));
         $this->assertSame([], $this->slugs('category=nothing'));
-        $this->assertSame([], $this->slugs('brand=nothing'));
     }
 
     public function test_search_price_stock_and_rating_filters(): void
     {
         $category = $this->makeCategory();
-        $waldent = $this->makeBrand('Waldent');
         $this->makeProduct($category, ['name' => 'Alpha Composite', 'short_description' => 'light cured', 'selling_price' => 100, 'mrp' => 100]);
-        $this->makeProduct($category, ['name' => 'Beta File', 'selling_price' => 500, 'mrp' => 500, 'brand_id' => $waldent->id, 'sku' => 'BETA-9',
+        $this->makeProduct($category, ['name' => 'Beta File', 'selling_price' => 500, 'mrp' => 500, 'sku' => 'BETA-9',
             'stock' => 0]);
         $this->makeProduct($category, ['name' => 'Gamma Cement', 'selling_price' => 900, 'mrp' => 900]);
         Product::where('name', 'Alpha Composite')->update(['rating_avg' => 4.5, 'rating_count' => 10]);
         Product::where('name', 'Gamma Cement')->update(['rating_avg' => 3.0, 'rating_count' => 2]);
 
         $this->assertSame(['beta-file'], $this->slugs('q=BETA-9'));                      // exact SKU
-        $this->assertSame(['beta-file'], $this->slugs('q=waldent'));                     // brand name
         $this->assertSame([], $this->slugs('q=zzz'));
 
         $this->assertEqualsCanonicalizing(['beta-file', 'gamma-cement'], $this->slugs('min_price=200'));
@@ -259,10 +239,6 @@ class ProductStoreTest extends TestCase
         $archived = $this->makeProduct($category, ['name' => 'Archived', 'status' => 'archived']);
         $deleted = $this->makeProduct($category, ['name' => 'Deleted']);
         $deleted->delete();
-
-        $sleepingBrand = $this->makeBrand('Sleeping');
-        $this->makeProduct($category, ['name' => 'Brand off', 'brand_id' => $sleepingBrand->id]);
-        $sleepingBrand->update(['is_active' => false]);
 
         $offCategory = $this->makeCategory('Off Cat');
         $this->makeProduct($offCategory, ['name' => 'Category off']);
@@ -351,7 +327,6 @@ class ProductStoreTest extends TestCase
 
         $this->assertSame([], $d['images']);
         $this->assertSame(['related-one'], array_column($d['related'], 'slug'));                   // same category fallback
-        $this->assertArrayHasKey('brand', $d['related'][0]);
         $this->assertNotNull($related);
         $this->getJson(self::STORE.'/products/not-a-product')->assertNotFound();
     }

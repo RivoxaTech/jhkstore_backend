@@ -8,9 +8,7 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\Models\SubCategory;
 use App\Domain\Reward\Actions\RewardLedger;
-use App\Domain\Support\Settings;
 use Illuminate\Support\Arr;
-use App\Domain\Catalog\Models\Brand;
 use Illuminate\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\DB;
@@ -68,7 +66,6 @@ class SaveProductRequest extends FormRequest
         $req = $product ? 'sometimes' : 'required';
 
         return [
-            'brand_id' => ['nullable', 'integer', Rule::exists('brands', 'id')->whereNull('deleted_at')],
             'category_id' => [$req, 'integer', Rule::exists('categories', 'id')->whereNull('deleted_at')],
             'sub_category_id' => ['nullable', 'integer', Rule::exists('sub_categories', 'id')->whereNull('deleted_at')],
             'name' => [$req, 'string', 'max:255'],
@@ -132,7 +129,7 @@ class SaveProductRequest extends FormRequest
         ];
     }
 
-    /** Cross-field rules: ownership of brand / sub-category, price <= MRP, unique variant SKUs. */
+    /** Cross-field rules: ownership of the sub-category, price <= MRP, unique variant SKUs. */
     public function after(): array
     {
         return [function (Validator $validator) {
@@ -147,7 +144,6 @@ class SaveProductRequest extends FormRequest
     private function checkOwnership(Validator $validator): void
     {
         $product = $this->route('product');
-        $brandId = $this->input('brand_id', $product?->brand_id);
         $categoryId = $this->input('category_id', $product?->category_id);
         $subId = $this->has('sub_category_id') ? $this->input('sub_category_id') : $product?->sub_category_id;
 
@@ -162,13 +158,6 @@ class SaveProductRequest extends FormRequest
 
         // New choices must be live ones; an unchanged choice that was switched off later does not block saving other edits.
         $changed = fn (string $key, mixed $current) => ! $product || ($this->has($key) && (int) $this->input($key) !== (int) $current);
-
-        if ($this->has('brand_id') && $brandId) {
-            $brand = Brand::query()->find($brandId);
-            if ($brand && ! $brand->is_active && $changed('brand_id', $product?->brand_id)) {
-                $validator->errors()->add('brand_id', 'This brand is not active.');
-            }
-        }
 
         if ($this->has('category_id') || $this->has('sub_category_id')) {
             $category = Category::query()->find($categoryId);
@@ -249,9 +238,6 @@ class SaveProductRequest extends FormRequest
     public function productData(): array
     {
         $data = $this->validated();
-        if (! app(Settings::class)->brandsEnabled()) {
-            unset($data['brand_id']); // brands are switched off: a product keeps whatever brand it had
-        }
         unset($data['mrp'], $data['selling_price'], $data['reward_points'], $data['expiry_date'], $data['stock'], $data['stock_was']);
         if (! app(RewardLedger::class)->enabled() && isset($data['variants'])) {
             // points are not editable while the feature is off: existing values stay as they are

@@ -43,7 +43,6 @@ class SettingController extends Controller
                 'cod_max_amount' => $settings->get('cod_max_amount'),                   // 0 = no limit
             ],
             'features' => [
-                'brands' => $settings->brandsEnabled(),
                 'rewards' => $rewards,
             ],
             // only present when reward points are switched on

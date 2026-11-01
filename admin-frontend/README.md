@@ -1,7 +1,7 @@
 # Shop Admin (Vue 3)
 
 Admin panel for the neutral e-commerce backend in the parent folder (Vue 3, Vite, Pinia, Vue Router, plain CSS).
-It manages the catalogue (categories, products, optional brands), orders and the store settings. The panel carries the
+It manages the catalogue (categories, products), orders and the store settings. The panel carries the
 name and logo of the store it manages: they come from the store settings, nothing is hard-coded.
 
 ```bash
@@ -23,7 +23,7 @@ once with `php artisan db:seed`). Authentication is a cookie session (HttpOnly) 
 * `src/api/client.js` is the only place that calls `fetch` (CSRF handling, JSON errors, multipart uploads).
 * At start the app reads the public `GET /api/v1/store/settings` (no login needed) to show the store name and logo and to
   know the currency. After login `GET admin/products/options` provides the currency and the feature switches
-  (`features.brands`, `features.rewards`), which the navigation and the pages react to.
+  (`features.rewards`), which the navigation and the pages react to.
 * Money is formatted from the currency symbol and decimals of the store settings with the browser's locale
   (`src/utils/format.js`). Nothing is hard-coded to a country or currency.
 * Backend requirements: `SANCTUM_STATEFUL_DOMAINS` must include the admin host (`localhost:5190` and `localhost:8000` locally).
@@ -31,13 +31,11 @@ once with `php artisan db:seed`). Authentication is a cookie session (HttpOnly) 
 
 ## Pages
 
-Dashboard, Categories (two levels: category and sub-category), Brands, Products (list, form with options, prices, stock,
+Dashboard, Categories (two levels: category and sub-category), Products (list, form with options, prices, stock,
 tags, pictures, content tabs), Orders (list, detail, status changes, printable invoice and packing slip) and Settings.
 
 ## Features that depend on settings
 
-* **Brands** - the "Brands" menu item, the brand filter and the brand select of the product form appear only while
-  "Enable brands" is on. The brand cards of the dashboard follow the same switch. Brand endpoints answer 404 when it is off.
 * **Reward points** - the "Reward points" field of a product option, the points rows of the order screens and the
   "Reward points" settings group appear only while reward points are enabled.
 * **Tax** - a product can have its own tax rate; empty means the store default. Orders show the tax line with the store's

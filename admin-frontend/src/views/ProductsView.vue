@@ -47,8 +47,6 @@ const tabs = computed(() => [
   ...STATUSES.map(s => ({ key: s, label: s[0].toUpperCase() + s.slice(1), count: counts.value[s] || 0 })),
 ])
 
-const showBrands = computed(() => catalog.features.brands)
-
 // the sub-categories of the chosen category
 const subOptions = computed(() => {
   const category = catalog.categories.find(c => String(c.id) === q('category_id'))
@@ -62,7 +60,7 @@ async function load() {
   error.value = ''
   try {
     const res = await api.get('admin/products', {
-      q: q('q'), status: status.value, brand_id: showBrands.value ? q('brand_id') : '', category_id: q('category_id'),
+      q: q('q'), status: status.value, category_id: q('category_id'),
       sub_category_id: q('sub_category_id'), tag: q('tag'), page: page.value, per_page: PER_PAGE.value,
     })
     if (mine !== seq) return
@@ -88,7 +86,7 @@ function go(patch) {
 }
 // choosing another category clears the sub-category that depended on it
 const pickCategory = (v) => go({ category_id: v, sub_category_id: undefined, page: undefined })
-const hasFilters = computed(() => ['q', 'status', 'brand_id', 'category_id', 'sub_category_id', 'tag'].some(k => q(k)))
+const hasFilters = computed(() => ['q', 'status', 'category_id', 'sub_category_id', 'tag'].some(k => q(k)))
 const clearFilters = () => { search.value = ''; router.push({ name: 'products' }) }
 
 let t
@@ -161,10 +159,6 @@ async function confirmDelete() {
         <input v-model="search" class="input" type="search" placeholder="Search name or SKU" aria-label="Search products" />
       </div>
       <template v-if="catalog.loaded">
-      <select v-if="showBrands" class="select" style="width: 150px" :value="q('brand_id')" aria-label="Brand" @change="go({ brand_id: $event.target.value, page: undefined })">
-        <option value="">All brands</option>
-        <option v-for="b in catalog.options.brands" :key="b.id" :value="b.id">{{ b.name }}</option>
-      </select>
       <select class="select" style="width: 150px" :value="q('category_id')" aria-label="Category" @change="pickCategory($event.target.value)">
         <option value="">All categories</option>
         <option v-for="c in catalog.categories" :key="c.id" :value="c.id">{{ c.name }}</option>
@@ -195,7 +189,7 @@ async function confirmDelete() {
       <table class="table prod-table">
         <thead>
           <tr>
-            <th class="sno">#</th><th>Product</th><th v-if="showBrands">Brand</th><th>Category</th><th>Price</th><th>Stock</th><th>Tags</th><th>Status</th><th />
+            <th class="sno">#</th><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Tags</th><th>Status</th><th />
           </tr>
         </thead>
         <tbody>
@@ -210,7 +204,6 @@ async function confirmDelete() {
                 </div>
               </div>
             </td>
-            <td v-if="showBrands"><div class="truncate">{{ p.brand?.name || '-' }}</div></td>
             <td>
               <div class="truncate">{{ p.category?.name }}</div>
               <div class="muted truncate">{{ p.sub_category?.name }}</div>

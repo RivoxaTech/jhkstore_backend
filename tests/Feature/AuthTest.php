@@ -52,7 +52,7 @@ class AuthTest extends TestCase
         $admin = Admin::create(['username' => 'admin', 'name' => 'Administrator', 'password' => 'admin', 'is_active' => true]);
         $adminToken = $admin->createToken('admin')->plainTextToken;
 
-        $this->withToken($customerToken)->getJson('/api/v1/admin/brands')->assertStatus(401);
+        $this->withToken($customerToken)->getJson('/api/v1/admin/categories')->assertStatus(401);
 
         // A real client sends each request on a fresh app; tests reuse one, so drop the cached guard user.
         $this->app['auth']->forgetGuards();
@@ -125,6 +125,6 @@ class AuthTest extends TestCase
 
     public function test_admin_endpoints_require_authentication(): void
     {
-        $this->getJson('/api/v1/admin/brands')->assertStatus(401);
+        $this->getJson('/api/v1/admin/categories')->assertStatus(401);
     }
 }

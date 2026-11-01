@@ -66,7 +66,6 @@ class ProductAdminTest extends TestCase
             ->assertJsonPath('data.min_price', 2495)
             ->assertJsonPath('data.max_discount_percent', 44.56)
             ->assertJsonPath('data.is_in_stock', true)
-            ->assertJsonPath('data.brand.id', $this->defaultBrand()->id)
             ->assertJsonPath('data.sub_category.id', $sub->id)
             ->assertJsonPath('data.tax_rate', 12);
 
@@ -144,23 +143,15 @@ class ProductAdminTest extends TestCase
 
     // ------------------------------------------------------------------ validation
 
-    public function test_brand_category_and_sub_category_rules(): void
+    public function test_category_and_sub_category_rules(): void
     {
         $this->actingAsAdmin();
         $category = $this->makeCategory('Cat A');
         $otherCategory = $this->makeCategory('Cat B');
         $subOfOther = $this->makeSub($otherCategory, 'Sub B');
-        $inactiveBrand = $this->makeBrand('Dormant');
-        $inactiveBrand->update(['is_active' => false]);
 
-        // the brand is optional
-        $this->create($this->simplePayload($category, ['brand_id' => null]))->assertCreated()->assertJsonPath('data.brand', null);
-        // unknown brand
-        $this->create($this->simplePayload($category, ['brand_id' => 9999]))
-            ->assertUnprocessable()->assertJsonValidationErrors('brand_id');
-        // the brand must be active
-        $this->create($this->simplePayload($category, ['brand_id' => $inactiveBrand->id]))
-            ->assertUnprocessable()->assertJsonValidationErrors('brand_id');
+        // the sub-category is optional
+        $this->create($this->simplePayload($category))->assertCreated()->assertJsonPath('data.sub_category', null);
         // the sub-category must belong to the category
         $this->create($this->simplePayload($category, ['sub_category_id' => $subOfOther->id]))
             ->assertUnprocessable()->assertJsonValidationErrors('sub_category_id');
@@ -174,7 +165,7 @@ class ProductAdminTest extends TestCase
         // required fields
         $this->create([])->assertUnprocessable()->assertJsonValidationErrors(['category_id', 'name', 'sku', 'variants']);
 
-        $this->assertSame(1, Product::count());   // only the brand-less one above
+        $this->assertSame(1, Product::count());   // only the valid one above
     }
 
     public function test_price_cannot_be_higher_than_mrp(): void
@@ -334,7 +325,7 @@ class ProductAdminTest extends TestCase
         $this->assertDatabaseMissing('product_variants', ['sku' => 'FLIP-50']);
     }
 
-    public function test_update_keeps_the_brand_and_category_consistent(): void
+    public function test_update_keeps_the_category_and_sub_category_consistent(): void
     {
         $this->actingAsAdmin();
         $category = $this->makeCategory('A');
@@ -343,22 +334,9 @@ class ProductAdminTest extends TestCase
         $product = $this->makeProduct($category, ['sub_category_id' => $sub->id]);
         $url = self::ADMIN."/products/{$product->id}";
 
-        // the brand can be changed and removed
-        $this->putJson($url, ['brand_id' => $this->makeBrand('Second')->id])->assertOk()->assertJsonPath('data.brand.name', 'Second');
-        $this->putJson($url, ['brand_id' => null])->assertOk()->assertJsonPath('data.brand', null);
         // moving to another category needs a sub-category of it
         $this->putJson($url, ['category_id' => $otherCategory->id])->assertUnprocessable()->assertJsonValidationErrors('sub_category_id');
         $this->putJson($url, ['category_id' => $otherCategory->id, 'sub_category_id' => null])->assertOk()->assertJsonPath('data.sub_category', null);
-    }
-
-    public function test_a_brand_that_was_switched_off_later_does_not_block_other_edits(): void
-    {
-        $this->actingAsAdmin();
-        $product = $this->makeProduct($this->makeCategory());
-        $product->brand->update(['is_active' => false]);
-
-        $this->putJson(self::ADMIN."/products/{$product->id}", ['brand_id' => $product->brand_id, 'name' => 'Renamed'])
-            ->assertOk()->assertJsonPath('data.name', 'Renamed');
     }
 
     public function test_variants_that_are_in_an_order_are_switched_off_not_deleted(): void
@@ -438,36 +416,31 @@ class ProductAdminTest extends TestCase
     public function test_lean_list_row_and_filters(): void
     {
         $this->actingAsAdmin();
-        $acme = $this->makeBrand('Acme Brand');
-        $beta = $this->makeBrand('Beta Brand');
         $restorative = $this->makeCategory('Restorative');
         $composites = $this->makeSub($restorative, 'Composites');
         $endo = $this->makeCategory('Endo');
 
-        $a = $this->makeProduct($restorative, ['name' => 'Composite Kit', 'sku' => 'CK-1', 'brand_id' => $acme->id, 'sub_category_id' => $composites->id, 'mrp' => 1000, 'selling_price' => 750,
+        $a = $this->makeProduct($restorative, ['name' => 'Composite Kit', 'sku' => 'CK-1', 'sub_category_id' => $composites->id, 'mrp' => 1000, 'selling_price' => 750,
             'stock' => 7], ['best-seller']);
-        $b = $this->makeProduct($endo, ['name' => 'Rotary File', 'sku' => 'RF-1', 'status' => 'draft', 'brand_id' => $beta->id,
+        $b = $this->makeProduct($endo, ['name' => 'Rotary File', 'sku' => 'RF-1', 'status' => 'draft',
             'stock' => 0], ['hot-selling']);
-        $c = $this->makeProduct($restorative, ['name' => 'Cement', 'sku' => 'CE-1', 'status' => 'inactive', 'brand_id' => $acme->id]);
+        $c = $this->makeProduct($restorative, ['name' => 'Cement', 'sku' => 'CE-1', 'status' => 'inactive']);
 
         $res = $this->getJson(self::ADMIN.'/products')->assertOk();
         $res->assertJsonCount(3, 'data')->assertJsonPath('counts.active', 1)->assertJsonPath('counts.draft', 1)->assertJsonPath('counts.inactive', 1);
         $row = collect($res->json('data'))->firstWhere('id', $a->id);
-        $this->assertSame(['id', 'name', 'slug', 'sku', 'status', 'thumb_url', 'brand', 'category', 'sub_category', 'min_price', 'mrp', 'discount_percent',
+        $this->assertSame(['id', 'name', 'slug', 'sku', 'status', 'thumb_url', 'category', 'sub_category', 'min_price', 'mrp', 'discount_percent',
             'variants_count', 'is_in_stock', 'stock', 'tags', 'rating_avg', 'rating_count', 'updated_at'], array_keys($row));
         $this->assertEquals(750, $row['min_price']);
         $this->assertEquals(1000, $row['mrp']);
         $this->assertEquals(25, $row['discount_percent']);
         $this->assertSame(7, $row['stock']);   // units in stock
-        $this->assertSame('Acme Brand', $row['brand']['name']);
         $this->assertSame('best-seller', $row['tags'][0]['slug']);
         $this->assertNull($row['thumb_url']);
 
         $ids = fn (string $query) => collect($this->getJson(self::ADMIN.'/products?'.$query)->assertOk()->json('data'))->pluck('id')->sort()->values()->all();
         $this->assertSame([$b->id], $ids('q=RF-1'));
         $this->assertSame([$b->id], $ids('status=draft'));
-        $this->assertSame([$a->id, $c->id], $ids('brand_id='.$acme->id));
-        $this->assertSame([$b->id], $ids('brand_id='.$beta->id));
         $this->assertSame([$a->id, $c->id], $ids('category_id='.$restorative->id));
         $this->assertSame([$a->id], $ids('sub_category_id='.$composites->id));
         $this->assertSame([$b->id], $ids('tag=hot-selling'));
@@ -500,12 +473,8 @@ class ProductAdminTest extends TestCase
     public function test_options_endpoint_gives_the_form_dropdowns(): void
     {
         $this->actingAsAdmin();
-        $this->makeBrand('First Brand');
-        $this->makeBrand('Second Brand', active: false);
-
         $res = $this->getJson(self::ADMIN.'/products/options')->assertOk();
-        $res->assertJsonCount(1, 'brands')                          // active brands only
-            ->assertJsonPath('brands.0.name', 'First Brand')
+        $res->assertJsonMissingPath('brands')
             ->assertJsonCount(7, 'tags')
             ->assertJsonPath('statuses', ['draft', 'active', 'inactive', 'archived'])
             ->assertJsonCount(7, 'content_tabs');

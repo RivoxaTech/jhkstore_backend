@@ -15,7 +15,7 @@ cp .env.example .env              # set DB_USERNAME / DB_PASSWORD if needed
 php artisan key:generate
 # create two empty MySQL databases: jhkstore_db (the app) and jhkstore_test (the tests)
 php artisan migrate --seed        # tables + default settings + the first admin user
-php artisan db:seed --class=DemoSeeder   # optional: neutral sample categories, brands, products and a demo customer
+php artisan db:seed --class=DemoSeeder   # optional: neutral sample categories, products and a demo customer
 php artisan storage:link
 php artisan serve                 # http://localhost:8000
 ```

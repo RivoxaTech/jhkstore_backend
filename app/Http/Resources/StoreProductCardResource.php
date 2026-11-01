@@ -3,8 +3,6 @@
 namespace App\Http\Resources;
 
 use App\Domain\Catalog\ProductImages;
-use App\Support\MediaUrl;
-use App\Domain\Support\Settings;
 use App\Domain\Reward\Actions\RewardLedger;
 use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
@@ -12,7 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * Product card for the customer site (lists, homepage sections, related products).
- * Eager load (see ProductListing::cardRelations): brand.media, category, tags, media, remoteImages and
+ * Eager load (see ProductListing::cardRelations): category, tags, media, remoteImages and
  * the active variants. `price` / `mrp` / `reward_points` are those of
  * the cheapest variant, so the three always belong together.
  *
@@ -36,11 +34,6 @@ class StoreProductCardResource extends JsonResource
             'short_description' => $this->short_description,
             'image_url' => $images['image_url'],
             'thumb_url' => $images['thumb_url'],
-            'brand' => ($this->brand && app(Settings::class)->brandsEnabled()) ? [
-                'name' => $this->brand->name,
-                'slug' => $this->brand->slug,
-                'logo_thumb_url' => MediaUrl::of($this->brand, 'logo', 'thumb'),
-            ] : null,
             'category' => ['name' => $this->category->name, 'slug' => $this->category->slug],
             'options_count' => $variants->count(),
             'has_single_option' => $single,

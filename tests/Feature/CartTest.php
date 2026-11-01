@@ -381,7 +381,6 @@ class CartTest extends TestCase
         $this->addToCart($variant, 2)->assertCreated();
 
         $product->delete();                                   // soft delete
-        $product->brand()->first()->delete();                 // and its brand
 
         $res = $this->cart()->assertOk();
         $this->assertSame('unavailable', $res->json('data.items.0.warnings.0.code'));
@@ -517,10 +516,9 @@ class CartTest extends TestCase
 
         $line = $this->addToCart($variant, 1)->json('data.items.0');
 
-        $this->assertSame(['variant_id', 'product_id', 'slug', 'name', 'option_name', 'sku', 'image_url', 'thumb_url', 'brand', 'qty', 'min_order_qty', 'max_order_qty', 'available_qty',
+        $this->assertSame(['variant_id', 'product_id', 'slug', 'name', 'option_name', 'sku', 'image_url', 'thumb_url', 'qty', 'min_order_qty', 'max_order_qty', 'available_qty',
             'mrp', 'price', 'unit_price', 'bulk_applied', 'next_offer', 'line_mrp_total', 'line_total', 'product_saving', 'bulk_saving', 'saving',
             'tax_rate', 'tax', 'in_totals', 'can_buy', 'price_changed', 'warnings', 'reward_points', 'coins_to_earn'], array_keys($line));
-        $this->assertSame(['name', 'slug'], array_keys($line['brand']));
         $this->assertNull($line['image_url']);   // the test product has no picture: null, never a relative path
         $this->assertSame($product->variants()->value('name'), $line['option_name']);
         $this->assertSame($product->name, $line['name']);

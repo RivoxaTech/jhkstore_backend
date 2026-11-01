@@ -1,6 +1,6 @@
 # Database (MySQL 8, database `jhkstore_db`)
 
-Conventions: InnoDB, `utf8mb4`, `BIGINT UNSIGNED` ids, `created_at`/`updated_at` everywhere, soft deletes (`deleted_at`) on users, brands, categories,
+Conventions: InnoDB, `utf8mb4`, `BIGINT UNSIGNED` ids, `created_at`/`updated_at` everywhere, soft deletes (`deleted_at`) on users, categories,
 sub-categories, products and reviews. Money `DECIMAL(12,2)` (cart maths use whole minor units). Statuses are `VARCHAR` mapped to PHP backed enums.
 Files use spatie medialibrary (`media` table). "Snapshot" = copied at the time of the event so history never changes.
 
@@ -14,7 +14,7 @@ admins ──* audit_logs                                  users 1─* user_addr
 users  1─* carts 1─* cart_items *─1 product_variants   users 1─* reward_transactions       users 1─* orders
 users  1─* product_reviews
 
-brands 1─* products (brand_id nullable)               categories 1─* sub_categories
+categories 1─* sub_categories
 categories 1─* products                                sub_categories 1─* products (sub_category_id nullable)
 products 1─* product_variants 1─* variant_price_tiers  products 1─* product_images / product_content_tabs
 products *─* tags (product_tag)                        products *─* products (product_relations: related)
@@ -35,8 +35,7 @@ settings (key/value)        pincodes (optional serviceability / COD per postcode
 | `admins` | admin users: username, name, email, password; roles via spatie tables |
 | `user_addresses` | address book: name, phones, line1, area, landmark, city, state, postcode, country, tax_number, type `home|work|other`, lat/long, is_default |
 | `categories`, `sub_categories` | two-level tree: name, slug, description, color, sort_order, is_active, meta_*; `categories.is_top` (max 12, home screen); media icon + image |
-| `brands`, `brand_collections` | optional brand: name, slug, description, is_active, sort_order, media logo + banner; collections = top/featured/new rails (no admin screen yet) |
-| `products` | brand_id?, category_id, sub_category_id?, name, slug, sku, descriptions, badge_text, **tax_rate?**, country_of_origin, warranty_text, min/max_order_qty, is_returnable/return_days, is_cod_available, status, published_at, meta_*; denormalised min_price, max_discount_percent, rating_avg/count, is_in_stock |
+| `products` | category_id, sub_category_id?, name, slug, sku, descriptions, badge_text, **tax_rate?**, country_of_origin, warranty_text, min/max_order_qty, is_returnable/return_days, is_cod_available, status, published_at, meta_*; denormalised min_price, max_discount_percent, rating_avg/count, is_in_stock |
 | `product_variants` | options: name, sku, mrp, selling_price, discount_percent, reward_points, expiry_date, barcode, weight, **stock_qty, reserved_qty, low_stock_threshold**, is_active, is_default |
 | `variant_price_tiers` | bulk prices (min_qty, price) |
 | `product_images`, `product_content_tabs`, `product_relations`, `product_tag`, `tags` | remote-image rows, description tabs, related products, tag pivot, tags (`is_system` protects the home-page tags) |

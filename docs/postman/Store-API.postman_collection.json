@@ -109,20 +109,7 @@
       }
     },
     {
-      "name": "8. Brands (only when brands are enabled)",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          }
-        ],
-        "url": "{{base_url}}/brands"
-      }
-    },
-    {
-      "name": "9. Guest: add to cart (saves cart_token)",
+      "name": "8. Guest: add to cart (saves cart_token)",
       "event": [
         {
           "listen": "test",
@@ -155,7 +142,7 @@
       }
     },
     {
-      "name": "10. Guest: show cart",
+      "name": "9. Guest: show cart",
       "request": {
         "method": "GET",
         "header": [
@@ -172,7 +159,7 @@
       }
     },
     {
-      "name": "11. Login (merges the guest cart, saves customer_token)",
+      "name": "10. Login (merges the guest cart, saves customer_token)",
       "event": [
         {
           "listen": "test",
@@ -208,7 +195,7 @@
       }
     },
     {
-      "name": "12. Customer: show cart",
+      "name": "11. Customer: show cart",
       "request": {
         "method": "GET",
         "header": [
@@ -231,7 +218,7 @@
       }
     },
     {
-      "name": "13. Customer: change quantity",
+      "name": "12. Customer: change quantity",
       "request": {
         "method": "PUT",
         "header": [
@@ -262,7 +249,7 @@
       }
     },
     {
-      "name": "14. Addresses (saves address_id)",
+      "name": "13. Addresses (saves address_id)",
       "event": [
         {
           "listen": "test",
@@ -297,7 +284,7 @@
       }
     },
     {
-      "name": "15. Place order (cash on delivery)",
+      "name": "14. Place order (cash on delivery)",
       "event": [
         {
           "listen": "test",
@@ -344,7 +331,7 @@
       }
     },
     {
-      "name": "16. My orders",
+      "name": "15. My orders",
       "request": {
         "method": "GET",
         "header": [
@@ -367,7 +354,7 @@
       }
     },
     {
-      "name": "17. Order detail",
+      "name": "16. Order detail",
       "request": {
         "method": "GET",
         "header": [
@@ -390,7 +377,7 @@
       }
     },
     {
-      "name": "18. Cancel order (before it ships)",
+      "name": "17. Cancel order (before it ships)",
       "request": {
         "method": "POST",
         "header": [
@@ -421,7 +408,7 @@
       }
     },
     {
-      "name": "19. Reorder",
+      "name": "18. Reorder",
       "request": {
         "method": "POST",
         "header": [
@@ -444,7 +431,7 @@
       }
     },
     {
-      "name": "20. Reviews of a product",
+      "name": "19. Reviews of a product",
       "request": {
         "method": "GET",
         "header": [

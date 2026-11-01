@@ -52,7 +52,6 @@ const taxLabel = computed(() => {
   return totals.value.tax_inclusive ? `${base} (incl.)` : base
 })
 const hasTax = computed(() => has(totals.value, 'tax_total') && (Number(totals.value.tax_total) > 0 || !totals.value.tax_inclusive))
-const brandName = (b) => (b && typeof b === 'object' ? b.name : b) || ''
 const storeAddress = computed(() => String(site.store.address || '').split(/\r?\n/).filter(Boolean))
 const sameAddress = computed(() => JSON.stringify(o.value?.shipping_address) === JSON.stringify(o.value?.billing_address))
 
@@ -160,7 +159,6 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
                           <strong style="white-space: normal">{{ i.name }}</strong>
                           <small v-if="i.option_name && i.option_name !== i.name" style="white-space: normal">{{ i.option_name }}</small>
                           <small style="white-space: normal">SKU {{ i.sku }}<template v-if="i.status === 'cancelled'"> · cancelled</template></small>
-                          <small v-if="brandName(i.brand)" style="white-space: normal">Brand: {{ brandName(i.brand) }}</small>
                         </div>
                       </div>
                     </td>

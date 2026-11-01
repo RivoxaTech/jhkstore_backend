@@ -34,7 +34,6 @@ class SeedersTest extends TestCase
 
         $this->assertSame(12, Product::count());
         $this->assertSame(5, DB::table('categories')->count());
-        $this->assertSame(5, DB::table('brands')->count());
         $this->assertSame(1, DB::table('users')->count());
         $this->assertSame(7, DB::table('tags')->where('is_system', true)->count());
 
@@ -43,7 +42,7 @@ class SeedersTest extends TestCase
         $this->getJson('/api/v1/store/categories')->assertOk()->assertJsonCount(5, 'data');
 
         // nothing in it is specific to a business
-        $names = Product::pluck('name')->implode(' ').DB::table('brands')->pluck('name')->implode(' ');
+        $names = Product::pluck('name')->implode(' ');
         $this->assertDoesNotMatchRegularExpression('/dental|dentalkart|instadent/i', $names);
     }
 }

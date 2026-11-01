@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Activity, CheckCircle2, Clock, PackageSearch, Plus, ShoppingBag, Tags, Wallet } from '@lucide/vue'
+import { Activity, Clock, PackageSearch, Plus, ShoppingBag, Wallet } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
 import TableSkeleton from '@/components/TableSkeleton.vue'
@@ -36,16 +36,6 @@ const orderStats = computed(() => {
   ]
 })
 
-// null = the Brands feature is switched off: no brand cards at all
-const brandStats = computed(() => {
-  const b = data.value?.brands
-  if (!b) return []
-  return [
-    { label: 'Brands', value: b.total, sub: 'All brands', icon: Tags, color: '#7c3aed', soft: '#f1eafe', to: { name: 'brands' } },
-    { label: 'Active brands', value: b.active, sub: 'Shown in the store', icon: CheckCircle2, color: '#16a34a', soft: '#e7f6ec', to: { name: 'brands' } },
-  ]
-})
-
 function describe(a) {
   const label = ACTION_LABELS[a.action] || a.action
   return a.subject_name ? `${label} "${a.subject_name}"` : label
@@ -73,17 +63,6 @@ function describe(a) {
         <div class="stat__label">{{ s.label }}</div>
         <div v-if="loading" class="skeleton" style="width: 70px; height: 32px; margin: 6px 0" />
         <div v-else class="stat__value">{{ s.value ?? 0 }}</div>
-        <div class="stat__sub">{{ s.sub }}</div>
-      </div>
-      <div class="stat__icon"><component :is="s.icon" :size="24" /></div>
-    </RouterLink>
-  </div>
-
-  <div v-if="brandStats.length" class="stats" aria-label="Brands">
-    <RouterLink v-for="s in brandStats" :key="s.label" :to="s.to" class="stat" :style="{ '--c': s.color, '--c-soft': s.soft }">
-      <div>
-        <div class="stat__label">{{ s.label }}</div>
-        <div class="stat__value">{{ s.value ?? 0 }}</div>
         <div class="stat__sub">{{ s.sub }}</div>
       </div>
       <div class="stat__icon"><component :is="s.icon" :size="24" /></div>

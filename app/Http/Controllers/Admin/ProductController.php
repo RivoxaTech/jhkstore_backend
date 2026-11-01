@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Domain\Catalog\Actions\ManageProductImages;
 use App\Domain\Catalog\Actions\SaveProduct;
 use App\Domain\Catalog\Enums\ProductStatus;
-use App\Domain\Catalog\Models\Brand;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\Models\Tag;
@@ -28,16 +27,15 @@ class ProductController extends Controller
 {
     /** Relations the full product view needs. */
     private const FULL = [
-        'brand:id,name', 'category:id,name', 'subCategory:id,name', 'tags',
+        'category:id,name', 'subCategory:id,name', 'tags',
         'contentTabs', 'media', 'remoteImages', 'variants.priceTiers', 'related.media', 'related.remoteImages',
     ];
 
-    /** What the dropdowns of the product form need: active brands, tags, statuses. */
+    /** What the dropdowns of the product form need: tags, statuses. */
     public function options(Settings $settings): JsonResponse
     {
         return response()->json([
-            'brands' => $settings->brandsEnabled() ? Brand::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']) : [],
-            'features' => ['brands' => $settings->brandsEnabled(), 'rewards' => $settings->rewardsEnabled()],
+            'features' => ['rewards' => $settings->rewardsEnabled()],
             'tags' => Tag::query()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'slug', 'color', 'is_active']),
             'currency' => ['code' => $settings->currencyCode(), 'symbol' => $settings->currencySymbol(), 'decimals' => $settings->decimals()],
             'statuses' => ProductStatus::values(),
@@ -46,7 +44,7 @@ class ProductController extends Controller
     }
 
     /**
-     * Lean product list. Filters: ?q (name, SKU, variant SKU) ?status ?brand_id ?category_id ?sub_category_id
+     * Lean product list. Filters: ?q (name, SKU, variant SKU) ?status ?category_id ?sub_category_id
      * ?tag (slug) ?page ?per_page. Newest first; `counts` = products per status.
      */
     public function index(Request $request)
@@ -54,7 +52,6 @@ class ProductController extends Controller
         $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', Rule::in(ProductStatus::values())],
-            'brand_id' => ['nullable', 'integer'],
             'category_id' => ['nullable', 'integer'],
             'sub_category_id' => ['nullable', 'integer'],
             'tag' => ['nullable', 'string', 'max:80'],
@@ -62,10 +59,9 @@ class ProductController extends Controller
         ]);
 
         $products = Product::query()
-            ->with(['brand:id,name', 'category:id,name', 'subCategory:id,name', 'tags', 'media', 'remoteImages', 'variants'])
+            ->with(['category:id,name', 'subCategory:id,name', 'tags', 'media', 'remoteImages', 'variants'])
             ->when($request->query('q'), fn ($q, $term) => ProductSearch::apply($q, $term, includeVariantSku: true))
             ->when($request->query('status'), fn ($q, $v) => $q->where('products.status', $v))
-            ->when($request->query('brand_id'), fn ($q, $v) => $q->where('products.brand_id', $v))
             ->when($request->query('category_id'), fn ($q, $v) => $q->where('products.category_id', $v))
             ->when($request->query('sub_category_id'), fn ($q, $id) => $q->where('products.sub_category_id', $id))
             ->when($request->query('tag'), fn ($q, $slug) => $q->whereHas('tags', fn ($t) => $t->where('tags.slug', $slug)))

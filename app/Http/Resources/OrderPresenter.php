@@ -62,7 +62,6 @@ class OrderPresenter
             'option_name' => $i->option_name,
             'sku' => $i->sku,
             'image_url' => $i->image_url,
-            'brand' => app(Settings::class)->brandsEnabled() ? $i->brand_name : null,
             'qty' => $i->qty,
             'mrp' => (float) $i->mrp,
             'price' => $i->base_price !== null ? (float) $i->base_price : (float) $i->unit_price,  // the option's own price

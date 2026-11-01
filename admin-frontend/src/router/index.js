@@ -20,7 +20,6 @@ const routes = [
       { path: 'orders/:id(\d+)', name: 'order', component: () => import('@/views/OrderDetailView.vue'), meta: { title: 'Order' } },
       { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: 'Settings' } },
       { path: 'categories', name: 'categories', component: () => import('@/views/CategoriesView.vue'), meta: { title: 'Categories' } },
-      { path: 'brands', name: 'brands', component: () => import('@/views/BrandsView.vue'), meta: { title: 'Brands', feature: 'brands' } },
     ],
   },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFoundView.vue'), meta: { title: 'Not found' } },
@@ -42,7 +41,7 @@ router.beforeEach(async (to) => {
   }
   if (to.meta.guest && auth.isLoggedIn) return { name: 'dashboard' }
 
-  // a page of a switched-off feature (for example Brands) is not reachable
+  // a page of a switched-off feature (a route with meta.feature) is not reachable
   const feature = to.matched.map(r => r.meta.feature).find(Boolean)
   if (feature && auth.isLoggedIn) {
     const catalog = useCatalogStore()

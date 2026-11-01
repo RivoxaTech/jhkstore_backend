@@ -12,7 +12,7 @@ default below, so a fresh install works without any setup; `SettingsSeeder` writ
 
 **Types**: `string`, `text`, `bool`, `int`, `money` / `percent` (numbers with 2 decimals), `file` (the logo – uploaded through its own endpoint).
 
-**Feature switches** (`brands_enabled`, `rewards_enabled`) are each read in one place: `Settings::brandsEnabled()` and `RewardLedger::enabled()`.
+**Feature switch** (`rewards_enabled`) is read in one place: `RewardLedger::enabled()`.
 When a feature is off it disappears from the admin panel, the API responses and the checkout; its data is kept, so switching it back on restores everything.
 
 **`0` means off** for `min_order_amount`, `cod_max_amount`, `delivery_fee` (free delivery on every order) and `free_delivery_min_cart` (delivery never free).
@@ -75,7 +75,6 @@ information); off, it is added to the cart total.
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
-| `brands_enabled` | bool | `on` | Enable brands. Off: brands are hidden everywhere (admin, API, product pages) |
 | `rewards_enabled` | bool | `off` | Enable reward points. Off: no points are earned, shown or redeemed anywhere |
 
 ### Reward points
