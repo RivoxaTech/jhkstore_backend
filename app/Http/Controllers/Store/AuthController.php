@@ -87,7 +87,6 @@ class AuthController extends Controller
             'gender' => $user->gender,
             'business_name' => $user->business_name,
             'date_of_birth' => $user->date_of_birth?->toDateString(),
-            'referral_code' => $user->referral_code,
         ];
     }
 }

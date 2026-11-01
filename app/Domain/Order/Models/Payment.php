@@ -4,7 +4,7 @@ namespace App\Domain\Order\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/** Polymorphic payment row (`payable_type` = order today; membership purchases later). Cash on delivery: cod_pending -> cod_collected. */
+/** Polymorphic payment row (`payable_type` = order today; other things that can be paid for later). Cash on delivery: cod_pending -> cod_collected. */
 class Payment extends Model
 {
     public const ORDER = 'order';

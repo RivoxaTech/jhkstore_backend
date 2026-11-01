@@ -32,7 +32,7 @@ settings (key/value)        pincodes (optional serviceability / COD per postcode
 
 | Table | Purpose / key columns |
 |---|---|
-| `users` | customers: name, email, mobile, password, gender, date_of_birth, business_name, referral_code, is_active |
+| `users` | customers: name, email, mobile, password, gender, date_of_birth, business_name, is_active |
 | `admins` | admin users: username, name, email, password; roles via spatie tables |
 | `user_addresses` | address book: name, phones, line1, area, landmark, city, state, postcode, country, tax_number, type `home|work|other`, lat/long, is_default |
 | `categories`, `sub_categories` | two-level tree: name, slug, description, color, sort_order, is_active, meta_*; `categories.is_top` (max 12, home screen); media icon + image |
@@ -57,14 +57,10 @@ settings (key/value)        pincodes (optional serviceability / COD per postcode
 
 `wishlists`, `wishlist_items`, `wishlist_shares` · `coupons`, `coupon_targets`, `coupon_usages` (carts/orders already have a nullable `coupon_id`) ·
 `banners`, `homepage_sections`, `collections`, `collection_product`, `cms_pages`, `faqs` (content / CMS) · `notifications` ·
-`product_questions`, `product_feedback` (reviews family).
+`product_questions`, `product_feedback` (reviews family) · `refunds`, `invoices`, `webhook_events`, `shipment_items`, `shipment_events` (online payments, invoicing and courier tracking).
 
-## Tables with no code that are NOT part of the plan — proposed for removal
+## Removed tables
 
-**Not dropped yet – waiting for confirmation.** None of these has a model, controller or seeder.
-
-| Proposed | Tables |
-|---|---|
-| Drop (you asked for these) | `membership_plans`, `user_memberships` · `return_reasons`, `return_requests`, `return_request_items`, `return_status_history` · `otp_codes` |
-| Drop (business-specific / superseded) | `referrals` (+ `users.referred_by_user_id`, `users.referral_code`) · `events`, `event_registrations` · `shipping_rules` (replaced by the flat delivery settings) · `search_terms` |
-| Your call (generic, but nothing uses them yet) | `refunds`, `invoices`, `webhook_events` (online payments / invoicing phase) · `shipment_items`, `shipment_events` (courier tracking) · `enquiries`, `enquiry_notes` (contact-form leads) |
+Dropped because nothing used them and they are not part of the plan: `membership_plans`, `user_memberships`, `return_reasons`, `return_requests`,
+`return_request_items`, `return_status_history`, `otp_codes`, `referrals`, `events`, `event_registrations`, `shipping_rules`, `search_terms`, `enquiries`, `enquiry_notes`
+(and the columns `users.referral_code`, `users.referred_by_user_id` and `refunds.return_request_id`). The database has **67 tables**.

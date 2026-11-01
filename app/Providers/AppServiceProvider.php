@@ -38,7 +38,7 @@ class AppServiceProvider extends ServiceProvider
         // Address book and order history: 60 a minute per customer.
         RateLimiter::for('account', fn (Request $request) => Limit::perMinute((int) env('ACCOUNT_PER_MINUTE', 60))->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
 
-        // Public forms (seller registration, enquiries): 10 per hour per IP (more on a developer machine so testing is not blocked).
+        // Public forms (customer registration): 10 per hour per IP (more on a developer machine so testing is not blocked).
         // Override with FORMS_PER_HOUR in .env.
         RateLimiter::for('forms', fn (Request $request) => Limit::perHour(
             (int) env('FORMS_PER_HOUR', $this->app->isLocal() ? 500 : 10)
