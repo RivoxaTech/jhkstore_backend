@@ -5,7 +5,6 @@ use App\Http\Controllers\Store\AuthController;
 use App\Http\Controllers\Store\BrandController;
 use App\Http\Controllers\Store\CartController;
 use App\Http\Controllers\Store\CategoryController;
-use App\Http\Controllers\Store\CompanyRegistrationController;
 use App\Http\Controllers\Store\OrderController;
 use App\Http\Controllers\Store\ProductController;
 use App\Http\Controllers\Store\ReviewController;
@@ -46,14 +45,6 @@ Route::get('products/{slug}/reviews', [ReviewController::class, 'index']);
 Route::post('products/{slug}/reviews', [ReviewController::class, 'store'])
     ->middleware(['auth:sanctum', 'actor:customer', 'throttle:reviews']);
 
-// "Sell on Dentalkart" seller registration
-// Dropdown data: one call for all three lists ...
-Route::get('company-registration/options', [CompanyRegistrationController::class, 'options']);
-// ... or one call per dropdown
-Route::get('lookups/registration-types', [CompanyRegistrationController::class, 'registrationTypes']);
-Route::get('lookups/vendor-types', [CompanyRegistrationController::class, 'vendorTypes']);
-Route::get('lookups/countries', [CompanyRegistrationController::class, 'countries']);
-Route::post('company-registrations', [CompanyRegistrationController::class, 'store'])->middleware('throttle:forms');
 
 // Cart (stored in the database). Guest: X-Cart-Token header; customer: Bearer token. ?channel=standard|instadent picks the cart.
 Route::middleware(['channel', 'throttle:cart'])->prefix('cart')->group(function () {

@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * Compact product row for the admin list. Needs: company, brand, category, subCategory, tags, media, remoteImages,
+ * Compact product row for the admin list. Needs: brand, category, subCategory, tags, media, remoteImages,
  * channels and variants.stocks.channel eager loaded (the controller does it), so a page costs a fixed number of queries.
  */
 class ProductListResource extends JsonResource
@@ -30,7 +30,6 @@ class ProductListResource extends JsonResource
             'sku' => $this->sku,
             'status' => $this->status->value,
             'thumb_url' => ProductImages::primary($this->resource)['thumb_url'],
-            'company' => $ref('company'),
             'brand' => $ref('brand'),
             'category' => $ref('category'),
             'sub_category' => $ref('subCategory'),

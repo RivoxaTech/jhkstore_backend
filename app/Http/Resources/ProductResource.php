@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * Full admin view of a product (everything the edit form needs). Needs company, brand, category, subCategory, tags,
+ * Full admin view of a product (everything the edit form needs). Needs brand, category, subCategory, tags,
  * channels, contentTabs, media, remoteImages, related (with media + remoteImages) and variants.stocks.channel / variants.priceTiers loaded.
  * Every product has at least one option (variant); the cheapest one gives the starting price.
  */
@@ -19,8 +19,7 @@ class ProductResource extends JsonResource
 
         return [
             'id' => $this->id,
-            'company' => $ref('company'),
-            'brand' => $this->brand ? ['id' => $this->brand->id, 'name' => $this->brand->name, 'company_id' => $this->brand->company_id] : null,
+            'brand' => $this->brand ? ['id' => $this->brand->id, 'name' => $this->brand->name] : null,
             'category' => $ref('category'),
             'sub_category' => $ref('subCategory'),
             'name' => $this->name,

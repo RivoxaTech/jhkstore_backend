@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Domain\Auth\Models\User;
 use App\Domain\Catalog\Models\Product;
-use App\Domain\Company\Enums\CompanyStatus;
 use App\Domain\Review\Models\ProductRatingStat;
 use App\Domain\Review\Models\ProductReview;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -42,10 +41,9 @@ class ProductStoreTest extends TestCase
 
     public function test_the_card_has_the_agreed_shape_with_absolute_urls_or_null(): void
     {
-        $company = $this->makeCompany('Acme');
         $category = $this->makeCategory('Restorative');
-        $product = $this->makeProduct($company, $category, [
-            'name' => 'Prime Kit', 'short_description' => 'A kit', 'badge_text' => 'MADE IN USA', 'mrp' => 4500, 'selling_price' => 2495, 'reward_points' => 25,
+        $product = $this->makeProduct($category, [
+            'brand_id' => $this->makeBrand('Acme Brand')->id, 'name' => 'Prime Kit', 'short_description' => 'A kit', 'badge_text' => 'MADE IN USA', 'mrp' => 4500, 'selling_price' => 2495, 'reward_points' => 25,
         ], ['hot-selling', 'best-seller']);
         $brandId = $product->brand_id;
 
@@ -66,7 +64,7 @@ class ProductStoreTest extends TestCase
         $this->assertSame(['name' => 'Restorative', 'slug' => 'restorative'], $card['category']);
         $this->assertSame('Acme Brand', $card['brand']['name']);
         $this->assertTrue($card['in_stock']);
-        // no picture and no company logo yet: null everywhere (the frontend shows its placeholder)
+        // no picture and no brand logo yet: null everywhere (the frontend shows its placeholder)
         $this->assertNull($card['image_url']);
         $this->assertNull($card['thumb_url']);
         $this->assertNull($card['brand']['logo_thumb_url']);
@@ -76,10 +74,9 @@ class ProductStoreTest extends TestCase
 
     public function test_uploaded_and_remote_pictures_both_appear_as_absolute_urls(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
-        $uploaded = $this->makeProduct($company, $category, ['name' => 'Uploaded']);
-        $remote = $this->makeProduct($company, $category, ['name' => 'Remote']);
+        $uploaded = $this->makeProduct($category, ['name' => 'Uploaded']);
+        $remote = $this->makeProduct($category, ['name' => 'Remote']);
         $uploaded->addMedia(\Illuminate\Http\UploadedFile::fake()->image('a.jpg', 700, 700))->toMediaCollection('images');
         $uploaded->addMedia(\Illuminate\Http\UploadedFile::fake()->image('b.jpg', 700, 700))->toMediaCollection('images');
         DB::table('product_images')->insert([
@@ -102,11 +99,10 @@ class ProductStoreTest extends TestCase
         $this->assertSame(['https://cdn.example.com/1.jpg', 'https://cdn.example.com/2.jpg'], array_column($remoteImages, 'url'));
     }
 
-    public function test_the_brand_logo_falls_back_to_the_company_logo(): void
+    public function test_the_brand_logo_is_an_absolute_url(): void
     {
-        $company = $this->makeCompany();
-        $company->addMedia(\Illuminate\Http\UploadedFile::fake()->image('logo.png', 300, 300))->toMediaCollection('logo');
-        $this->makeProduct($company, $this->makeCategory());
+        $this->defaultBrand()->addMedia(\Illuminate\Http\UploadedFile::fake()->image('logo.png', 300, 300))->toMediaCollection('logo');
+        $this->makeProduct($this->makeCategory());
 
         $logo = $this->getJson(self::STORE.'/products')->json('data.0.brand.logo_thumb_url');
         $this->assertStringStartsWith('http', $logo);
@@ -116,12 +112,11 @@ class ProductStoreTest extends TestCase
 
     public function test_tag_filter_gives_the_homepage_sections(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
-        $this->makeProduct($company, $category, ['name' => 'Best One'], ['best-seller']);
-        $this->makeProduct($company, $category, ['name' => 'Hot One'], ['hot-selling']);
-        $this->makeProduct($company, $category, ['name' => 'Both'], ['best-seller', 'hot-selling', 'new-arrival']);
-        $this->makeProduct($company, $category, ['name' => 'Plain']);
+        $this->makeProduct($category, ['name' => 'Best One'], ['best-seller']);
+        $this->makeProduct($category, ['name' => 'Hot One'], ['hot-selling']);
+        $this->makeProduct($category, ['name' => 'Both'], ['best-seller', 'hot-selling', 'new-arrival']);
+        $this->makeProduct($category, ['name' => 'Plain']);
 
         $this->assertEqualsCanonicalizing(['best-one', 'both'], $this->slugs('tag=best-seller'));
         $this->assertEqualsCanonicalizing(['hot-one', 'both'], $this->slugs('tag=hot-selling'));
@@ -134,7 +129,7 @@ class ProductStoreTest extends TestCase
 
     public function test_an_inactive_tag_is_not_a_section_and_is_not_listed(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory(), [], ['best-seller', 'featured']);
+        $product = $this->makeProduct($this->makeCategory(), [], ['best-seller', 'featured']);
         DB::table('tags')->where('slug', 'best-seller')->update(['is_active' => false]);
 
         $this->assertSame([], $this->slugs('tag=best-seller'));
@@ -145,19 +140,18 @@ class ProductStoreTest extends TestCase
 
     public function test_category_sub_category_and_brand_filters(): void
     {
-        $acme = $this->makeCompany('Acme');
         $restorative = $this->makeCategory('Restorative');
         $composites = $this->makeSub($restorative, 'Composites');
         $nano = $this->makeSub($restorative, 'Nano Composites', parent: $composites);   // a sub-sub-category
         $endo = $this->makeCategory('Endo');
         $files = $this->makeSub($endo, 'Files');
         $filesDuplicate = $this->makeSub($restorative, 'Files');                          // same slug in another category
-        $waldent = $this->makeBrand($acme, 'Waldent');
+        $waldent = $this->makeBrand('Waldent');
 
-        $this->makeProduct($acme, $restorative, ['name' => 'P1', 'sub_category_id' => $composites->id]);
-        $this->makeProduct($acme, $restorative, ['name' => 'P2', 'sub_category_id' => $nano->id, 'brand_id' => $waldent->id]);
-        $this->makeProduct($acme, $endo, ['name' => 'P3', 'sub_category_id' => $files->id]);
-        $this->makeProduct($acme, $restorative, ['name' => 'P4', 'sub_category_id' => $filesDuplicate->id]);
+        $this->makeProduct($restorative, ['name' => 'P1', 'sub_category_id' => $composites->id]);
+        $this->makeProduct($restorative, ['name' => 'P2', 'sub_category_id' => $nano->id, 'brand_id' => $waldent->id]);
+        $this->makeProduct($endo, ['name' => 'P3', 'sub_category_id' => $files->id]);
+        $this->makeProduct($restorative, ['name' => 'P4', 'sub_category_id' => $filesDuplicate->id]);
 
         $this->assertEqualsCanonicalizing(['p1', 'p2', 'p4'], $this->slugs('category=restorative'));
         $this->assertSame(['p3'], $this->slugs('category=endo'));
@@ -166,20 +160,19 @@ class ProductStoreTest extends TestCase
         $this->assertSame(['p3'], $this->slugs('category=endo&sub_category='.$files->slug));            // narrowed by the category
         $this->assertSame(['p4'], $this->slugs('category=restorative&sub_category='.$filesDuplicate->slug));
         $this->assertSame(['p2'], $this->slugs('brand=waldent'));                                      // brand page
-        $this->assertCount(3, $this->slugs('brand=acme-brand'));
+        $this->assertCount(3, $this->slugs('brand=test-brand'));
         $this->assertSame([], $this->slugs('category=nothing'));
         $this->assertSame([], $this->slugs('brand=nothing'));
     }
 
     public function test_search_price_stock_and_rating_filters(): void
     {
-        $acme = $this->makeCompany('Acme');
         $category = $this->makeCategory();
-        $waldent = $this->makeBrand($acme, 'Waldent');
-        $this->makeProduct($acme, $category, ['name' => 'Alpha Composite', 'short_description' => 'light cured', 'selling_price' => 100, 'mrp' => 100]);
-        $this->makeProduct($acme, $category, ['name' => 'Beta File', 'selling_price' => 500, 'mrp' => 500, 'brand_id' => $waldent->id, 'sku' => 'BETA-9',
+        $waldent = $this->makeBrand('Waldent');
+        $this->makeProduct($category, ['name' => 'Alpha Composite', 'short_description' => 'light cured', 'selling_price' => 100, 'mrp' => 100]);
+        $this->makeProduct($category, ['name' => 'Beta File', 'selling_price' => 500, 'mrp' => 500, 'brand_id' => $waldent->id, 'sku' => 'BETA-9',
             'stock' => ['standard' => 0, 'instadent' => 4]]);
-        $this->makeProduct($acme, $category, ['name' => 'Gamma Cement', 'selling_price' => 900, 'mrp' => 900]);
+        $this->makeProduct($category, ['name' => 'Gamma Cement', 'selling_price' => 900, 'mrp' => 900]);
         Product::where('name', 'Alpha Composite')->update(['rating_avg' => 4.5, 'rating_count' => 10]);
         Product::where('name', 'Gamma Cement')->update(['rating_avg' => 3.0, 'rating_count' => 2]);
 
@@ -203,11 +196,10 @@ class ProductStoreTest extends TestCase
 
     public function test_sorting(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
-        $a = $this->makeProduct($company, $category, ['name' => 'A', 'mrp' => 1000, 'selling_price' => 900]);   // 10% off
-        $b = $this->makeProduct($company, $category, ['name' => 'B', 'mrp' => 400, 'selling_price' => 100]);    // 75% off
-        $c = $this->makeProduct($company, $category, ['name' => 'C', 'mrp' => 600, 'selling_price' => 500]);    // 16.67% off
+        $a = $this->makeProduct($category, ['name' => 'A', 'mrp' => 1000, 'selling_price' => 900]);   // 10% off
+        $b = $this->makeProduct($category, ['name' => 'B', 'mrp' => 400, 'selling_price' => 100]);    // 75% off
+        $c = $this->makeProduct($category, ['name' => 'C', 'mrp' => 600, 'selling_price' => 500]);    // 16.67% off
         $a->forceFill(['popularity_score' => 50, 'rating_avg' => 3.5, 'rating_count' => 4, 'published_at' => now()->subDays(1)])->save();
         $b->forceFill(['popularity_score' => 10, 'rating_avg' => 4.9, 'rating_count' => 8, 'published_at' => now()->subDays(3)])->save();
         $c->forceFill(['popularity_score' => 30, 'rating_avg' => 4.0, 'rating_count' => 2, 'published_at' => now()->subDays(2)])->save();
@@ -223,10 +215,9 @@ class ProductStoreTest extends TestCase
 
     public function test_the_list_is_paginated(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
         foreach (range(1, 5) as $i) {
-            $this->makeProduct($company, $category);
+            $this->makeProduct($category);
         }
 
         $this->getJson(self::STORE.'/products?per_page=2&page=3')->assertOk()
@@ -235,7 +226,6 @@ class ProductStoreTest extends TestCase
 
     public function test_the_list_uses_a_fixed_number_of_queries(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
         $count = function () {
             DB::flushQueryLog();
@@ -244,10 +234,10 @@ class ProductStoreTest extends TestCase
 
             return count(DB::getQueryLog());
         };
-        $this->makeProduct($company, $category, [], ['best-seller']);
+        $this->makeProduct($category, [], ['best-seller']);
         $few = $count();
         foreach (range(1, 8) as $i) {
-            $this->makeProduct($company, $category, ['variants' => [
+            $this->makeProduct($category, ['variants' => [
                 ['name' => 'S', 'sku' => "S$i", 'mrp' => 10, 'selling_price' => 9, 'stock' => ['standard' => 3]],
                 ['name' => 'L', 'sku' => "L$i", 'mrp' => 20, 'selling_price' => 18, 'stock' => ['standard' => 3]],
             ]], ['best-seller', 'featured']);
@@ -260,40 +250,35 @@ class ProductStoreTest extends TestCase
 
     public function test_only_products_that_are_allowed_to_show_are_visible(): void
     {
-        $company = $this->makeCompany('Acme');
         $category = $this->makeCategory('Cat');
         $sub = $this->makeSub($category, 'Sub');
         $child = $this->makeSub($category, 'Child', parent: $sub);
-        $visible = $this->makeProduct($company, $category, ['name' => 'Visible', 'sub_category_id' => $child->id]);
+        $visible = $this->makeProduct($category, ['name' => 'Visible', 'sub_category_id' => $child->id]);
 
-        $draft = $this->makeProduct($company, $category, ['name' => 'Draft', 'status' => 'draft']);
-        $inactive = $this->makeProduct($company, $category, ['name' => 'Inactive', 'status' => 'inactive']);
-        $archived = $this->makeProduct($company, $category, ['name' => 'Archived', 'status' => 'archived']);
-        $deleted = $this->makeProduct($company, $category, ['name' => 'Deleted']);
+        $draft = $this->makeProduct($category, ['name' => 'Draft', 'status' => 'draft']);
+        $inactive = $this->makeProduct($category, ['name' => 'Inactive', 'status' => 'inactive']);
+        $archived = $this->makeProduct($category, ['name' => 'Archived', 'status' => 'archived']);
+        $deleted = $this->makeProduct($category, ['name' => 'Deleted']);
         $deleted->delete();
 
-        $sleepingBrand = $this->makeBrand($company, 'Sleeping');
-        $this->makeProduct($company, $category, ['name' => 'Brand off', 'brand_id' => $sleepingBrand->id]);
+        $sleepingBrand = $this->makeBrand('Sleeping');
+        $this->makeProduct($category, ['name' => 'Brand off', 'brand_id' => $sleepingBrand->id]);
         $sleepingBrand->update(['is_active' => false]);
 
-        $suspended = $this->makeCompany('Suspended Co');
-        $this->makeProduct($suspended, $category, ['name' => 'Company suspended']);
-        $suspended->forceFill(['status' => CompanyStatus::Suspended])->save();
-
         $offCategory = $this->makeCategory('Off Cat');
-        $this->makeProduct($company, $offCategory, ['name' => 'Category off']);
+        $this->makeProduct($offCategory, ['name' => 'Category off']);
         $offCategory->update(['is_active' => false]);
 
         $offSub = $this->makeSub($category, 'Off Sub');
-        $this->makeProduct($company, $category, ['name' => 'Sub off', 'sub_category_id' => $offSub->id]);
+        $this->makeProduct($category, ['name' => 'Sub off', 'sub_category_id' => $offSub->id]);
         $offSub->update(['is_active' => false]);
 
         $parent = $this->makeSub($category, 'Parent');
         $kid = $this->makeSub($category, 'Kid', parent: $parent);
-        $this->makeProduct($company, $category, ['name' => 'Parent off', 'sub_category_id' => $kid->id]);
+        $this->makeProduct($category, ['name' => 'Parent off', 'sub_category_id' => $kid->id]);
         $parent->update(['is_active' => false]);
 
-        $standardOff = $this->makeProduct($company, $category, ['name' => 'Channel off']);
+        $standardOff = $this->makeProduct($category, ['name' => 'Channel off']);
         $standardOff->channels()->updateExistingPivot(DB::table('sales_channels')->where('code', 'standard')->value('id'), ['is_active' => false]);
 
         $this->assertSame(['visible'], $this->slugs());
@@ -307,21 +292,9 @@ class ProductStoreTest extends TestCase
         $this->assertContains('category-off', $this->slugs());
     }
 
-    public function test_a_pending_company_product_is_hidden_until_the_company_is_approved(): void
-    {
-        $category = $this->makeCategory();
-        $company = $this->makeCompany('Waiting Co');                    // approved, so the product can be saved
-        $this->makeProduct($company, $category, ['name' => 'Waiting product']);
-        $company->forceFill(['status' => CompanyStatus::Pending])->save();
-        $this->assertSame([], $this->slugs());
-
-        $company->forceFill(['status' => CompanyStatus::Approved])->save();
-        $this->assertSame(['waiting-product'], $this->slugs());
-    }
-
     public function test_out_of_stock_products_still_list_with_in_stock_false(): void
     {
-        $this->makeProduct($this->makeCompany(), $this->makeCategory(), ['stock' => ['standard' => 0, 'instadent' => 0]]);
+        $this->makeProduct($this->makeCategory(), ['stock' => ['standard' => 0, 'instadent' => 0]]);
 
         $res = $this->getJson(self::STORE.'/products')->assertOk();
         $res->assertJsonCount(1, 'data')->assertJsonPath('data.0.in_stock', false);
@@ -331,7 +304,7 @@ class ProductStoreTest extends TestCase
 
     public function test_instadent_needs_a_login(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
 
         $this->getJson(self::STORE.'/products?channel=instadent')->assertUnauthorized();
         $this->getJson(self::STORE.'/products/'.$product->slug.'?channel=instadent')->assertUnauthorized();
@@ -344,7 +317,7 @@ class ProductStoreTest extends TestCase
 
     public function test_an_admin_token_does_not_open_instadent(): void
     {
-        $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $this->makeProduct($this->makeCategory());
         $this->actingAsAdmin();
 
         $this->getJson(self::STORE.'/products?channel=instadent')->assertUnauthorized();
@@ -352,12 +325,11 @@ class ProductStoreTest extends TestCase
 
     public function test_a_logged_in_customer_sees_instadent_products_and_their_own_stock(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
-        $both = $this->makeProduct($company, $category, ['name' => 'Both', 'stock' => ['standard' => 0, 'instadent' => 6]]);
-        $this->makeProduct($company, $category, ['name' => 'Standard only', 'channels' => [['code' => 'standard', 'is_active' => true]]]);
-        $this->makeProduct($company, $category, ['name' => 'Instadent only', 'channels' => [['code' => 'instadent', 'is_active' => true]], 'stock' => ['instadent' => 9]]);
-        $off = $this->makeProduct($company, $category, ['name' => 'Instadent switched off']);
+        $both = $this->makeProduct($category, ['name' => 'Both', 'stock' => ['standard' => 0, 'instadent' => 6]]);
+        $this->makeProduct($category, ['name' => 'Standard only', 'channels' => [['code' => 'standard', 'is_active' => true]]]);
+        $this->makeProduct($category, ['name' => 'Instadent only', 'channels' => [['code' => 'instadent', 'is_active' => true]], 'stock' => ['instadent' => 9]]);
+        $off = $this->makeProduct($category, ['name' => 'Instadent switched off']);
         $off->channels()->updateExistingPivot(DB::table('sales_channels')->where('code', 'instadent')->value('id'), ['is_active' => false]);
 
         // guests: the standard catalogue
@@ -380,7 +352,7 @@ class ProductStoreTest extends TestCase
 
     public function test_reserved_units_are_not_counted_as_available(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory(), ['stock' => ['standard' => 5]]);
+        $product = $this->makeProduct($this->makeCategory(), ['stock' => ['standard' => 5]]);
         DB::table('variant_channel_stock')->update(['reserved_qty' => 5]);
 
         $this->getJson(self::STORE.'/products/'.$product->slug)->assertJsonPath('data.variants.0.qty', 0)->assertJsonPath('data.in_stock', false);
@@ -390,10 +362,9 @@ class ProductStoreTest extends TestCase
 
     public function test_product_detail(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory('Restorative');
         $sub = $this->makeSub($category, 'Composites');
-        $product = $this->makeProduct($company, $category, [
+        $product = $this->makeProduct($category, [
             'name' => 'Gloves', 'sku' => 'GLV', 'sub_category_id' => $sub->id, 'description' => 'Long text', 'country_of_origin' => 'Japan',
             'is_returnable' => false, 'max_order_qty' => 5,
             'variants' => [
@@ -402,7 +373,7 @@ class ProductStoreTest extends TestCase
             ],
             'content_tabs' => [['tab_key' => 'warranty', 'content' => '1 year'], ['tab_key' => 'features', 'format' => 'bullets', 'content' => "Soft\nStrong"]],
         ], ['featured']);
-        $related = $this->makeProduct($company, $category, ['name' => 'Related One']);
+        $related = $this->makeProduct($category, ['name' => 'Related One']);
 
         $res = $this->getJson(self::STORE.'/products/'.$product->slug)->assertOk();
         $d = $res->json('data');
@@ -441,12 +412,11 @@ class ProductStoreTest extends TestCase
 
     public function test_hand_picked_related_products_win_over_the_category_fallback(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
-        $main = $this->makeProduct($company, $category, ['name' => 'Main']);
-        $this->makeProduct($company, $category, ['name' => 'Same Category']);
-        $picked = $this->makeProduct($company, $this->makeCategory('Other'), ['name' => 'Picked']);
-        $hidden = $this->makeProduct($company, $category, ['name' => 'Hidden Pick', 'status' => 'draft']);
+        $main = $this->makeProduct($category, ['name' => 'Main']);
+        $this->makeProduct($category, ['name' => 'Same Category']);
+        $picked = $this->makeProduct($this->makeCategory('Other'), ['name' => 'Picked']);
+        $hidden = $this->makeProduct($category, ['name' => 'Hidden Pick', 'status' => 'draft']);
         DB::table('product_relations')->insert([
             ['product_id' => $main->id, 'related_product_id' => $picked->id, 'type' => 'related', 'sort_order' => 1],
             ['product_id' => $main->id, 'related_product_id' => $hidden->id, 'type' => 'related', 'sort_order' => 2],
@@ -458,11 +428,10 @@ class ProductStoreTest extends TestCase
 
     public function test_the_detail_page_does_not_run_queries_per_variant(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
         $variants = fn (int $n) => array_map(fn ($i) => ['name' => "V$i", 'sku' => "V$i-".$n, 'mrp' => 10, 'selling_price' => 9, 'stock' => ['standard' => 2]], range(1, $n));
-        $few = $this->makeProduct($company, $category, ['name' => 'Few', 'variants' => $variants(1)]);
-        $many = $this->makeProduct($company, $category, ['name' => 'Many', 'variants' => $variants(8)], ['best-seller']);
+        $few = $this->makeProduct($category, ['name' => 'Few', 'variants' => $variants(1)]);
+        $many = $this->makeProduct($category, ['name' => 'Many', 'variants' => $variants(8)], ['best-seller']);
         $count = function (string $slug) {
             DB::flushQueryLog();
             DB::enableQueryLog();
@@ -490,7 +459,7 @@ class ProductStoreTest extends TestCase
 
     public function test_reviews_list_starts_empty_with_a_zero_summary(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
 
         $this->getJson(self::STORE.'/products/'.$product->slug.'/reviews')->assertOk()
             ->assertJsonCount(0, 'data')
@@ -501,7 +470,7 @@ class ProductStoreTest extends TestCase
 
     public function test_posting_a_review_needs_a_customer_login(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         $url = self::STORE.'/products/'.$product->slug.'/reviews';
 
         $this->postJson($url, ['rating' => 5])->assertUnauthorized();
@@ -513,7 +482,7 @@ class ProductStoreTest extends TestCase
 
     public function test_posting_a_review_validates_the_input(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         $url = self::STORE.'/products/'.$product->slug.'/reviews';
         Sanctum::actingAs($this->customer());
 
@@ -528,7 +497,7 @@ class ProductStoreTest extends TestCase
 
     public function test_one_review_per_customer_and_the_rating_numbers_are_recomputed(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         $url = self::STORE.'/products/'.$product->slug.'/reviews';
 
         $asha = $this->customer('asha@example.test', 'Asha Verma');
@@ -574,7 +543,7 @@ class ProductStoreTest extends TestCase
 
     public function test_changing_a_review_moves_the_distribution_and_a_hidden_review_is_not_counted(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         $url = self::STORE.'/products/'.$product->slug.'/reviews';
         Sanctum::actingAs($asha = $this->customer('a@example.test'));
         $this->postJson($url, ['rating' => 1])->assertCreated();
@@ -593,7 +562,7 @@ class ProductStoreTest extends TestCase
 
     public function test_a_deleted_review_can_be_posted_again(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         $url = self::STORE.'/products/'.$product->slug.'/reviews';
         Sanctum::actingAs($this->customer());
         $this->postJson($url, ['rating' => 2])->assertCreated();
@@ -605,7 +574,7 @@ class ProductStoreTest extends TestCase
 
     public function test_reviews_of_a_hidden_product_are_not_available(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory(), ['status' => 'draft']);
+        $product = $this->makeProduct($this->makeCategory(), ['status' => 'draft']);
         Sanctum::actingAs($this->customer());
 
         $this->getJson(self::STORE.'/products/'.$product->slug.'/reviews')->assertNotFound();
@@ -616,9 +585,8 @@ class ProductStoreTest extends TestCase
 
     public function test_the_product_page_has_option_pictures_quantity_prices_delivery_and_return_days(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
-        $product = $this->makeProduct($company, $category, [
+        $product = $this->makeProduct($category, [
             'name' => 'Maarc Pure Eugenol', 'return_days' => 10, 'meta_title' => 'Eugenol', 'meta_description' => 'Pure eugenol',
             'variants' => [
                 ['name' => 'Maarc Pure Eugenol (15ml) (3002/015)', 'sku' => '3002-015', 'mrp' => 190, 'selling_price' => 160, 'reward_points' => 3,
@@ -668,14 +636,13 @@ class ProductStoreTest extends TestCase
 
     public function test_a_product_is_a_parent_of_its_options_and_starts_at_the_cheapest_one(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
-        $gun = $this->makeProduct($company, $category, ['name' => 'Glock', 'variants' => [
+        $gun = $this->makeProduct($category, ['name' => 'Glock', 'variants' => [
             ['name' => 'Glock 17', 'sku' => 'G17', 'mrp' => 900, 'selling_price' => 800, 'stock' => ['standard' => 2]],
             ['name' => 'Glock 19', 'sku' => 'G19', 'mrp' => 700, 'selling_price' => 600, 'stock' => ['standard' => 0]],
             ['name' => 'Glock 26', 'sku' => 'G26', 'mrp' => 800, 'selling_price' => 650, 'stock' => ['standard' => 5]],
         ]]);
-        $single = $this->makeProduct($company, $category, ['name' => 'Single Gun']);
+        $single = $this->makeProduct($category, ['name' => 'Single Gun']);
 
         $cards = collect($this->getJson(self::STORE.'/products')->json('data'))->keyBy('name');
         $this->assertSame(3, $cards['Glock']['options_count']);
@@ -692,14 +659,13 @@ class ProductStoreTest extends TestCase
 
     public function test_a_single_option_product_shows_its_offers_or_one_option_and_a_direct_price(): void
     {
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
-        $offers = $this->makeProduct($company, $category, ['name' => 'Scan Body', 'variants' => [
+        $offers = $this->makeProduct($category, ['name' => 'Scan Body', 'variants' => [
             ['name' => 'Scan Body NC Compatible', 'sku' => 'SB', 'mrp' => 1490, 'selling_price' => 840,
                 'price_tiers' => [['min_qty' => 2, 'price' => 820], ['min_qty' => 5, 'price' => 800], ['min_qty' => 10, 'price' => 760]], 'stock' => ['standard' => 3]],
         ]]);
-        $this->makeProduct($company, $category, ['name' => 'Plain Gun']);
-        $this->makeProduct($company, $category, ['name' => 'Glock', 'variants' => [
+        $this->makeProduct($category, ['name' => 'Plain Gun']);
+        $this->makeProduct($category, ['name' => 'Glock', 'variants' => [
             ['name' => 'Glock 17', 'sku' => 'G17', 'mrp' => 900, 'selling_price' => 800, 'price_tiers' => [['min_qty' => 2, 'price' => 790]], 'stock' => ['standard' => 2]],
             ['name' => 'Glock 19', 'sku' => 'G19', 'mrp' => 700, 'selling_price' => 600, 'stock' => ['standard' => 1]],
         ]]);
@@ -739,7 +705,7 @@ class ProductStoreTest extends TestCase
 
     public function test_every_option_has_its_own_stock_in_every_channel(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory(), ['name' => 'Shirt', 'variants' => [
+        $product = $this->makeProduct($this->makeCategory(), ['name' => 'Shirt', 'variants' => [
             ['name' => 'Shirt Red', 'sku' => 'S-R', 'mrp' => 10, 'selling_price' => 9, 'stock' => ['standard' => 3, 'instadent' => 0]],
             ['name' => 'Shirt Blue', 'sku' => 'S-B', 'mrp' => 10, 'selling_price' => 9, 'stock' => ['standard' => 10, 'instadent' => 7]],
         ]]);
@@ -755,7 +721,7 @@ class ProductStoreTest extends TestCase
 
     public function test_an_inactive_option_is_not_sold_and_a_product_without_active_options_is_hidden(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory(), ['name' => 'Pen', 'variants' => [
+        $product = $this->makeProduct($this->makeCategory(), ['name' => 'Pen', 'variants' => [
             ['name' => 'Pen Black', 'sku' => 'P-K', 'mrp' => 10, 'selling_price' => 9],
             ['name' => 'Pen Blue', 'sku' => 'P-B', 'mrp' => 12, 'selling_price' => 11],
         ]]);
@@ -772,14 +738,14 @@ class ProductStoreTest extends TestCase
 
     public function test_a_product_that_is_not_returnable_has_no_return_days(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory(), ['is_returnable' => false]);
+        $product = $this->makeProduct($this->makeCategory(), ['is_returnable' => false]);
 
         $this->getJson(self::STORE.'/products/'.$product->slug)->assertJsonPath('data.is_returnable', false)->assertJsonPath('data.return_days', null);
     }
 
     public function test_when_only_the_options_have_pictures_the_gallery_and_cards_use_them(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         $product->addMedia(\Illuminate\Http\UploadedFile::fake()->image('v.jpg', 700, 700))
             ->withCustomProperties(['variant_id' => $product->variants()->value('id')])->toMediaCollection('images');
 
@@ -794,7 +760,7 @@ class ProductStoreTest extends TestCase
 
     public function test_the_review_list_is_paginated(): void
     {
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         foreach (range(1, 3) as $i) {
             Sanctum::actingAs($this->customer("u$i@example.test"));
             $this->postJson(self::STORE.'/products/'.$product->slug.'/reviews', ['rating' => 5])->assertCreated();

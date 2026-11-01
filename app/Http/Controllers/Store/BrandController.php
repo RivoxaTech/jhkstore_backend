@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 class BrandController extends Controller
 {
     /**
-     * Brands shown on the storefront (active brand of an approved company).
+     * Brands shown on the storefront (active brands).
      * Query: ?collection=top|featured|new|suggested  ?q=search  ?per_page=1..100  ?page=
      */
     public function index(Request $request)
@@ -23,7 +23,7 @@ class BrandController extends Controller
 
         $brands = Brand::query()
             ->storefront()
-            ->with(['media', 'collections', 'company.media'])
+            ->with(['media', 'collections'])
             ->when($request->query('collection'), function ($query, $collection) {
                 $query->join('brand_collections', function ($join) use ($collection) {
                     $join->on('brand_collections.brand_id', '=', 'brands.id')->where('brand_collections.collection', $collection);
@@ -40,7 +40,7 @@ class BrandController extends Controller
 
     public function show(string $slug)
     {
-        $brand = Brand::query()->storefront()->with(['media', 'collections', 'company.media'])->where('brands.slug', $slug)->firstOrFail();
+        $brand = Brand::query()->storefront()->with(['media', 'collections'])->where('brands.slug', $slug)->firstOrFail();
 
         return new StoreBrandResource($brand);
     }

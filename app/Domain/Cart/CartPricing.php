@@ -30,10 +30,9 @@ class CartPricing
     public static function relations(SalesChannel $channel): array
     {
         return [
-            // a product, brand or company deleted after the customer added it must still load (the line is then reported as unavailable)
-            'variant.product' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug', 'sku', 'brand_id', 'company_id', 'status', 'gst_rate', 'hsn_code', 'min_order_qty', 'max_order_qty', 'is_cod_available']),
+            // a product or brand deleted after the customer added it must still load (the line is then reported as unavailable)
+            'variant.product' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug', 'sku', 'brand_id', 'status', 'gst_rate', 'hsn_code', 'min_order_qty', 'max_order_qty', 'is_cod_available']),
             'variant.product.brand' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug']),
-            'variant.product.company' => fn ($q) => $q->withTrashed()->select(['id', 'name']),
             'variant.product.media', 'variant.product.remoteImages',
             'variant.priceTiers',
             'variant.stocks' => fn ($q) => $q->where('channel_id', $channel->id),

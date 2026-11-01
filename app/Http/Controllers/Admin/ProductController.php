@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Domain\Catalog\Models\Brand;
 use App\Domain\Catalog\Actions\ManageProductImages;
 use App\Domain\Catalog\Actions\SaveProduct;
 use App\Domain\Catalog\Enums\ProductStatus;
@@ -12,7 +13,6 @@ use App\Domain\Catalog\Models\SubCategory;
 use App\Domain\Catalog\Models\Tag;
 use App\Domain\Catalog\ProductImages;
 use App\Domain\Catalog\ProductSearch;
-use App\Domain\Company\Models\Company;
 use App\Domain\Support\Models\SiteSetting;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ReorderProductImagesRequest;
@@ -30,20 +30,15 @@ class ProductController extends Controller
 {
     /** Relations the full product view needs. */
     private const FULL = [
-        'company:id,name', 'brand:id,name,company_id', 'category:id,name', 'subCategory:id,name', 'tags', 'channels',
+        'brand:id,name', 'category:id,name', 'subCategory:id,name', 'tags', 'channels',
         'contentTabs', 'media', 'remoteImages', 'variants.stocks.channel', 'variants.priceTiers', 'related.media', 'related.remoteImages',
     ];
 
-    /** What the dropdowns of the product form need: approved companies with their active brands, tags, channels, statuses. */
+    /** What the dropdowns of the product form need: active brands, tags, channels, statuses. */
     public function options(): JsonResponse
     {
         return response()->json([
-            'companies' => Company::query()->approved()->with('brands:id,company_id,name,is_active')->orderBy('name')->get(['id', 'name'])
-                ->map(fn ($c) => [
-                    'id' => $c->id,
-                    'name' => $c->name,
-                    'brands' => $c->brands->where('is_active', true)->sortBy('name')->map(fn ($b) => ['id' => $b->id, 'name' => $b->name])->values(),
-                ]),
+            'brands' => Brand::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'tags' => Tag::query()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'slug', 'color', 'is_active']),
             'channels' => SalesChannel::query()->orderBy('id')->get(['code', 'name', 'requires_login']),
             'currency' => ['code' => SiteSetting::read('currency_code', 'PKR'), 'symbol' => SiteSetting::read('currency_symbol', 'Rs')],
@@ -53,7 +48,7 @@ class ProductController extends Controller
     }
 
     /**
-     * Lean product list. Filters: ?q (name, SKU, variant SKU) ?status ?company_id ?brand_id ?category_id ?sub_category_id
+     * Lean product list. Filters: ?q (name, SKU, variant SKU) ?status ?brand_id ?category_id ?sub_category_id
      * ?tag (slug) ?channel (code) ?page ?per_page. Newest first; `counts` = products per status.
      */
     public function index(Request $request)
@@ -61,7 +56,6 @@ class ProductController extends Controller
         $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', Rule::in(ProductStatus::values())],
-            'company_id' => ['nullable', 'integer'],
             'brand_id' => ['nullable', 'integer'],
             'category_id' => ['nullable', 'integer'],
             'sub_category_id' => ['nullable', 'integer'],
@@ -71,10 +65,9 @@ class ProductController extends Controller
         ]);
 
         $products = Product::query()
-            ->with(['company:id,name', 'brand:id,name,company_id', 'category:id,name', 'subCategory:id,name', 'tags', 'channels', 'media', 'remoteImages', 'variants.stocks.channel'])
+            ->with(['brand:id,name', 'category:id,name', 'subCategory:id,name', 'tags', 'channels', 'media', 'remoteImages', 'variants.stocks.channel'])
             ->when($request->query('q'), fn ($q, $term) => ProductSearch::apply($q, $term, includeVariantSku: true))
             ->when($request->query('status'), fn ($q, $v) => $q->where('products.status', $v))
-            ->when($request->query('company_id'), fn ($q, $v) => $q->where('products.company_id', $v))
             ->when($request->query('brand_id'), fn ($q, $v) => $q->where('products.brand_id', $v))
             ->when($request->query('category_id'), fn ($q, $v) => $q->where('products.category_id', $v))
             ->when($request->query('sub_category_id'), fn ($q, $id) => $q->whereIn('products.sub_category_id',

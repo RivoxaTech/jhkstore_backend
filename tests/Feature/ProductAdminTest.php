@@ -47,11 +47,10 @@ class ProductAdminTest extends TestCase
     public function test_admin_creates_a_simple_product_with_one_hidden_default_variant(): void
     {
         $admin = $this->actingAsAdmin();
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
         $sub = $this->makeSub($category);
 
-        $res = $this->create($this->simplePayload($company, $category, [
+        $res = $this->create($this->simplePayload($category, [
             'name' => 'Prime Composite Kit', 'sku' => 'PCK-1', 'sub_category_id' => $sub->id,
             'mrp' => 4500, 'selling_price' => 2495, 'reward_points' => 25, 'badge_text' => 'BEST SELLER', 'hsn_code' => '3006', 'gst_rate' => 12,
         ]))->assertCreated();
@@ -68,7 +67,7 @@ class ProductAdminTest extends TestCase
             ->assertJsonPath('data.min_price', 2495)
             ->assertJsonPath('data.max_discount_percent', 44.56)
             ->assertJsonPath('data.is_in_stock', true)
-            ->assertJsonPath('data.brand.id', $company->brands()->value('id'))
+            ->assertJsonPath('data.brand.id', $this->defaultBrand()->id)
             ->assertJsonPath('data.sub_category.id', $sub->id)
             ->assertJsonPath('data.gst_rate', 12);
 
@@ -79,8 +78,7 @@ class ProductAdminTest extends TestCase
     public function test_a_product_gets_the_standard_channel_and_draft_status_by_default(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
-        $payload = $this->simplePayload($company, $this->makeCategory());
+        $payload = $this->simplePayload($this->makeCategory());
         unset($payload['channels'], $payload['status'], $payload['stock']);
 
         $this->create($payload)->assertCreated()
@@ -94,28 +92,26 @@ class ProductAdminTest extends TestCase
     public function test_slugs_are_generated_unique_and_can_be_set(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
 
-        $first = $this->create($this->simplePayload($company, $category, ['name' => 'Same Name', 'sku' => 'A-1']))->assertCreated();
-        $second = $this->create($this->simplePayload($company, $category, ['name' => 'Same Name', 'sku' => 'A-2']))->assertCreated();
+        $first = $this->create($this->simplePayload($category, ['name' => 'Same Name', 'sku' => 'A-1']))->assertCreated();
+        $second = $this->create($this->simplePayload($category, ['name' => 'Same Name', 'sku' => 'A-2']))->assertCreated();
         $this->assertSame('same-name', $first->json('data.slug'));
         $this->assertSame('same-name-2', $second->json('data.slug'));
 
-        $this->create($this->simplePayload($company, $category, ['name' => 'Third', 'sku' => 'A-3', 'slug' => 'same-name']))
+        $this->create($this->simplePayload($category, ['name' => 'Third', 'sku' => 'A-3', 'slug' => 'same-name']))
             ->assertUnprocessable()->assertJsonValidationErrors('slug');
-        $this->create($this->simplePayload($company, $category, ['name' => 'Fourth', 'sku' => 'A-4', 'slug' => 'my-own-slug']))
+        $this->create($this->simplePayload($category, ['name' => 'Fourth', 'sku' => 'A-4', 'slug' => 'my-own-slug']))
             ->assertCreated()->assertJsonPath('data.slug', 'my-own-slug');
     }
 
     public function test_product_with_options_tags_channels_stock_per_channel_and_content_tabs(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
         $tags = Tag::whereIn('slug', ['best-seller', 'new-arrival'])->pluck('id')->all();
 
-        $res = $this->create($this->simplePayload($company, $category, [
+        $res = $this->create($this->simplePayload($category, [
             'name' => 'Gloves', 'sku' => 'GLV',
             'variants' => [
                 ['name' => 'Small', 'sku' => 'GLV-S', 'mrp' => 500, 'selling_price' => 400, 'reward_points' => 4, 'expiry_date' => '2030-01-31', 'stock' => ['standard' => 10, 'instadent' => 3]],
@@ -155,9 +151,8 @@ class ProductAdminTest extends TestCase
     public function test_a_product_can_be_instadent_only(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
 
-        $this->create($this->simplePayload($company, $this->makeCategory(), ['channels' => [['code' => 'instadent', 'is_active' => true]]]))
+        $this->create($this->simplePayload($this->makeCategory(), ['channels' => [['code' => 'instadent', 'is_active' => true]]]))
             ->assertCreated()
             ->assertJsonCount(1, 'data.channels')
             ->assertJsonPath('data.channels.0.code', 'instadent');
@@ -165,86 +160,80 @@ class ProductAdminTest extends TestCase
 
     // ------------------------------------------------------------------ validation
 
-    public function test_company_brand_category_and_sub_category_rules(): void
+    public function test_brand_category_and_sub_category_rules(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany('Acme');
-        $other = $this->makeCompany('Other');
-        $pending = $this->makeCompany('Pending Co', approved: false);
         $category = $this->makeCategory('Cat A');
         $otherCategory = $this->makeCategory('Cat B');
         $subOfOther = $this->makeSub($otherCategory, 'Sub B');
-        $inactiveBrand = $this->makeBrand($company, 'Dormant');
+        $inactiveBrand = $this->makeBrand('Dormant');
         $inactiveBrand->update(['is_active' => false]);
 
-        // the brand must belong to the selected company
-        $this->create($this->simplePayload($company, $category, ['brand_id' => $other->brands()->value('id')]))
+        // the brand is optional
+        $this->create($this->simplePayload($category, ['brand_id' => null]))->assertCreated()->assertJsonPath('data.brand', null);
+        // unknown brand
+        $this->create($this->simplePayload($category, ['brand_id' => 9999]))
             ->assertUnprocessable()->assertJsonValidationErrors('brand_id');
-        // only an approved company
-        $this->create($this->simplePayload($pending, $category))
-            ->assertUnprocessable()->assertJsonValidationErrors('company_id');
         // the brand must be active
-        $this->create($this->simplePayload($company, $category, ['brand_id' => $inactiveBrand->id]))
+        $this->create($this->simplePayload($category, ['brand_id' => $inactiveBrand->id]))
             ->assertUnprocessable()->assertJsonValidationErrors('brand_id');
         // the sub-category must belong to the category
-        $this->create($this->simplePayload($company, $category, ['sub_category_id' => $subOfOther->id]))
+        $this->create($this->simplePayload($category, ['sub_category_id' => $subOfOther->id]))
             ->assertUnprocessable()->assertJsonValidationErrors('sub_category_id');
         // an inactive category cannot be chosen
         $off = $this->makeCategory('Off', active: false);
-        $this->create($this->simplePayload($company, $off))
+        $this->create($this->simplePayload($off))
             ->assertUnprocessable()->assertJsonValidationErrors('category_id');
         // unknown ids
-        $this->create($this->simplePayload($company, $category, ['category_id' => 9999]))
+        $this->create($this->simplePayload($category, ['category_id' => 9999]))
             ->assertUnprocessable()->assertJsonValidationErrors('category_id');
         // required fields
-        $this->create([])->assertUnprocessable()->assertJsonValidationErrors(['company_id', 'brand_id', 'category_id', 'name', 'sku', 'variants']);
+        $this->create([])->assertUnprocessable()->assertJsonValidationErrors(['category_id', 'name', 'sku', 'variants']);
 
-        $this->assertSame(0, Product::count());
+        $this->assertSame(1, Product::count());   // only the brand-less one above
     }
 
     public function test_price_cannot_be_higher_than_mrp(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
 
         // simple product
-        $this->create($this->simplePayload($company, $category, ['mrp' => 100, 'selling_price' => 150]))
+        $this->create($this->simplePayload($category, ['mrp' => 100, 'selling_price' => 150]))
             ->assertUnprocessable()->assertJsonValidationErrors('variants.0.selling_price');
         // product with options
-        $this->create($this->simplePayload($company, $category, ['variants' => [
+        $this->create($this->simplePayload($category, ['variants' => [
             ['name' => 'A', 'sku' => 'A', 'mrp' => 100, 'selling_price' => 90],
             ['name' => 'B', 'sku' => 'B', 'mrp' => 100, 'selling_price' => 101],
         ]]))->assertUnprocessable()->assertJsonValidationErrors('variants.1.selling_price');
         // a price equal to the MRP is fine (0% off)
-        $this->create($this->simplePayload($company, $category, ['mrp' => 100, 'selling_price' => 100]))
+        $this->create($this->simplePayload($category, ['mrp' => 100, 'selling_price' => 100]))
             ->assertCreated()->assertJsonPath('data.variants.0.discount_percent', 0);
         // mrp is required and positive
-        $this->create($this->simplePayload($company, $category, ['mrp' => 0, 'selling_price' => 0, 'sku' => 'Z']))
+        $this->create($this->simplePayload($category, ['mrp' => 0, 'selling_price' => 0, 'sku' => 'Z']))
             ->assertUnprocessable()->assertJsonValidationErrors('variants.0.mrp');
     }
 
     public function test_sku_must_be_unique_for_products_and_variants(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
-        $this->create($this->simplePayload($company, $category, ['sku' => 'DUP-1']))->assertCreated();
+        $this->create($this->simplePayload($category, ['sku' => 'DUP-1']))->assertCreated();
 
-        $this->create($this->simplePayload($company, $category, ['sku' => 'DUP-1']))
+        $this->create($this->simplePayload($category, ['sku' => 'DUP-1']))
             ->assertUnprocessable()->assertJsonValidationErrors('sku');
         // a variant SKU that another variant already owns
-        $this->create($this->simplePayload($company, $category, ['sku' => 'NEW-1', 'variants' => [
+        $this->create($this->simplePayload($category, ['sku' => 'NEW-1', 'variants' => [
             ['name' => 'A', 'sku' => 'DUP-1', 'mrp' => 10, 'selling_price' => 9],
             ['name' => 'B', 'sku' => 'NEW-1B', 'mrp' => 10, 'selling_price' => 9],
         ]]))->assertUnprocessable()->assertJsonValidationErrors('variants.0.sku');
         // two variants with the same SKU in one request
-        $this->create($this->simplePayload($company, $category, ['sku' => 'NEW-2', 'variants' => [
+        $this->create($this->simplePayload($category, ['sku' => 'NEW-2', 'variants' => [
             ['name' => 'A', 'sku' => 'SAME', 'mrp' => 10, 'selling_price' => 9],
             ['name' => 'B', 'sku' => 'SAME', 'mrp' => 10, 'selling_price' => 9],
         ]]))->assertUnprocessable()->assertJsonValidationErrors('variants.1.sku');
         // options need a name and a SKU
-        $this->create($this->simplePayload($company, $category, ['sku' => 'NEW-3', 'variants' => [
+        $this->create($this->simplePayload($category, ['sku' => 'NEW-3', 'variants' => [
             ['mrp' => 10, 'selling_price' => 9], ['name' => 'B', 'sku' => 'B3', 'mrp' => 10, 'selling_price' => 9],
         ]]))->assertUnprocessable()->assertJsonValidationErrors(['variants.0.name', 'variants.0.sku']);
     }
@@ -252,15 +241,14 @@ class ProductAdminTest extends TestCase
     public function test_other_field_rules(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
 
-        $this->create($this->simplePayload($company, $category, ['status' => 'live']))->assertUnprocessable()->assertJsonValidationErrors('status');
-        $this->create($this->simplePayload($company, $category, ['min_order_qty' => 5, 'max_order_qty' => 2]))->assertUnprocessable()->assertJsonValidationErrors('max_order_qty');
-        $this->create($this->simplePayload($company, $category, ['channels' => [['code' => 'amazon']]]))->assertUnprocessable()->assertJsonValidationErrors('channels.0.code');
-        $this->create($this->simplePayload($company, $category, ['tag_ids' => [9999]]))->assertUnprocessable()->assertJsonValidationErrors('tag_ids.0');
-        $this->create($this->simplePayload($company, $category, ['stock' => ['standard' => -1]]))->assertUnprocessable()->assertJsonValidationErrors('variants.0.stock.standard');
-        $this->create($this->simplePayload($company, $category, ['content_tabs' => [['tab_key' => 'nonsense', 'content' => 'x']]]))->assertUnprocessable()->assertJsonValidationErrors('content_tabs.0.tab_key');
+        $this->create($this->simplePayload($category, ['status' => 'live']))->assertUnprocessable()->assertJsonValidationErrors('status');
+        $this->create($this->simplePayload($category, ['min_order_qty' => 5, 'max_order_qty' => 2]))->assertUnprocessable()->assertJsonValidationErrors('max_order_qty');
+        $this->create($this->simplePayload($category, ['channels' => [['code' => 'amazon']]]))->assertUnprocessable()->assertJsonValidationErrors('channels.0.code');
+        $this->create($this->simplePayload($category, ['tag_ids' => [9999]]))->assertUnprocessable()->assertJsonValidationErrors('tag_ids.0');
+        $this->create($this->simplePayload($category, ['stock' => ['standard' => -1]]))->assertUnprocessable()->assertJsonValidationErrors('variants.0.stock.standard');
+        $this->create($this->simplePayload($category, ['content_tabs' => [['tab_key' => 'nonsense', 'content' => 'x']]]))->assertUnprocessable()->assertJsonValidationErrors('content_tabs.0.tab_key');
     }
 
     // ------------------------------------------------------------------ update
@@ -268,9 +256,8 @@ class ProductAdminTest extends TestCase
     public function test_update_recalculates_discount_and_denormalized_columns_and_logs_stock_changes(): void
     {
         $admin = $this->actingAsAdmin();
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
-        $product = $this->makeProduct($company, $category, ['mrp' => 1000, 'selling_price' => 800, 'stock' => ['standard' => 10, 'instadent' => 0]]);
+        $product = $this->makeProduct($category, ['mrp' => 1000, 'selling_price' => 800, 'stock' => ['standard' => 10, 'instadent' => 0]]);
         $this->assertSame('20.00', $product->fresh()->max_discount_percent);
 
         $this->putJson(self::ADMIN."/products/{$product->id}", [
@@ -299,7 +286,7 @@ class ProductAdminTest extends TestCase
     public function test_saving_an_old_form_does_not_give_sold_units_back(): void
     {
         $this->actingAsAdmin();
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory(), ['stock' => ['standard' => 100, 'instadent' => 20]]);
+        $product = $this->makeProduct($this->makeCategory(), ['stock' => ['standard' => 100, 'instadent' => 20]]);
         $variantId = $product->variants()->value('id');
         $stock = fn (string $code) => (int) DB::table('variant_channel_stock')->where('variant_id', $variantId)->where('channel_id', SalesChannel::idsByCode()[$code])->value('stock_qty');
 
@@ -331,8 +318,7 @@ class ProductAdminTest extends TestCase
     public function test_update_keeps_the_slug_and_changes_only_what_is_sent(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
-        $product = $this->makeProduct($company, $this->makeCategory(), ['name' => 'Old Name', 'sku' => 'KEEP-1']);
+        $product = $this->makeProduct($this->makeCategory(), ['name' => 'Old Name', 'sku' => 'KEEP-1']);
 
         $this->putJson(self::ADMIN."/products/{$product->id}", ['name' => 'New Name', 'is_cod_available' => false, 'badge_text' => 'NEW'])
             ->assertOk()
@@ -349,8 +335,7 @@ class ProductAdminTest extends TestCase
     public function test_update_can_turn_a_simple_product_into_one_with_options_and_back(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
-        $product = $this->makeProduct($company, $this->makeCategory(), ['sku' => 'FLIP']);
+        $product = $this->makeProduct($this->makeCategory(), ['sku' => 'FLIP']);
         $defaultId = $product->variants()->value('id');
 
         $this->putJson(self::ADMIN."/products/{$product->id}", ['variants' => [
@@ -369,20 +354,18 @@ class ProductAdminTest extends TestCase
         $this->assertDatabaseMissing('product_variants', ['sku' => 'FLIP-50']);
     }
 
-    public function test_update_keeps_the_brand_company_and_category_consistent(): void
+    public function test_update_keeps_the_brand_and_category_consistent(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany('Acme');
-        $other = $this->makeCompany('Other');
         $category = $this->makeCategory('A');
         $otherCategory = $this->makeCategory('B');
         $sub = $this->makeSub($category, 'A-sub');
-        $product = $this->makeProduct($company, $category, ['sub_category_id' => $sub->id]);
+        $product = $this->makeProduct($category, ['sub_category_id' => $sub->id]);
         $url = self::ADMIN."/products/{$product->id}";
 
-        // moving to another company needs one of its brands
-        $this->putJson($url, ['company_id' => $other->id])->assertUnprocessable()->assertJsonValidationErrors('brand_id');
-        $this->putJson($url, ['company_id' => $other->id, 'brand_id' => $other->brands()->value('id')])->assertOk();
+        // the brand can be changed and removed
+        $this->putJson($url, ['brand_id' => $this->makeBrand('Second')->id])->assertOk()->assertJsonPath('data.brand.name', 'Second');
+        $this->putJson($url, ['brand_id' => null])->assertOk()->assertJsonPath('data.brand', null);
         // moving to another category needs a sub-category of it
         $this->putJson($url, ['category_id' => $otherCategory->id])->assertUnprocessable()->assertJsonValidationErrors('sub_category_id');
         $this->putJson($url, ['category_id' => $otherCategory->id, 'sub_category_id' => null])->assertOk()->assertJsonPath('data.sub_category', null);
@@ -391,19 +374,17 @@ class ProductAdminTest extends TestCase
     public function test_a_brand_that_was_switched_off_later_does_not_block_other_edits(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
-        $product = $this->makeProduct($company, $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         $product->brand->update(['is_active' => false]);
 
-        $this->putJson(self::ADMIN."/products/{$product->id}", ['company_id' => $company->id, 'brand_id' => $product->brand_id, 'name' => 'Renamed'])
+        $this->putJson(self::ADMIN."/products/{$product->id}", ['brand_id' => $product->brand_id, 'name' => 'Renamed'])
             ->assertOk()->assertJsonPath('data.name', 'Renamed');
     }
 
     public function test_variants_that_are_in_an_order_are_switched_off_not_deleted(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
-        $product = $this->makeProduct($company, $this->makeCategory(), ['sku' => 'ORD', 'variants' => [
+        $product = $this->makeProduct($this->makeCategory(), ['sku' => 'ORD', 'variants' => [
             ['name' => 'A', 'sku' => 'ORD-A', 'mrp' => 10, 'selling_price' => 9],
             ['name' => 'B', 'sku' => 'ORD-B', 'mrp' => 10, 'selling_price' => 9],
         ]]);
@@ -439,7 +420,7 @@ class ProductAdminTest extends TestCase
     public function test_show_and_soft_delete(): void
     {
         $this->actingAsAdmin();
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
 
         $this->getJson(self::ADMIN."/products/{$product->id}")->assertOk()->assertJsonPath('data.id', $product->id);
         $this->deleteJson(self::ADMIN."/products/{$product->id}")->assertOk();
@@ -449,14 +430,14 @@ class ProductAdminTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'product.deleted']);
 
         // a deleted product's SKU / slug stay reserved (the database keeps them unique)
-        $this->create($this->simplePayload($this->makeCompany('B Co'), $this->makeCategory('Z'), ['sku' => $product->sku]))
+        $this->create($this->simplePayload($this->makeCategory('Z'), ['sku' => $product->sku]))
             ->assertUnprocessable()->assertJsonValidationErrors('sku');
     }
 
     public function test_quick_status_and_tag_endpoints(): void
     {
         $this->actingAsAdmin();
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory(), ['status' => 'draft']);
+        $product = $this->makeProduct($this->makeCategory(), ['status' => 'draft']);
         $tags = Tag::whereIn('slug', ['hot-selling', 'featured'])->pluck('id')->all();
 
         $this->patchJson(self::ADMIN."/products/{$product->id}/status", ['status' => 'active'])
@@ -477,29 +458,28 @@ class ProductAdminTest extends TestCase
     public function test_lean_list_row_and_filters(): void
     {
         $this->actingAsAdmin();
-        $acme = $this->makeCompany('Acme');
-        $beta = $this->makeCompany('Beta');
+        $acme = $this->makeBrand('Acme Brand');
+        $beta = $this->makeBrand('Beta Brand');
         $restorative = $this->makeCategory('Restorative');
         $composites = $this->makeSub($restorative, 'Composites');
         $endo = $this->makeCategory('Endo');
 
-        $a = $this->makeProduct($acme, $restorative, ['name' => 'Composite Kit', 'sku' => 'CK-1', 'sub_category_id' => $composites->id, 'mrp' => 1000, 'selling_price' => 750,
+        $a = $this->makeProduct($restorative, ['name' => 'Composite Kit', 'sku' => 'CK-1', 'brand_id' => $acme->id, 'sub_category_id' => $composites->id, 'mrp' => 1000, 'selling_price' => 750,
             'stock' => ['standard' => 7, 'instadent' => 2]], ['best-seller']);
-        $b = $this->makeProduct($beta, $endo, ['name' => 'Rotary File', 'sku' => 'RF-1', 'status' => 'draft',
+        $b = $this->makeProduct($endo, ['name' => 'Rotary File', 'sku' => 'RF-1', 'status' => 'draft', 'brand_id' => $beta->id,
             'channels' => [['code' => 'standard', 'is_active' => true]], 'stock' => ['standard' => 0]], ['hot-selling']);
-        $c = $this->makeProduct($acme, $restorative, ['name' => 'Cement', 'sku' => 'CE-1', 'status' => 'inactive',
+        $c = $this->makeProduct($restorative, ['name' => 'Cement', 'sku' => 'CE-1', 'status' => 'inactive', 'brand_id' => $acme->id,
             'channels' => [['code' => 'instadent', 'is_active' => true]]]);
 
         $res = $this->getJson(self::ADMIN.'/products')->assertOk();
         $res->assertJsonCount(3, 'data')->assertJsonPath('counts.active', 1)->assertJsonPath('counts.draft', 1)->assertJsonPath('counts.inactive', 1);
         $row = collect($res->json('data'))->firstWhere('id', $a->id);
-        $this->assertSame(['id', 'name', 'slug', 'sku', 'status', 'thumb_url', 'company', 'brand', 'category', 'sub_category', 'min_price', 'mrp', 'discount_percent',
+        $this->assertSame(['id', 'name', 'slug', 'sku', 'status', 'thumb_url', 'brand', 'category', 'sub_category', 'min_price', 'mrp', 'discount_percent',
             'variants_count', 'is_in_stock', 'stock', 'channels', 'tags', 'rating_avg', 'rating_count', 'updated_at'], array_keys($row));
         $this->assertEquals(750, $row['min_price']);
         $this->assertEquals(1000, $row['mrp']);
         $this->assertEquals(25, $row['discount_percent']);
         $this->assertSame(['standard' => 7, 'instadent' => 2], $row['stock']);   // stock per channel
-        $this->assertSame('Acme', $row['company']['name']);
         $this->assertSame('Acme Brand', $row['brand']['name']);
         $this->assertSame('best-seller', $row['tags'][0]['slug']);
         $this->assertNull($row['thumb_url']);
@@ -507,8 +487,8 @@ class ProductAdminTest extends TestCase
         $ids = fn (string $query) => collect($this->getJson(self::ADMIN.'/products?'.$query)->assertOk()->json('data'))->pluck('id')->sort()->values()->all();
         $this->assertSame([$b->id], $ids('q=RF-1'));
         $this->assertSame([$b->id], $ids('status=draft'));
-        $this->assertSame([$a->id, $c->id], $ids('company_id='.$acme->id));
-        $this->assertSame([$b->id], $ids('brand_id='.$beta->brands()->value('id')));
+        $this->assertSame([$a->id, $c->id], $ids('brand_id='.$acme->id));
+        $this->assertSame([$b->id], $ids('brand_id='.$beta->id));
         $this->assertSame([$a->id, $c->id], $ids('category_id='.$restorative->id));
         $this->assertSame([$a->id], $ids('sub_category_id='.$composites->id));
         $this->assertSame([$b->id], $ids('tag=hot-selling'));
@@ -522,7 +502,6 @@ class ProductAdminTest extends TestCase
     public function test_the_list_does_not_run_queries_per_row(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
         $count = function () {
             DB::flushQueryLog();
@@ -532,10 +511,10 @@ class ProductAdminTest extends TestCase
             return count(DB::getQueryLog());
         };
 
-        $this->makeProduct($company, $category, [], ['featured']);
+        $this->makeProduct($category, [], ['featured']);
         $few = $count();
         foreach (range(1, 8) as $i) {
-            $this->makeProduct($company, $category, [], ['featured', 'best-seller']);
+            $this->makeProduct($category, [], ['featured', 'best-seller']);
         }
 
         $this->assertSame($few, $count()); // lazy loading would also throw here (it is prevented in tests)
@@ -544,14 +523,12 @@ class ProductAdminTest extends TestCase
     public function test_options_endpoint_gives_the_form_dropdowns(): void
     {
         $this->actingAsAdmin();
-        $acme = $this->makeCompany('Acme');
-        $this->makeBrand($acme, 'Second Brand')->update(['is_active' => false]);
-        $this->makeCompany('Waiting Co', approved: false);
+        $this->makeBrand('First Brand');
+        $this->makeBrand('Second Brand', active: false);
 
         $res = $this->getJson(self::ADMIN.'/products/options')->assertOk();
-        $res->assertJsonCount(1, 'companies')                       // approved companies only
-            ->assertJsonPath('companies.0.name', 'Acme')
-            ->assertJsonCount(1, 'companies.0.brands')              // active brands only
+        $res->assertJsonCount(1, 'brands')                          // active brands only
+            ->assertJsonPath('brands.0.name', 'First Brand')
             ->assertJsonCount(7, 'tags')
             ->assertJsonPath('channels.1.code', 'instadent')
             ->assertJsonPath('channels.1.requires_login', true)
@@ -564,7 +541,7 @@ class ProductAdminTest extends TestCase
     public function test_admin_uploads_reorders_and_deletes_pictures(): void
     {
         $this->actingAsAdmin();
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         $url = self::ADMIN."/products/{$product->id}/images";
 
         $res = $this->post($url, ['images' => [
@@ -602,8 +579,8 @@ class ProductAdminTest extends TestCase
     public function test_picture_upload_rules_and_limit(): void
     {
         $this->actingAsAdmin();
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
-        $other = $this->makeProduct($this->makeCompany('Other'), $this->makeCategory('Z'));
+        $product = $this->makeProduct($this->makeCategory());
+        $other = $this->makeProduct($this->makeCategory('Z'));
         $url = self::ADMIN."/products/{$product->id}/images";
 
         $this->post($url, [], ['Accept' => 'application/json'])->assertUnprocessable();
@@ -621,7 +598,7 @@ class ProductAdminTest extends TestCase
     public function test_remote_pictures_of_imported_products_are_listed_and_can_be_deleted(): void
     {
         $this->actingAsAdmin();
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         $rowId = DB::table('product_images')->insertGetId(['product_id' => $product->id, 'url' => 'https://cdn.example.com/a.jpg', 'sort_order' => 0, 'is_primary' => true, 'type' => 'image']);
 
         $this->getJson(self::ADMIN."/products/{$product->id}")
@@ -655,7 +632,7 @@ class ProductAdminTest extends TestCase
         // delete
         $this->deleteJson(self::ADMIN."/tags/{$system->id}")->assertUnprocessable();
         $this->assertDatabaseHas('tags', ['id' => $system->id]);
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         $this->putJson(self::ADMIN."/products/{$product->id}/tags", ['tag_ids' => [$tag['id']]])->assertOk();
         $this->getJson(self::ADMIN."/tags/{$tag['id']}")->assertJsonPath('data.products_count', 1);
         $this->deleteJson(self::ADMIN."/tags/{$tag['id']}")->assertOk();
@@ -669,10 +646,9 @@ class ProductAdminTest extends TestCase
     public function test_quantity_prices_are_saved_replaced_and_validated(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
 
-        $res = $this->create($this->simplePayload($company, $category, [
+        $res = $this->create($this->simplePayload($category, [
             'mrp' => 200, 'selling_price' => 160,
             'price_tiers' => [['min_qty' => 5, 'price' => 152], ['min_qty' => 2, 'price' => 155]],
         ]))->assertCreated();
@@ -697,7 +673,7 @@ class ProductAdminTest extends TestCase
     public function test_options_can_have_their_own_quantity_prices(): void
     {
         $this->actingAsAdmin();
-        $res = $this->create($this->simplePayload($this->makeCompany(), $this->makeCategory(), ['variants' => [
+        $res = $this->create($this->simplePayload($this->makeCategory(), ['variants' => [
             ['name' => 'Eugenol (15ml)', 'sku' => 'E15', 'mrp' => 190, 'selling_price' => 160, 'price_tiers' => [['min_qty' => 2, 'price' => 155]]],
             ['name' => 'Eugenol (30ml)', 'sku' => 'E30', 'mrp' => 330, 'selling_price' => 210],
         ]]))->assertCreated();
@@ -708,12 +684,11 @@ class ProductAdminTest extends TestCase
     public function test_return_days_default_and_related_products_and_meta(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
-        $a = $this->makeProduct($company, $category, ['name' => 'A']);
-        $b = $this->makeProduct($company, $category, ['name' => 'B']);
+        $a = $this->makeProduct($category, ['name' => 'A']);
+        $b = $this->makeProduct($category, ['name' => 'B']);
 
-        $res = $this->create($this->simplePayload($company, $category, [
+        $res = $this->create($this->simplePayload($category, [
             'name' => 'Main', 'related_ids' => [$b->id, $a->id], 'meta_title' => 'Buy Main', 'meta_description' => 'Main product',
         ]))->assertCreated();
         $res->assertJsonPath('data.return_days', 10)                       // default
@@ -735,7 +710,7 @@ class ProductAdminTest extends TestCase
     public function test_options_have_their_own_pictures(): void
     {
         $this->actingAsAdmin();
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory(), ['sku' => 'PIC', 'variants' => [
+        $product = $this->makeProduct($this->makeCategory(), ['sku' => 'PIC', 'variants' => [
             ['name' => 'Small', 'sku' => 'PIC-S', 'mrp' => 10, 'selling_price' => 9],
             ['name' => 'Large', 'sku' => 'PIC-L', 'mrp' => 20, 'selling_price' => 18],
         ]]);
@@ -765,7 +740,7 @@ class ProductAdminTest extends TestCase
         $this->putJson($url.'/order', ['ids' => [$second]])->assertUnprocessable();
 
         // an option of another product is refused
-        $other = $this->makeProduct($this->makeCompany('Other'), $this->makeCategory('Z'));
+        $other = $this->makeProduct($this->makeCategory('Z'));
         $this->post($url, ['images' => [$file()], 'variant_id' => $other->variants()->value('id')], $json)->assertUnprocessable()->assertJsonValidationErrors('variant_id');
 
         // the limit is per gallery: 12 for the option, the product gallery is not affected
@@ -785,21 +760,20 @@ class ProductAdminTest extends TestCase
     public function test_every_option_needs_a_name_and_a_flat_price_names_the_option_after_the_product(): void
     {
         $this->actingAsAdmin();
-        $company = $this->makeCompany();
         $category = $this->makeCategory();
 
         // an explicit option without a name is refused, even when it is the only one
-        $this->create($this->simplePayload($company, $category, ['variants' => [['sku' => 'X1', 'mrp' => 10, 'selling_price' => 9]]]))
+        $this->create($this->simplePayload($category, ['variants' => [['sku' => 'X1', 'mrp' => 10, 'selling_price' => 9]]]))
             ->assertUnprocessable()->assertJsonValidationErrors('variants.0.name');
         // the flat price shortcut creates one option named like the product
-        $this->create($this->simplePayload($company, $category, ['name' => 'Waldent Airotor', 'sku' => 'WA-1']))
+        $this->create($this->simplePayload($category, ['name' => 'Waldent Airotor', 'sku' => 'WA-1']))
             ->assertCreated()->assertJsonPath('data.variants.0.name', 'Waldent Airotor');
     }
 
     public function test_pictures_can_be_moved_anywhere_even_the_imported_ones(): void
     {
         $this->actingAsAdmin();
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory());
+        $product = $this->makeProduct($this->makeCategory());
         $r1 = DB::table('product_images')->insertGetId(['product_id' => $product->id, 'url' => 'https://cdn.example.com/1.jpg', 'sort_order' => 1, 'type' => 'image']);
         $r2 = DB::table('product_images')->insertGetId(['product_id' => $product->id, 'url' => 'https://cdn.example.com/2.jpg', 'sort_order' => 2, 'type' => 'image']);
         $url = self::ADMIN."/products/{$product->id}/images";
@@ -846,7 +820,7 @@ class ProductAdminTest extends TestCase
     public function test_at_least_one_option_must_stay_active_and_the_default_follows_the_active_ones(): void
     {
         $this->actingAsAdmin();
-        $product = $this->makeProduct($this->makeCompany(), $this->makeCategory(), ['sku' => 'RB', 'variants' => [
+        $product = $this->makeProduct($this->makeCategory(), ['sku' => 'RB', 'variants' => [
             ['name' => 'Red', 'sku' => 'RB-R', 'mrp' => 10, 'selling_price' => 9, 'is_default' => true],
             ['name' => 'Blue', 'sku' => 'RB-B', 'mrp' => 20, 'selling_price' => 18],
         ]]);

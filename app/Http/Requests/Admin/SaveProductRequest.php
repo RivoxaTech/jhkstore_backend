@@ -8,9 +8,7 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\Models\SubCategory;
-use App\Domain\Company\Enums\CompanyStatus;
-use App\Domain\Company\Models\Brand;
-use App\Domain\Company\Models\Company;
+use App\Domain\Catalog\Models\Brand;
 use Illuminate\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\DB;
@@ -69,8 +67,7 @@ class SaveProductRequest extends FormRequest
         $channelCodes = array_keys(SalesChannel::idsByCode());
 
         return [
-            'company_id' => [$req, 'integer', Rule::exists('companies', 'id')->whereNull('deleted_at')],
-            'brand_id' => [$req, 'integer', Rule::exists('brands', 'id')->whereNull('deleted_at')],
+            'brand_id' => ['nullable', 'integer', Rule::exists('brands', 'id')->whereNull('deleted_at')],
             'category_id' => [$req, 'integer', Rule::exists('categories', 'id')->whereNull('deleted_at')],
             'sub_category_id' => ['nullable', 'integer', Rule::exists('sub_categories', 'id')->whereNull('deleted_at')],
             'name' => [$req, 'string', 'max:255'],
@@ -156,7 +153,6 @@ class SaveProductRequest extends FormRequest
     private function checkOwnership(Validator $validator): void
     {
         $product = $this->route('product');
-        $companyId = $this->input('company_id', $product?->company_id);
         $brandId = $this->input('brand_id', $product?->brand_id);
         $categoryId = $this->input('category_id', $product?->category_id);
         $subId = $this->has('sub_category_id') ? $this->input('sub_category_id') : $product?->sub_category_id;
@@ -173,15 +169,9 @@ class SaveProductRequest extends FormRequest
         // New choices must be live ones; an unchanged choice that was switched off later does not block saving other edits.
         $changed = fn (string $key, mixed $current) => ! $product || ($this->has($key) && (int) $this->input($key) !== (int) $current);
 
-        if ($this->has('company_id') || $this->has('brand_id')) {
-            $company = Company::query()->find($companyId);
-            if ($changed('company_id', $product?->company_id) && $company && $company->status !== CompanyStatus::Approved) {
-                $validator->errors()->add('company_id', 'Only an approved company can be chosen.');
-            }
+        if ($this->has('brand_id') && $brandId) {
             $brand = Brand::query()->find($brandId);
-            if ($brand && $brand->company_id !== (int) $companyId) {
-                $validator->errors()->add('brand_id', 'This brand does not belong to the selected company.');
-            } elseif ($brand && ! $brand->is_active && $changed('brand_id', $product?->brand_id)) {
+            if ($brand && ! $brand->is_active && $changed('brand_id', $product?->brand_id)) {
                 $validator->errors()->add('brand_id', 'This brand is not active.');
             }
         }

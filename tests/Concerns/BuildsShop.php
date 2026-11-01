@@ -23,13 +23,11 @@ trait BuildsShop
     private const STORE = '/api/v1/store';
     private const ADMIN = '/api/v1/admin';
 
-    private Company $shopCompany;
     private Category $shopCategory;
 
     protected function seedShop(): void
     {
         $this->seedCatalog();
-        $this->shopCompany = $this->makeCompany('Shop Co');
         $this->shopCategory = $this->makeCategory('Shop Category');
     }
 
@@ -67,7 +65,7 @@ trait BuildsShop
         static $n = 0;
         $n++;
 
-        return $this->makeProduct($this->shopCompany, $this->shopCategory, $product + [
+        return $this->makeProduct($this->shopCategory, $product + [
             'name' => "Shop Item $n",
             'sku' => "SHOP-$n",
             'variants' => [array_merge([

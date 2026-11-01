@@ -9,7 +9,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * Product card for the customer site (lists, homepage sections, related products).
- * Eager load (see ProductListing::cardRelations): brand.media, brand.company.media, category, tags, media, remoteImages and
+ * Eager load (see ProductListing::cardRelations): brand.media, category, tags, media, remoteImages and
  * the active variants with their stock rows of the requested channel. `price` / `mrp` / `reward_points` are those of
  * the cheapest variant, so the three always belong together.
  *
@@ -33,11 +33,11 @@ class StoreProductCardResource extends JsonResource
             'short_description' => $this->short_description,
             'image_url' => $images['image_url'],
             'thumb_url' => $images['thumb_url'],
-            'brand' => [
+            'brand' => $this->brand ? [
                 'name' => $this->brand->name,
                 'slug' => $this->brand->slug,
-                'logo_thumb_url' => MediaUrl::brandLogo($this->brand, 'thumb')['url'],
-            ],
+                'logo_thumb_url' => MediaUrl::of($this->brand, 'logo', 'thumb'),
+            ] : null,
             'category' => ['name' => $this->category->name, 'slug' => $this->category->slug],
             'options_count' => $variants->count(),
             'has_single_option' => $single,

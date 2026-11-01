@@ -3,8 +3,6 @@
 namespace App\Domain\Catalog\Models;
 
 use App\Domain\Catalog\Enums\ProductStatus;
-use App\Domain\Company\Models\Brand;
-use App\Domain\Company\Models\Company;
 use App\Support\GeneratesUniqueSlug;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -22,7 +20,7 @@ class Product extends Model implements HasMedia
     use GeneratesUniqueSlug, InteractsWithMedia, SoftDeletes;
 
     protected $fillable = [
-        'company_id', 'brand_id', 'category_id', 'sub_category_id', 'name', 'sku', 'short_description', 'description',
+        'brand_id', 'category_id', 'sub_category_id', 'name', 'sku', 'short_description', 'description',
         'badge_text', 'hsn_code', 'gst_rate', 'country_of_origin', 'warranty_text', 'min_order_qty', 'max_order_qty',
         'is_returnable', 'return_days', 'is_cod_available', 'is_professional_only', 'status', 'meta_title', 'meta_description',
     ];
@@ -56,11 +54,6 @@ class Product extends Model implements HasMedia
     }
 
     // ------------------------------------------------------------------ relations
-
-    public function company(): BelongsTo
-    {
-        return $this->belongsTo(Company::class);
-    }
 
     public function brand(): BelongsTo
     {
@@ -113,7 +106,7 @@ class Product extends Model implements HasMedia
     // ------------------------------------------------------------------ scopes
 
     /**
-     * What customers may see: an active product whose brand is live (active brand of an approved company), whose
+     * What customers may see: an active product whose brand (when it has one) is active, whose
      * category and sub-category (and its parent) are active, and that is offered - and switched on - on the channel.
      * `$channelCode = null` means "on any active channel" (used where the channel does not matter, e.g. reviews).
      */
@@ -121,7 +114,7 @@ class Product extends Model implements HasMedia
     {
         return $query
             ->where('products.status', ProductStatus::Active->value)
-            ->whereHas('brand', fn ($q) => $q->storefront())
+            ->where(fn ($q) => $q->whereNull('products.brand_id')->orWhereHas('brand', fn ($b) => $b->storefront()))
             ->whereExists(fn ($q) => $q->select(DB::raw(1))->from('product_variants as av')   // at least one active option to sell
                 ->whereColumn('av.product_id', 'products.id')->where('av.is_active', true))
             ->whereHas('category', fn ($q) => $q->where('is_active', true))

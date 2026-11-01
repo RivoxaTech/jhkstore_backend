@@ -52,7 +52,6 @@ class OrderPresenter
             'sku' => $i->sku,
             'image_url' => $i->image_url,
             'brand' => $i->brand_name,
-            'company' => $i->company_name,
             'qty' => $i->qty,
             'mrp' => (float) $i->mrp,
             'price' => $i->base_price !== null ? (float) $i->base_price : (float) $i->unit_price,  // the option's own price

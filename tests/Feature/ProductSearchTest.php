@@ -39,12 +39,12 @@ class ProductSearchTest extends TestCase
 
     private function catalogue(): void
     {
-        $acme = $this->makeCompany('Acme Dental Supplies');
-        $waldent = $this->makeBrand($acme, 'Waldent');
+        $acme = $this->makeBrand('Acme Dental Supplies');
+        $waldent = $this->makeBrand('Waldent');
         $category = $this->makeCategory();
-        $this->makeProduct($acme, $category, ['name' => 'Prime-Dent Hybrid Composite Kit', 'short_description' => 'Light cured restorative', 'sku' => 'PD-100']);
-        $this->makeProduct($acme, $category, ['name' => 'Rotary Endo File Set', 'short_description' => 'Nickel titanium files', 'sku' => 'RF-200', 'brand_id' => $waldent->id]);
-        $this->makeProduct($acme, $category, ['name' => '3M ESPE Cavit G Filling', 'short_description' => 'Temporary filling material', 'sku' => 'CV-300']);
+        $this->makeProduct($category, ['name' => 'Prime-Dent Hybrid Composite Kit', 'short_description' => 'Light cured restorative', 'sku' => 'PD-100', 'brand_id' => $acme->id]);
+        $this->makeProduct($category, ['name' => 'Rotary Endo File Set', 'short_description' => 'Nickel titanium files', 'sku' => 'RF-200', 'brand_id' => $waldent->id]);
+        $this->makeProduct($category, ['name' => '3M ESPE Cavit G Filling', 'short_description' => 'Temporary filling material', 'sku' => 'CV-300', 'brand_id' => $acme->id]);
     }
 
     public function test_the_store_search_finds_words_anywhere_in_the_name_and_description(): void
@@ -67,7 +67,7 @@ class ProductSearchTest extends TestCase
 
         $this->assertSame(['rotary-endo-file-set'], $this->slugs('RF-2'));
         $this->assertSame(['rotary-endo-file-set'], $this->slugs('walde'));                      // brand "Waldent"
-        $this->assertCount(2, $this->slugs('Acme'));                                              // the two products of the brand "Acme Dental Supplies Brand"
+        $this->assertCount(2, $this->slugs('Acme'));                                              // the two products of the brand "Acme Dental Supplies"
     }
 
     public function test_short_words_and_stop_words_fall_back_to_a_plain_search(): void
@@ -91,8 +91,7 @@ class ProductSearchTest extends TestCase
     public function test_the_admin_search_uses_the_same_rules_and_finds_variant_skus(): void
     {
         $this->catalogue();
-        $acme = $this->makeCompany('Other Co');
-        $this->makeProduct($acme, $this->makeCategory('Other'), ['name' => 'Gloves', 'sku' => 'GLV', 'variants' => [
+        $this->makeProduct($this->makeCategory('Other'), ['name' => 'Gloves', 'sku' => 'GLV', 'variants' => [
             ['name' => 'Small', 'sku' => 'GLV-SMALL', 'mrp' => 10, 'selling_price' => 9],
             ['name' => 'Large', 'sku' => 'GLV-LARGE', 'mrp' => 10, 'selling_price' => 9],
         ]]);
@@ -103,20 +102,5 @@ class ProductSearchTest extends TestCase
         $this->assertSame(['Gloves'], $names('GLV-LA'));                  // start of a variant SKU
         $this->assertSame(['Rotary Endo File Set'], $names('RF-200'));
         $this->assertSame(['3M ESPE Cavit G Filling'], $names('3M'));
-    }
-
-    public function test_the_company_search_uses_the_name_words_the_gst_start_and_the_email_start(): void
-    {
-        $this->makeCompany('Acme Dental Supplies');
-        $this->makeCompany('Beta Orthodontics');
-        $this->actingAsAdmin();
-        $names = fn (string $q) => collect($this->getJson(self::ADMIN.'/companies?q='.urlencode($q))->assertOk()->json('data'))->pluck('name')->sort()->values()->all();
-
-        $this->assertSame(['Acme Dental Supplies'], $names('dental'));      // a word of the name
-        $this->assertSame(['Beta Orthodontics'], $names('ortho'));          // the start of a word
-        $this->assertCount(2, $names('GST-PT'));                            // GST number starts with
-        $this->assertCount(2, $names('c'));                                 // short text: plain LIKE on the name, GST and email starts
-        $this->assertSame(['Beta Orthodontics'], $names(Company::where('name', 'Beta Orthodontics')->value('email')));   // email starts with
-        $this->assertSame([], $names('zebra'));
     }
 }

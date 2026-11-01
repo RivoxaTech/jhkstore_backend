@@ -7,8 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * Customer-facing brand: only what the storefront needs. Company details stay internal.
- * `logo_url` falls back to the company's logo when the brand has no logo of its own.
+ * Customer-facing brand: only what the storefront needs.
  */
 class StoreBrandResource extends JsonResource
 {
@@ -19,8 +18,8 @@ class StoreBrandResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'description' => $this->description,
-            'logo_url' => MediaUrl::brandLogo($this->resource)['url'],
-            'logo_thumb_url' => MediaUrl::brandLogo($this->resource, 'thumb')['url'],
+            'logo_url' => MediaUrl::of($this->resource, 'logo'),
+            'logo_thumb_url' => MediaUrl::of($this->resource, 'logo', 'thumb'),
             'banner_url' => MediaUrl::of($this->resource, 'banner'),
             'collections' => $this->whenLoaded('collections', fn () => $this->collections->pluck('collection')),
             'meta_title' => $this->meta_title,

@@ -59,12 +59,12 @@ class CategoryFlowTest extends TestCase
         return $child;
     }
 
-    /** A product row (the Product model does not exist yet); foreign keys to company/brand are skipped. */
+    /** A product row (the Product model does not exist yet); foreign keys are skipped. */
     private function makeProduct(Category $category, ?SubCategory $sub = null): void
     {
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
         DB::table('products')->insert([
-            'company_id' => 1, 'brand_id' => 1, 'category_id' => $category->id, 'sub_category_id' => $sub?->id,
+            'category_id' => $category->id, 'sub_category_id' => $sub?->id,
             'name' => 'Product', 'slug' => 'product-'.uniqid(), 'sku' => 'SKU-'.uniqid(),
         ]);
         DB::statement('SET FOREIGN_KEY_CHECKS=1');

@@ -6,7 +6,7 @@ use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\Models\SubCategory;
-use App\Domain\Company\Models\Brand;
+use App\Domain\Catalog\Models\Brand;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -25,7 +25,7 @@ class ProductListing
     public static function cardRelations(SalesChannel $channel): array
     {
         return [
-            'brand.media', 'brand.company.media',
+            'brand.media',
             'category:id,name,slug',
             'tags' => fn ($q) => $q->where('tags.is_active', true),
             'media', 'remoteImages',

@@ -2,7 +2,7 @@
 
 namespace App\Domain\Catalog;
 
-use App\Domain\Company\Models\Brand;
+use App\Domain\Catalog\Models\Brand;
 use App\Support\FullTextSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;

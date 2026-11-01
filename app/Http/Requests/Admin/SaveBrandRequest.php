@@ -5,7 +5,7 @@ namespace App\Http\Requests\Admin;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/** Create (company in URL) or update (brand in URL) a brand. Multipart so a logo/banner can be sent. */
+/** Create or update (brand in URL) a brand. Multipart so a logo/banner can be sent. */
 class SaveBrandRequest extends FormRequest
 {
     public function authorize(): bool
@@ -16,18 +16,13 @@ class SaveBrandRequest extends FormRequest
     public function rules(): array
     {
         $brand = $this->route('brand');
-        $company = $brand?->company ?? $this->route('company');
         $req = $brand ? 'sometimes' : 'required';
 
         return [
             'name' => [
                 $req, 'string', 'max:160',
-                Rule::unique('brands', 'name')
-                    ->where('company_id', $company->id)
-                    ->whereNull('deleted_at')
-                    ->ignore($brand?->id),
+                Rule::unique('brands', 'name')->whereNull('deleted_at')->ignore($brand?->id),
             ],
-            'origin_country_id' => ['nullable', 'integer', Rule::exists('countries', 'id')],
             'description' => ['nullable', 'string', 'max:5000'],
             'is_active' => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0'],

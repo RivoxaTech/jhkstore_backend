@@ -1,11 +1,10 @@
 <?php
 
-namespace App\Domain\Company\Models;
+namespace App\Domain\Catalog\Models;
 
 use App\Support\GeneratesUniqueSlug;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\MediaLibrary\HasMedia;
@@ -17,8 +16,7 @@ class Brand extends Model implements HasMedia
     use GeneratesUniqueSlug, InteractsWithMedia, SoftDeletes;
 
     protected $fillable = [
-        'company_id', 'name', 'origin_country_id', 'description', 'is_active', 'sort_order',
-        'meta_title', 'meta_description',
+        'name', 'description', 'is_active', 'sort_order', 'meta_title', 'meta_description',
     ];
 
     protected function casts(): array
@@ -37,25 +35,19 @@ class Brand extends Model implements HasMedia
         $this->addMediaConversion('thumb')->width(256)->height(256)->performOnCollections('logo')->nonQueued();
     }
 
-    public function company(): BelongsTo
-    {
-        return $this->belongsTo(Company::class);
-    }
-
-    public function originCountry(): BelongsTo
-    {
-        return $this->belongsTo(Country::class, 'origin_country_id');
-    }
-
     public function collections(): HasMany
     {
         return $this->hasMany(BrandCollection::class);
     }
 
-    /** Brands that customers may see: active brand of an approved company. */
+    public function products(): HasMany
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    /** Brands that customers may see. */
     public function scopeStorefront(Builder $query): Builder
     {
-        return $query->where('brands.is_active', true)
-            ->whereHas('company', fn ($q) => $q->approved());
+        return $query->where('brands.is_active', true);
     }
 }
