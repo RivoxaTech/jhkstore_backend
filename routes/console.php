@@ -11,3 +11,5 @@ Artisan::command('inspire', function () {
 // Housekeeping: expired guest carts and old empty carts, expired coins.
 Schedule::command('carts:prune')->dailyAt('03:15');
 Schedule::command('rewards:expire')->dailyAt('03:30');
+// Expired API tokens (customer and admin) are removed a day after they ran out.
+Schedule::command('sanctum:prune-expired --hours=24')->dailyAt('03:45');

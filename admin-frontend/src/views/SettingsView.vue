@@ -4,6 +4,7 @@ import { RouterLink, onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { Save } from '@lucide/vue'
 import { api, ApiError } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
+import { useAuthStore } from '@/stores/auth.js'
 import { useCatalogStore } from '@/stores/catalog.js'
 import { useSiteStore } from '@/stores/site.js'
 import LinksEditor from '@/components/LinksEditor.vue'
@@ -13,6 +14,8 @@ import UploadField from '@/components/UploadField.vue'
 // Generic settings screen: the API describes the tabs, their sections and fields (key, type, label, help, min, max, value),
 // this page renders an input per field type and saves only the keys that changed (all tabs in one save).
 const ui = useUiStore()
+const auth = useAuthStore()
+const canManage = computed(() => auth.can('settings.manage'))   // managers can look but not change
 const catalog = useCatalogStore()
 const site = useSiteStore()
 const route = useRoute()
@@ -141,7 +144,7 @@ const affix = (f) => (f.type === 'money' ? 'left' : f.type === 'percent' ? 'righ
     </div>
     <div class="page-actions">
       <span v-if="dirty" class="muted" style="margin-right: 4px">Unsaved changes</span>
-      <button class="btn btn-primary" type="submit" form="settings-form" :disabled="saving || loading || !dirty"><span v-if="saving" class="spinner" /><Save v-else :size="16" /> Save settings</button>
+      <button v-if="canManage" class="btn btn-primary" type="submit" form="settings-form" :disabled="saving || loading || !dirty"><span v-if="saving" class="spinner" /><Save v-else :size="16" /> Save settings</button>
     </div>
   </div>
 
@@ -149,6 +152,7 @@ const affix = (f) => (f.type === 'money' ? 'left' : f.type === 'percent' ? 'righ
   <TableSkeleton v-if="loading" :rows="8" />
 
   <form v-else-if="!loadError" id="settings-form" novalidate @submit.prevent="save">
+    <div v-if="!canManage" class="alert alert--info" role="status">You can look at the settings but not change them.</div>
     <div class="card" style="margin-bottom: 12px">
       <div class="tabs" role="tablist" aria-label="Settings sections">
         <button
@@ -162,7 +166,8 @@ const affix = (f) => (f.type === 'money' ? 'left' : f.type === 'percent' ? 'righ
       </div>
     </div>
 
-    <div v-if="activeTab" :id="`panel-${activeTab.key}`" role="tabpanel" :aria-labelledby="`tab-${activeTab.key}`" class="settings-grid">
+    <fieldset v-if="activeTab" :disabled="!canManage" style="border: 0; padding: 0; margin: 0; min-width: 0">
+    <div :id="`panel-${activeTab.key}`" role="tabpanel" :aria-labelledby="`tab-${activeTab.key}`" class="settings-grid">
       <section v-for="s in activeTab.sections" :key="s.key" class="card" :data-section="s.key">
         <div class="card__head"><h2>{{ s.label }}</h2></div>
         <div class="card__body form-grid">
@@ -202,5 +207,6 @@ const affix = (f) => (f.type === 'money' ? 'left' : f.type === 'percent' ? 'righ
         </div>
       </section>
     </div>
+    </fieldset>
   </form>
 </template>

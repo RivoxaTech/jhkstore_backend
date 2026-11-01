@@ -68,6 +68,14 @@ return [
     'token_prefix' => env('SANCTUM_TOKEN_PREFIX', ''),
 
     /*
+    | How long a token created at login lives, in minutes (0 = never expires). See App\Support\TokenLifetime.
+    | Customer tokens: CUSTOMER_TOKEN_MINUTES (default 10080 = 7 days). Admin API tokens: ADMIN_TOKEN_MINUTES (default 720 = 12 hours).
+    | Expired tokens are deleted daily (sanctum:prune-expired).
+    */
+    'customer_token_minutes' => (int) env('CUSTOMER_TOKEN_MINUTES', 10080),
+    'admin_token_minutes' => (int) env('ADMIN_TOKEN_MINUTES', 720),
+
+    /*
     |--------------------------------------------------------------------------
     | Sanctum Middleware
     |--------------------------------------------------------------------------

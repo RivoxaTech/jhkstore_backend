@@ -2,10 +2,14 @@
 
 namespace App\Providers;
 
+use App\Domain\Auth\AdminAccess;
+use App\Domain\Auth\Models\Admin;
 use App\Domain\Support\Settings;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -21,6 +25,21 @@ class AppServiceProvider extends ServiceProvider
     {
         // Catch N+1 queries while developing.
         Model::preventLazyLoading(! $this->app->isProduction());
+
+        // Debug output (stack traces, config values) must never reach customers: APP_DEBUG is ignored in production.
+        if ($this->app->isProduction() && config('app.debug')) {
+            config(['app.debug' => false]);
+            Log::warning('APP_DEBUG is on while APP_ENV=production. It was switched off for this request: set APP_DEBUG=false in .env.');
+        }
+
+        // The super admin passes every permission check (the other roles get exactly the permissions of App\Domain\Auth\AdminAccess).
+        Gate::before(fn ($user) => $user instanceof Admin && $user->hasRole(AdminAccess::SUPER_ADMIN) ? true : null);
+
+        // Public read endpoints (settings, banners, categories, products): 240 a minute per IP (PUBLIC_PER_MINUTE).
+        RateLimiter::for('public', fn (Request $request) => Limit::perMinute((int) env('PUBLIC_PER_MINUTE', 240))->by($request->ip()));
+
+        // Admin API: 600 a minute per admin (ADMIN_PER_MINUTE) - generous for the panel, a ceiling for a runaway script.
+        RateLimiter::for('admin', fn (Request $request) => Limit::perMinute((int) env('ADMIN_PER_MINUTE', 600))->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
 
         // Login attempts: 8 per minute per login name + IP.
         RateLimiter::for('login', fn (Request $request) => Limit::perMinute(8)->by(strtolower((string) $request->input('login')).'|'.$request->ip()));

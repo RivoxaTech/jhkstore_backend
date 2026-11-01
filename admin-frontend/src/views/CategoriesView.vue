@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { ChevronRight, FolderTree, Pencil, Plus, Search, Trash2 } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
+import { useAuthStore } from '@/stores/auth.js'
 import LogoBox from '@/components/LogoBox.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -16,6 +17,8 @@ import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.
 const MAX_TOP = 12 // top categories shown on the home screen (the API enforces it too)
 
 const ui = useUiStore()
+const auth = useAuthStore()
+const canManage = computed(() => auth.can('catalog.manage'))   // staff can look but not change
 
 const categories = ref([])
 const meta = ref(null)                       // pagination of the top-level categories
@@ -133,7 +136,7 @@ const deleteMessage = computed(() => {
       <div class="crumbs"><RouterLink :to="{ name: 'dashboard' }">Dashboard</RouterLink> › <span>Categories</span></div>
     </div>
     <div class="page-actions">
-      <button class="btn btn-primary" type="button" @click="openCreate"><Plus :size="17" /> Add category</button>
+      <button v-if="canManage" class="btn btn-primary" type="button" @click="openCreate"><Plus :size="17" /> Add category</button>
     </div>
   </div>
 
@@ -161,7 +164,7 @@ const deleteMessage = computed(() => {
     <TableSkeleton v-if="loading" :rows="8" />
     <EmptyState v-else-if="!categories.length && !error" :title="searching ? 'No categories found' : 'No categories yet'" :text="searching ? 'Try a different search.' : 'Add the first category to organise your products.'">
       <template #icon><FolderTree :size="42" /></template>
-      <button v-if="!searching" class="btn btn-primary" type="button" @click="openCreate"><Plus :size="17" /> Add category</button>
+      <button v-if="!searching && canManage" class="btn btn-primary" type="button" @click="openCreate"><Plus :size="17" /> Add category</button>
     </EmptyState>
 
     <div v-else class="table-wrap">
@@ -192,14 +195,14 @@ const deleteMessage = computed(() => {
               <td class="num">{{ c.sub_categories_count }}</td>
               <td class="num">{{ c.products_count }}</td>
               <td class="tog" @click.stop>
-                <label class="switch" :title="c.is_active ? 'Active' : 'Hidden from customers'"><input type="checkbox" :checked="c.is_active" :aria-label="`${c.name} active`" @change="flip(c, 'is_active', false)" /><span /></label>
+                <label class="switch" :title="c.is_active ? 'Active' : 'Hidden from customers'"><input type="checkbox" :checked="c.is_active" :disabled="!canManage" :aria-label="`${c.name} active`" @change="flip(c, 'is_active', false)" /><span /></label>
               </td>
               <td class="tog" @click.stop>
-                <label class="switch" :title="c.is_top ? 'Shown on the home screen' : 'Not on the home screen'"><input type="checkbox" :checked="c.is_top" :aria-label="`${c.name} on home screen`" data-field="is_top" @change="flip(c, 'is_top', false)" /><span /></label>
+                <label class="switch" :title="c.is_top ? 'Shown on the home screen' : 'Not on the home screen'"><input type="checkbox" :checked="c.is_top" :disabled="!canManage" :aria-label="`${c.name} on home screen`" data-field="is_top" @change="flip(c, 'is_top', false)" /><span /></label>
               </td>
               <td class="num">{{ c.sort_order }}</td>
               <td @click.stop>
-                <div class="row-actions">
+                <div v-if="canManage" class="row-actions">
                   <button class="btn btn-soft btn-sm" type="button" title="Add sub-category" :aria-label="`Add sub-category to ${c.name}`" @click="openAdd(c)"><Plus :size="14" /> Sub</button>
                   <button class="btn btn-outline btn-sm btn-icon" type="button" title="Edit" :aria-label="`Edit ${c.name}`" @click="openEdit(c)"><Pencil :size="14" /></button>
                   <button class="btn btn-soft-danger btn-sm btn-icon" type="button" title="Delete" :aria-label="`Delete ${c.name}`" @click="toDelete = { item: c, level: 'category' }"><Trash2 :size="14" /></button>
@@ -223,12 +226,12 @@ const deleteMessage = computed(() => {
                 <td class="num muted">-</td>
                 <td class="num">{{ s.products_count }}</td>
                 <td class="tog">
-                  <label class="switch" :title="s.is_active ? 'Active' : 'Hidden from customers'"><input type="checkbox" :checked="s.is_active" :aria-label="`${s.name} active`" @change="flip(s, 'is_active', true)" /><span /></label>
+                  <label class="switch" :title="s.is_active ? 'Active' : 'Hidden from customers'"><input type="checkbox" :checked="s.is_active" :disabled="!canManage" :aria-label="`${s.name} active`" @change="flip(s, 'is_active', true)" /><span /></label>
                 </td>
                 <td class="tog muted">-</td>
                 <td class="num">{{ s.sort_order }}</td>
                 <td>
-                  <div class="row-actions">
+                  <div v-if="canManage" class="row-actions">
                     <button class="btn btn-outline btn-sm btn-icon" type="button" title="Edit" :aria-label="`Edit ${s.name}`" @click="openEdit(s, c)"><Pencil :size="14" /></button>
                     <button class="btn btn-soft-danger btn-sm btn-icon" type="button" title="Delete" :aria-label="`Delete ${s.name}`" @click="toDelete = { item: s, level: 'sub' }"><Trash2 :size="14" /></button>
                   </div>
@@ -238,7 +241,7 @@ const deleteMessage = computed(() => {
                 <td />
                 <td colspan="7">
                   <span v-if="!c.sub_categories.length" class="muted" style="margin-right: 10px">No sub-categories yet.</span>
-                  <button class="btn btn-soft btn-sm" type="button" @click="openAdd(c)"><Plus :size="14" /> Add sub-category</button>
+                  <button v-if="canManage" class="btn btn-soft btn-sm" type="button" @click="openAdd(c)"><Plus :size="14" /> Add sub-category</button>
                 </td>
               </tr>
             </template>

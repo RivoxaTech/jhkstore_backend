@@ -31,7 +31,7 @@ once with `php artisan db:seed`). Authentication is a cookie session (HttpOnly) 
 
 ## Pages
 
-Dashboard, Categories (two levels: category and sub-category), Banners (per placement, drag to reorder), Products (list, form with options, prices, stock,
+Dashboard, Categories (two levels: category and sub-category), Banners (per placement, drag to reorder), Users & roles (super admin only), Products (list, form with options, prices, stock,
 tags, pictures, content tabs), Orders (list, detail, status changes, printable invoice and packing slip) and Settings.
 
 ## Features that depend on settings
@@ -40,6 +40,9 @@ tags, pictures, content tabs), Orders (list, detail, status changes, printable i
   "Reward points" settings group appear only while reward points are enabled.
 * **Tax** - a product can have its own tax rate; empty means the store default. Orders show the tax line with the store's
   tax label, either included in the prices or added to the total, as configured.
-* **Settings** - the Settings page is generated from the groups and fields the API returns (switch, number, text), plus a
-  dedicated logo card. Only the changed keys are saved. The store name, logo, currency and features are refreshed after saving.
+* **Settings** - the Settings page is generated from the tabs, sections and fields the API returns (General, Branding, Footer & Social, Currency & Tax, Orders & Delivery,
+  Features, SEO): switches, numbers, text, picture uploads (saved at once) and the ordered links list (drag to reorder). Only the changed keys are saved.
+  The store name, logo, favicon, currency and features are refreshed after saving.
+* **Roles** - `GET admin/auth/me` returns the admin's role and permissions (`auth.can('catalog.manage')`). Menu items, pages and action buttons the role does not allow
+  are hidden or read-only; a page without permission shows "no access". The API enforces the same rules (403).
 * **Invoices** - the printed invoice and packing slip use the store name, logo, address, phone and e-mail from the settings.

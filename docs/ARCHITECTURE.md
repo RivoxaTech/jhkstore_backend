@@ -19,7 +19,7 @@ the admin panel is a Vue single-page app that talks to the same API. **One deplo
 | Framework | Laravel 13, PHP 8.3 |
 | Database | MySQL 8 (FULLTEXT search, row locks – SQLite is not supported) |
 | Auth | Laravel Sanctum: customers = bearer tokens; admin panel = HttpOnly session cookie + CSRF (same endpoint also issues a token to non-browser clients) |
-| Roles | spatie/laravel-permission is installed (a `super_admin` role is seeded) but permissions are **not enforced yet** – every admin can do everything |
+| Roles | spatie/laravel-permission: roles `super_admin`, `manager`, `staff` with the permission matrix of `App\Domain\Auth\AdminAccess`; every admin route is protected by the `admin.can:<permission>` middleware (see *Security and limits*) |
 | Media | spatie/laravel-medialibrary (category icons, product pictures, the logo / favicon / share image of the settings) |
 | API docs | dedoc/scramble → `/docs/api` |
 | Admin panel | Vue 3 + Vite + Pinia + Vue Router in `admin-frontend/` (builds into `public/admin-assets`, served at `/admin`) |
@@ -76,6 +76,21 @@ Rule: controller → FormRequest → **Action class** → Eloquent → Resource.
 
 ## Security and limits
 
-* A credential only works on its own side (`actor:admin` / `actor:customer`). Admin login and public forms are throttled (login 8/min, forms 10/hour, cart 120/min, checkout 20/min, account 60/min – env-overridable).
+* A credential only works on its own side (`actor:admin` / `actor:customer`).
+* **Admin roles and permissions.** Permissions are `dashboard.view`, `catalog.view|manage` (categories, products, tags, product pictures), `banners.view|manage`, `orders.view|manage`, `settings.view|manage`, `admins.manage`.
+  The matrix lives in code (`AdminAccess::ROLES`) and is written to the database by `RolesSeeder` (re-run it to reset roles to the matrix):
+
+  | | dashboard | catalogue | banners | orders | settings | admin users |
+  |---|---|---|---|---|---|---|
+  | **super_admin** | ✔ | view + manage | view + manage | view + manage | view + manage | ✔ |
+  | **manager** | ✔ | view + manage | view + manage | view + manage | view only | – |
+  | **staff** | ✔ | view only | view only | view + manage | – | – |
+
+  A missing permission answers `403 {"message":"You do not have permission to do this."}` – checked before the record is looked up, so nothing leaks. A test walks every admin route and fails if one has no `admin.can` middleware.
+  An admin has one role; the *Users & roles* screen (super admin only) adds, edits, deactivates and deletes admins. You cannot deactivate, demote or delete yourself, and the last active super admin always stays. A new password or deactivation revokes the admin's API tokens.
+* **Tokens expire.** Customer tokens live `CUSTOMER_TOKEN_MINUTES` (default 7 days), admin API tokens `ADMIN_TOKEN_MINUTES` (default 12 hours; the panel itself uses the session cookie, `SESSION_LIFETIME`); 0 = never. Login and registration return `expires_at`; `POST /store/auth/refresh` swaps a valid token for a new one; an expired token answers 401 and the customer logs in again. `sanctum:prune-expired` runs daily.
+* **Passwords** are hashed with bcrypt (`BCRYPT_ROUNDS`, default 12) through the models' `hashed` cast and are never returned by the API or written to the audit log. Admin passwords need 10+ characters with letters and numbers.
+* **CORS** allows only the origins of `FRONTEND_URLS` (never `*`; credentials are enabled for the admin panel session). **Rate limits** (per minute, all overridable in `.env`): login 8 per name + IP, public reads 240/IP, cart 120, checkout / cancel / reorder 20, account / token refresh 60, admin API 600 per admin; registration 10 and reviews 30 per hour. A test checks that every store and admin route has a limit.
+* **Debug is off in production.** `APP_DEBUG` defaults to false and is forced off when `APP_ENV=production` (a warning is logged); error answers carry no trace. `SESSION_SECURE_COOKIE` defaults to on in production; session cookies are HttpOnly and SameSite=lax.
 * `Model::preventLazyLoading()` is on outside production; list endpoints are tested for a fixed number of queries.
-* Known gaps: no permission enforcement for admins, no password reset / e-mail verification, customer tokens do not expire. See [FEATURES.md](FEATURES.md).
+* Known gaps: no password reset / e-mail verification for customers. See [FEATURES.md](FEATURES.md).

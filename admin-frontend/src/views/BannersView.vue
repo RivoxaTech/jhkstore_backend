@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, GalleryHorizontal, GripVertical, Pencil, Plus, Tras
 import { api } from '@/api/client.js'
 import { formatDate } from '@/utils/format.js'
 import { useUiStore } from '@/stores/ui.js'
+import { useAuthStore } from '@/stores/auth.js'
 import BannerModal from '@/components/BannerModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -14,6 +15,8 @@ import TableSkeleton from '@/components/TableSkeleton.vue'
 // Banners grouped by the spot they are shown in. A spot holds one banner or several (the store decides between a single
 // banner and a slider); inside a spot the order is set by drag and drop or the arrow buttons and saved at once.
 const ui = useUiStore()
+const auth = useAuthStore()
+const canManage = computed(() => auth.can('banners.manage'))   // staff can look but not change
 
 const banners = ref([])
 const placements = ref([])      // [{ key, label }]
@@ -126,7 +129,7 @@ function window_(b) {
       <div class="crumbs"><RouterLink :to="{ name: 'dashboard' }">Dashboard</RouterLink> › <span>Banners</span></div>
     </div>
     <div class="page-actions">
-      <button class="btn btn-primary" type="button" :disabled="loading || !placements.length" @click="openCreate()"><Plus :size="17" /> Add banner</button>
+      <button v-if="canManage" class="btn btn-primary" type="button" :disabled="loading || !placements.length" @click="openCreate()"><Plus :size="17" /> Add banner</button>
     </div>
   </div>
 
@@ -136,13 +139,13 @@ function window_(b) {
   <template v-else-if="!error">
     <EmptyState v-if="!banners.length" title="No banners yet" text="Add a picture with a title and a link to promote a sale, a new collection or a delivery offer on your store.">
       <template #icon><GalleryHorizontal :size="42" /></template>
-      <button class="btn btn-primary" type="button" @click="openCreate()"><Plus :size="17" /> Add the first banner</button>
+      <button v-if="canManage" class="btn btn-primary" type="button" @click="openCreate()"><Plus :size="17" /> Add the first banner</button>
     </EmptyState>
 
     <section v-for="g in groups" v-else :key="g.key" class="card" :data-placement="g.key" style="margin-bottom: 12px">
       <div class="card__head">
         <h2>{{ g.label }} <span class="muted">· {{ g.items.length }} {{ g.items.length === 1 ? 'banner' : 'banners' }}</span></h2>
-        <button class="btn btn-soft btn-sm" type="button" @click="openCreate(g.key)"><Plus :size="14" /> Add here</button>
+        <button v-if="canManage" class="btn btn-soft btn-sm" type="button" @click="openCreate(g.key)"><Plus :size="14" /> Add here</button>
       </div>
       <div class="card__body">
         <p v-if="!g.items.length" class="muted" style="margin: 0">Nothing here yet. The store shows nothing in this spot.</p>
@@ -154,7 +157,7 @@ function window_(b) {
             :class="{ 'is-dragging': dragging?.placement === g.key && dragging.index === i, 'is-over': canDrop(g.key) && over?.placement === g.key && over.index === i && dragging.index !== i, 'is-off': b.status !== 'live' }"
             @dragover="canDrop(g.key) && ($event.preventDefault(), (over = { placement: g.key, index: i }))" @drop.prevent="drop(g.key, i)"
           >
-            <span class="banner-grip" draggable="true" title="Drag to reorder" aria-hidden="true" @dragstart="dragStart($event, g.key, i)" @dragend="dragEnd"><GripVertical :size="18" /></span>
+            <span class="banner-grip" :draggable="canManage" title="Drag to reorder" aria-hidden="true" @dragstart="dragStart($event, g.key, i)" @dragend="dragEnd"><GripVertical :size="18" /></span>
             <div class="banner-thumb"><img :src="b.desktop_thumb_url || b.desktop_image_url" :alt="b.title || 'Banner picture'" loading="lazy" /></div>
             <div class="banner-info">
               <strong class="truncate" :title="b.title || ''">{{ b.title || '(no title)' }}</strong>
@@ -166,12 +169,12 @@ function window_(b) {
               <small class="muted">{{ window_(b) }}<template v-if="b.mobile_image_url"> · mobile picture</template></small>
             </div>
             <StatusBadge :status="b.status" />
-            <div class="banner-actions">
-              <label class="switch" :title="b.is_active ? 'Active' : 'Hidden from customers'"><input type="checkbox" :checked="b.is_active" :aria-label="`${b.title || 'Banner'} active`" @change="flip(b)" /><span /></label>
-              <button class="btn btn-outline btn-sm btn-icon" type="button" :disabled="i === 0" :aria-label="`Move ${b.title || 'banner'} up`" @click="move(g.key, i, i - 1)"><ArrowUp :size="14" /></button>
-              <button class="btn btn-outline btn-sm btn-icon" type="button" :disabled="i === g.items.length - 1" :aria-label="`Move ${b.title || 'banner'} down`" @click="move(g.key, i, i + 1)"><ArrowDown :size="14" /></button>
-              <button class="btn btn-outline btn-sm btn-icon" type="button" title="Edit" :aria-label="`Edit ${b.title || 'banner'}`" @click="openEdit(b)"><Pencil :size="14" /></button>
-              <button class="btn btn-soft-danger btn-sm btn-icon" type="button" title="Delete" :aria-label="`Delete ${b.title || 'banner'}`" @click="toDelete = b"><Trash2 :size="14" /></button>
+            <div class="banner-actions" :class="{ 'is-readonly': !canManage }">
+              <label class="switch" :title="b.is_active ? 'Active' : 'Hidden from customers'"><input type="checkbox" :checked="b.is_active" :disabled="!canManage" :aria-label="`${b.title || 'Banner'} active`" @change="flip(b)" /><span /></label>
+              <button v-if="canManage" class="btn btn-outline btn-sm btn-icon" type="button" :disabled="i === 0" :aria-label="`Move ${b.title || 'banner'} up`" @click="move(g.key, i, i - 1)"><ArrowUp :size="14" /></button>
+              <button v-if="canManage" class="btn btn-outline btn-sm btn-icon" type="button" :disabled="i === g.items.length - 1" :aria-label="`Move ${b.title || 'banner'} down`" @click="move(g.key, i, i + 1)"><ArrowDown :size="14" /></button>
+              <button v-if="canManage" class="btn btn-outline btn-sm btn-icon" type="button" title="Edit" :aria-label="`Edit ${b.title || 'banner'}`" @click="openEdit(b)"><Pencil :size="14" /></button>
+              <button v-if="canManage" class="btn btn-soft-danger btn-sm btn-icon" type="button" title="Delete" :aria-label="`Delete ${b.title || 'banner'}`" @click="toDelete = b"><Trash2 :size="14" /></button>
             </div>
           </li>
         </ol>

@@ -8,10 +8,12 @@ use App\Domain\Cart\Actions\MergeGuestCart;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\Store\RegisterCustomerRequest;
+use App\Support\TokenLifetime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -35,8 +37,7 @@ class AuthController extends Controller
 
         $user->forceFill(['last_login_at' => now()])->save();
 
-        return response()->json([
-            'token' => $user->createToken('customer')->plainTextToken,
+        return response()->json($this->tokenPayload($user) + [
             'user' => $this->userPayload($user),
             'cart_lines_merged' => $this->mergeCart->handle($user, $this->cartToken($request)),
         ]);
@@ -52,11 +53,35 @@ class AuthController extends Controller
         ]);
         $user->forceFill(['last_login_at' => now()])->save();
 
-        return response()->json([
-            'token' => $user->createToken('customer')->plainTextToken,
+        return response()->json($this->tokenPayload($user) + [
             'user' => $this->userPayload($user),
             'cart_lines_merged' => $this->mergeCart->handle($user, $this->cartToken($request)),
         ], 201);
+    }
+
+    /** A new token with its expiry (CUSTOMER_TOKEN_MINUTES). */
+    private function tokenPayload(User $user): array
+    {
+        $expiresAt = TokenLifetime::expiresAt('customer');
+
+        return ['token' => $user->createToken('customer', ['*'], $expiresAt)->plainTextToken, 'expires_at' => $expiresAt?->toIso8601String()];
+    }
+
+    /**
+     * Swap the current token for a new one with a fresh expiry (call it while the token is still valid, e.g. when `expires_at` is near).
+     * The old token stops working at once. An expired token cannot be refreshed: it answers 401 and the customer logs in again.
+     */
+    public function refresh(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $old = $user->currentAccessToken();
+
+        $payload = $this->tokenPayload($user);
+        if ($old instanceof PersonalAccessToken) {
+            $old->delete();
+        }
+
+        return response()->json($payload);
     }
 
     private function cartToken(Request $request): ?string

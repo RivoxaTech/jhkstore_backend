@@ -55,7 +55,10 @@ Card/detail fields such as `badge_label`, `show_starting_at` and `display_mode` 
 
 ## 3. Customers
 
-`POST /auth/register`, `POST /auth/login` (email **or** mobile in `login`) → `{ token, user, cart_lines_merged }`; send `Authorization: Bearer <token>`. `GET /auth/me`, `POST /auth/logout`.
+`POST /auth/register`, `POST /auth/login` (email **or** mobile in `login`) → `{ token, expires_at, user, cart_lines_merged }`; send `Authorization: Bearer <token>`. `GET /auth/me`, `POST /auth/logout`.
+
+**Tokens expire** (`expires_at`, ISO 8601; `null` = never; default 7 days, set per client with `CUSTOMER_TOKEN_MINUTES`). Keep `expires_at`, and before it passes call `POST /auth/refresh` with the current token: the answer is `{ token, expires_at }` and the old token stops working at once.
+An expired or revoked token answers `401 {"message":"Unauthenticated."}` – send the customer to the login page (a guest cart is kept; send `X-Cart-Token` again when logging in to merge it).
 Address book: `GET|POST /addresses`, `GET|PUT|DELETE /addresses/{id}`, `POST /addresses/{id}/default` (fields: name, phone, alt_phone, line1, area, landmark, city, state, postcode, country, tax_number, type `home|work|other`, latitude, longitude).
 
 ## 4. Cart (guest or customer)
@@ -73,4 +76,4 @@ Address book: `GET|POST /addresses`, `GET|PUT|DELETE /addresses/{id}`, `POST /ad
 
 ## Rate limits
 
-login 8/min · registration 10/hour · cart 120/min · checkout/cancel/reorder 20/min · addresses and order history 60/min (`429` when exceeded).
+login 8/min (per login name and IP) · registration 10/hour · public reads (settings, banners, categories, products, tags, reviews) 240/min per IP · cart 120/min · checkout/cancel/reorder 20/min · addresses, order history, `me`, `logout`, `refresh` 60/min (`429` with a `Retry-After` header when exceeded). The limits can be changed per client in `.env`.

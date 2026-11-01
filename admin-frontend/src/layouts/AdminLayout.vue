@@ -1,7 +1,7 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Bell, ChevronsLeft, ChevronsRight, FolderTree, GalleryHorizontal, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag } from '@lucide/vue'
+import { Bell, ChevronsLeft, ChevronsRight, FolderTree, GalleryHorizontal, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Users } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useCatalogStore } from '@/stores/catalog.js'
@@ -22,6 +22,7 @@ const menuEl = ref(null)
 
 // Keeps the "pending orders" badge fresh (sidebar + bell). One light call every minute.
 async function refreshPending() {
+  if (!auth.can('orders.view')) return
   try {
     const orders = await api.get('admin/orders', { per_page: 1 })
     ui.pendingOrders = orders.counts?.pending ?? 0
@@ -29,7 +30,7 @@ async function refreshPending() {
 }
 let timer
 onMounted(() => {
-  catalog.load().catch(() => { /* the features fall back to the public store settings */ })
+  if (auth.can('catalog.view')) catalog.load().catch(() => { /* the features fall back to the public store settings */ })
   refreshPending()
   timer = setInterval(refreshPending, 60000)
   document.addEventListener('click', closeMenu)
@@ -43,6 +44,8 @@ function search() {
   const q = query.value.trim()
   router.push({ name: 'products', query: q ? { q } : {} })
 }
+
+const roleLabel = computed(() => ({ super_admin: 'Super admin', manager: 'Manager', staff: 'Staff' })[auth.role] || auth.role)
 
 async function logout() {
   await auth.logout()
@@ -59,32 +62,35 @@ async function logout() {
       </div>
       <nav class="sidebar__nav">
         <p class="nav-label">Main</p>
-        <RouterLink :to="{ name: 'dashboard' }" class="nav-item" :class="{ 'is-active': route.name === 'dashboard' }" exact-active-class="" active-class="">
+        <RouterLink v-if="auth.can('dashboard.view')" :to="{ name: 'dashboard' }" class="nav-item" :class="{ 'is-active': route.name === 'dashboard' }" exact-active-class="" active-class="">
           <LayoutDashboard :size="19" /><span>Dashboard</span>
         </RouterLink>
 
-        <p class="nav-label" style="margin-top: 18px">Catalogue</p>
-        <RouterLink :to="{ name: 'categories' }" class="nav-item" :class="{ 'is-active': route.name === 'categories' }" exact-active-class="" active-class="">
+        <p v-if="auth.can('catalog.view')" class="nav-label" style="margin-top: 18px">Catalogue</p>
+        <RouterLink v-if="auth.can('catalog.view')" :to="{ name: 'categories' }" class="nav-item" :class="{ 'is-active': route.name === 'categories' }" exact-active-class="" active-class="">
           <FolderTree :size="19" /><span>Categories</span>
         </RouterLink>
-        <RouterLink :to="{ name: 'products' }" class="nav-item" :class="{ 'is-active': String(route.name).startsWith('product') }" exact-active-class="" active-class="">
+        <RouterLink v-if="auth.can('catalog.view')" :to="{ name: 'products' }" class="nav-item" :class="{ 'is-active': String(route.name).startsWith('product') }" exact-active-class="" active-class="">
           <Package :size="19" /><span>Products</span>
         </RouterLink>
 
-        <p class="nav-label" style="margin-top: 18px">Content</p>
-        <RouterLink :to="{ name: 'banners' }" class="nav-item" :class="{ 'is-active': route.name === 'banners' }" exact-active-class="" active-class="">
+        <p v-if="auth.can('banners.view')" class="nav-label" style="margin-top: 18px">Content</p>
+        <RouterLink v-if="auth.can('banners.view')" :to="{ name: 'banners' }" class="nav-item" :class="{ 'is-active': route.name === 'banners' }" exact-active-class="" active-class="">
           <GalleryHorizontal :size="19" /><span>Banners</span>
         </RouterLink>
 
-        <p class="nav-label" style="margin-top: 18px">Sales</p>
-        <RouterLink :to="{ name: 'orders' }" class="nav-item" :class="{ 'is-active': route.name === 'orders' || route.name === 'order' }" exact-active-class="" active-class="">
+        <p v-if="auth.can('orders.view')" class="nav-label" style="margin-top: 18px">Sales</p>
+        <RouterLink v-if="auth.can('orders.view')" :to="{ name: 'orders' }" class="nav-item" :class="{ 'is-active': route.name === 'orders' || route.name === 'order' }" exact-active-class="" active-class="">
           <ShoppingBag :size="19" /><span>Orders</span>
           <b v-if="ui.pendingOrders" class="nav-badge" :title="`${ui.pendingOrders} orders waiting`">{{ ui.pendingOrders }}</b>
         </RouterLink>
 
-        <p class="nav-label" style="margin-top: 18px">System</p>
-        <RouterLink :to="{ name: 'settings' }" class="nav-item" :class="{ 'is-active': route.name === 'settings' }" exact-active-class="" active-class="">
+        <p v-if="auth.can('settings.view') || auth.can('admins.manage')" class="nav-label" style="margin-top: 18px">System</p>
+        <RouterLink v-if="auth.can('settings.view')" :to="{ name: 'settings' }" class="nav-item" :class="{ 'is-active': route.name === 'settings' }" exact-active-class="" active-class="">
           <Settings :size="19" /><span>Settings</span>
+        </RouterLink>
+        <RouterLink v-if="auth.can('admins.manage')" :to="{ name: 'users' }" class="nav-item" :class="{ 'is-active': route.name === 'users' }" exact-active-class="" active-class="">
+          <Users :size="19" /><span>Users &amp; roles</span>
         </RouterLink>
       </nav>
       <div class="sidebar__foot">
@@ -100,12 +106,12 @@ async function logout() {
       <header class="topbar">
         <!-- Phones only: opens the sidebar drawer. On desktop the collapse button lives inside the sidebar. -->
         <button class="icon-btn mobile-only" type="button" aria-label="Open menu" @click.stop="ui.toggleSidebar()"><Menu :size="18" /></button>
-        <form class="search" role="search" @submit.prevent="search">
+        <form v-if="auth.can('catalog.view')" class="search" role="search" @submit.prevent="search">
           <input v-model="query" type="search" placeholder="Search products by name or SKU..." aria-label="Search products (press Enter)" />
           <Search :size="18" />
         </form>
         <div class="topbar__space" />
-        <RouterLink class="icon-btn" :to="{ name: 'orders', query: { status: 'pending' } }" :title="`${ui.pendingOrders} pending orders`" aria-label="Pending orders">
+        <RouterLink v-if="auth.can('orders.view')" class="icon-btn" :to="{ name: 'orders', query: { status: 'pending' } }" :title="`${ui.pendingOrders} pending orders`" aria-label="Pending orders">
           <Bell :size="17" />
           <span v-if="ui.pendingOrders" class="dot">{{ ui.pendingOrders > 99 ? '99+' : ui.pendingOrders }}</span>
         </RouterLink>
@@ -117,7 +123,7 @@ async function logout() {
           <div v-if="menuOpen" class="dropdown" role="menu">
             <div class="dropdown__head">
               <strong>{{ auth.admin?.name }}</strong>
-              <small>@{{ auth.admin?.username }}</small>
+              <small>@{{ auth.admin?.username }}<template v-if="auth.role"> · {{ roleLabel }}</template></small>
             </div>
             <button type="button" role="menuitem" @click="logout"><LogOut :size="17" /> Sign out</button>
           </div>

@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use App\Domain\Auth\Models\Admin;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
+use App\Domain\Auth\AdminAccess;
 
 class AdminSeeder extends Seeder
 {
@@ -18,12 +18,12 @@ class AdminSeeder extends Seeder
             throw new \RuntimeException('Refusing to seed a weak admin password in production. Set SEED_ADMIN_PASSWORD.');
         }
 
-        $role = Role::findOrCreate('super_admin', 'admin');
+        AdminAccess::sync();   // permissions and roles exist before the first admin gets one
 
         $admin = Admin::firstOrCreate(
             ['username' => $username],
             ['name' => 'Administrator', 'password' => $password, 'is_active' => true],
         );
-        $admin->assignRole($role);
+        $admin->assignRole(AdminAccess::SUPER_ADMIN);
     }
 }

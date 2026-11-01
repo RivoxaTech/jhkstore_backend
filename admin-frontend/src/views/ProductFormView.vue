@@ -4,6 +4,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ChevronDown, ChevronRight, Plus, Trash2 } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
+import { useAuthStore } from '@/stores/auth.js'
 import { useCatalogStore } from '@/stores/catalog.js'
 import { useSiteStore } from '@/stores/site.js'
 import ProductImages from '@/components/ProductImages.vue'
@@ -16,6 +17,7 @@ const route = useRoute()
 const router = useRouter()
 const ui = useUiStore()
 const catalog = useCatalogStore()
+const auth = useAuthStore()
 const site = useSiteStore()
 
 const id = computed(() => (route.params.id ? Number(route.params.id) : null))
@@ -43,6 +45,7 @@ const tabs = reactive({})          // key -> { content, format, manual_url }
 const openTabs = ref(new Set())
 
 const symbol = computed(() => catalog.currency.symbol)
+const canManage = computed(() => auth.can('catalog.manage'))   // roles without it see the product read-only
 const showRewards = computed(() => catalog.features.rewards)
 const taxPlaceholder = computed(() => (site.tax.rate !== null && site.tax.rate !== undefined && site.tax.rate !== '' ? `Store default (${site.tax.rate}%)` : 'Store default'))
 
@@ -305,6 +308,8 @@ function showErrors(message) {
 
   <form v-else novalidate @submit.prevent="submit">
     <div v-if="formError" class="alert alert--error" role="alert">{{ formError }}</div>
+    <div v-if="!canManage" class="alert alert--info" role="status">You can look at this product but not change it.</div>
+    <fieldset :disabled="!canManage" style="border: 0; padding: 0; margin: 0; min-width: 0">
 
     <div class="pf-layout">
       <div class="pf-col">
@@ -518,10 +523,12 @@ function showErrors(message) {
       </div>
     </div>
 
+    </fieldset>
+
     <div class="save-bar">
       <span v-if="formError" class="msg">{{ formError }}</span>
-      <RouterLink class="btn btn-outline" :to="{ name: 'products' }">Cancel</RouterLink>
-      <button class="btn btn-primary" type="submit" :disabled="saving">
+      <RouterLink class="btn btn-outline" :to="{ name: 'products' }">{{ canManage ? 'Cancel' : 'Back' }}</RouterLink>
+      <button v-if="canManage" class="btn btn-primary" type="submit" :disabled="saving">
         <span v-if="saving" class="spinner" /> {{ isEdit ? 'Save product' : 'Add product' }}
       </button>
     </div>

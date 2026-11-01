@@ -96,13 +96,9 @@ trait BuildsShop
     }
 
     /** Logs in as an admin (the customer in front of the request is forgotten). */
-    protected function asAdmin(): Admin
+    protected function asAdmin(string $role = 'super_admin'): Admin
     {
-        $this->app['auth']->forgetGuards();
-        $admin = Admin::query()->where('username', 'tester')->first() ?? Admin::create(['username' => 'tester', 'name' => 'Tester', 'password' => 'secret-pass', 'is_active' => true]);
-        Sanctum::actingAs($admin, ['*']);
-
-        return $admin;
+        return $this->actingAsAdmin($role);
     }
 
     /** Places a COD order for `$user` with a new product; returns the stored order. */

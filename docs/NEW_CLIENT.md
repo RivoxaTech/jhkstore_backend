@@ -31,7 +31,9 @@ Edit `.env`:
 | `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | the new database |
 | `FRONTEND_URLS` | the storefront origin(s) allowed by CORS (comma separated) |
 | `SANCTUM_STATEFUL_DOMAINS` | the admin panel host(s), e.g. `api.acme.example` |
-| `SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD` | the first admin (the seeder refuses a weak password in production) |
+| `SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD` | the first admin, a **super admin** (the seeder refuses a weak password in production) |
+| `CUSTOMER_TOKEN_MINUTES`, `ADMIN_TOKEN_MINUTES` | how long a customer / admin API token lives (default 10080 = 7 days / 720 = 12 hours; 0 = never) |
+| `SESSION_LIFETIME` | minutes an admin panel session stays valid without activity (default 120) |
 | `MAIL_*`, `FILESYSTEM_DISK` | the client's mail / storage |
 | `SESSION_SECURE_COOKIE=true` | in production (HTTPS) |
 
@@ -45,7 +47,7 @@ php artisan storage:link
 cd admin-frontend && npm install && npm run build && cd ..     # admin panel -> public/admin-assets
 ```
 
-Add the cron entry `* * * * * php artisan schedule:run` (cart clean-up and points expiry).
+Add the cron entry `* * * * * php artisan schedule:run` (cart clean-up, points expiry and removal of expired API tokens).
 
 ## 4. Configure the store (admin panel → Settings)
 
@@ -57,7 +59,7 @@ Log in at `/admin` and set, in this order (see [SETTINGS.md](SETTINGS.md) for ev
 4. **Orders and delivery** – order number prefix, delivery charge, free-delivery limit, delivery days, minimum order, cash-on-delivery limit.
 5. **Features** – *Enable reward points* (default off). With points on, also set the earn rate, redeem rate and limits.
 
-Then change the admin password (create a new admin or update the seeded one) and remove the demo data if you loaded it.
+Then open **Users & roles** (super admin only): create the real admins with the right role – *Manager* (catalogue, banners, orders; settings read-only) or *Staff* (orders; everything else read-only) – and replace or deactivate the seeded admin. Remove the demo data if you loaded it. What each role may do is in [ARCHITECTURE.md](ARCHITECTURE.md#security-and-limits).
 
 ## 5. Add the catalogue
 
@@ -71,7 +73,8 @@ Give the storefront developer [STOREFRONT-API.md](STOREFRONT-API.md) and the Pos
 
 ## 7. Go-live checklist
 
-- [ ] `APP_ENV=production`, `APP_DEBUG=false`, HTTPS, `SESSION_SECURE_COOKIE=true`
+- [ ] `APP_ENV=production`, `APP_DEBUG=false` (it is forced off in production anyway), HTTPS, `SESSION_SECURE_COOKIE=true` (the default in production)
+- [ ] token lifetimes (`CUSTOMER_TOKEN_MINUTES`, `ADMIN_TOKEN_MINUTES`) and rate limits reviewed; the storefront refreshes tokens or handles `401` by showing the login
 - [ ] strong `SEED_ADMIN_PASSWORD` used, default admin replaced
 - [ ] `APP_URL`, `FRONTEND_URLS`, `SANCTUM_STATEFUL_DOMAINS` match the real domains
 - [ ] cron entry added; a queue worker is **not** required yet (nothing is queued)

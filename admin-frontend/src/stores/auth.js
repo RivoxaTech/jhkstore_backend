@@ -8,6 +8,10 @@ export const useAuthStore = defineStore('auth', () => {
   const ready = ref(false) // true after the first "who am I" check finished
 
   const isLoggedIn = computed(() => Boolean(admin.value))
+  const role = computed(() => admin.value?.roles?.[0] || '')
+  const permissions = computed(() => admin.value?.permissions || [])
+  /** What this admin may do (the server decides; this only hides what would answer 403). */
+  const can = (permission) => permissions.value.includes(permission)
   const initials = computed(() => (admin.value?.name || admin.value?.username || 'A').slice(0, 2).toUpperCase())
 
   async function login(username, password) {
@@ -36,5 +40,5 @@ export const useAuthStore = defineStore('auth', () => {
     admin.value = null
   }
 
-  return { admin, ready, isLoggedIn, initials, login, restore, logout, clear }
+  return { admin, ready, isLoggedIn, role, permissions, can, initials, login, restore, logout, clear }
 })

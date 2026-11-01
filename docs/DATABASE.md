@@ -50,6 +50,7 @@ settings (key/value)        pincodes (optional serviceability / COD per postcode
 | `pincodes` | optional per-postcode serviceability and COD flag (no admin screen yet) |
 | `audit_logs` | who did what (admin actions, status changes, low-stock alerts) |
 | `media` | spatie medialibrary |
+| `roles`, `permissions`, `model_has_roles`, `model_has_permissions`, `role_has_permissions` | spatie permission tables (guard `admin`): roles `super_admin`, `manager`, `staff` and the permissions of `AdminAccess`, written by `RolesSeeder` |
 | framework | `migrations`, `cache`, `cache_locks`, `sessions`, `jobs`, `job_batches`, `failed_jobs`, `password_reset_tokens`, `personal_access_tokens`, spatie `roles`, `permissions`, `model_has_*`, `role_has_permissions` |
 
 ## Schema kept for the next phase (no code yet, on purpose)

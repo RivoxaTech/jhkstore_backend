@@ -4,6 +4,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import { Ban, Check, FileText, PackageCheck, Printer, Save, Truck } from '@lucide/vue'
 import { api, ApiError } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
+import { useAuthStore } from '@/stores/auth.js'
 import { useSiteStore } from '@/stores/site.js'
 import AppModal from '@/components/AppModal.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -12,6 +13,8 @@ import { formatDate, money } from '@/utils/format.js'
 
 const route = useRoute()
 const ui = useUiStore()
+const auth = useAuthStore()
+const canManage = computed(() => auth.can('orders.manage'))   // staff without it can look but not change
 const site = useSiteStore()
 
 const order = ref(null)
@@ -123,8 +126,8 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
     <div v-if="o" class="act-bar">
       <button class="btn btn-outline" type="button" @click="print('invoice')"><Printer :size="16" /> Print invoice</button>
       <button class="btn btn-outline" type="button" @click="print('slip')"><FileText :size="16" /> Packing slip</button>
-      <button v-if="o.actions.can_cancel" class="btn btn-soft-danger" type="button" @click="openAction('cancelled')"><Ban :size="16" /> Cancel order</button>
-      <button v-if="next" class="btn" :class="`btn-${next.tone}`" type="button" @click="openAction(o.actions.next_status)"><component :is="next.icon" :size="16" /> {{ next.button }}</button>
+      <button v-if="canManage && o.actions.can_cancel" class="btn btn-soft-danger" type="button" @click="openAction('cancelled')"><Ban :size="16" /> Cancel order</button>
+      <button v-if="canManage && next" class="btn" :class="`btn-${next.tone}`" type="button" @click="openAction(o.actions.next_status)"><component :is="next.icon" :size="16" /> {{ next.button }}</button>
     </div>
   </div>
 
@@ -261,8 +264,8 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
               </div>
               <div class="field">
                 <label for="admin-note">Internal note (customers never see it)</label>
-                <textarea id="admin-note" v-model="adminNote" class="textarea" rows="3" style="height: auto; padding: 8px 11px" maxlength="2000" />
-                <button class="btn btn-outline btn-sm" type="button" style="margin-top: 6px" :disabled="noteBusy || adminNote === (o.admin_note || '')" @click="saveNote"><Save :size="14" /> Save note</button>
+                <textarea id="admin-note" v-model="adminNote" class="textarea" rows="3" :readonly="!canManage" style="height: auto; padding: 8px 11px" maxlength="2000" />
+                <button v-if="canManage" class="btn btn-outline btn-sm" type="button" style="margin-top: 6px" :disabled="noteBusy || adminNote === (o.admin_note || '')" @click="saveNote"><Save :size="14" /> Save note</button>
               </div>
             </div>
           </section>

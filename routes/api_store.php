@@ -19,26 +19,30 @@ use Illuminate\Support\Facades\Route;
 // Auth
 Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
 Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:forms');
-Route::middleware(['auth:sanctum', 'actor:customer'])->group(function () {
+Route::middleware(['auth:sanctum', 'actor:customer', 'throttle:account'])->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
+    Route::post('auth/refresh', [AuthController::class, 'refresh']);
     Route::get('auth/me', [AuthController::class, 'me']);
 });
 
-// Public store settings (profile, currency, tax, delivery, enabled features)
-Route::get('settings', [SettingController::class, 'show']);
+// Public reads, rate limited per IP (PUBLIC_PER_MINUTE, default 240 a minute)
+Route::middleware('throttle:public')->group(function () {
+    // Public store settings (profile, branding, footer, SEO, currency, tax, delivery, enabled features)
+    Route::get('settings', [SettingController::class, 'show']);
 
-// Banners: the live ones of a placement, in order
-Route::get('banners', [BannerController::class, 'index']);
+    // Banners: the live ones of a placement, in order
+    Route::get('banners', [BannerController::class, 'index']);
 
-// Categories (customer side): active tree with sub-categories, cached
-Route::get('categories', [CategoryController::class, 'index']);
-Route::get('categories/{slug}', [CategoryController::class, 'show']);
+    // Categories (customer side): active tree with sub-categories, cached
+    Route::get('categories', [CategoryController::class, 'index']);
+    Route::get('categories/{slug}', [CategoryController::class, 'show']);
 
-// Products
-Route::get('products', [ProductController::class, 'index']);
-Route::get('products/{slug}', [ProductController::class, 'show']);
-Route::get('tags', [TagController::class, 'index']);
-Route::get('products/{slug}/reviews', [ReviewController::class, 'index']);
+    // Products
+    Route::get('products', [ProductController::class, 'index']);
+    Route::get('products/{slug}', [ProductController::class, 'show']);
+    Route::get('tags', [TagController::class, 'index']);
+    Route::get('products/{slug}/reviews', [ReviewController::class, 'index']);
+});
 Route::post('products/{slug}/reviews', [ReviewController::class, 'store'])
     ->middleware(['auth:sanctum', 'actor:customer', 'throttle:reviews']);
 

@@ -4,6 +4,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { Package, Pencil, Plus, Search, Tag, Trash2 } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
+import { useAuthStore } from '@/stores/auth.js'
 import { useCatalogStore } from '@/stores/catalog.js'
 import PaginationBar from '@/components/PaginationBar.vue'
 import RowsPerPage from '@/components/RowsPerPage.vue'
@@ -21,6 +22,8 @@ const route = useRoute()
 const router = useRouter()
 const ui = useUiStore()
 const catalog = useCatalogStore()
+const auth = useAuthStore()
+const canManage = computed(() => auth.can('catalog.manage'))   // staff can look but not change
 
 const rows = ref([])
 const meta = ref(null)
@@ -140,8 +143,8 @@ async function confirmDelete() {
       <div class="crumbs"><RouterLink :to="{ name: 'dashboard' }">Dashboard</RouterLink> › <span>Products</span></div>
     </div>
     <div class="page-actions">
-      <button class="btn btn-outline" type="button" @click="manageTags = true"><Tag :size="16" /> Tags</button>
-      <RouterLink class="btn btn-primary" :to="{ name: 'product-new' }"><Plus :size="17" /> Add product</RouterLink>
+      <button v-if="canManage" class="btn btn-outline" type="button" @click="manageTags = true"><Tag :size="16" /> Tags</button>
+      <RouterLink v-if="canManage" class="btn btn-primary" :to="{ name: 'product-new' }"><Plus :size="17" /> Add product</RouterLink>
     </div>
   </div>
 
@@ -182,7 +185,7 @@ async function confirmDelete() {
     <TableSkeleton v-if="loading && !rows.length" :rows="7" />
     <EmptyState v-else-if="!rows.length && !error" title="No products found" :text="hasFilters ? 'Try changing the filters or the search.' : 'Add the first product to get started.'">
       <template #icon><Package :size="42" /></template>
-      <RouterLink class="btn btn-primary" :to="{ name: 'product-new' }"><Plus :size="17" /> Add product</RouterLink>
+      <RouterLink v-if="canManage" class="btn btn-primary" :to="{ name: 'product-new' }"><Plus :size="17" /> Add product</RouterLink>
     </EmptyState>
 
     <div v-else class="table-wrap" :style="{ opacity: loading ? 0.55 : 1, transition: 'opacity .15s' }">
@@ -223,15 +226,15 @@ async function confirmDelete() {
               </div>
             </td>
             <td @click.stop>
-              <select class="select status-select" :class="`s-${p.status}`" :value="p.status" aria-label="Status" @change="changeStatus(p, $event.target.value)">
+              <select class="select status-select" :class="`s-${p.status}`" :value="p.status" :disabled="!canManage" aria-label="Status" @change="changeStatus(p, $event.target.value)">
                 <option v-for="s in STATUSES" :key="s" :value="s">{{ s[0].toUpperCase() + s.slice(1) }}</option>
               </select>
             </td>
             <td @click.stop>
               <div class="row-actions">
-                <button class="btn btn-soft btn-sm btn-icon" type="button" title="Edit tags" aria-label="Edit tags" @click="tagsFor = p"><Tag :size="14" /></button>
-                <RouterLink class="btn btn-soft btn-sm btn-icon" :to="{ name: 'product-edit', params: { id: p.id } }" title="Edit" aria-label="Edit"><Pencil :size="14" /></RouterLink>
-                <button class="btn btn-soft-danger btn-sm btn-icon" type="button" title="Delete" aria-label="Delete" @click="toDelete = p"><Trash2 :size="14" /></button>
+                <button v-if="canManage" class="btn btn-soft btn-sm btn-icon" type="button" title="Edit tags" aria-label="Edit tags" @click="tagsFor = p"><Tag :size="14" /></button>
+                <RouterLink class="btn btn-soft btn-sm btn-icon" :to="{ name: 'product-edit', params: { id: p.id } }" :title="canManage ? 'Edit' : 'View'" :aria-label="canManage ? 'Edit' : 'View'"><Pencil :size="14" /></RouterLink>
+                <button v-if="canManage" class="btn btn-soft-danger btn-sm btn-icon" type="button" title="Delete" aria-label="Delete" @click="toDelete = p"><Trash2 :size="14" /></button>
               </div>
             </td>
           </tr>

@@ -4,7 +4,7 @@ A neutral, reusable e-commerce backend. **One deployment per client**: the code 
 client (store name, logo, currency, tax, delivery, which optional features are on) lives in `.env` and the `settings` table.
 
 * **Backend** – Laravel 13 / PHP 8.3 / MySQL 8, JSON API, Sanctum auth (`/api/v1/store/*` for the storefront, `/api/v1/admin/*` for the admin).
-* **Admin panel** – Vue 3 single-page app in `admin-frontend/`, served by Laravel at `/admin` after a build.
+* **Admin panel** – Vue 3 single-page app in `admin-frontend/`, served by Laravel at `/admin` after a build. Admins have a role (super admin, manager, staff) that decides what they can open and change.
 * **Storefront** – not part of this repo. The API is storefront-agnostic: build it in any framework (see [docs/STOREFRONT-API.md](docs/STOREFRONT-API.md)).
 
 ## Quick start

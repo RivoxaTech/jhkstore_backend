@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Domain\Auth\Models\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
+use App\Support\TokenLifetime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -44,8 +45,11 @@ class AuthController extends Controller
         }
         $admin->forceFill(['last_login_at' => now()])->save();
 
+        $expiresAt = TokenLifetime::expiresAt('admin');
+
         return response()->json([
-            'token' => $admin->createToken('admin')->plainTextToken,
+            'token' => $admin->createToken('admin', ['*'], $expiresAt)->plainTextToken,
+            'expires_at' => $expiresAt?->toIso8601String(),
             'admin' => $this->payload($admin),
         ]);
     }
@@ -76,6 +80,7 @@ class AuthController extends Controller
             'name' => $admin->name,
             'email' => $admin->email,
             'roles' => $admin->getRoleNames(),
+            'permissions' => $admin->getAllPermissions()->pluck('name')->sort()->values(),
         ];
     }
 }

@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Middleware\EnsureActor;
+use App\Http\Middleware\EnsureAdminPermission;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -20,7 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['actor' => EnsureActor::class]);
+        $middleware->alias(['actor' => EnsureActor::class, 'admin.can' => EnsureAdminPermission::class]);
+        // Who you are and what you may do are checked BEFORE route models are looked up: a missing permission is 403 (never a 404 that reveals what exists).
+        $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: EnsureActor::class);
+        $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: EnsureAdminPermission::class);
 
         // Requests from the admin panel origin (SANCTUM_STATEFUL_DOMAINS) get sessions + CSRF protection.
         // Everything else (customer site, Postman) stays stateless and uses bearer tokens.
