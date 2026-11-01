@@ -70,6 +70,18 @@ class ManageProductImages
         Audit::log($admin, 'product.image_deleted', $product, ['image' => $id]);
     }
 
+    /** Moves a picture to the front of its own gallery (the product's, or its option's): it becomes that gallery's primary picture. */
+    public function makePrimary(Product $product, string $id, Admin $admin): void
+    {
+        $gallery = collect(ProductImages::all($this->fresh($product)));
+        $picture = $gallery->first(fn ($i) => (string) $i['id'] === $id);
+        abort_unless($picture, 404, 'Picture not found.');
+
+        $ids = $gallery->filter(fn ($i) => $i['variant_id'] === $picture['variant_id'])->map(fn ($i) => (string) $i['id'])->values()->all();
+        $this->applyOrder([$id, ...array_values(array_diff($ids, [$id]))]);
+        Audit::log($admin, 'product.image_primary', $product, ['image' => $id]);
+    }
+
     /**
      * @param  list<int|string>  $ids  picture ids (media id, or "r<id>") in the wanted order: EVERY picture of ONE gallery
      *                                 (the product's, or one option's)

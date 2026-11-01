@@ -539,6 +539,69 @@ class ProductAdminTest extends TestCase
         $this->deleteJson($url.'/'.$foreign)->assertNotFound();
     }
 
+    public function test_picture_size_in_pixels_is_limited(): void
+    {
+        $this->actingAsAdmin();
+        $product = $this->makeProduct($this->makeCategory());
+        $url = self::ADMIN."/products/{$product->id}/images";
+        $json = ['Accept' => 'application/json'];
+
+        $this->post($url, ['images' => [UploadedFile::fake()->image('tiny.jpg', 60, 60)]], $json)->assertUnprocessable()->assertJsonValidationErrors('images.0');
+        $this->post($url, ['images' => [UploadedFile::fake()->image('huge.jpg', 9000, 200)]], $json)->assertUnprocessable()->assertJsonValidationErrors('images.0');
+        $this->post($url, ['images' => [UploadedFile::fake()->image('big.jpg', 600, 600)->size(9000)]], $json)->assertUnprocessable()->assertJsonValidationErrors('images.0');   // > 8 MB
+        $this->post($url, ['images' => [UploadedFile::fake()->create('vector.svg', 5, 'image/svg+xml')]], $json)->assertUnprocessable()->assertJsonValidationErrors('images.0');
+        $this->assertSame(0, $product->media()->count());
+
+        $this->post($url, ['images' => [UploadedFile::fake()->image('ok.jpg', 100, 100)]], $json)->assertCreated();   // the smallest accepted size
+    }
+
+    public function test_a_picture_is_made_primary_inside_its_own_gallery(): void
+    {
+        $this->actingAsAdmin();
+        $product = $this->makeProduct($this->makeCategory(), ['sku' => 'PRIM', 'variants' => [
+            ['name' => 'Small', 'sku' => 'PRIM-S', 'mrp' => 10, 'selling_price' => 9],
+            ['name' => 'Large', 'sku' => 'PRIM-L', 'mrp' => 20, 'selling_price' => 18],
+        ]]);
+        [$small, $large] = $product->variants()->get()->all();
+        $url = self::ADMIN."/products/{$product->id}/images";
+        $json = ['Accept' => 'application/json'];
+        $file = fn (string $n) => UploadedFile::fake()->image($n, 400, 400);
+
+        $own = $this->post($url, ['images' => [$file('a.jpg'), $file('b.jpg'), $file('c.jpg')]], $json)->assertCreated()->json('data');
+        $this->post($url, ['images' => [$file('s1.jpg'), $file('s2.jpg')], 'variant_id' => $small->id], $json)->assertCreated();
+        $this->post($url, ['images' => [$file('l1.jpg')], 'variant_id' => $large->id], $json)->assertCreated();
+        [$a, $b, $c] = array_column($own, 'id');
+
+        // the third picture of the product gallery becomes primary; the others keep their order
+        $list = $this->putJson("$url/$c/primary")->assertOk()->json('data');
+        $gallery = collect($list)->whereNull('variant_id');
+        $this->assertSame([$c, $a, $b], $gallery->pluck('id')->values()->all());
+        $this->assertSame([true, false, false], $gallery->pluck('is_primary')->values()->all());
+        $this->getJson(self::ADMIN."/products/{$product->id}")->assertJsonPath('data.images.0.id', $c);
+
+        // the second picture of an option: only that option's gallery changes
+        $smallIds = collect($list)->where('variant_id', $small->id)->pluck('id')->values()->all();
+        $list = $this->putJson("$url/{$smallIds[1]}/primary")->assertOk()->json('data');
+        $this->assertSame([$smallIds[1], $smallIds[0]], collect($list)->where('variant_id', $small->id)->pluck('id')->values()->all());
+        $this->assertSame([$c, $a, $b], collect($list)->whereNull('variant_id')->pluck('id')->values()->all());
+        $this->assertSame(1, collect($list)->where('variant_id', $large->id)->where('is_primary', true)->count());
+
+        // already primary: nothing changes; unknown pictures and pictures of other products are 404
+        $this->putJson("$url/{$smallIds[1]}/primary")->assertOk();
+        $this->putJson("$url/99999/primary")->assertNotFound();
+        $other = $this->makeProduct($this->makeCategory('Other'));
+        $foreign = $this->post(self::ADMIN."/products/{$other->id}/images", ['images' => [$file('x.jpg')]], $json)->json('data.0.id');
+        $this->putJson("$url/$foreign/primary")->assertNotFound();
+        $this->assertDatabaseHas('audit_logs', ['action' => 'product.image_primary']);
+    }
+
+    public function test_primary_picture_needs_an_admin(): void
+    {
+        $product = $this->makeProduct($this->makeCategory());
+
+        $this->putJson(self::ADMIN."/products/{$product->id}/images/1/primary")->assertUnauthorized();
+    }
+
     public function test_remote_pictures_of_imported_products_are_listed_and_can_be_deleted(): void
     {
         $this->actingAsAdmin();

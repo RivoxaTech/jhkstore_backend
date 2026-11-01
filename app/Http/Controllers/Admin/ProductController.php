@@ -140,6 +140,14 @@ class ProductController extends Controller
         return response()->json(['data' => ProductImages::all($this->loaded($product->id))]);
     }
 
+    /** Make a picture the primary one of its gallery (the product's, or its option's). Same ids as the delete call. */
+    public function primaryImage(Request $request, Product $product, string $image, ManageProductImages $images): JsonResponse
+    {
+        $images->makePrimary($product, $image, $request->user());
+
+        return response()->json(['data' => ProductImages::all($this->loaded($product->id))]);
+    }
+
     /** Send every uploaded picture id of ONE gallery (the product's, or one option's) in the wanted order (`ids`): the first becomes primary. */
     public function reorderImages(ReorderProductImagesRequest $request, Product $product, ManageProductImages $images): JsonResponse
     {

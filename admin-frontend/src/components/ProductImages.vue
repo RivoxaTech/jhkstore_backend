@@ -71,6 +71,12 @@ async function run(call, message) {
   }
 }
 
+function makePrimary(index) {
+  if (index === 0) return
+  if (!props.immediate) return move(index, 0)
+  run(() => api.put(`admin/products/${props.productId}/images/${items.value[index].id}/primary`), 'Primary picture changed.')
+}
+
 function move(from, to) {
   if (from === to || to < 0 || to >= items.value.length) return
   if (!props.immediate) {
@@ -121,7 +127,7 @@ function remove(index) {
         <span v-if="i === 0" class="primary-tag">Primary</span>
         <div class="pic"><img :src="img.src" :alt="`Picture ${i + 1}`" loading="lazy" /></div>
         <div class="bar">
-          <button type="button" :disabled="busy || i === 0" title="Make primary" aria-label="Make primary" @click="move(i, 0)"><Star :size="14" /></button>
+          <button type="button" :disabled="busy || i === 0" title="Make primary" aria-label="Make primary" @click="makePrimary(i)"><Star :size="14" /></button>
           <button type="button" :disabled="busy || i === 0" title="Move left" aria-label="Move left" @click="move(i, i - 1)"><ArrowLeft :size="14" /></button>
           <button type="button" :disabled="busy || i >= items.length - 1" title="Move right" aria-label="Move right" @click="move(i, i + 1)"><ArrowRight :size="14" /></button>
           <button type="button" class="danger" :disabled="busy" title="Delete" aria-label="Delete picture" @click="remove(i)"><Trash2 :size="14" /></button>

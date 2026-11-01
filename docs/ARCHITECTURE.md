@@ -60,6 +60,7 @@ Rule: controller → FormRequest → **Action class** → Eloquent → Resource.
   Customers see a cached tree (`CategoryTree`, 10 minutes, cleared on every admin write).
 * **Products are parents of options (variants).** Price, MRP, stock, points, expiry, SKU and pictures are per option; the listing shows the cheapest option.
   A product is shown on the storefront when it is `active`, its category and sub-category are active and it has an active option.
+* **Pictures** are uploaded in the admin panel (`POST /admin/products/{id}/images`, optionally with `variant_id` for an option's own gallery) and stored with medialibrary (`thumb` 256 px and `medium` 512 px conversions). PNG / JPG / WEBP, 100–8000 px, up to 8 MB, at most 12 per gallery; SVG is refused. The first picture of a gallery is its primary one (`PUT …/images/{id}/primary`, or `PUT …/images/order`). Remote-URL rows in `product_images` only exist for imported data; the admin panel never asks for a URL.
 * **Stock** lives on the option (`stock_qty`, `reserved_qty`, `low_stock_threshold`); every change writes `inventory_movements`.
 * **Bulk prices** (`variant_price_tiers`): "buy N or more for X each", up to 5 per option.
 * **Tags** – labels such as `best-seller`; the storefront builds home page sections with `GET /products?tag=best-seller`. The seven system tags are created by the demo seeder.

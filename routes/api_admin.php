@@ -47,6 +47,7 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin'])->group(function () {
     Route::put('products/{product}/tags', [ProductController::class, 'tags']);
     Route::post('products/{product}/images', [ProductController::class, 'addImages']);
     Route::put('products/{product}/images/order', [ProductController::class, 'reorderImages']);
+    Route::put('products/{product}/images/{image}/primary', [ProductController::class, 'primaryImage']);
     Route::delete('products/{product}/images/{image}', [ProductController::class, 'deleteImage']);
 
     // Banners (multipart for the pictures; reorder = the whole order of a placement)

@@ -17,7 +17,7 @@ class UploadProductImagesRequest extends FormRequest
     {
         return [
             'images' => ['required', 'array', 'min:1', 'max:12'],
-            'images.*' => ['image', 'mimes:png,jpg,jpeg,webp', 'max:8192'],
+            'images.*' => ['image', 'mimes:png,jpg,jpeg,webp', 'max:8192', 'dimensions:min_width=100,min_height=100,max_width=8000,max_height=8000'],
             'variant_id' => ['nullable', 'integer', Rule::exists('product_variants', 'id')->where('product_id', $this->route('product')->id)],
         ];
     }
