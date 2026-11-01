@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Plus, Trash2 } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useCatalogStore } from '@/stores/catalog.js'
+import { useSiteStore } from '@/stores/site.js'
 import ProductImages from '@/components/ProductImages.vue'
 import RelatedProducts from '@/components/RelatedProducts.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
@@ -15,6 +16,7 @@ const route = useRoute()
 const router = useRouter()
 const ui = useUiStore()
 const catalog = useCatalogStore()
+const site = useSiteStore()
 
 const id = computed(() => (route.params.id ? Number(route.params.id) : null))
 const isEdit = computed(() => id.value !== null)
@@ -30,39 +32,32 @@ const pendingProduct = ref([])     // pictures chosen for the product gallery be
 const related = ref([])            // [{ id, name, sku, thumb_url }]
 
 const form = reactive({
-  company_id: '', brand_id: '', category_id: '', sub_category_id: '',
-  name: '', sku: '', short_description: '', description: '', badge_text: '', hsn_code: '', gst_rate: 18,
+  brand_id: '', category_id: '', sub_category_id: '',
+  name: '', sku: '', short_description: '', description: '', badge_text: '', tax_rate: '',
   country_of_origin: '', warranty_text: '', min_order_qty: 1, max_order_qty: 10,
-  is_returnable: true, return_days: 10, is_cod_available: true, is_professional_only: false, status: 'draft',
+  is_returnable: true, return_days: 10, is_cod_available: true, status: 'draft',
   meta_title: '', meta_description: '',
 })
-const channelState = reactive({})  // code -> { enabled, active }
 const tagIds = ref([])
 const tabs = reactive({})          // key -> { content, format, manual_url }
 const openTabs = ref(new Set())
 
-const channels = computed(() => catalog.options.channels)
-const enabledChannels = computed(() => channels.value.filter(c => channelState[c.code]?.enabled))
 const symbol = computed(() => catalog.currency.symbol)
+const showBrands = computed(() => catalog.features.brands)
+const showRewards = computed(() => catalog.features.rewards)
+const taxPlaceholder = computed(() => (site.tax.rate !== null && site.tax.rate !== undefined && site.tax.rate !== '' ? `Store default (${site.tax.rate}%)` : 'Store default'))
 
-const blankStock = () => Object.fromEntries(channels.value.map(c => [c.code, 0]))
 const blankVariant = (over = {}) => ({
   id: null, name: '', sku: '', mrp: '', selling_price: '', reward_points: 0, expiry_date: '', weight_grams: '', is_active: true, is_default: false,
-  price_tiers: [], pending: [], stock: blankStock(), ...over,
+  price_tiers: [], pending: [], stock: 0, stock_was: null, reserved: 0, low_stock_threshold: 0, ...over,
 })
 const variants = ref([])   // the options: every product has at least one; the cheapest one gives the starting price
 
-// ---- dropdowns that depend on each other (the saved company / brand / category stay selectable even if switched off since)
-const companyOptions = computed(() => {
-  const list = [...catalog.options.companies]
-  const p = product.value
-  if (p && !list.some(c => c.id === p.company?.id)) list.push({ id: p.company.id, name: `${p.company.name} (not approved)`, brands: [] })
-  return list
-})
+// ---- dropdowns (the saved brand / category stay selectable even if switched off since)
 const brandOptions = computed(() => {
-  const list = [...(companyOptions.value.find(c => c.id === Number(form.company_id))?.brands ?? [])]
-  const p = product.value
-  if (p && p.brand.company_id === Number(form.company_id) && !list.some(b => b.id === p.brand.id)) list.push({ id: p.brand.id, name: `${p.brand.name} (inactive)` })
+  const list = [...catalog.options.brands]
+  const b = product.value?.brand
+  if (b && !list.some(x => x.id === b.id)) list.push({ id: b.id, name: `${b.name} (inactive)` })
   return list
 })
 const categoryOptions = computed(() => {
@@ -74,12 +69,11 @@ const categoryOptions = computed(() => {
 const subOptions = computed(() => {
   const category = categoryOptions.value.find(c => c.id === Number(form.category_id))
   if (!category) return []
-  const list = category.sub_categories.flatMap(s => [{ id: s.id, label: s.name }, ...s.children.map(ch => ({ id: ch.id, label: `— ${ch.name}` }))])
+  const list = category.sub_categories.map(s => ({ id: s.id, label: s.name }))
   const p = product.value
   if (p?.sub_category && p.category.id === Number(form.category_id) && !list.some(s => s.id === p.sub_category.id)) list.push({ id: p.sub_category.id, label: `${p.sub_category.name} (inactive)` })
   return list
 })
-watch(() => form.company_id, () => { if (!brandOptions.value.some(b => b.id === Number(form.brand_id))) form.brand_id = '' })
 watch(() => form.category_id, () => { if (!subOptions.value.some(s => s.id === Number(form.sub_category_id))) form.sub_category_id = '' })
 
 const num = (v) => (v === '' || v === null || v === undefined ? NaN : Number(v))
@@ -107,7 +101,6 @@ const clearError = (...keys) => { const next = { ...errors.value }; keys.forEach
 onMounted(async () => {
   try {
     await catalog.load()
-    channels.value.forEach(c => { channelState[c.code] = { enabled: c.code === 'standard', active: true } })
     catalog.options.content_tabs.forEach(t => { tabs[t.key] = { content: '', format: 'paragraphs', manual_url: '' } })
     if (isEdit.value) {
       applyProduct((await api.get(`admin/products/${id.value}`)).data)
@@ -127,23 +120,20 @@ function applyProduct(p) {
   pendingProduct.value = []
   related.value = p.related.map(r => ({ id: r.id, name: r.name, sku: r.sku, thumb_url: r.thumb_url }))
   Object.assign(form, {
-    company_id: p.company?.id ?? '', brand_id: p.brand?.id ?? '', category_id: p.category?.id ?? '', sub_category_id: p.sub_category?.id ?? '',
+    brand_id: p.brand?.id ?? '', category_id: p.category?.id ?? '', sub_category_id: p.sub_category?.id ?? '',
     name: p.name, sku: p.sku, short_description: p.short_description ?? '', description: p.description ?? '', badge_text: p.badge_text ?? '',
-    hsn_code: p.hsn_code ?? '', gst_rate: p.gst_rate, country_of_origin: p.country_of_origin ?? '', warranty_text: p.warranty_text ?? '',
+    tax_rate: p.tax_rate ?? '', country_of_origin: p.country_of_origin ?? '', warranty_text: p.warranty_text ?? '',
     min_order_qty: p.min_order_qty, max_order_qty: p.max_order_qty, is_returnable: p.is_returnable, return_days: p.return_days ?? 10,
-    is_cod_available: p.is_cod_available, is_professional_only: p.is_professional_only, status: p.status,
+    is_cod_available: p.is_cod_available, status: p.status,
     meta_title: p.meta_title ?? '', meta_description: p.meta_description ?? '',
   })
   const toRow = (v) => blankVariant({
-    id: v.id, name: v.name, sku: v.sku, mrp: v.mrp, selling_price: v.selling_price, reward_points: v.reward_points,
+    id: v.id, name: v.name, sku: v.sku, mrp: v.mrp, selling_price: v.selling_price, reward_points: v.reward_points ?? 0,
     expiry_date: v.expiry_date ?? '', weight_grams: v.weight_grams ?? '', is_active: v.is_active, is_default: v.is_default,
-    price_tiers: v.price_tiers.map(t => ({ min_qty: t.min_qty, price: t.price })), stock: { ...blankStock(), ...v.stock }, stock_was: { ...v.stock },
+    price_tiers: v.price_tiers.map(t => ({ min_qty: t.min_qty, price: t.price })), stock: v.stock ?? 0, stock_was: Number(v.stock ?? 0),
+    reserved: v.reserved ?? 0, low_stock_threshold: v.low_stock_threshold ?? 0,
   })
   variants.value = p.variants.map(toRow)
-  channels.value.forEach((c) => {
-    const saved = p.channels.find(x => x.code === c.code)
-    channelState[c.code] = { enabled: Boolean(saved), active: saved ? saved.is_active : true }
-  })
   tagIds.value = [...p.tag_ids]
   Object.keys(tabs).forEach((k) => { tabs[k] = { content: '', format: 'paragraphs', manual_url: '' } })
   p.content_tabs.forEach((t) => { tabs[t.tab_key] = { content: t.content ?? '', format: t.format || 'paragraphs', manual_url: t.manual_url ?? '' } })
@@ -174,16 +164,16 @@ const tabFilled = (key) => Boolean(tabs[key]?.content?.trim() || tabs[key]?.manu
 function clientValidate() {
   const e = {}
   const need = (key, label) => { if (!String(form[key]).trim()) e[key] = [`${label} is required.`] }
-  need('company_id', 'Company'); need('brand_id', 'Brand'); need('category_id', 'Category'); need('name', 'Product name'); need('sku', 'SKU')
+  need('category_id', 'Category'); need('name', 'Product name'); need('sku', 'SKU')
   if (Number(form.max_order_qty) < Number(form.min_order_qty)) e.max_order_qty = ['The maximum cannot be lower than the minimum.']
   if (form.is_returnable && !(Number(form.return_days) >= 1)) e.return_days = ['Enter the number of return days.']
 
   const checkRow = (row, prefix) => {
-    if (!row.name.trim()) e[`${prefix}.name`] = ['Name the option (for example "Maarc Pure Eugenol (15ml)").']
+    if (!row.name.trim()) e[`${prefix}.name`] = ['Name the option (for example "Blue, 500 ml").']
     if (!row.sku.trim()) e[`${prefix}.sku`] = ['Enter a SKU.']
-    if (!(num(row.mrp) > 0)) e[`${prefix}.mrp`] = ['Enter the MRP.']
+    if (!(num(row.mrp) > 0)) e[`${prefix}.mrp`] = ['Enter the regular price.']
     if (Number.isNaN(num(row.selling_price))) e[`${prefix}.selling_price`] = ['Enter the selling price.']
-    else if (num(row.selling_price) > num(row.mrp)) e[`${prefix}.selling_price`] = ['The selling price cannot be higher than the MRP.']
+    else if (num(row.selling_price) > num(row.mrp)) e[`${prefix}.selling_price`] = ['The selling price cannot be higher than the regular price.']
 
     row.price_tiers = row.price_tiers.filter(t => String(t.min_qty).trim() !== '' || String(t.price).trim() !== '') // empty rows are ignored
     const seen = new Set()
@@ -207,19 +197,19 @@ function clientValidate() {
   if (!variants.value.length) e.variants = ['Add at least one option.']
   else if (!activeCount.value) e.variants = ['At least one option must be active, otherwise the product has nothing to sell.']
   variants.value.forEach((v, i) => checkRow(v, `variants.${i}`))
-  if (!enabledChannels.value.length) e.channels = ['Choose at least one sales channel.']
+  if (form.tax_rate !== '' && form.tax_rate !== null && !(num(form.tax_rate) >= 0 && num(form.tax_rate) <= 100)) e.tax_rate = ['Enter a rate between 0 and 100, or leave it empty.']
+  variants.value.forEach((v, i) => { if (v.stock !== '' && !(Number.isInteger(num(v.stock)) && num(v.stock) >= 0)) e[`variants.${i}.stock`] = ['Stock must be a whole number, 0 or more.'] })
   return e
 }
 
 function variantPayload(v, index) {
-  const stock = {}
-  enabledChannels.value.forEach((c) => { stock[c.code] = Number(v.stock[c.code]) || 0 })
   return {
     id: v.id, name: v.name.trim(), sku: v.sku.trim() || undefined, is_default: Boolean(v.is_default), mrp: v.mrp, selling_price: v.selling_price,
-    reward_points: Number(v.reward_points) || 0, expiry_date: v.expiry_date || null, weight_grams: String(v.weight_grams).trim() === '' ? null : Number(v.weight_grams),
-    is_active: v.is_active, sort_order: index, stock,
+    ...(showRewards.value ? { reward_points: Number(v.reward_points) || 0 } : {}),
+    expiry_date: v.expiry_date || null, weight_grams: String(v.weight_grams).trim() === '' ? null : Number(v.weight_grams),
+    is_active: v.is_active, sort_order: index, stock: Number(v.stock) || 0,
     // the quantity this form showed when it was opened: lets the server apply the edit as a change, so sales made meanwhile are not undone
-    ...(v.id && v.stock_was ? { stock_was: v.stock_was } : {}),
+    ...(v.id && v.stock_was !== null && v.stock_was !== undefined ? { stock_was: Number(v.stock_was) } : {}),
     price_tiers: v.price_tiers.map(t => ({ min_qty: Number(t.min_qty), price: Number(t.price) })),
   }
 }
@@ -227,19 +217,19 @@ function variantPayload(v, index) {
 function buildPayload() {
   const text = (v) => (String(v).trim() === '' ? null : String(v).trim())
   return {
-    company_id: Number(form.company_id), brand_id: Number(form.brand_id), category_id: Number(form.category_id),
+    ...(showBrands.value ? { brand_id: form.brand_id ? Number(form.brand_id) : null } : {}),
+    category_id: Number(form.category_id),
     sub_category_id: form.sub_category_id ? Number(form.sub_category_id) : null,
     name: form.name.trim(), sku: form.sku.trim(), short_description: text(form.short_description), description: text(form.description),
-    badge_text: text(form.badge_text), hsn_code: text(form.hsn_code), gst_rate: form.gst_rate === '' ? null : Number(form.gst_rate),
+    badge_text: text(form.badge_text), tax_rate: form.tax_rate === '' || form.tax_rate === null ? null : Number(form.tax_rate),
     country_of_origin: text(form.country_of_origin), warranty_text: text(form.warranty_text),
     min_order_qty: Number(form.min_order_qty) || 1, max_order_qty: Number(form.max_order_qty) || 1,
     is_returnable: form.is_returnable, return_days: form.is_returnable ? Number(form.return_days) : null,
-    is_cod_available: form.is_cod_available, is_professional_only: form.is_professional_only,
+    is_cod_available: form.is_cod_available,
     status: form.status, meta_title: text(form.meta_title), meta_description: text(form.meta_description),
     variants: variants.value.map((v, i) => variantPayload(v, i)),
     tag_ids: tagIds.value,
     related_ids: related.value.map(r => r.id),
-    channels: enabledChannels.value.map(c => ({ code: c.code, is_active: channelState[c.code].active })),
     content_tabs: Object.entries(tabs).map(([tab_key, t]) => ({ tab_key, format: t.format, content: t.content.trim() || null, manual_url: t.manual_url.trim() || null })),
   }
 }
@@ -331,22 +321,13 @@ function showErrors(message) {
           <div class="card__head"><h2>Basic details</h2></div>
           <div class="card__body">
             <div class="form-grid">
-              <div class="field">
-                <label for="company">Company <span class="req">*</span></label>
-                <select id="company" v-model="form.company_id" class="select" :class="{ 'has-error': err('company_id') }" @change="clearError('company_id', 'brand_id')">
-                  <option value="">Select company</option>
-                  <option v-for="c in companyOptions" :key="c.id" :value="c.id">{{ c.name }}</option>
-                </select>
-                <p v-if="err('company_id')" class="err">{{ err('company_id') }}</p>
-              </div>
-              <div class="field">
-                <label for="brand">Brand <span class="req">*</span></label>
-                <select id="brand" v-model="form.brand_id" class="select" :disabled="!form.company_id" :class="{ 'has-error': err('brand_id') }" @change="clearError('brand_id')">
-                  <option value="">{{ form.company_id ? 'Select brand' : 'Choose a company first' }}</option>
+              <div v-if="showBrands" class="field">
+                <label for="brand">Brand</label>
+                <select id="brand" v-model="form.brand_id" class="select" :class="{ 'has-error': err('brand_id') }" @change="clearError('brand_id')">
+                  <option value="">No brand</option>
                   <option v-for="b in brandOptions" :key="b.id" :value="b.id">{{ b.name }}</option>
                 </select>
                 <p v-if="err('brand_id')" class="err">{{ err('brand_id') }}</p>
-                <p v-else class="hint">Only the brands of the selected company.</p>
               </div>
               <div class="field">
                 <label for="category">Category <span class="req">*</span></label>
@@ -377,7 +358,7 @@ function showErrors(message) {
               </div>
               <div class="field">
                 <label for="badge">Badge text</label>
-                <input id="badge" v-model="form.badge_text" class="input" maxlength="40" placeholder="e.g. MADE IN USA" :class="{ 'has-error': err('badge_text') }" />
+                <input id="badge" v-model="form.badge_text" class="input" maxlength="40" placeholder="e.g. BEST SELLER" :class="{ 'has-error': err('badge_text') }" />
                 <p v-if="err('badge_text')" class="err">{{ err('badge_text') }}</p>
               </div>
               <div class="field full">
@@ -392,11 +373,11 @@ function showErrors(message) {
               </div>
             </div>
             <div class="form-grid-4">
-              <div class="field"><label for="hsn">HS code</label><input id="hsn" v-model="form.hsn_code" class="input" maxlength="12" placeholder="Customs / tax code" /></div>
               <div class="field">
-                <label for="gst">Sales tax %</label>
-                <input id="gst" v-model="form.gst_rate" class="input" type="number" min="0" max="99.99" step="0.01" :class="{ 'has-error': err('gst_rate') }" />
-                <p v-if="err('gst_rate')" class="err">{{ err('gst_rate') }}</p>
+                <label for="taxrate">Tax rate (%)</label>
+                <input id="taxrate" v-model="form.tax_rate" class="input" type="number" min="0" max="100" step="0.01" :placeholder="taxPlaceholder" :class="{ 'has-error': err('tax_rate') }" @input="clearError('tax_rate')" />
+                <p v-if="err('tax_rate')" class="err">{{ err('tax_rate') }}</p>
+                <p v-else class="hint">Leave empty to use the store default.</p>
               </div>
               <div class="field"><label for="origin">Country of origin</label><input id="origin" v-model="form.country_of_origin" class="input" maxlength="80" /></div>
               <div class="field"><label for="warranty">Warranty</label><input id="warranty" v-model="form.warranty_text" class="input" maxlength="255" placeholder="e.g. 1 year" /></div>
@@ -420,7 +401,6 @@ function showErrors(message) {
             <div style="display: flex; gap: 22px; flex-wrap: wrap">
               <label style="display: flex; gap: 8px; align-items: center"><span class="switch"><input v-model="form.is_returnable" type="checkbox" /><span /></span> Returnable</label>
               <label style="display: flex; gap: 8px; align-items: center"><span class="switch"><input v-model="form.is_cod_available" type="checkbox" /><span /></span> Cash on delivery</label>
-              <label style="display: flex; gap: 8px; align-items: center"><span class="switch"><input v-model="form.is_professional_only" type="checkbox" /><span /></span> Professionals only</label>
             </div>
           </div>
         </section>
@@ -435,7 +415,7 @@ function showErrors(message) {
             <p v-if="err('variants')" class="err">{{ err('variants') }}</p>
             <p class="muted" style="margin: 0">
               A product is a group of options, and customers add an option to the cart. Even a product with one model has one option.
-              Each option has its own name, SKU, price, stock and pictures, like "Maarc Pure Eugenol (15ml)" and "Maarc Pure Eugenol (30ml)". The cheapest option gives the starting price.
+              Each option has its own name, SKU, price, stock and pictures, like "Blue, 500 ml" and "Blue, 1 litre". The cheapest option gives the starting price.
             </p>
             <div v-for="(v, i) in variants" :key="v.id ?? `n${i}`" class="option-card">
               <div class="option-card__head">
@@ -449,32 +429,12 @@ function showErrors(message) {
               </div>
               <div class="option-card__body">
                 <VariantEditor
-                  :row="v" :prefix="`variants.${i}`" :label="`Option ${i + 1}`" :errors="errors" :product-id="id" :images="images" :channels="enabledChannels"
+                  :row="v" :prefix="`variants.${i}`" :label="`Option ${i + 1}`" :errors="errors" :product-id="id" :images="images"
                   @clear="clearError(...$event)" @images="images = $event"
                 />
               </div>
             </div>
             <div><button class="btn btn-outline btn-sm" type="button" @click="addVariant"><Plus :size="15" /> Add option</button></div>
-          </div>
-        </section>
-
-        <!-- ================= Sales channels ================= -->
-        <section id="stock" class="card pf-card">
-          <div class="card__head"><h2>Sales channels</h2></div>
-          <div class="card__body">
-            <p v-if="err('channels')" class="err">{{ err('channels') }}</p>
-            <div v-for="c in channels" :key="c.code" class="chan-row" :class="{ 'is-off': !channelState[c.code]?.enabled }">
-              <label class="switch"><input v-model="channelState[c.code].enabled" type="checkbox" :aria-label="`Sell on ${c.name}`" :data-testid="`channel-${c.code}`" @change="clearError('channels')" /><span /></label>
-              <div class="grow">
-                <strong style="font-weight: 600">{{ c.name }}</strong>
-                <div class="muted">{{ c.requires_login ? 'Only logged-in customers see it. Has its own stock.' : 'Visible to everyone.' }}</div>
-              </div>
-              <label v-if="channelState[c.code]?.enabled" style="display: flex; align-items: center; gap: 8px">
-                <span class="switch"><input v-model="channelState[c.code].active" type="checkbox" :aria-label="`${c.name} active`" /><span /></span> Active on the website
-              </label>
-              <span v-else class="muted">Not sold here</span>
-            </div>
-            <p class="muted" style="margin: 0">The quantity is set inside each option (above): every option has its own stock in every channel you switch on here. The price is the same on both channels.</p>
           </div>
         </section>
 
@@ -537,7 +497,7 @@ function showErrors(message) {
               <select id="status" v-model="form.status" class="select" :class="{ 'has-error': err('status') }">
                 <option v-for="s in catalog.options.statuses" :key="s" :value="s">{{ s[0].toUpperCase() + s.slice(1) }}</option>
               </select>
-              <p class="hint">Only <strong>Active</strong> products show on the website, and only when their brand, category and sales channel are on too.</p>
+              <p class="hint">Only <strong>Active</strong> products show on the website, and only when their category<template v-if="showBrands"> and brand</template> are active too.</p>
             </div>
           </div>
         </section>

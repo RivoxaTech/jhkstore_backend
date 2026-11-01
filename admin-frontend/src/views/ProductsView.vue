@@ -47,19 +47,12 @@ const tabs = computed(() => [
   ...STATUSES.map(s => ({ key: s, label: s[0].toUpperCase() + s.slice(1), count: counts.value[s] || 0 })),
 ])
 
-const brandOptions = computed(() => {
-  const companies = catalog.options.companies
-  const chosen = q('company_id')
-  return companies
-    .filter(c => !chosen || String(c.id) === chosen)
-    .flatMap(c => c.brands.map(b => ({ id: b.id, label: chosen ? b.name : `${b.name} (${c.name})` })))
-})
+const showBrands = computed(() => catalog.features.brands)
 
-// category -> its sub-categories and their children, flattened with an indent
+// the sub-categories of the chosen category
 const subOptions = computed(() => {
   const category = catalog.categories.find(c => String(c.id) === q('category_id'))
-  if (!category) return []
-  return category.sub_categories.flatMap(s => [{ id: s.id, label: s.name }, ...s.children.map(ch => ({ id: ch.id, label: `— ${ch.name}` }))])
+  return category ? category.sub_categories.map(s => ({ id: s.id, label: s.name })) : []
 })
 
 let seq = 0
@@ -69,8 +62,8 @@ async function load() {
   error.value = ''
   try {
     const res = await api.get('admin/products', {
-      q: q('q'), status: status.value, company_id: q('company_id'), brand_id: q('brand_id'), category_id: q('category_id'),
-      sub_category_id: q('sub_category_id'), tag: q('tag'), channel: q('channel'), page: page.value, per_page: PER_PAGE.value,
+      q: q('q'), status: status.value, brand_id: showBrands.value ? q('brand_id') : '', category_id: q('category_id'),
+      sub_category_id: q('sub_category_id'), tag: q('tag'), page: page.value, per_page: PER_PAGE.value,
     })
     if (mine !== seq) return
     rows.value = res.data
@@ -93,10 +86,9 @@ function go(patch) {
   Object.keys(query).forEach(k => (query[k] === '' || query[k] == null) && delete query[k])
   router.push({ name: 'products', query })
 }
-// choosing another company / category clears the choice that depended on it
-const pickCompany = (v) => go({ company_id: v, brand_id: undefined, page: undefined })
+// choosing another category clears the sub-category that depended on it
 const pickCategory = (v) => go({ category_id: v, sub_category_id: undefined, page: undefined })
-const hasFilters = computed(() => ['q', 'status', 'company_id', 'brand_id', 'category_id', 'sub_category_id', 'tag', 'channel'].some(k => q(k)))
+const hasFilters = computed(() => ['q', 'status', 'brand_id', 'category_id', 'sub_category_id', 'tag'].some(k => q(k)))
 const clearFilters = () => { search.value = ''; router.push({ name: 'products' }) }
 
 let t
@@ -141,8 +133,6 @@ async function confirmDelete() {
     busy.value = false
   }
 }
-
-const channelLabel = (code) => (code === 'instadent' ? 'Instadent' : 'Standard')
 </script>
 
 <template>
@@ -171,13 +161,9 @@ const channelLabel = (code) => (code === 'instadent' ? 'Instadent' : 'Standard')
         <input v-model="search" class="input" type="search" placeholder="Search name or SKU" aria-label="Search products" />
       </div>
       <template v-if="catalog.loaded">
-      <select class="select" style="width: 150px" :value="q('company_id')" aria-label="Company" @change="pickCompany($event.target.value)">
-        <option value="">All companies</option>
-        <option v-for="c in catalog.options.companies" :key="c.id" :value="c.id">{{ c.name }}</option>
-      </select>
-      <select class="select" style="width: 150px" :value="q('brand_id')" aria-label="Brand" @change="go({ brand_id: $event.target.value, page: undefined })">
+      <select v-if="showBrands" class="select" style="width: 150px" :value="q('brand_id')" aria-label="Brand" @change="go({ brand_id: $event.target.value, page: undefined })">
         <option value="">All brands</option>
-        <option v-for="b in brandOptions" :key="b.id" :value="b.id">{{ b.label }}</option>
+        <option v-for="b in catalog.options.brands" :key="b.id" :value="b.id">{{ b.name }}</option>
       </select>
       <select class="select" style="width: 150px" :value="q('category_id')" aria-label="Category" @change="pickCategory($event.target.value)">
         <option value="">All categories</option>
@@ -190,10 +176,6 @@ const channelLabel = (code) => (code === 'instadent' ? 'Instadent' : 'Standard')
       <select class="select" style="width: 130px" :value="q('tag')" aria-label="Tag" @change="go({ tag: $event.target.value, page: undefined })">
         <option value="">All tags</option>
         <option v-for="tg in catalog.options.tags" :key="tg.id" :value="tg.slug">{{ tg.name }}</option>
-      </select>
-      <select class="select" style="width: 130px" :value="q('channel')" aria-label="Channel" @change="go({ channel: $event.target.value, page: undefined })">
-        <option value="">All channels</option>
-        <option v-for="c in catalog.options.channels" :key="c.code" :value="c.code">{{ c.name }}</option>
       </select>
       </template>
       <button v-if="hasFilters" class="btn btn-outline btn-sm" type="button" @click="clearFilters">Clear</button>
@@ -213,7 +195,7 @@ const channelLabel = (code) => (code === 'instadent' ? 'Instadent' : 'Standard')
       <table class="table prod-table">
         <thead>
           <tr>
-            <th class="sno">#</th><th>Product</th><th>Brand / company</th><th>Category</th><th>Price</th><th>Stock</th><th>Tags</th><th>Status</th><th />
+            <th class="sno">#</th><th>Product</th><th v-if="showBrands">Brand</th><th>Category</th><th>Price</th><th>Stock</th><th>Tags</th><th>Status</th><th />
           </tr>
         </thead>
         <tbody>
@@ -228,10 +210,7 @@ const channelLabel = (code) => (code === 'instadent' ? 'Instadent' : 'Standard')
                 </div>
               </div>
             </td>
-            <td>
-              <div class="truncate">{{ p.brand?.name }}</div>
-              <div class="muted truncate">{{ p.company?.name }}</div>
-            </td>
+            <td v-if="showBrands"><div class="truncate">{{ p.brand?.name || '-' }}</div></td>
             <td>
               <div class="truncate">{{ p.category?.name }}</div>
               <div class="muted truncate">{{ p.sub_category?.name }}</div>
@@ -241,12 +220,7 @@ const channelLabel = (code) => (code === 'instadent' ? 'Instadent' : 'Standard')
               <div v-if="p.discount_percent > 0" class="off-tag">{{ Number(p.discount_percent) }}% off</div>
             </td>
             <td>
-              <div class="stock-pair">
-                <span v-for="c in p.channels" :key="c.code" class="stock-pill" :class="{ 'is-zero': !p.stock[c.code], 'is-off': !c.is_active }" :title="c.is_active ? '' : 'Switched off on this channel'">
-                  {{ channelLabel(c.code) }} {{ p.stock[c.code] ?? 0 }}
-                </span>
-                <span v-if="!p.channels.length" class="muted">-</span>
-              </div>
+              <span class="stock-pill" :class="{ 'is-zero': !p.is_in_stock || !p.stock }" :title="p.is_in_stock ? 'Units in stock (all options)' : 'Out of stock'">{{ p.stock ?? 0 }}</span>
             </td>
             <td>
               <div class="tags-cell">

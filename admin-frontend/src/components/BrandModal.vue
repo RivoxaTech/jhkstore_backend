@@ -2,29 +2,22 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '@/api/client.js'
 import AppModal from '@/components/AppModal.vue'
-import LogoBox from '@/components/LogoBox.vue'
+import ImagePicker from '@/components/ImagePicker.vue'
 
+// Create / edit a brand. Brands are standalone: a name, a description, an optional logo and banner.
 const props = defineProps({
-  companyId: { type: [Number, String], required: true },
-  companyName: { type: String, default: '' },
-  companyLogo: { type: String, default: null }, // the default logo
-  companyApproved: { type: Boolean, default: false },
   brand: { type: Object, default: null }, // null = create
-  countries: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['close', 'saved'])
 
 const isEdit = computed(() => Boolean(props.brand))
 const form = reactive({
   name: props.brand?.name ?? '',
-  origin_country_id: props.brand?.origin_country?.id ?? '',
   description: props.brand?.description ?? '',
-  is_active: props.brand ? props.brand.is_active : props.companyApproved,
+  sort_order: props.brand ? props.brand.sort_order : '',
+  is_active: props.brand ? props.brand.is_active : true,
 })
-const logo = ref(null)
-const removeLogo = ref(false)
-const ownLogoUrl = ref(props.brand?.has_own_logo ? (props.brand.logo_thumb_url || props.brand.logo_url) : '')
-const chosenPreview = ref('')
+const files = reactive({ logo: null, banner: null, remove_logo: false, remove_banner: false })
 const errors = ref({})
 const message = ref('')
 const busy = ref(false)
@@ -33,26 +26,8 @@ const nameInput = ref(null)
 onMounted(() => nameInput.value?.focus())
 const err = (k) => errors.value[k]?.[0] || ''
 
-// What the brand will show: a newly chosen logo, its own logo, or (default) the company logo.
-const shownLogo = computed(() => chosenPreview.value || (removeLogo.value ? '' : ownLogoUrl.value) || props.companyLogo || '')
-const usingOwn = computed(() => Boolean(chosenPreview.value || (!removeLogo.value && ownLogoUrl.value)))
-
-function pickLogo(e) {
-  const file = e.target.files[0]
-  e.target.value = ''
-  if (!file) return
-  if (file.size > 4 * 1024 * 1024) { errors.value = { ...errors.value, logo: ['The logo must be 4 MB or smaller.'] }; return }
-  logo.value = file
-  chosenPreview.value = URL.createObjectURL(file)
-  removeLogo.value = false
-  errors.value = { ...errors.value, logo: undefined }
-}
-
-function dropOwnLogo() {
-  logo.value = null
-  chosenPreview.value = ''
-  removeLogo.value = true
-}
+const setLogo = ({ file, remove }) => { files.logo = file; files.remove_logo = remove }
+const setBanner = ({ file, remove }) => { files.banner = file; files.remove_banner = remove }
 
 async function save() {
   errors.value = {}
@@ -62,10 +37,12 @@ async function save() {
   const fd = new FormData()
   fd.append('name', form.name.trim())
   fd.append('description', form.description.trim())
-  if (form.origin_country_id) fd.append('origin_country_id', form.origin_country_id)
+  if (form.sort_order !== '' && form.sort_order !== null) fd.append('sort_order', form.sort_order)
   fd.append('is_active', form.is_active ? '1' : '0')
-  if (logo.value) fd.append('logo', logo.value)
-  if (removeLogo.value && !logo.value) fd.append('remove_logo', '1')
+  if (files.logo) fd.append('logo', files.logo)
+  else if (files.remove_logo) fd.append('remove_logo', '1')
+  if (files.banner) fd.append('banner', files.banner)
+  else if (files.remove_banner) fd.append('remove_banner', '1')
 
   busy.value = true
   try {
@@ -74,7 +51,7 @@ async function save() {
       fd.append('_method', 'PUT')
       res = await api.postForm(`admin/brands/${props.brand.id}`, fd)
     } else {
-      res = await api.postForm(`admin/companies/${props.companyId}/brands`, fd)
+      res = await api.postForm('admin/brands', fd)
     }
     emit('saved', res.data, isEdit.value)
   } catch (e) {
@@ -93,49 +70,27 @@ async function save() {
       <div class="form-grid">
         <div class="field full">
           <label for="bname">Brand name <span class="req">*</span></label>
-          <input id="bname" ref="nameInput" v-model="form.name" class="input" :class="{ 'has-error': err('name') }" maxlength="160" />
+          <input id="bname" ref="nameInput" v-model="form.name" class="input" :class="{ 'has-error': err('name') }" maxlength="160" @input="errors = { ...errors, name: undefined }" />
           <p v-if="err('name')" class="err">{{ err('name') }}</p>
         </div>
         <div class="field full">
-          <label for="bcountry">Country of origin</label>
-          <select id="bcountry" v-model="form.origin_country_id" class="select">
-            <option value="">Not specified</option>
-            <option v-for="c in countries" :key="c.id" :value="c.id">{{ c.name }}</option>
-          </select>
-        </div>
-        <div class="field full">
           <label for="bdesc">Description</label>
-          <textarea id="bdesc" v-model="form.description" class="textarea" rows="2" />
+          <textarea id="bdesc" v-model="form.description" class="textarea" rows="2" :class="{ 'has-error': err('description') }" />
+          <p v-if="err('description')" class="err">{{ err('description') }}</p>
         </div>
-        <div class="field full">
-          <label>Brand logo</label>
-          <div style="display: flex; gap: 12px; align-items: center">
-            <LogoBox :name="form.name || companyName" :src="shownLogo" large />
-            <div>
-              <p style="margin-bottom: 6px">
-                <span v-if="usingOwn" class="badge badge--plain">Own logo</span>
-                <span v-else class="badge badge--plain">Using the company logo</span>
-              </p>
-              <div style="display: flex; gap: 6px; flex-wrap: wrap">
-                <label class="btn btn-outline btn-sm" style="cursor: pointer; margin: 0">
-                  {{ usingOwn ? 'Change' : 'Upload own logo' }}
-                  <input type="file" accept=".png,.jpg,.jpeg,.webp" hidden @change="pickLogo" />
-                </label>
-                <button v-if="usingOwn" class="btn btn-soft-danger btn-sm" type="button" @click="dropOwnLogo">Remove own logo</button>
-              </div>
-              <p class="hint">Optional. Without its own logo the brand shows the company logo. PNG, JPG or WEBP, up to 4 MB.</p>
-            </div>
-          </div>
-          <p v-if="err('logo')" class="err">{{ err('logo') }}</p>
+        <ImagePicker label="Logo" :name="form.name" :current="brand?.logo_thumb_url || brand?.logo_url || ''" hint="Square picture. Optional. PNG, JPG or WEBP." :error="err('logo')" @change="setLogo" />
+        <ImagePicker label="Banner" :name="form.name" :current="brand?.banner_url || ''" :max-mb="8" hint="Wide picture for the brand page. Optional." :error="err('banner')" @change="setBanner" />
+        <div class="field">
+          <label for="bsort">Sort order</label>
+          <input id="bsort" v-model="form.sort_order" class="input" type="number" min="0" max="65535" placeholder="Last" :class="{ 'has-error': err('sort_order') }" />
+          <p v-if="err('sort_order')" class="err">{{ err('sort_order') }}</p>
+          <p v-else class="hint">Smaller numbers come first.</p>
         </div>
-        <div class="field full" style="display: flex; align-items: center; gap: 10px">
-          <label class="switch" aria-label="Brand is live">
-            <input v-model="form.is_active" type="checkbox" :disabled="!companyApproved" />
-            <span />
-          </label>
+        <div class="field" style="display: flex; align-items: center; gap: 10px">
+          <label class="switch" aria-label="Brand is active"><input v-model="form.is_active" type="checkbox" /><span /></label>
           <div>
-            <strong style="font-weight: 500">Show on the website</strong>
-            <p class="hint" style="margin: 0">{{ companyApproved ? 'Customers can see this brand.' : 'Available after the company is approved.' }}</p>
+            <strong style="font-weight: 500">Active</strong>
+            <p class="hint" style="margin: 0">Customers can see this brand when it is on.</p>
           </div>
         </div>
       </div>

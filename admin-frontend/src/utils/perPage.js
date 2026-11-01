@@ -1,7 +1,7 @@
 // Rows per page for the admin tables. The choice is remembered in the browser and shared by every table.
 export const PER_PAGE_OPTIONS = [25, 50, 75, 100]
 export const DEFAULT_PER_PAGE = 25
-const KEY = 'dk_per_page'
+const KEY = 'admin_per_page'
 
 export const isValidPerPage = (n) => PER_PAGE_OPTIONS.includes(Number(n))
 

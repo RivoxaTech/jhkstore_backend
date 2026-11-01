@@ -1,10 +1,13 @@
 <script setup>
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { CheckCircle2, Eye, EyeOff, ShieldCheck, Stethoscope } from '@lucide/vue'
+import { CheckCircle2, Eye, EyeOff, ShieldCheck } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
+import { useSiteStore } from '@/stores/site.js'
+import StoreMark from '@/components/StoreMark.vue'
 
 const auth = useAuthStore()
+const site = useSiteStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -39,16 +42,16 @@ async function submit() {
   <div class="login">
     <section class="login__art" aria-hidden="true">
       <div class="sidebar__brand" style="border: 0; padding: 0; position: relative">
-        <div class="brand-mark" style="background: rgba(255, 255, 255, .18)"><Stethoscope :size="20" /></div>
-        <div class="brand-text" style="color: #fff">Dentalkart<small style="color: rgba(255, 255, 255, .7)">Admin</small></div>
+        <StoreMark on-dark />
+        <div class="brand-text" style="color: #fff">{{ site.name }}<small style="color: rgba(255, 255, 255, .7)">Admin</small></div>
       </div>
       <div>
-        <h2>Manage companies, brands and catalogue in one place.</h2>
-        <p>Review seller requests, approve companies and keep your product data organised.</p>
+        <h2>Manage your whole store in one place.</h2>
+        <p>Keep your catalogue organised, follow your orders and tune the store settings.</p>
       </div>
       <ul class="login__points">
-        <li><CheckCircle2 :size="18" /> Approve or reject seller registrations</li>
-        <li><CheckCircle2 :size="18" /> Manage brands of every company</li>
+        <li><CheckCircle2 :size="18" /> Manage products, categories and stock</li>
+        <li><CheckCircle2 :size="18" /> Process orders from placed to delivered</li>
         <li><ShieldCheck :size="18" /> Secure cookie-based sign in</li>
       </ul>
     </section>
@@ -56,7 +59,7 @@ async function submit() {
     <section class="login__form-side">
       <form class="login__card" novalidate @submit.prevent="submit">
         <h1>Welcome back</h1>
-        <p class="sub">Sign in to the admin panel</p>
+        <p class="sub">Sign in to manage your store</p>
 
         <div v-if="error" class="alert alert--error" role="alert">{{ error }}</div>
 

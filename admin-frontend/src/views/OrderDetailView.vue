@@ -4,6 +4,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import { Ban, Check, FileText, PackageCheck, Printer, Save, Truck } from '@lucide/vue'
 import { api, ApiError } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
+import { useSiteStore } from '@/stores/site.js'
 import AppModal from '@/components/AppModal.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
@@ -11,6 +12,7 @@ import { formatDate, money } from '@/utils/format.js'
 
 const route = useRoute()
 const ui = useUiStore()
+const site = useSiteStore()
 
 const order = ref(null)
 const loading = ref(true)
@@ -40,6 +42,18 @@ watch(() => route.params.id, load)
 
 const o = computed(() => order.value)
 const totals = computed(() => o.value?.totals || {})
+// Reward-point rows only exist in the response when the feature is enabled: render them only if the key is there.
+const has = (obj, key) => obj && obj[key] !== undefined && obj[key] !== null
+const hasPoints = computed(() => has(totals.value, 'coins_to_earn'))
+const hasItemPoints = computed(() => (o.value?.items || []).some(i => has(i, 'coins_earned')))
+// tax: "Tax (incl.)" when the prices already contain it, plain "Tax" when it is added on top of the total
+const taxLabel = computed(() => {
+  const base = totals.value.tax_label || 'Tax'
+  return totals.value.tax_inclusive ? `${base} (incl.)` : base
+})
+const hasTax = computed(() => has(totals.value, 'tax_total') && (Number(totals.value.tax_total) > 0 || !totals.value.tax_inclusive))
+const brandName = (b) => (b && typeof b === 'object' ? b.name : b) || ''
+const storeAddress = computed(() => String(site.store.address || '').split(/\r?\n/).filter(Boolean))
 const sameAddress = computed(() => JSON.stringify(o.value?.shipping_address) === JSON.stringify(o.value?.billing_address))
 
 const NEXT = {
@@ -125,8 +139,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
       <div class="od-meta" style="margin-bottom: 12px">
         <StatusBadge :status="o.status" />
         <span>Placed {{ formatDate(o.placed_at, true) }}</span>
-        <span class="badge badge--plain">{{ o.channel.name }}</span>
-        <StatusBadge :status="o.payment.status" />
+                <StatusBadge :status="o.payment.status" />
         <span v-if="o.estimated_delivery_date && o.status !== 'delivered' && o.status !== 'cancelled'">Estimated delivery {{ formatDate(o.estimated_delivery_date) }}</span>
         <span v-if="o.status === 'cancelled'" style="color: var(--danger)">Cancelled by {{ o.cancelled_by }}: {{ o.cancel_reason }}</span>
       </div>
@@ -134,10 +147,10 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
       <div class="od-layout">
         <div>
           <section class="card">
-            <div class="card__head"><h2>Items ({{ o.items.length }}) · {{ totals.coins_to_earn }} coins to earn</h2></div>
+            <div class="card__head"><h2>Items ({{ o.items.length }})<template v-if="hasPoints"> · {{ totals.coins_to_earn }} points to earn</template></h2></div>
             <div class="table-wrap">
               <table class="table od-items">
-                <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Total</th><th class="num">Coins</th></tr></thead>
+                <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Total</th><th v-if="hasItemPoints" class="num">Points</th></tr></thead>
                 <tbody>
                   <tr v-for="i in o.items" :key="i.id">
                     <td>
@@ -147,7 +160,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
                           <strong style="white-space: normal">{{ i.name }}</strong>
                           <small v-if="i.option_name && i.option_name !== i.name" style="white-space: normal">{{ i.option_name }}</small>
                           <small style="white-space: normal">SKU {{ i.sku }}<template v-if="i.status === 'cancelled'"> · cancelled</template></small>
-                          <small style="white-space: normal">Brand: {{ i.brand }} · Company: {{ i.company }}</small>
+                          <small v-if="brandName(i.brand)" style="white-space: normal">Brand: {{ brandName(i.brand) }}</small>
                         </div>
                       </div>
                     </td>
@@ -158,20 +171,21 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
                       <span v-if="i.bulk_applied" class="bulk-note">Bulk offer: Buy {{ i.bulk_applied.min_qty }}+ (option price {{ money(i.price) }})</span>
                     </td>
                     <td class="num"><strong>{{ money(i.line_total) }}</strong></td>
-                    <td class="num">{{ i.coins_earned }}</td>
+                    <td v-if="hasItemPoints" class="num">{{ i.coins_earned ?? 0 }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
             <div class="totals" aria-label="Price breakdown">
-              <div><span>Items total (at MRP)</span><span>{{ money(totals.items_total) }}</span></div>
+              <div><span>Items total (regular prices)</span><span>{{ money(totals.items_total) }}</span></div>
               <div v-if="totals.product_discount > 0" class="minus"><span>Product discount</span><span>- {{ money(totals.product_discount) }}</span></div>
               <div v-if="totals.bulk_discount > 0" class="minus"><span>Bulk-offer discount</span><span>- {{ money(totals.bulk_discount) }}</span></div>
               <div><span>Subtotal</span><span>{{ money(totals.subtotal) }}</span></div>
-              <div v-if="totals.coins_redeemed > 0" class="minus"><span>Coins discount ({{ totals.coins_redeemed }} coins)</span><span>- {{ money(totals.coins_discount) }}</span></div>
+              <div v-if="totals.coins_redeemed > 0" class="minus"><span>Points discount ({{ totals.coins_redeemed }} points)</span><span>- {{ money(totals.coins_discount) }}</span></div>
               <div><span>Delivery fee</span><span>{{ totals.delivery_fee > 0 ? money(totals.delivery_fee) : 'Free' }}</span></div>
+              <div v-if="hasTax && !totals.tax_inclusive"><span>{{ taxLabel }}</span><span>+ {{ money(totals.tax_total) }}</span></div>
               <div class="grand"><span>Grand total</span><span>{{ money(totals.grand_total) }}</span></div>
-              <small>{{ totals.tax_note }} ({{ money(totals.tax_included) }} tax included)</small>
+              <small v-if="totals.tax_note || (hasTax && totals.tax_inclusive)">{{ totals.tax_note }}<template v-if="hasTax && totals.tax_inclusive"> ({{ taxLabel }}: {{ money(totals.tax_total) }})</template></small>
             </div>
           </section>
 
@@ -193,7 +207,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
               <div><span class="k">Name</span><span class="v">{{ o.customer.name }}</span></div>
               <div><span class="k">Email</span><span class="v">{{ o.customer.email || '-' }}</span></div>
               <div><span class="k">Phone</span><span class="v">{{ o.customer.phone || '-' }}</span></div>
-              <div v-if="o.customer.gst_number"><span class="k">GSTIN</span><span class="v">{{ o.customer.gst_number }}</span></div>
+              <div v-if="o.customer.tax_number"><span class="k">Tax number</span><span class="v">{{ o.customer.tax_number }}</span></div>
               <div><span class="k">Customer since</span><span class="v">{{ formatDate(o.customer.member_since) }}</span></div>
             </div>
           </section>
@@ -204,7 +218,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
               <strong>{{ o.shipping_address.name }}<span v-if="o.shipping_address.type" class="tag">{{ o.shipping_address.type }}</span></strong>
               <div v-for="line in addressLines(o.shipping_address)" :key="line">{{ line }}</div>
               <div>Phone: {{ o.shipping_address.phone }}<template v-if="o.shipping_address.alt_phone"> · Alt: {{ o.shipping_address.alt_phone }}</template></div>
-              <div v-if="o.shipping_address.gst_number">GSTIN: {{ o.shipping_address.gst_number }}</div>
+              <div v-if="o.shipping_address.tax_number">Tax number: {{ o.shipping_address.tax_number }}</div>
             </div>
           </section>
 
@@ -215,7 +229,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
               <strong>{{ o.billing_address.name }}<span v-if="o.billing_address.type" class="tag">{{ o.billing_address.type }}</span></strong>
               <div v-for="line in addressLines(o.billing_address)" :key="line">{{ line }}</div>
               <div>Phone: {{ o.billing_address.phone }}<template v-if="o.billing_address.alt_phone"> · Alt: {{ o.billing_address.alt_phone }}</template></div>
-              <div v-if="o.billing_address.gst_number">GSTIN: {{ o.billing_address.gst_number }}</div>
+              <div v-if="o.billing_address.tax_number">Tax number: {{ o.billing_address.tax_number }}</div>
             </div>
           </section>
 
@@ -260,9 +274,16 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
 
     <!-- Printed version (invoice or packing slip); only visible when printing -->
     <div class="print-sheet" :class="{ 'is-slip': printMode === 'slip' }">
-      <h1>Dentalkart</h1>
+      <div class="ps-head">
+        <img v-if="site.logoUrl" class="ps-logo" :src="site.logoUrl" :alt="site.name" />
+        <div>
+          <h1>{{ site.name }}</h1>
+          <div v-for="line in storeAddress" :key="line">{{ line }}</div>
+          <div v-if="site.store.phone || site.store.email">{{ [site.store.phone, site.store.email].filter(Boolean).join(' · ') }}</div>
+        </div>
+      </div>
       <div><strong>{{ printMode === 'slip' ? 'Packing slip' : 'Invoice' }}</strong> · Order {{ o.order_number }} · {{ formatDate(o.placed_at, true) }}</div>
-      <div>Channel: {{ o.channel.name }} · Payment: {{ o.payment.method_label }} ({{ o.payment.status.replace('_', ' ') }})</div>
+      <div>Payment: {{ o.payment.method_label }} ({{ o.payment.status.replace('_', ' ') }})</div>
       <div class="ps-grid">
         <div>
           <strong>Ship to</strong>
@@ -274,7 +295,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
           <strong>Bill to</strong>
           <div>{{ o.billing_address.name }}</div>
           <div v-for="line in addressLines(o.billing_address)" :key="line">{{ line }}</div>
-          <div v-if="o.billing_address.gst_number">GSTIN: {{ o.billing_address.gst_number }}</div>
+          <div v-if="o.billing_address.tax_number">Tax number: {{ o.billing_address.tax_number }}</div>
         </div>
       </div>
       <table>
@@ -287,13 +308,15 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
         </tbody>
       </table>
       <div v-if="printMode !== 'slip'" class="ps-totals">
-        <div><span>Items total (MRP)</span><span>{{ money(totals.items_total) }}</span></div>
+        <div><span>Items total (regular prices)</span><span>{{ money(totals.items_total) }}</span></div>
         <div v-if="totals.product_discount > 0"><span>Product discount</span><span>- {{ money(totals.product_discount) }}</span></div>
         <div v-if="totals.bulk_discount > 0"><span>Bulk-offer discount</span><span>- {{ money(totals.bulk_discount) }}</span></div>
-        <div v-if="totals.coins_redeemed > 0"><span>Coins ({{ totals.coins_redeemed }})</span><span>- {{ money(totals.coins_discount) }}</span></div>
+        <div v-if="totals.coins_redeemed > 0"><span>Points ({{ totals.coins_redeemed }})</span><span>- {{ money(totals.coins_discount) }}</span></div>
         <div><span>Delivery</span><span>{{ totals.delivery_fee > 0 ? money(totals.delivery_fee) : 'Free' }}</span></div>
+        <div v-if="hasTax && !totals.tax_inclusive"><span>{{ taxLabel }}</span><span>{{ money(totals.tax_total) }}</span></div>
         <div class="grand"><span>Total</span><span>{{ money(totals.grand_total) }}</span></div>
-        <div><span>{{ totals.tax_note }}</span><span>{{ money(totals.tax_included) }}</span></div>
+        <div v-if="hasTax && totals.tax_inclusive"><span>{{ taxLabel }}</span><span>{{ money(totals.tax_total) }}</span></div>
+        <div v-if="totals.tax_note"><span>{{ totals.tax_note }}</span><span /></div>
       </div>
       <p v-if="o.customer_note" style="margin-top: 12px"><strong>Customer note:</strong> {{ o.customer_note }}</p>
     </div>
@@ -302,16 +325,16 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
   <AppModal v-if="modal" :title="modal.title" @close="!busy && (modal = null)">
     <form id="status-form" style="display: grid; gap: 12px" @submit.prevent="submit">
       <p v-if="modal.status === 'delivered' && o.payment.collect_on_delivery" class="alert alert--info" style="margin: 0">
-        The courier collected {{ money(o.payment.collect_on_delivery) }} in cash: the payment will be marked as paid and {{ totals.coins_to_earn }} coins will be credited to the customer.
+        The courier collected {{ money(o.payment.collect_on_delivery) }} in cash: the payment will be marked as paid<template v-if="hasPoints"> and {{ totals.coins_to_earn }} points will be credited to the customer</template>.
       </p>
-      <p v-else-if="modal.status === 'delivered'" class="alert alert--info" style="margin: 0">{{ totals.coins_to_earn }} coins will be credited to the customer.</p>
-      <p v-if="modal.status === 'cancelled'" class="alert alert--info" style="margin: 0">The stock goes back on the shelf and {{ totals.coins_redeemed }} redeemed coins are returned to the customer.</p>
+      <p v-else-if="modal.status === 'delivered' && hasPoints" class="alert alert--info" style="margin: 0">{{ totals.coins_to_earn }} points will be credited to the customer.</p>
+      <p v-if="modal.status === 'cancelled'" class="alert alert--info" style="margin: 0">The stock goes back on the shelf<template v-if="totals.coins_redeemed > 0"> and {{ totals.coins_redeemed }} redeemed points are returned to the customer</template>.</p>
 
       <template v-if="modal.status === 'shipped'">
         <div class="form-grid">
           <div class="field">
             <label for="courier">Courier <span class="req">*</span></label>
-            <input id="courier" v-model="form.courier" class="input" :class="{ 'has-error': fe('courier') }" placeholder="e.g. TCS, Leopards" maxlength="60" />
+            <input id="courier" v-model="form.courier" class="input" :class="{ 'has-error': fe('courier') }" placeholder="e.g. DHL, FedEx" maxlength="60" />
             <div v-if="fe('courier')" class="err">{{ fe('courier') }}</div>
           </div>
           <div class="field">

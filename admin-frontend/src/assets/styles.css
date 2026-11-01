@@ -1,4 +1,4 @@
-/* Dentalkart Admin – design tokens follow the customer site (blue primary, orange accent, Poppins). */
+/* Admin panel styles - design tokens: blue primary, orange accent, Poppins. */
 :root {
   --primary: #1d70ca;
   --primary-dark: #1257a0;
@@ -317,14 +317,6 @@ table.cat-table { min-width: 720px; }
 .cat-table .cat-sub td { background: #f8fafc; height: 42px; }
 .cat-table .cat-sub td:first-child { box-shadow: inset 3px 0 0 var(--primary-soft); }
 .cat-table .cat-sub td:nth-child(2) { padding-left: 34px; }
-.cat-table .cat-sub--child td { background: #f1faf4; height: 40px; }
-.cat-table .cat-sub--child td:first-child { box-shadow: inset 3px 0 0 #86d6a1; }
-.cat-table .cat-sub--child .sno { color: #2f9e5b; }
-.cat-table .cat-sub--child .logo-box { background: #dcf3e4; color: #1f7a45; }
-.btn-soft-green { background: #e3f6ea; color: #1f7a45; }
-.cat-table .cat-sub--child.cat-sub--add td:nth-child(2) { padding-left: 62px; }
-.btn-soft-green:hover { background: #d3f0de; }
-.cat-table .cat-sub--child td:nth-child(2) { padding-left: 62px; }
 .cat-table .cat-sub--add td:nth-child(2) { padding-left: 34px; }
 .cat-table .chev-gap { width: 24px; flex: none; }
 .cat-table .cat-sub--add td { height: 40px; }
@@ -352,10 +344,8 @@ table.prod-table { min-width: 0; table-layout: auto; }
 .price-cell strong { font-weight: 600; }
 .price-cell s { color: var(--text-3); font-size: 11.5px; margin-left: 4px; }
 .off-tag { color: var(--success); font-size: 11.5px; font-weight: 600; }
-.stock-pair { display: flex; gap: 6px; flex-wrap: wrap; }
 .stock-pill { font-size: 11px; padding: 0 7px; border-radius: 6px; background: var(--muted-soft); color: var(--text-2); white-space: nowrap; }
 .stock-pill.is-zero { background: var(--danger-soft); color: var(--danger); }
-.stock-pill.is-off { opacity: .55; text-decoration: line-through; }
 .tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 500; background: var(--primary-soft); color: var(--primary-dark); white-space: nowrap; max-width: 130px; overflow: hidden; text-overflow: ellipsis; border: 1px solid transparent; }
 .tag-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--primary)); flex: none; }
 .tag-pick { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -391,9 +381,6 @@ table.prod-table { min-width: 0; table-layout: auto; }
 .var-table td { padding: 5px 4px; vertical-align: top; }
 .var-table .input { height: 30px; padding: 0 8px; }
 .var-table .off { padding-top: 6px; }
-.chan-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--border-light); border-radius: 10px; flex-wrap: wrap; }
-.chan-row.is-off { background: #fafbfd; }
-.chan-row .grow { flex: 1; min-width: 160px; }
 .stock-grid { display: grid; gap: 6px; }
 .stock-line { display: grid; grid-template-columns: minmax(120px, 1fr) repeat(2, minmax(90px, 140px)); gap: 8px; align-items: center; }
 .stock-line .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -527,9 +514,17 @@ label.dropzone { display: block; }
   .print-sheet th, .print-sheet td { border-bottom: 1px solid #bbb; padding: 5px 6px; text-align: left; vertical-align: top; }
   .print-sheet .num { text-align: right; }
   .print-sheet h1 { font-size: 20px; }
+  .print-sheet .ps-head { display: flex; gap: 12px; align-items: center; }
+  .print-sheet .ps-logo { max-height: 56px; width: auto; }
   .print-sheet .ps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
   .print-sheet .ps-totals { margin-left: auto; width: 280px; margin-top: 10px; }
   .print-sheet .ps-totals div { display: flex; justify-content: space-between; padding: 2px 0; }
   .print-sheet .ps-totals .grand { border-top: 2px solid #000; font-weight: 700; font-size: 14px; margin-top: 4px; padding-top: 5px; }
   .print-sheet.is-slip .price-col { display: none; }
 }
+
+/* ---------- store mark (logo or generic icon) ---------- */
+.brand-mark--logo { background: #fff; border: 1px solid var(--border-light); overflow: hidden; }
+.brand-mark img { width: 100%; height: 100%; object-fit: contain; }
+.brand-mark.on-dark { background: rgba(255, 255, 255, .18); border: 0; }
+.brand-mark.on-dark.brand-mark--logo { background: #fff; }

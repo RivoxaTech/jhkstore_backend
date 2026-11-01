@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { Search, ShoppingBag } from '@lucide/vue'
 import { api } from '@/api/client.js'
@@ -13,7 +13,7 @@ import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.
 import { formatDate, money } from '@/utils/format.js'
 
 const STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled']
-const PAYMENT_STATUSES = [['cod_pending', 'COD - to collect'], ['paid', 'Paid'], ['cancelled', 'Cancelled'], ['pending', 'Awaiting payment'], ['failed', 'Failed'], ['refunded', 'Refunded']]
+const PAYMENT_STATUSES = [['cod_pending', 'Cash on delivery - to collect'], ['paid', 'Paid'], ['cancelled', 'Cancelled'], ['pending', 'Awaiting payment'], ['failed', 'Failed'], ['refunded', 'Refunded']]
 
 const route = useRoute()
 const router = useRouter()
@@ -22,7 +22,6 @@ const ui = useUiStore()
 const rows = ref([])
 const meta = ref(null)
 const counts = ref({})
-const options = ref({ channels: [] })
 const loading = ref(true)
 const loadedOnce = ref(false)
 const error = ref('')
@@ -47,7 +46,7 @@ async function load() {
   error.value = ''
   try {
     const res = await api.get('admin/orders', {
-      q: q('q'), status: status.value, channel: q('channel'), payment_status: q('payment_status'), from: q('from'), to: q('to'),
+      q: q('q'), status: status.value, payment_status: q('payment_status'), from: q('from'), to: q('to'),
       user_id: q('user_id'), page: page.value, per_page: PER_PAGE.value,
     })
     if (mine !== seq) return
@@ -55,7 +54,7 @@ async function load() {
     meta.value = res.meta
     counts.value = res.counts || {}
     loadedOnce.value = true
-    if (!q('q') && !status.value && !q('channel') && !q('payment_status') && !q('from') && !q('to') && !q('user_id')) ui.pendingOrders = counts.value.pending || 0
+    if (!q('q') && !status.value && !q('payment_status') && !q('from') && !q('to') && !q('user_id')) ui.pendingOrders = counts.value.pending || 0
   } catch (e) {
     if (mine === seq) error.value = e.message
   } finally {
@@ -63,7 +62,6 @@ async function load() {
   }
 }
 
-onMounted(async () => { try { options.value = await api.get('admin/orders/options') } catch { /* filters just stay short */ } })
 watch(() => route.fullPath, load, { immediate: true })
 watch(() => route.query.q, (v) => { search.value = String(v || '') })
 
@@ -72,7 +70,7 @@ function go(patch) {
   Object.keys(query).forEach(k => (query[k] === '' || query[k] == null) && delete query[k])
   router.push({ name: 'orders', query })
 }
-const hasFilters = computed(() => ['q', 'status', 'channel', 'payment_status', 'from', 'to', 'user_id'].some(k => q(k)))
+const hasFilters = computed(() => ['q', 'status', 'payment_status', 'from', 'to', 'user_id'].some(k => q(k)))
 const clearFilters = () => { search.value = ''; router.push({ name: 'orders' }) }
 
 let t
@@ -81,8 +79,6 @@ watch(search, (value) => {
   t = setTimeout(() => { if (value.trim() !== q('q')) go({ q: value.trim(), page: undefined }) }, 350)
 })
 onBeforeUnmount(() => clearTimeout(t))
-
-const channelLabel = (c) => c?.name || '-'
 </script>
 
 <template>
@@ -106,10 +102,6 @@ const channelLabel = (c) => c?.name || '-'
         <Search :size="16" />
         <input v-model="search" class="input" type="search" placeholder="Order no, customer, phone or email" aria-label="Search orders" />
       </div>
-      <select v-if="options.channels.length" class="select" style="width: 140px" :value="q('channel')" aria-label="Channel" @change="go({ channel: $event.target.value, page: undefined })">
-        <option value="">All channels</option>
-        <option v-for="c in options.channels" :key="c.code" :value="c.code">{{ c.name }}</option>
-      </select>
       <select class="select" style="width: 160px" :value="q('payment_status')" aria-label="Payment" @change="go({ payment_status: $event.target.value, page: undefined })">
         <option value="">All payments</option>
         <option v-for="[v, label] in PAYMENT_STATUSES" :key="v" :value="v">{{ label }}</option>
@@ -131,7 +123,7 @@ const channelLabel = (c) => c?.name || '-'
     <div v-else class="table-wrap" :style="{ opacity: loading ? 0.55 : 1, transition: 'opacity .15s' }">
       <table class="table">
         <thead>
-          <tr><th>Order</th><th>Date</th><th>Customer</th><th class="num" style="text-align: right">Items</th><th style="text-align: right">Total</th><th>Payment</th><th>Channel</th><th>Status</th></tr>
+          <tr><th>Order</th><th>Date</th><th>Customer</th><th class="num" style="text-align: right">Items</th><th style="text-align: right">Total</th><th>Payment</th><th>Status</th></tr>
         </thead>
         <tbody>
           <tr v-for="o in rows" :key="o.id" class="row-link" @click="router.push({ name: 'order', params: { id: o.id } })">
@@ -147,7 +139,6 @@ const channelLabel = (c) => c?.name || '-'
               <div>{{ o.payment_method_label }}</div>
               <StatusBadge :status="o.payment_status" />
             </td>
-            <td>{{ channelLabel(o.channel) }}</td>
             <td><StatusBadge :status="o.status" /></td>
           </tr>
         </tbody>

@@ -4,17 +4,16 @@ import { api } from '@/api/client.js'
 import AppModal from '@/components/AppModal.vue'
 import ImagePicker from '@/components/ImagePicker.vue'
 
-// Create / edit a category, or (when `parent` is given) a sub-category of that category, or a sub-sub-category of that sub-category.
+// Create / edit a category, or (when `parent` is given) a sub-category of that category. Categories have two levels only.
 const props = defineProps({
   item: { type: Object, default: null },    // null = create
-  parent: { type: Object, default: null },  // a category or a sub-category (it has `category_id`)
+  parent: { type: Object, default: null },  // the category of a sub-category
 })
 const emit = defineEmits(['close', 'saved'])
 
 const isSub = computed(() => Boolean(props.parent))
 const isEdit = computed(() => Boolean(props.item))
-const parentIsSub = computed(() => Boolean(props.parent?.category_id))
-const noun = computed(() => (!isSub.value ? 'category' : parentIsSub.value ? 'sub-sub-category' : 'sub-category'))
+const noun = computed(() => (isSub.value ? 'sub-category' : 'category'))
 
 const form = reactive({
   name: props.item?.name ?? '',
@@ -59,7 +58,7 @@ async function save() {
       fd.append('_method', 'PUT')
       res = await api.postForm(`${base}/${props.item.id}`, fd)
     } else {
-      res = await api.postForm(!isSub.value ? base : parentIsSub.value ? `admin/sub-categories/${props.parent.id}/children` : `admin/categories/${props.parent.id}/sub-categories`, fd)
+      res = await api.postForm(isSub.value ? `admin/categories/${props.parent.id}/sub-categories` : base, fd)
     }
     emit('saved', res.data, isEdit.value)
   } catch (e) {
@@ -77,7 +76,7 @@ async function save() {
       <div v-if="message" class="alert alert--error" role="alert">{{ message }}</div>
       <div class="form-grid">
         <div v-if="isSub" class="field full">
-          <label>{{ parentIsSub ? 'Sub-category' : 'Category' }}</label>
+          <label>Category</label>
           <div class="parent-chip">{{ parent.name }}</div>
         </div>
         <div class="field full">
@@ -103,7 +102,7 @@ async function save() {
             <label class="switch" aria-label="Active"><input v-model="form.is_active" type="checkbox" /><span /></label>
             <div>
               <strong style="font-weight: 500">Active</strong>
-              <p class="hint" style="margin: 0">{{ isSub && !parentIsSub ? 'When off, its sub-sub-categories are hidden too.' : isSub ? 'Hidden from customers when off.' : 'When off, its sub-categories are hidden too.' }}</p>
+              <p class="hint" style="margin: 0">{{ isSub ? 'Hidden from customers when off.' : 'When off, its sub-categories are hidden too.' }}</p>
             </div>
           </div>
           <div v-if="!isSub" style="display: flex; align-items: center; gap: 10px">

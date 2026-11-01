@@ -1,11 +1,19 @@
+// Locale: everything uses the browser default (undefined) for number grouping and dates.
 export function formatDate(value, withTime = false) {
   if (!value) return '-'
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return '-'
-  return d.toLocaleString('en-IN', {
+  return d.toLocaleString(undefined, {
     day: '2-digit', month: 'short', year: 'numeric',
     ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
   })
+}
+
+/** Today's date in the browser's time zone as YYYY-MM-DD (the value of a date input). */
+export function todayISO() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 export function timeAgo(value) {
@@ -34,13 +42,6 @@ export function initials(name = '') {
 }
 
 export const ACTION_LABELS = {
-  'company.registered': 'registered a new company request',
-  'company.created': 'created company',
-  'company.approved': 'approved company',
-  'company.rejected': 'rejected company',
-  'company.suspended': 'suspended company',
-  'company.updated': 'updated company',
-  'company.deleted': 'deleted company',
   'brand.created': 'added brand',
   'brand.updated': 'updated brand',
   'brand.deleted': 'deleted brand',
@@ -61,18 +62,32 @@ export const ACTION_LABELS = {
   'tag.created': 'added tag',
   'tag.updated': 'updated tag',
   'tag.deleted': 'deleted tag',
-  'settings.delivery_updated': 'updated delivery settings',
-  'settings.commerce_updated': 'updated the shop settings',
+  'settings.updated': 'updated the store settings',
+  'settings.logo_updated': 'changed the store logo',
+  'settings.logo_removed': 'removed the store logo',
   'order.status_changed': 'changed the status of order',
   'order.cancelled': 'cancelled order',
   'order.note_updated': 'updated the note of order',
   'inventory.low_stock': 'was told that an option is running low after a sale',
 }
 
-// Money: the symbol comes from the site settings (currency_symbol, default Rs for PKR) and is set once when the product screens load.
-let currencySymbol = 'Rs'
-export const setCurrency = (symbol) => { if (symbol) currencySymbol = symbol }
+// Money: the symbol and number of decimals come from the store's currency settings (loaded from the API).
+let currency = { symbol: '$', decimals: 2 }
+export function setCurrency(next) {
+  if (!next) return
+  const decimals = Number(next.decimals)
+  currency = {
+    symbol: next.symbol || currency.symbol,
+    decimals: Number.isInteger(decimals) && decimals >= 0 && decimals <= 6 ? decimals : currency.decimals,
+  }
+}
+export const currencySymbol = () => currency.symbol
+
 export function money(value) {
   if (value === null || value === undefined || value === '') return '-'
-  return `${currencySymbol} ${Number(value).toLocaleString('en-PK', { maximumFractionDigits: 2 })}`
+  const n = Number(value)
+  if (Number.isNaN(n)) return '-'
+  const text = Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: currency.decimals, maximumFractionDigits: currency.decimals })
+  const gap = /[A-Za-z]$/.test(currency.symbol) ? ' ' : '' // "USD 5.00" but "$5.00"
+  return `${n < 0 ? '-' : ''}${currency.symbol}${gap}${text}`
 }

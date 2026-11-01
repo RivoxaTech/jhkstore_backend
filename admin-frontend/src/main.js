@@ -1,9 +1,10 @@
-import { createApp } from 'vue'
+import { createApp, watch } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
-import router from './router/index.js'
+import router, { updateDocumentTitle } from './router/index.js'
 import { onUnauthorized } from '@/api/client.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useSiteStore } from '@/stores/site.js'
 import './assets/styles.css'
 
 const app = createApp(App)
@@ -19,5 +20,10 @@ onUnauthorized((path) => {
   auth.clear()
   router.replace({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
 })
+
+// Public store settings (name, logo, currency): loaded once before login to brand the panel.
+const site = useSiteStore()
+site.load()
+watch(() => site.name, () => updateDocumentTitle())
 
 app.mount('#app')

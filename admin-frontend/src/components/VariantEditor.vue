@@ -4,8 +4,8 @@ import { Plus, Trash2 } from '@lucide/vue'
 import ProductImages from '@/components/ProductImages.vue'
 import { useCatalogStore } from '@/stores/catalog.js'
 
-// One OPTION (variant) of a product: its own name, SKU, MRP, price, live discount, points, expiry, weight, bulk prices
-// ("Buy 5+ for Rs 152 each") and its own pictures. The row object is edited in place; errors come from the parent
+// One OPTION (variant) of a product: its own name, SKU, regular price, price, live discount, stock, (reward points when
+// enabled), expiry, weight, bulk prices (a lower price for a larger quantity) and its own pictures. The row object is edited in place; errors come from the parent
 // (`errors`, keyed like the API).
 const props = defineProps({
   row: { type: Object, required: true },
@@ -14,7 +14,6 @@ const props = defineProps({
   errors: { type: Object, default: () => ({}) },
   productId: { type: Number, default: null },
   images: { type: Array, default: () => [] },       // the product's full picture list from the server
-  channels: { type: Array, default: () => [] },     // the sales channels this product is sold on: [{ code, name }]
 })
 const emit = defineEmits(['clear', 'images'])
 const catalog = useCatalogStore()
@@ -29,7 +28,7 @@ const off = computed(() => {
   const m = num(props.row.mrp), p = num(props.row.selling_price)
   if (!(m > 0) || Number.isNaN(p)) return { text: '-% off', cls: 'is-none' }
   const d = Math.round(((m - p) / m) * 10000) / 100
-  if (d < 0) return { text: 'Price above MRP', cls: 'is-bad' }
+  if (d < 0) return { text: 'Price above regular price', cls: 'is-bad' }
   return { text: `${d}% off`, cls: d === 0 ? 'is-none' : '' }
 })
 const tierOff = (t) => {
@@ -49,7 +48,7 @@ const immediate = computed(() => props.productId !== null && props.row.id !== nu
     <div class="form-grid">
       <div class="field full">
         <label :for="`${idp}-name`">Option name <span class="req">*</span></label>
-        <input :id="`${idp}-name`" v-model="row.name" class="input" maxlength="255" :aria-label="`${label} name`" placeholder="Shown on the product page, e.g. Maarc Pure Eugenol (15ml)" :class="{ 'has-error': err('name') }" @input="clear('name')" />
+        <input :id="`${idp}-name`" v-model="row.name" class="input" maxlength="255" :aria-label="`${label} name`" placeholder="Shown on the product page, e.g. Blue, 500 ml" :class="{ 'has-error': err('name') }" @input="clear('name')" />
         <p v-if="err('name')" class="err">{{ err('name') }}</p>
       </div>
       <div class="field">
@@ -66,8 +65,8 @@ const immediate = computed(() => props.productId !== null && props.row.id !== nu
 
     <div class="form-grid-4">
       <div class="field">
-        <label :for="`${idp}-mrp`">MRP ({{ symbol }}) <span class="req">*</span></label>
-        <input :id="`${idp}-mrp`" v-model="row.mrp" class="input" type="number" min="0" step="0.01" :aria-label="`${label} MRP`" :class="{ 'has-error': err('mrp') }" @input="clear('mrp', 'selling_price')" />
+        <label :for="`${idp}-mrp`">Regular price ({{ symbol }}) <span class="req">*</span></label>
+        <input :id="`${idp}-mrp`" v-model="row.mrp" class="input" type="number" min="0" step="0.01" :aria-label="`${label} regular price`" :class="{ 'has-error': err('mrp') }" @input="clear('mrp', 'selling_price')" />
         <p v-if="err('mrp')" class="err">{{ err('mrp') }}</p>
       </div>
       <div class="field">
@@ -79,8 +78,8 @@ const immediate = computed(() => props.productId !== null && props.row.id !== nu
         <label>Discount</label>
         <div class="price-box" style="height: 34px"><span class="off-badge" :class="off.cls" data-testid="off-label">{{ off.text }}</span></div>
       </div>
-      <div class="field">
-        <label :for="`${idp}-points`">Reward points (coins)</label>
+      <div v-if="catalog.features.rewards" class="field">
+        <label :for="`${idp}-points`">Reward points</label>
         <input :id="`${idp}-points`" v-model="row.reward_points" class="input" type="number" min="0" :aria-label="`${label} points`" :class="{ 'has-error': err('reward_points') }" />
         <p v-if="err('reward_points')" class="err">{{ err('reward_points') }}</p>
       </div>
@@ -91,16 +90,20 @@ const immediate = computed(() => props.productId !== null && props.row.id !== nu
       </div>
     </div>
 
-    <div v-if="channels.length" class="stock-box">
+    <div class="stock-box">
       <div class="tier-box__head">
         <strong>Stock of this option</strong>
-        <span class="muted">Each option has its own quantity in every channel (for example red 3, blue 10).</span>
+        <span class="muted">Units you have on the shelf for this option (for example red 3, blue 10).</span>
       </div>
       <div class="stock-inputs">
-        <div v-for="c in channels" :key="c.code" class="field">
-          <label :for="`${idp}-stock-${c.code}`">{{ c.name }} quantity</label>
-          <input :id="`${idp}-stock-${c.code}`" v-model="row.stock[c.code]" class="input" type="number" min="0" :aria-label="`${c.name} quantity of ${label.toLowerCase()}`" :class="{ 'has-error': err(`stock.${c.code}`) }" @input="clear(`stock.${c.code}`)" />
-          <p v-if="err(`stock.${c.code}`)" class="err">{{ err(`stock.${c.code}`) }}</p>
+        <div class="field">
+          <label :for="`${idp}-stock`">Stock</label>
+          <input :id="`${idp}-stock`" v-model="row.stock" class="input" type="number" min="0" step="1" :aria-label="`Stock of ${label.toLowerCase()}`" :class="{ 'has-error': err('stock') }" @input="clear('stock')" />
+          <p v-if="err('stock')" class="err">{{ err('stock') }}</p>
+          <p v-else-if="row.reserved || row.low_stock_threshold" class="hint">
+            <template v-if="row.reserved">{{ row.reserved }} reserved by open orders.</template>
+            <template v-if="row.low_stock_threshold"> Low-stock alert at {{ row.low_stock_threshold }} or fewer.</template>
+          </p>
         </div>
       </div>
     </div>
@@ -108,7 +111,7 @@ const immediate = computed(() => props.productId !== null && props.row.id !== nu
     <div class="tier-box">
       <div class="tier-box__head">
         <strong>Bulk prices</strong>
-        <span class="muted">"Buy 5+ for {{ symbol }} 152 each" - cheaper for a larger quantity (optional, max 5)</span>
+        <span class="muted">A lower price each when the customer buys a larger quantity (optional, max 5)</span>
       </div>
       <p v-if="err('price_tiers')" class="err">{{ err('price_tiers') }}</p>
       <div v-for="(t, j) in row.price_tiers" :key="j" class="tier-row">
@@ -132,7 +135,7 @@ const immediate = computed(() => props.productId !== null && props.row.id !== nu
         :model-value="images" :pending="row.pending" :product-id="productId" :variant-id="row.id" :immediate="immediate" compact
         @update:model-value="emit('images', $event)" @update:pending="row.pending = $event"
       />
-      <p class="hint">Shown when the customer looks at this option (for example 2-3 pictures of this exact model). If none, the general product pictures are used.</p>
+      <p class="hint">Shown when the customer looks at this option (for example 2-3 pictures of this exact option). If none, the general product pictures are used.</p>
     </div>
   </div>
 </template>

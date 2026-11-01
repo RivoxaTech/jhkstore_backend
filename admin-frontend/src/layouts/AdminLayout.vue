@@ -1,13 +1,18 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Bell, Building2, ChevronsLeft, ChevronsRight, FolderTree, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Stethoscope } from '@lucide/vue'
+import { Bell, ChevronsLeft, ChevronsRight, FolderTree, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Tags } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
+import { useCatalogStore } from '@/stores/catalog.js'
+import { useSiteStore } from '@/stores/site.js'
+import StoreMark from '@/components/StoreMark.vue'
 import { api } from '@/api/client.js'
 
 const auth = useAuthStore()
 const ui = useUiStore()
+const catalog = useCatalogStore()
+const site = useSiteStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -15,17 +20,16 @@ const query = ref('')
 const menuOpen = ref(false)
 const menuEl = ref(null)
 
-// Keeps the "pending requests" badge fresh (sidebar + bell). One light call every minute.
+// Keeps the "pending orders" badge fresh (sidebar + bell). One light call every minute.
 async function refreshPending() {
   try {
-    const res = await api.get('admin/companies', { status: 'pending', per_page: 1 })
-    ui.pendingCount = res.counts?.pending ?? 0
     const orders = await api.get('admin/orders', { per_page: 1 })
     ui.pendingOrders = orders.counts?.pending ?? 0
   } catch { /* the badges are optional */ }
 }
 let timer
 onMounted(() => {
+  catalog.load().catch(() => { /* the features fall back to the public store settings */ })
   refreshPending()
   timer = setInterval(refreshPending, 60000)
   document.addEventListener('click', closeMenu)
@@ -37,7 +41,7 @@ const closeMenu = (e) => { if (menuEl.value && !menuEl.value.contains(e.target))
 
 function search() {
   const q = query.value.trim()
-  router.push({ name: 'companies', query: q ? { q } : {} })
+  router.push({ name: 'products', query: q ? { q } : {} })
 }
 
 async function logout() {
@@ -50,8 +54,8 @@ async function logout() {
   <div class="app-shell" :class="{ 'is-collapsed': ui.sidebarCollapsed, 'mobile-open': ui.mobileSidebarOpen }">
     <aside class="sidebar" aria-label="Main navigation">
       <div class="sidebar__brand">
-        <div class="brand-mark"><Stethoscope :size="20" /></div>
-        <div class="brand-text">Dentalkart<small>Admin</small></div>
+        <StoreMark />
+        <div class="brand-text">{{ site.name }}<small>Admin</small></div>
       </div>
       <nav class="sidebar__nav">
         <p class="nav-label">Main</p>
@@ -60,12 +64,11 @@ async function logout() {
         </RouterLink>
 
         <p class="nav-label" style="margin-top: 18px">Catalogue</p>
-        <RouterLink :to="{ name: 'companies' }" class="nav-item" :class="{ 'is-active': String(route.name).startsWith('compan') }" exact-active-class="" active-class="">
-          <Building2 :size="19" /><span>Companies</span>
-          <b v-if="ui.pendingCount" class="nav-badge" :title="`${ui.pendingCount} pending requests`">{{ ui.pendingCount }}</b>
-        </RouterLink>
         <RouterLink :to="{ name: 'categories' }" class="nav-item" :class="{ 'is-active': route.name === 'categories' }" exact-active-class="" active-class="">
           <FolderTree :size="19" /><span>Categories</span>
+        </RouterLink>
+        <RouterLink v-if="catalog.features.brands" :to="{ name: 'brands' }" class="nav-item" :class="{ 'is-active': route.name === 'brands' }" exact-active-class="" active-class="">
+          <Tags :size="19" /><span>Brands</span>
         </RouterLink>
         <RouterLink :to="{ name: 'products' }" class="nav-item" :class="{ 'is-active': String(route.name).startsWith('product') }" exact-active-class="" active-class="">
           <Package :size="19" /><span>Products</span>
@@ -96,13 +99,13 @@ async function logout() {
         <!-- Phones only: opens the sidebar drawer. On desktop the collapse button lives inside the sidebar. -->
         <button class="icon-btn mobile-only" type="button" aria-label="Open menu" @click.stop="ui.toggleSidebar()"><Menu :size="18" /></button>
         <form class="search" role="search" @submit.prevent="search">
-          <input v-model="query" type="search" placeholder="Search companies by name, GST, email..." aria-label="Quick search (press Enter)" />
+          <input v-model="query" type="search" placeholder="Search products by name or SKU..." aria-label="Search products (press Enter)" />
           <Search :size="18" />
         </form>
         <div class="topbar__space" />
-        <RouterLink class="icon-btn" :to="{ name: 'companies', query: { status: 'pending' } }" :title="`${ui.pendingCount} pending requests`" aria-label="Pending requests">
+        <RouterLink class="icon-btn" :to="{ name: 'orders', query: { status: 'pending' } }" :title="`${ui.pendingOrders} pending orders`" aria-label="Pending orders">
           <Bell :size="17" />
-          <span v-if="ui.pendingCount" class="dot">{{ ui.pendingCount > 99 ? '99+' : ui.pendingCount }}</span>
+          <span v-if="ui.pendingOrders" class="dot">{{ ui.pendingOrders > 99 ? '99+' : ui.pendingOrders }}</span>
         </RouterLink>
         <div ref="menuEl" class="user-menu">
           <button class="user-btn" type="button" aria-haspopup="menu" :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen">
