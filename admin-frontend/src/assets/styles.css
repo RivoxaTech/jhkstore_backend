@@ -359,7 +359,9 @@ table.prod-table { min-width: 0; table-layout: auto; }
 .status-select.s-inactive { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
 .status-select.s-archived { background: var(--muted-soft); color: var(--text-2); border-color: transparent; }
 .badge--draft { background: var(--warning-soft); color: var(--warning); }
-.badge--archived { background: var(--muted-soft); color: var(--text-2); }
+.badge--archived, .badge--expired { background: var(--muted-soft); color: var(--text-2); }
+.badge--live { background: var(--success-soft); color: var(--success); }
+.badge--scheduled { background: var(--primary-soft); color: var(--primary); }
 
 /* product form */
 .pf-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; align-items: start; }

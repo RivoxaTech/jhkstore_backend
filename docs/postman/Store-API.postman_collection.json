@@ -19,7 +19,33 @@
       }
     },
     {
-      "name": "2. Categories (tree, 2 levels)",
+      "name": "2. Banners of a placement (home_hero: one banner or a slider)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/banners?placement=home_hero"
+      }
+    },
+    {
+      "name": "3. Banners: promo strip",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/banners?placement=promo_strip"
+      }
+    },
+    {
+      "name": "4. Categories (tree, 2 levels)",
       "request": {
         "method": "GET",
         "header": [
@@ -32,7 +58,7 @@
       }
     },
     {
-      "name": "3. Top categories (home screen)",
+      "name": "5. Top categories (home screen)",
       "request": {
         "method": "GET",
         "header": [
@@ -45,7 +71,7 @@
       }
     },
     {
-      "name": "4. Products",
+      "name": "6. Products",
       "request": {
         "method": "GET",
         "header": [
@@ -58,7 +84,7 @@
       }
     },
     {
-      "name": "5. Home section by tag",
+      "name": "7. Home section by tag",
       "request": {
         "method": "GET",
         "header": [
@@ -71,7 +97,7 @@
       }
     },
     {
-      "name": "6. Search",
+      "name": "8. Search",
       "request": {
         "method": "GET",
         "header": [
@@ -84,7 +110,7 @@
       }
     },
     {
-      "name": "7. Product detail (saves variant_id)",
+      "name": "9. Product detail (saves variant_id)",
       "event": [
         {
           "listen": "test",
@@ -109,7 +135,7 @@
       }
     },
     {
-      "name": "8. Guest: add to cart (saves cart_token)",
+      "name": "10. Guest: add to cart (saves cart_token)",
       "event": [
         {
           "listen": "test",
@@ -142,7 +168,7 @@
       }
     },
     {
-      "name": "9. Guest: show cart",
+      "name": "11. Guest: show cart",
       "request": {
         "method": "GET",
         "header": [
@@ -159,7 +185,7 @@
       }
     },
     {
-      "name": "10. Login (merges the guest cart, saves customer_token)",
+      "name": "12. Login (merges the guest cart, saves customer_token)",
       "event": [
         {
           "listen": "test",
@@ -195,7 +221,7 @@
       }
     },
     {
-      "name": "11. Customer: show cart",
+      "name": "13. Customer: show cart",
       "request": {
         "method": "GET",
         "header": [
@@ -218,7 +244,7 @@
       }
     },
     {
-      "name": "12. Customer: change quantity",
+      "name": "14. Customer: change quantity",
       "request": {
         "method": "PUT",
         "header": [
@@ -249,7 +275,7 @@
       }
     },
     {
-      "name": "13. Addresses (saves address_id)",
+      "name": "15. Addresses (saves address_id)",
       "event": [
         {
           "listen": "test",
@@ -284,7 +310,7 @@
       }
     },
     {
-      "name": "14. Place order (cash on delivery)",
+      "name": "16. Place order (cash on delivery)",
       "event": [
         {
           "listen": "test",
@@ -331,7 +357,7 @@
       }
     },
     {
-      "name": "15. My orders",
+      "name": "17. My orders",
       "request": {
         "method": "GET",
         "header": [
@@ -354,7 +380,7 @@
       }
     },
     {
-      "name": "16. Order detail",
+      "name": "18. Order detail",
       "request": {
         "method": "GET",
         "header": [
@@ -377,7 +403,7 @@
       }
     },
     {
-      "name": "17. Cancel order (before it ships)",
+      "name": "19. Cancel order (before it ships)",
       "request": {
         "method": "POST",
         "header": [
@@ -408,7 +434,7 @@
       }
     },
     {
-      "name": "18. Reorder",
+      "name": "20. Reorder",
       "request": {
         "method": "POST",
         "header": [
@@ -431,7 +457,7 @@
       }
     },
     {
-      "name": "19. Reviews of a product",
+      "name": "21. Reviews of a product",
       "request": {
         "method": "GET",
         "header": [

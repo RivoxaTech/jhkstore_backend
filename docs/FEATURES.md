@@ -12,13 +12,14 @@
 | Cart | ✅ guest + customer carts, merge on login, live repricing, bulk-price hints, stock and price-change warnings, quantity limits |
 | Checkout & orders | ✅ cash on delivery, idempotent order placement, race-safe stock deduction, order timeline, cancel, reorder, internal notes, printable invoice / packing slip in the admin panel |
 | Reward points | 🔘 `Enable reward points` (default off): earn per option or by earn rate, redeem at checkout with caps, expiry, refund on cancel, credit on delivery |
+| Banners | ✅ banners per placement (home hero, home secondary, promo strip): title, subtitle, button text, link, desktop + optional mobile picture, start / end dates, active switch, drag-to-reorder; the storefront gets only the live ones in order |
 | Reviews | ✅ list + post (one per customer, published immediately) · ⏳ moderation screen |
-| Admin panel | ✅ dashboard, products, categories, tags, orders, settings · ⏳ customers, coupons, reviews moderation, CMS, admin users & roles |
+| Admin panel | ✅ dashboard, products, categories, tags, banners, orders, settings · ⏳ customers, coupons, reviews moderation, CMS, admin users & roles |
 | Platform | ✅ audit log · ✅ rate limiting · ✅ cart clean-up and points-expiry commands · ✅ generated OpenAPI docs (`/docs/api`) |
 
 ## Next phase (schema already exists)
 
-Wishlist · coupons · CMS (banners, home page sections, pages, FAQ) · notifications · review moderation and product Q&A.
+Wishlist · coupons · CMS (home page sections, pages, FAQ) · notifications · review moderation and product Q&A.
 
 ## Later
 

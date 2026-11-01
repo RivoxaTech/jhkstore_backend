@@ -31,7 +31,7 @@ once with `php artisan db:seed`). Authentication is a cookie session (HttpOnly) 
 
 ## Pages
 
-Dashboard, Categories (two levels: category and sub-category), Products (list, form with options, prices, stock,
+Dashboard, Categories (two levels: category and sub-category), Banners (per placement, drag to reorder), Products (list, form with options, prices, stock,
 tags, pictures, content tabs), Orders (list, detail, status changes, printable invoice and packing slip) and Settings.
 
 ## Features that depend on settings

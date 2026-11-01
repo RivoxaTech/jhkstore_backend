@@ -45,7 +45,8 @@ settings (key/value)        pincodes (optional serviceability / COD per postcode
 | `orders`, `order_items`, `order_addresses`, `order_status_history` | orders (totals, tax_total, tax_inclusive, points, notes, idempotency key), line snapshots, address snapshots, timeline |
 | `payments`, `shipments` | payment rows (COD today), courier + tracking number |
 | `reward_wallets`, `reward_transactions`, `reward_redemptions` | points: cached balance, append-only ledger with expiring batches, FIFO links |
-| `settings` | key/value store settings (see [SETTINGS.md](SETTINGS.md)) |
+| `banners` | placement (`home_hero`, `home_secondary`, `promo_strip`), title, subtitle, button_text, link_url, sort_order, is_active, starts_at, ends_at; media `desktop` + `mobile` pictures |
+| `settings` | key/value store settings (see [SETTINGS.md](SETTINGS.md)); the file settings own their picture through `media` |
 | `pincodes` | optional per-postcode serviceability and COD flag (no admin screen yet) |
 | `audit_logs` | who did what (admin actions, status changes, low-stock alerts) |
 | `media` | spatie medialibrary |
@@ -54,7 +55,7 @@ settings (key/value)        pincodes (optional serviceability / COD per postcode
 ## Schema kept for the next phase (no code yet, on purpose)
 
 `wishlists`, `wishlist_items`, `wishlist_shares` · `coupons`, `coupon_targets`, `coupon_usages` (carts/orders already have a nullable `coupon_id`) ·
-`banners`, `homepage_sections`, `collections`, `collection_product`, `cms_pages`, `faqs` (content / CMS) · `notifications` ·
+`homepage_sections`, `collections`, `collection_product`, `cms_pages`, `faqs` (content / CMS) · `notifications` ·
 `product_questions`, `product_feedback` (reviews family) · `refunds`, `invoices`, `webhook_events`, `shipment_items`, `shipment_events` (online payments, invoicing and courier tracking).
 
 ## Removed tables

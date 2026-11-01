@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Auth\Models\Admin;
 use App\Domain\Catalog\Models\Product;
+use App\Domain\Content\Models\Banner;
 use App\Domain\Catalog\Models\Tag;
 use App\Domain\Order\Models\Order;
 use App\Domain\Support\Models\AuditLog;
@@ -23,6 +24,7 @@ class DashboardController extends Controller
         $adminNames = Admin::whereIn('id', $activity->where('actor_type', 'admin')->pluck('actor_id')->filter()->unique())->pluck('name', 'id');
         $productNames = Product::withTrashed()->whereIn('id', $activity->where('subject_type', 'Product')->pluck('subject_id')->filter()->unique())->pluck('name', 'id');
         $orderNumbers = Order::whereIn('id', $activity->where('subject_type', 'Order')->pluck('subject_id')->filter()->unique())->pluck('order_number', 'id');
+        $bannerTitles = Banner::whereIn('id', $activity->where('subject_type', 'Banner')->pluck('subject_id')->filter()->unique())->pluck('title', 'id');
         $tagNames = Tag::whereIn('id', $activity->where('subject_type', 'Tag')->pluck('subject_id')->filter()->unique())->pluck('name', 'id');
 
         // Orders: three small indexed aggregates (today's orders and revenue, orders waiting for a decision, options running low)
@@ -46,6 +48,7 @@ class DashboardController extends Controller
                 'subject_name' => match ($log->subject_type) {
                     'Product' => $productNames[$log->subject_id] ?? null,
                     'Tag' => $tagNames[$log->subject_id] ?? null,
+                    'Banner' => $bannerTitles[$log->subject_id] ?? null,
                     'Order' => $orderNumbers[$log->subject_id] ?? null,
                     default => null,
                 },

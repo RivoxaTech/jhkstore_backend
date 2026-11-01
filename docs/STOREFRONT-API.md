@@ -27,6 +27,18 @@ The OpenAPI reference is generated at `/docs/api`; a Postman collection is in `d
 The `seo` values are site-wide defaults for pages that have no title / description of their own (products and categories carry their own `meta_title` / `meta_description`).
 Prices in all responses are plain numbers in the store currency.
 
+### Banners
+
+`GET /banners?placement=home_hero` (public) – the banners to show **right now** for one spot of the page: active, inside their start / end dates, **in the order set in the admin panel**.
+Placements: `home_hero` (top of the home page), `home_secondary` (between sections), `promo_strip` (thin bar). Without `placement` every live banner is returned (each carries its `placement`); an unknown placement is a `422`.
+
+```json
+{ "data": [ { "id", "placement", "title", "subtitle", "button_text", "link_url", "image_url", "mobile_image_url" } ] }
+```
+
+A spot can hold **one banner or many**: the API always answers a list and **the storefront decides** – render a single banner when `data` has one entry, a slider when it has several, nothing when it is empty.
+`image_url` is the desktop picture and `mobile_image_url` the optional phone picture (`null` = use the desktop one); both are absolute URLs. `link_url` is an `http(s)` address or a path of your store such as `/category/phones` (or `null`); `title`, `subtitle` and `button_text` may be `null`.
+
 ## 2. Catalogue
 
 | Call | Notes |

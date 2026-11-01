@@ -18,6 +18,7 @@ const routes = [
       { path: 'products/:id(\d+)/edit', name: 'product-edit', component: () => import('@/views/ProductFormView.vue'), meta: { title: 'Edit product' } },
       { path: 'orders', name: 'orders', component: () => import('@/views/OrdersView.vue'), meta: { title: 'Orders' } },
       { path: 'orders/:id(\d+)', name: 'order', component: () => import('@/views/OrderDetailView.vue'), meta: { title: 'Order' } },
+      { path: 'banners', name: 'banners', component: () => import('@/views/BannersView.vue'), meta: { title: 'Banners' } },
       { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: 'Settings' } },
       { path: 'categories', name: 'categories', component: () => import('@/views/CategoriesView.vue'), meta: { title: 'Categories' } },
     ],

@@ -30,7 +30,7 @@ the admin panel is a Vue single-page app that talks to the same API. **One deplo
 ```
 app/
   Domain/                    business logic, one folder per module
-    Address  Auth  Cart  Catalog  Order  Review  Reward  Support
+    Address  Auth  Cart  Catalog  Content  Order  Review  Reward  Support
       Models/  Actions/  Enums/  (+ module services)
   Http/
     Controllers/Store|Admin  thin controllers
@@ -51,6 +51,7 @@ Rule: controller → FormRequest → **Action class** → Eloquent → Resource.
 * `Settings` (`app/Domain/Support/Settings.php`) is the only reader/writer of store configuration (see [SETTINGS.md](SETTINGS.md)). Typed values include `file` (medialibrary picture owned by the setting row) and `links` (ordered JSON list), with validation rules by type in `Settings::rules()`.
 * **Reward points** are optional (`rewards_enabled`, default off): *all* points logic goes through `RewardLedger` (`enabled()`, `pointsForLine()`,
   `spendable()`, `credit()`, `redeem()`, `refund()`). Off = nothing earned, redeemed or shown (cart, checkout, orders, products, admin). Data is kept.
+* **Banners** (`Domain/Content`): one `banners` table, pictures with medialibrary (`desktop`, `mobile`). A placement is a key in `Banner::PLACEMENTS` (add a line for another spot). The public endpoint returns the `Banner::live()` ones in `sort_order`; one banner or a slider is the storefront's choice.
 * Money: amounts are `DECIMAL(12,2)`; cart maths run in whole minor units (`Settings::cents()/money()`), the number of decimals comes from `currency_decimals` (0–2).
 
 ## Catalogue model

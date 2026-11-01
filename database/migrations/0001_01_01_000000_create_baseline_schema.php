@@ -920,8 +920,9 @@ return new class extends Migration
             $table->id();
             $table->string('placement', 30);
             $table->string('title', 160)->nullable();
-            $table->string('link_type', 15)->default('url');
-            $table->string('link_target', 255)->nullable();
+            $table->string('subtitle', 255)->nullable();
+            $table->string('button_text', 60)->nullable();
+            $table->string('link_url', 500)->nullable();
             $table->unsignedInteger('sort_order')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamp('starts_at')->nullable();

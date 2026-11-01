@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AuthController;
+use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\OrderController;
@@ -47,6 +48,15 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin'])->group(function () {
     Route::post('products/{product}/images', [ProductController::class, 'addImages']);
     Route::put('products/{product}/images/order', [ProductController::class, 'reorderImages']);
     Route::delete('products/{product}/images/{image}', [ProductController::class, 'deleteImage']);
+
+    // Banners (multipart for the pictures; reorder = the whole order of a placement)
+    Route::get('banners/options', [BannerController::class, 'options']);
+    Route::put('banners/reorder', [BannerController::class, 'reorder']);
+    Route::get('banners', [BannerController::class, 'index']);
+    Route::post('banners', [BannerController::class, 'store']);
+    Route::get('banners/{banner}', [BannerController::class, 'show'])->whereNumber('banner');
+    Route::match(['put', 'patch', 'post'], 'banners/{banner}', [BannerController::class, 'update'])->whereNumber('banner');
+    Route::delete('banners/{banner}', [BannerController::class, 'destroy'])->whereNumber('banner');
 
     // Tags (system tags cannot be deleted)
     Route::get('tags', [TagController::class, 'index']);
