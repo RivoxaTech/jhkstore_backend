@@ -101,7 +101,7 @@ class Product extends Model implements HasMedia
 
     /**
      * What customers may see: an active product whose brand (when it has one) is active, whose
-     * category and sub-category (and its parent) are active, and that has at least one active option.
+     * category and sub-category are active, and that has at least one active option.
      */
     public function scopeStorefront(Builder $query): Builder
     {
@@ -111,9 +111,7 @@ class Product extends Model implements HasMedia
             ->whereExists(fn ($q) => $q->select(DB::raw(1))->from('product_variants as av')   // at least one active option to sell
                 ->whereColumn('av.product_id', 'products.id')->where('av.is_active', true))
             ->whereHas('category', fn ($q) => $q->where('is_active', true))
-            ->where(fn ($q) => $q->whereNull('products.sub_category_id')->orWhereHas('subCategory', fn ($s) => $s
-                ->where('is_active', true)
-                ->where(fn ($p) => $p->whereNull('parent_id')->orWhereHas('parent', fn ($x) => $x->where('is_active', true)))));
+            ->where(fn ($q) => $q->whereNull('products.sub_category_id')->orWhereHas('subCategory', fn ($s) => $s->where('is_active', true)));
     }
 
     /** Products carrying an active tag with this slug (one indexed lookup through product_tag). */

@@ -83,11 +83,11 @@ class ProductListing
             $query->whereIn('products.category_id', Category::query()->where('slug', $f['category'])->select('id'));
         }
         if (! empty($f['sub_category'])) {
-            // slugs are unique per category only, so narrow by ?category= when it is given; a parent also lists its children
+            // narrow by ?category= when it is given (the same slug may exist in another category)
             $subs = SubCategory::query()->where('slug', $f['sub_category'])
                 ->when(! empty($f['category']), fn ($q) => $q->whereIn('category_id', Category::query()->where('slug', $f['category'])->select('id')))
                 ->pluck('id');
-            $query->whereIn('products.sub_category_id', SubCategory::query()->whereIn('parent_id', $subs)->pluck('id')->merge($subs));
+            $query->whereIn('products.sub_category_id', $subs);
         }
         if (! empty($f['brand']) && app(Settings::class)->brandsEnabled()) {
             $query->whereIn('products.brand_id', Brand::query()->where('slug', $f['brand'])->select('id'));

@@ -9,11 +9,10 @@ use App\Http\Resources\StoreSubCategoryResource;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * The customer-facing category tree: active categories, their active sub-categories, and the active children
- * (sub-sub-categories) of those. Built once, cached for 10 minutes, and cleared on every admin write.
+ * The customer-facing category tree: active categories and their active sub-categories. Built once, cached for 10 minutes, and cleared on every admin write.
  * `?top=1` is filtered from the same cached copy.
  *
- * Output: category { ..., sub_categories: [ sub { ..., children: [ child {...} ] } ] }
+ * Output: category { ..., sub_categories: [ sub {...} ] }
  */
 class CategoryTree
 {
@@ -57,7 +56,7 @@ class CategoryTree
     {
         $subs = [];
         foreach ($category['subs'] as $sub) {
-            $subs[] = $sub['data'] + ['children' => array_column($sub['children'], 'data')];
+            $subs[] = $sub['data'];
         }
 
         return $category['data'] + ['sub_categories' => $subs];
@@ -72,8 +71,7 @@ class CategoryTree
     {
         $categories = Category::query()
             ->where('is_active', true)
-            ->with(['media', 'subCategories' => fn ($q) => $q->where('is_active', true)
-                ->with(['media', 'children' => fn ($c) => $c->where('is_active', true)->with('media')])])
+            ->with(['media', 'subCategories' => fn ($q) => $q->where('is_active', true)->with('media')])
             ->orderBy('sort_order')->orderBy('name')
             ->get();
 
@@ -82,9 +80,6 @@ class CategoryTree
             'data' => (new StoreCategoryResource($category))->resolve(),
             'subs' => $category->subCategories->map(fn (SubCategory $sub) => [
                 'data' => (new StoreSubCategoryResource($sub))->resolve(),
-                'children' => $sub->children->map(fn (SubCategory $child) => [
-                    'data' => (new StoreSubCategoryResource($child))->resolve(),
-                ])->all(),
             ])->all(),
         ])->all();
     }

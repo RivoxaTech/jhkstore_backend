@@ -50,11 +50,10 @@ trait BuildsCatalog
         return $category;
     }
 
-    protected function makeSub(Category $category, string $name = 'Composites', bool $active = true, ?SubCategory $parent = null): SubCategory
+    protected function makeSub(Category $category, string $name = 'Composites', bool $active = true): SubCategory
     {
         $sub = new SubCategory(['name' => $name, 'is_active' => $active]);
         $sub->category_id = $category->id;
-        $sub->parent_id = $parent?->id;
         $sub->slug = SubCategory::uniqueSlug($name);
         $sub->save();
 

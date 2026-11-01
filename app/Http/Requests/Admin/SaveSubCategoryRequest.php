@@ -19,16 +19,13 @@ class SaveSubCategoryRequest extends FormRequest
     public function rules(): array
     {
         $sub = $this->route('subCategory');
-        // The names of siblings must differ: same category and same parent (null = first level).
-        $categoryId = $sub?->category_id ?? $this->route('parent')?->category_id ?? $this->route('category')->id;
-        $parentId = $sub ? $sub->parent_id : $this->route('parent')?->id;
+        // The names of sub-categories of one category must differ.
+        $categoryId = $sub?->category_id ?? $this->route('category')->id;
 
         return [
             'name' => [
                 $sub ? 'sometimes' : 'required', 'string', 'max:160',
-                Rule::unique('sub_categories', 'name')->where('category_id', $categoryId)
-                    ->where(fn ($q) => $parentId ? $q->where('parent_id', $parentId) : $q->whereNull('parent_id'))
-                    ->whereNull('deleted_at')->ignore($sub?->id),
+                Rule::unique('sub_categories', 'name')->where('category_id', $categoryId)->whereNull('deleted_at')->ignore($sub?->id),
             ],
         ] + $this->categoryRules();
     }

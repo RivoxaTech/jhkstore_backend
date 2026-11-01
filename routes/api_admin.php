@@ -40,7 +40,6 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin'])->group(function () {
     Route::match(['put', 'patch', 'post'], 'categories/{category}', [CategoryController::class, 'update']);
     Route::delete('categories/{category}', [CategoryController::class, 'destroy']);
     Route::post('categories/{category}/sub-categories', [SubCategoryController::class, 'store']);
-    Route::post('sub-categories/{parent}/children', [SubCategoryController::class, 'storeChild']);
     Route::get('sub-categories/{subCategory}', [SubCategoryController::class, 'show']);
     Route::match(['put', 'patch', 'post'], 'sub-categories/{subCategory}', [SubCategoryController::class, 'update']);
     Route::delete('sub-categories/{subCategory}', [SubCategoryController::class, 'destroy']);

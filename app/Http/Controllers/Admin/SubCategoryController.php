@@ -27,14 +27,6 @@ class SubCategoryController extends Controller
         return (new SubCategoryResource($this->loaded($sub->id)))->response()->setStatusCode(201);
     }
 
-    /** Add a sub-sub-category under a first-level sub-category (422 when the parent is itself a sub-sub-category). Same fields as a sub-category. */
-    public function storeChild(SaveSubCategoryRequest $request, SubCategory $parent, SaveCategory $save): JsonResponse
-    {
-        $child = $save->createChild($parent, $request->categoryData(), $request->file('icon'), $request->file('image'), $request->user());
-
-        return (new SubCategoryResource($this->loaded($child->id)))->response()->setStatusCode(201);
-    }
-
     /** Update a sub-category. Use POST with `_method=PUT` when uploading files; `remove_icon=1` / `remove_image=1` delete a picture. */
     public function update(SaveSubCategoryRequest $request, SubCategory $subCategory, SaveCategory $save): SubCategoryResource
     {
@@ -43,7 +35,7 @@ class SubCategoryController extends Controller
         return new SubCategoryResource($this->loaded($subCategory->id));
     }
 
-    /** 422 while the sub-category still has sub-sub-categories or products (deactivate it instead). */
+    /** 422 while the sub-category still has products (deactivate it instead). */
     public function destroy(Request $request, SubCategory $subCategory, DeleteCategory $delete): JsonResponse
     {
         $delete->subCategory($subCategory, $request->user());
@@ -54,7 +46,7 @@ class SubCategoryController extends Controller
     private function loaded(int $id): SubCategory
     {
         return SubCategory::query()->withProductCounts()
-            ->with(['media', 'category:id,name', 'children' => fn ($c) => $c->withProductCounts()->with('media')])
+            ->with(['media', 'category:id,name'])
             ->findOrFail($id);
     }
 }

@@ -33,9 +33,8 @@ class Category extends Model implements HasMedia
             ->selectRaw('count(*)')->whereColumn('products.category_id', 'categories.id')->whereNull('products.deleted_at')]);
     }
 
-    /** First-level sub-categories only; their own children come from SubCategory::children(). */
     public function subCategories(): HasMany
     {
-        return $this->hasMany(SubCategory::class)->whereNull('parent_id')->orderBy('sort_order')->orderBy('name');
+        return $this->hasMany(SubCategory::class)->orderBy('sort_order')->orderBy('name');
     }
 }

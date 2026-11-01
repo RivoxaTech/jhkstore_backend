@@ -16,7 +16,7 @@ class CategoryController extends Controller
 {
     /**
      * Categories (paginated: ?page ?per_page, default 15), each with its sub-categories and counts; `counts` has the totals of everything.
-     * Query: ?q= matches a category name, or the name of one of its sub-categories or sub-sub-categories.
+     * Query: ?q= matches a category name or the name of one of its sub-categories.
      */
     public function index(Request $request)
     {
@@ -24,11 +24,10 @@ class CategoryController extends Controller
 
         $categories = Category::query()
             ->withProductCounts()
-            ->with(['media', 'subCategories' => fn ($q) => $q->withProductCounts()->with(['media', 'children' => fn ($c) => $c->withProductCounts()->with('media')])])
+            ->with(['media', 'subCategories' => fn ($q) => $q->withProductCounts()->with('media')])
             ->when($request->query('q'), fn ($q, $term) => $q->where(fn ($w) => $w
                 ->where('name', 'like', "%$term%")
-                ->orWhereHas('subCategories', fn ($s) => $s->where('name', 'like', "%$term%")
-                    ->orWhereHas('children', fn ($c) => $c->where('name', 'like', "%$term%")))))
+                ->orWhereHas('subCategories', fn ($s) => $s->where('name', 'like', "%$term%"))))
             ->orderBy('sort_order')->orderBy('name')
             ->paginate((int) $request->query('per_page', 15))
             ->withQueryString();
@@ -36,28 +35,22 @@ class CategoryController extends Controller
         return CategoryResource::collection($categories)->additional(['counts' => [
             'categories' => Category::count(),
             'top' => Category::where('is_top', true)->count(),
-            'sub_categories' => SubCategory::whereNull('parent_id')->count(),
-            'children' => SubCategory::whereNotNull('parent_id')->count(),
+            'sub_categories' => SubCategory::count(),
         ]]);
     }
 
-    /** Light tree of ACTIVE categories, sub-categories and sub-sub-categories (`children`), for dropdowns (e.g. the product form). */
+    /** Light tree of ACTIVE categories and sub-categories, for dropdowns (e.g. the product form). */
     public function options(): JsonResponse
     {
         $tree = Category::query()
             ->where('is_active', true)
-            ->with(['subCategories' => fn ($q) => $q->where('is_active', true)->select('id', 'category_id', 'parent_id', 'name', 'sort_order')
-                ->with(['children' => fn ($c) => $c->where('is_active', true)->select('id', 'category_id', 'parent_id', 'name', 'sort_order')])])
+            ->with(['subCategories' => fn ($q) => $q->where('is_active', true)->select('id', 'category_id', 'name', 'sort_order')])
             ->orderBy('sort_order')->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn ($category) => [
                 'id' => $category->id,
                 'name' => $category->name,
-                'sub_categories' => $category->subCategories->map(fn ($sub) => [
-                    'id' => $sub->id,
-                    'name' => $sub->name,
-                    'children' => $sub->children->map(fn ($child) => ['id' => $child->id, 'name' => $child->name])->values(),
-                ])->values(),
+                'sub_categories' => $category->subCategories->map(fn ($sub) => ['id' => $sub->id, 'name' => $sub->name])->values(),
             ]);
 
         return response()->json(['data' => $tree]);
@@ -99,7 +92,7 @@ class CategoryController extends Controller
     {
         return Category::query()
             ->withProductCounts()
-            ->with(['media', 'subCategories' => fn ($q) => $q->withProductCounts()->with(['media', 'children' => fn ($c) => $c->withProductCounts()->with('media')])])
+            ->with(['media', 'subCategories' => fn ($q) => $q->withProductCounts()->with('media')])
             ->findOrFail($id);
     }
 }

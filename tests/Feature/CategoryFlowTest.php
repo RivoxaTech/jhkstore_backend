@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Domain\Catalog\CategoryTree;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\SubCategory;
-use Database\Seeders\CategorySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -45,18 +44,6 @@ class CategoryFlowTest extends TestCase
         $sub->save();
 
         return $sub;
-    }
-
-    private function makeChild(SubCategory $parent, array $attrs = []): SubCategory
-    {
-        $name = $attrs['name'] ?? 'Child '.uniqid();
-        $child = new SubCategory(array_merge(['name' => $name], $attrs));
-        $child->category_id = $parent->category_id;
-        $child->parent_id = $parent->id;
-        $child->slug = SubCategory::uniqueSlug($name);
-        $child->save();
-
-        return $child;
     }
 
     /** A product row (the Product model does not exist yet); foreign keys are skipped. */
@@ -232,7 +219,7 @@ class CategoryFlowTest extends TestCase
             ->assertExactJson(['data' => [[
                 'id' => $endo->id,
                 'name' => 'Endodontics',
-                'sub_categories' => [['id' => $endo->subCategories()->where('name', 'Rotary Files')->value('id'), 'name' => 'Rotary Files', 'children' => []]],
+                'sub_categories' => [['id' => $endo->subCategories()->where('name', 'Rotary Files')->value('id'), 'name' => 'Rotary Files']],
             ]]]);
     }
 
@@ -363,7 +350,7 @@ class CategoryFlowTest extends TestCase
 
         $this->assertCount(1, $data);
         $this->assertSame(['id', 'name', 'slug', 'description', 'is_top', 'icon_url', 'image_url', 'sub_categories'], array_keys($data[0]));
-        $this->assertSame(['id', 'name', 'slug', 'icon_url', 'image_url', 'children'], array_keys($data[0]['sub_categories'][0]));
+        $this->assertSame(['id', 'name', 'slug', 'icon_url', 'image_url'], array_keys($data[0]['sub_categories'][0]));
         $this->assertSame(['Gutta Percha', 'Rotary Files'], array_column($data[0]['sub_categories'], 'name'));
         $this->assertNull($data[0]['icon_url']);
         $this->assertNull($data[0]['sub_categories'][0]['image_url']);
@@ -444,34 +431,6 @@ class CategoryFlowTest extends TestCase
         $this->assertNotContains('Temp', $names);
     }
 
-    // ---------------------------------------------------------------- seeder
-
-    public function test_the_seeder_is_idempotent_and_keeps_admin_edits(): void
-    {
-        $this->seed(CategorySeeder::class);
-        $categories = Category::count();
-        $subs = SubCategory::count();
-        $this->assertSame(13, $categories);
-        $this->assertGreaterThan(40, $subs);
-
-        $endo = Category::where('slug', 'endodontics')->first();
-        $this->assertSame('Endodontics', $endo->name);
-        $this->assertCount(9, $endo->subCategories);
-        $this->assertSame(12, Category::where('is_top', true)->count());
-        $brackets = SubCategory::where('slug', 'brackets')->first();
-        $this->assertCount(3, $brackets->children);
-        $this->assertSame($brackets->category_id, $brackets->children->first()->category_id);
-        $this->assertNull($endo->getFirstMedia('icon'));
-
-        $endo->update(['is_active' => false]);
-        $this->seed(CategorySeeder::class);
-
-        $this->assertSame($categories, Category::count());
-        $this->assertSame($subs, SubCategory::count());
-        $this->assertFalse($endo->fresh()->is_active);
-        $this->assertCount(9, $endo->fresh()->subCategories); // children are not first-level sub-categories
-    }
-
     // ---------------------------------------------------------------- top categories (home screen)
 
     public function test_at_most_12_categories_can_be_top_and_the_flag_is_free_again_after_unticking(): void
@@ -506,115 +465,5 @@ class CategoryFlowTest extends TestCase
         $this->getJson(self::STORE.'/categories?top=1')->assertOk()
             ->assertJsonPath('data.0.name', 'A top')->assertJsonPath('data.1.name', 'B top')->assertJsonCount(2, 'data');
         $this->getJson(self::STORE.'/categories')->assertJsonCount(3, 'data');
-    }
-
-    // ---------------------------------------------------------------- sub-sub-categories
-
-    public function test_admin_adds_a_sub_sub_category_with_an_icon_under_a_sub_category(): void
-    {
-        $this->actingAsAdmin();
-        $gun = $this->makeCategory(['name' => 'Gun']);
-        $pistol = $this->makeSub($gun, ['name' => 'Pistol']);
-
-        $res = $this->post(self::ADMIN."/sub-categories/{$pistol->id}/children", [
-            'name' => '9mm', 'icon' => UploadedFile::fake()->image('i.png', 64, 64),
-        ], ['Accept' => 'application/json'])->assertCreated();
-
-        $res->assertJsonPath('data.parent_id', $pistol->id)->assertJsonPath('data.category_id', $gun->id);
-        $this->assertNotNull($res->json('data.icon_url'));
-        $this->assertSame('9mm', SubCategory::find($res->json('data.id'))->slug);
-
-        // the category's first level only has the parent; the child hangs under it
-        $this->getJson(self::ADMIN.'/categories')->assertOk()
-            ->assertJsonPath('data.0.sub_categories_count', 1)
-            ->assertJsonPath('data.0.sub_categories.0.name', 'Pistol')
-            ->assertJsonPath('data.0.sub_categories.0.children_count', 1)
-            ->assertJsonPath('data.0.sub_categories.0.children.0.name', '9mm');
-    }
-
-    public function test_a_sub_sub_category_cannot_have_children_and_names_are_unique_among_siblings(): void
-    {
-        $this->actingAsAdmin();
-        $gun = $this->makeCategory(['name' => 'Gun']);
-        $pistol = $this->makeSub($gun, ['name' => 'Pistol']);
-        $rifle = $this->makeSub($gun, ['name' => 'Rifle']);
-        $nine = $this->makeChild($pistol, ['name' => '9mm']);
-
-        $this->postJson(self::ADMIN."/sub-categories/{$nine->id}/children", ['name' => 'Glock'])
-            ->assertStatus(422)->assertJsonValidationErrors('category');
-        $this->postJson(self::ADMIN."/sub-categories/{$pistol->id}/children", ['name' => '9mm'])
-            ->assertStatus(422)->assertJsonValidationErrors('name');
-        $this->postJson(self::ADMIN."/sub-categories/{$rifle->id}/children", ['name' => '9mm'])->assertCreated();
-        $this->postJson(self::ADMIN.'/sub-categories/999999/children', ['name' => 'x'])->assertNotFound();
-    }
-
-    public function test_a_sub_category_with_children_cannot_be_deleted_but_a_child_can(): void
-    {
-        $this->actingAsAdmin();
-        $gun = $this->makeCategory(['name' => 'Gun']);
-        $pistol = $this->makeSub($gun, ['name' => 'Pistol']);
-        $nine = $this->makeChild($pistol, ['name' => '9mm']);
-
-        $this->deleteJson(self::ADMIN."/sub-categories/{$pistol->id}")
-            ->assertStatus(422)->assertJsonValidationErrors('category')
-            ->assertJsonPath('errors.category.0', 'This sub-category has 1 sub-category. Deactivate it instead of deleting.');
-
-        $this->makeProduct($gun, $nine);
-        $this->deleteJson(self::ADMIN."/sub-categories/{$nine->id}")->assertStatus(422);
-
-        DB::table('products')->delete();
-        $this->deleteJson(self::ADMIN."/sub-categories/{$nine->id}")->assertOk();
-        $this->deleteJson(self::ADMIN."/sub-categories/{$pistol->id}")->assertOk();
-    }
-
-    public function test_a_parent_sub_category_counts_the_products_of_its_children(): void
-    {
-        $this->actingAsAdmin();
-        $gun = $this->makeCategory(['name' => 'Gun']);
-        $pistol = $this->makeSub($gun, ['name' => 'Pistol']);
-        $nine = $this->makeChild($pistol, ['name' => '9mm']);
-        $this->makeProduct($gun, $nine);
-        $this->makeProduct($gun, $nine);
-        $this->makeProduct($gun, $pistol);
-
-        $this->getJson(self::ADMIN.'/categories')
-            ->assertJsonPath('data.0.products_count', 3)
-            ->assertJsonPath('data.0.sub_categories.0.products_count', 3)
-            ->assertJsonPath('data.0.sub_categories.0.children.0.products_count', 2);
-    }
-
-    public function test_admin_search_finds_a_sub_sub_category_and_options_nest_children(): void
-    {
-        $this->actingAsAdmin();
-        $gun = $this->makeCategory(['name' => 'Gun']);
-        $pistol = $this->makeSub($gun, ['name' => 'Pistol']);
-        $nine = $this->makeChild($pistol, ['name' => '9mm']);
-        $this->makeChild($pistol, ['name' => 'Retired', 'is_active' => false]);
-        $this->makeCategory(['name' => 'Other']);
-
-        $this->getJson(self::ADMIN.'/categories?q=9mm')->assertOk()
-            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.name', 'Gun');
-        $this->getJson(self::ADMIN.'/categories/options')
-            ->assertJsonPath('data.0.sub_categories.0.children', [['id' => $nine->id, 'name' => '9mm']]);
-    }
-
-    public function test_store_tree_nests_active_children_in_order(): void
-    {
-        $gun = $this->makeCategory(['name' => 'Gun']);
-        $pistol = $this->makeSub($gun, ['name' => 'Pistol']);
-        $this->makeChild($pistol, ['name' => '9mm', 'sort_order' => 2]);
-        $this->makeChild($pistol, ['name' => '45 ACP', 'sort_order' => 1]);
-        $this->makeChild($pistol, ['name' => 'Retired', 'is_active' => false]);
-        $rifle = $this->makeSub($gun, ['name' => 'Rifle', 'is_active' => false]);
-        $this->makeChild($rifle, ['name' => 'Under hidden parent']);
-
-        $res = $this->getJson(self::STORE.'/categories')->assertOk();
-        $children = $res->json('data.0.sub_categories.0.children');
-        $this->assertSame(['45 ACP', '9mm'], array_column($children, 'name'));
-        $this->assertSame(['id', 'name', 'slug', 'icon_url', 'image_url'], array_keys($children[0]));
-        $this->assertStringNotContainsString('Under hidden parent', $res->getContent());
-        $this->assertStringNotContainsString('Retired', $res->getContent());
-
-        $this->getJson(self::STORE.'/categories/gun')->assertOk()->assertJsonCount(2, 'data.sub_categories.0.children');
     }
 }

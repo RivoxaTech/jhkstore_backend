@@ -8,7 +8,6 @@ use App\Domain\Catalog\Actions\SaveProduct;
 use App\Domain\Catalog\Enums\ProductStatus;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
-use App\Domain\Catalog\Models\SubCategory;
 use App\Domain\Catalog\Models\Tag;
 use App\Domain\Support\Settings;
 use App\Domain\Catalog\ProductImages;
@@ -68,8 +67,7 @@ class ProductController extends Controller
             ->when($request->query('status'), fn ($q, $v) => $q->where('products.status', $v))
             ->when($request->query('brand_id'), fn ($q, $v) => $q->where('products.brand_id', $v))
             ->when($request->query('category_id'), fn ($q, $v) => $q->where('products.category_id', $v))
-            ->when($request->query('sub_category_id'), fn ($q, $id) => $q->whereIn('products.sub_category_id',
-                SubCategory::query()->where('parent_id', $id)->pluck('id')->push((int) $id))) // a parent also lists its children's products
+            ->when($request->query('sub_category_id'), fn ($q, $id) => $q->where('products.sub_category_id', $id))
             ->when($request->query('tag'), fn ($q, $slug) => $q->whereHas('tags', fn ($t) => $t->where('tags.slug', $slug)))
             ->latest('products.id')
             ->paginate((int) $request->query('per_page', 20))

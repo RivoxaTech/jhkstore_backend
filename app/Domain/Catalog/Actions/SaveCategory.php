@@ -10,7 +10,7 @@ use App\Support\Audit;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 
-/** Creates / updates a category, a sub-category or a sub-sub-category (admin side), including icon and image uploads. */
+/** Creates / updates a category or a sub-category (admin side), including icon and image uploads. */
 class SaveCategory
 {
     public function createCategory(array $data, ?UploadedFile $icon, ?UploadedFile $image, Admin $admin): Category
@@ -38,25 +38,14 @@ class SaveCategory
 
     public function createSubCategory(Category $category, array $data, ?UploadedFile $icon, ?UploadedFile $image, Admin $admin): SubCategory
     {
-        return $this->newSub($category->id, null, $data, $icon, $image, $admin);
+        return $this->newSub($category->id, $data, $icon, $image, $admin);
     }
 
-    /** A sub-sub-category under a first-level sub-category (children cannot have children). */
-    public function createChild(SubCategory $parent, array $data, ?UploadedFile $icon, ?UploadedFile $image, Admin $admin): SubCategory
-    {
-        if ($parent->isChild()) {
-            throw ValidationException::withMessages(['category' => 'A sub-sub-category cannot have its own sub-categories.']);
-        }
-
-        return $this->newSub($parent->category_id, $parent, $data, $icon, $image, $admin);
-    }
-
-    private function newSub(int $categoryId, ?SubCategory $parent, array $data, ?UploadedFile $icon, ?UploadedFile $image, Admin $admin): SubCategory
+    private function newSub(int $categoryId, array $data, ?UploadedFile $icon, ?UploadedFile $image, Admin $admin): SubCategory
     {
         $sub = new SubCategory($this->fields($data));
         $sub->category_id = $categoryId;
-        $sub->parent_id = $parent?->id;
-        $sub->sort_order = $data['sort_order'] ?? (SubCategory::where('category_id', $categoryId)->where('parent_id', $parent?->id)->max('sort_order') + 1);
+        $sub->sort_order = $data['sort_order'] ?? (SubCategory::where('category_id', $categoryId)->max('sort_order') + 1);
         $sub->slug = SubCategory::uniqueSlug($data['name']);
         $sub->save();
 

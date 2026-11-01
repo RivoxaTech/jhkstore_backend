@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 class CategoryController extends Controller
 {
     /**
-     * Active categories with their active sub-categories and sub-sub-categories (`children`). Cached 10 minutes.
+     * Active categories with their active sub-categories. Cached 10 minutes.
      * `?top=1` = only the top categories (home screen).
      */
     public function index(Request $request): JsonResponse
@@ -18,7 +18,7 @@ class CategoryController extends Controller
         return response()->json(['data' => CategoryTree::storefront($request->boolean('top'))]);
     }
 
-    /** One active category by slug, with its active sub-categories and their children. */
+    /** One active category by slug, with its active sub-categories. */
     public function show(string $slug): JsonResponse
     {
         $category = CategoryTree::find($slug);

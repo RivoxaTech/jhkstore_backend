@@ -142,7 +142,7 @@ class ProductStoreTest extends TestCase
     {
         $restorative = $this->makeCategory('Restorative');
         $composites = $this->makeSub($restorative, 'Composites');
-        $nano = $this->makeSub($restorative, 'Nano Composites', parent: $composites);   // a sub-sub-category
+        $nano = $this->makeSub($restorative, 'Nano Composites');
         $endo = $this->makeCategory('Endo');
         $files = $this->makeSub($endo, 'Files');
         $filesDuplicate = $this->makeSub($restorative, 'Files');                          // same slug in another category
@@ -155,7 +155,7 @@ class ProductStoreTest extends TestCase
 
         $this->assertEqualsCanonicalizing(['p1', 'p2', 'p4'], $this->slugs('category=restorative'));
         $this->assertSame(['p3'], $this->slugs('category=endo'));
-        $this->assertEqualsCanonicalizing(['p1', 'p2'], $this->slugs('sub_category=composites'));        // a parent includes its children
+        $this->assertSame(['p1'], $this->slugs('sub_category=composites'));
         $this->assertSame(['p2'], $this->slugs('sub_category=nano-composites'));
         $this->assertSame(['p3'], $this->slugs('category=endo&sub_category='.$files->slug));            // narrowed by the category
         $this->assertSame(['p4'], $this->slugs('category=restorative&sub_category='.$filesDuplicate->slug));
@@ -252,8 +252,7 @@ class ProductStoreTest extends TestCase
     {
         $category = $this->makeCategory('Cat');
         $sub = $this->makeSub($category, 'Sub');
-        $child = $this->makeSub($category, 'Child', parent: $sub);
-        $visible = $this->makeProduct($category, ['name' => 'Visible', 'sub_category_id' => $child->id]);
+        $visible = $this->makeProduct($category, ['name' => 'Visible', 'sub_category_id' => $sub->id]);
 
         $draft = $this->makeProduct($category, ['name' => 'Draft', 'status' => 'draft']);
         $inactive = $this->makeProduct($category, ['name' => 'Inactive', 'status' => 'inactive']);
@@ -272,11 +271,6 @@ class ProductStoreTest extends TestCase
         $offSub = $this->makeSub($category, 'Off Sub');
         $this->makeProduct($category, ['name' => 'Sub off', 'sub_category_id' => $offSub->id]);
         $offSub->update(['is_active' => false]);
-
-        $parent = $this->makeSub($category, 'Parent');
-        $kid = $this->makeSub($category, 'Kid', parent: $parent);
-        $this->makeProduct($category, ['name' => 'Parent off', 'sub_category_id' => $kid->id]);
-        $parent->update(['is_active' => false]);
 
         $noOption = $this->makeProduct($category, ['name' => 'No active option']);
         DB::table('product_variants')->where('product_id', $noOption->id)->update(['is_active' => false]);

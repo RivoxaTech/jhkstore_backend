@@ -30,10 +30,6 @@ class DeleteCategory
 
     public function subCategory(SubCategory $sub, Admin $admin): void
     {
-        $children = $sub->children()->count();
-        if ($children > 0) {
-            $this->refuse("This sub-category has {$children} sub-categor".($children === 1 ? 'y' : 'ies').'. Deactivate it instead of deleting.');
-        }
         if ($this->products('sub_category_id', $sub->id) > 0) {
             $this->refuse('This sub-category has products. Deactivate it instead of deleting.');
         }
