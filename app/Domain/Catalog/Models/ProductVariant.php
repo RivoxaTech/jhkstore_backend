@@ -10,7 +10,7 @@ class ProductVariant extends Model
 {
     protected $fillable = [
         'name', 'sku', 'is_default', 'attributes', 'mrp', 'selling_price', 'discount_percent', 'reward_points',
-        'expiry_date', 'barcode', 'weight_grams', 'is_cod_available', 'is_active', 'sort_order',
+        'expiry_date', 'barcode', 'weight_grams', 'is_cod_available', 'is_active', 'sort_order', 'stock_qty', 'reserved_qty', 'low_stock_threshold',
     ];
 
     protected function casts(): array
@@ -24,6 +24,9 @@ class ProductVariant extends Model
             'selling_price' => 'decimal:2',
             'discount_percent' => 'decimal:2',
             'expiry_date' => 'date',
+            'stock_qty' => 'integer',
+            'reserved_qty' => 'integer',
+            'low_stock_threshold' => 'integer',
         ];
     }
 
@@ -46,9 +49,9 @@ class ProductVariant extends Model
         return $this->hasMany(VariantPriceTier::class, 'variant_id')->orderBy('min_qty');
     }
 
-    /** One row per sales channel (quantity is separate per channel). */
-    public function stocks(): HasMany
+    /** Units that can still be sold (stock minus what is reserved). */
+    public function available(): int
     {
-        return $this->hasMany(VariantChannelStock::class, 'variant_id');
+        return max(0, $this->stock_qty - $this->reserved_qty);
     }
 }

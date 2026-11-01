@@ -8,6 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 class InventoryMovement extends Model
 {
     protected $fillable = [
-        'variant_id', 'channel_id', 'type', 'qty_change', 'balance_after', 'reference_type', 'reference_id', 'admin_id', 'note',
+        'variant_id', 'type', 'qty_change', 'balance_after', 'reference_type', 'reference_id', 'admin_id', 'note',
     ];
 }

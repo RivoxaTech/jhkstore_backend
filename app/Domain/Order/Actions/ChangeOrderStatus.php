@@ -7,7 +7,7 @@ use App\Domain\Auth\Models\User;
 use App\Domain\Catalog\Actions\RefreshProductSummary;
 use App\Domain\Catalog\Models\InventoryMovement;
 use App\Domain\Catalog\Models\Product;
-use App\Domain\Catalog\Models\VariantChannelStock;
+use App\Domain\Catalog\Models\ProductVariant;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Enums\PaymentStatus;
 use App\Domain\Order\Exceptions\CommerceException;
@@ -70,7 +70,7 @@ class ChangeOrderStatus
             ]);
             Audit::log($actor, $to === OrderStatus::Cancelled ? 'order.cancelled' : 'order.status_changed', $order, ['from' => $from->value, 'to' => $to->value, 'note' => $note]);
 
-            return $order->load(['items', 'addresses', 'history', 'payment', 'shipments', 'channel']);
+            return $order->load(['items', 'addresses', 'history', 'payment', 'shipments']);
         });
     }
 
@@ -117,19 +117,24 @@ class ChangeOrderStatus
 
         // stock goes back, row by row in variant order (the same order PlaceOrder locks in)
         $items = $order->items()->get()->sortBy('variant_id');
-        $stocks = VariantChannelStock::query()->where('channel_id', $order->channel_id)->whereIn('variant_id', $items->pluck('variant_id'))
-            ->orderBy('variant_id')->lockForUpdate()->get()->keyBy('variant_id');
+        $stocks = ProductVariant::query()->whereIn('id', $items->pluck('variant_id'))
+            ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
 
         foreach ($items as $item) {
             if ($item->status === 'cancelled') {
                 continue;
             }
-            $stock = $stocks->get($item->variant_id) ?? new VariantChannelStock(['variant_id' => $item->variant_id, 'channel_id' => $order->channel_id, 'stock_qty' => 0, 'is_active' => true]);
+            $stock = $stocks->get($item->variant_id);
+            if (! $stock) {
+                $item->update(['status' => 'cancelled', 'cancelled_qty' => $item->qty]);   // the option no longer exists: nothing to put back
+
+                continue;
+            }
             $stock->stock_qty += $item->qty;
             $stock->save();
 
             InventoryMovement::create([
-                'variant_id' => $item->variant_id, 'channel_id' => $order->channel_id, 'type' => 'cancel', 'qty_change' => $item->qty,
+                'variant_id' => $item->variant_id, 'type' => 'cancel', 'qty_change' => $item->qty,
                 'balance_after' => $stock->stock_qty, 'reference_type' => 'order', 'reference_id' => $order->id,
                 'note' => "Order {$order->order_number} cancelled", 'admin_id' => $actor instanceof Admin ? $actor->id : null,
             ]);

@@ -6,15 +6,13 @@ use App\Domain\Auth\Models\Admin;
 use App\Domain\Catalog\Models\InventoryMovement;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductVariant;
-use App\Domain\Catalog\Models\SalesChannel;
-use App\Domain\Catalog\Models\VariantChannelStock;
 use App\Domain\Catalog\Models\VariantPriceTier;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Makes the variants of a product match the submitted list: creates new ones, updates the ones that carry an `id`,
  * and removes the rest (a variant that already sits in an order is switched off instead of deleted).
- * Price, MRP, points and the automatic discount live here; so does the quantity per sales channel (with a movement log).
+ * Price, MRP, points and the automatic discount live here; so does the stock quantity (with a movement log).
  */
 class SyncProductVariants
 {
@@ -45,7 +43,9 @@ class SyncProductVariants
             $variant->is_default = false; // fixed below: exactly one default
             $variant->save();
 
-            $this->syncStock($variant, $row['stock'] ?? [], $row['stock_was'] ?? [], $admin);
+            if (array_key_exists('stock', $row)) {
+                $this->syncStock($variant, (int) $row['stock'], isset($row['stock_was']) ? (int) $row['stock_was'] : null, $admin);
+            }
             if (array_key_exists('price_tiers', $row)) {
                 $this->syncTiers($variant, $row['price_tiers'] ?? []);
             }
@@ -84,42 +84,33 @@ class SyncProductVariants
     }
 
     /**
-     * @param  array<string,int>  $stock  channel code => the quantity the admin typed
-     * @param  array<string,int>  $was  channel code => the quantity the admin SAW when the form was opened (optional)
+     * @param  int  $qty  the quantity the admin typed
+     * @param  int|null  $was  the quantity the admin SAW when the form was opened (optional)
      *
      * With `stock_was` the edit is applied as a CHANGE (typed - seen) on top of the live quantity, under the row lock: orders placed while the form
      * was open are never given back, and a form whose stock box was not touched changes nothing. Without it (API clients, new options) the typed number is absolute.
      */
-    private function syncStock(ProductVariant $variant, array $stock, array $was, Admin $admin): void
+    private function syncStock(ProductVariant $variant, int $qty, ?int $was, Admin $admin): void
     {
-        $channels = SalesChannel::idsByCode();
-
-        foreach ($stock as $code => $qty) {
-            if (! isset($channels[$code])) {
-                continue;
-            }
-            $qty = (int) $qty;
-            $row = VariantChannelStock::query()->where('variant_id', $variant->id)->where('channel_id', $channels[$code])->lockForUpdate()->first();
-            $before = $row?->stock_qty ?? 0;
-            if ($row && isset($was[$code])) {
-                $qty = $qty === (int) $was[$code] ? $before : max(0, $before + $qty - (int) $was[$code]);
-            }
-
-            $row ??= new VariantChannelStock(['variant_id' => $variant->id, 'channel_id' => $channels[$code], 'is_active' => true]);
-            $row->stock_qty = $qty;
-            $row->save();
-
-            if ($qty !== $before) {
-                InventoryMovement::create([
-                    'variant_id' => $variant->id,
-                    'channel_id' => $channels[$code],
-                    'type' => $row->wasRecentlyCreated ? 'initial' : 'adjustment',
-                    'qty_change' => $qty - $before,
-                    'balance_after' => $qty,
-                    'admin_id' => $admin->id,
-                    'note' => 'Set in the admin panel',
-                ]);
-            }
+        $created = $variant->wasRecentlyCreated;
+        $row = ProductVariant::query()->whereKey($variant->id)->lockForUpdate()->first();
+        $before = $created ? 0 : $row->stock_qty;
+        if (! $created && $was !== null) {
+            $qty = $qty === $was ? $before : max(0, $before + $qty - $was);
         }
+        $qty = max(0, $qty);
+
+        if ($qty === $before) {
+            return;
+        }
+        $row->forceFill(['stock_qty' => $qty])->save();
+        InventoryMovement::create([
+            'variant_id' => $variant->id,
+            'type' => $created ? 'initial' : 'adjustment',
+            'qty_change' => $qty - $before,
+            'balance_after' => $qty,
+            'admin_id' => $admin->id,
+            'note' => 'Set in the admin panel',
+        ]);
     }
 }

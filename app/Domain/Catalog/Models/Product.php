@@ -81,13 +81,6 @@ class Product extends Model implements HasMedia
         return $this->belongsToMany(Tag::class, 'product_tag')->withPivot('sort_order')->orderBy('tags.sort_order');
     }
 
-    /** Channels this product is offered on (pivot `is_active` = the on/off toggle). */
-    public function channels(): BelongsToMany
-    {
-        return $this->belongsToMany(SalesChannel::class, 'product_channels', 'product_id', 'channel_id')
-            ->withPivot('is_active')->withTimestamps();
-    }
-
     public function remoteImages(): HasMany
     {
         return $this->hasMany(ProductImage::class)->orderBy('sort_order')->orderBy('id');
@@ -108,10 +101,9 @@ class Product extends Model implements HasMedia
 
     /**
      * What customers may see: an active product whose brand (when it has one) is active, whose
-     * category and sub-category (and its parent) are active, and that is offered - and switched on - on the channel.
-     * `$channelCode = null` means "on any active channel" (used where the channel does not matter, e.g. reviews).
+     * category and sub-category (and its parent) are active, and that has at least one active option.
      */
-    public function scopeStorefront(Builder $query, ?string $channelCode = SalesChannel::STANDARD): Builder
+    public function scopeStorefront(Builder $query): Builder
     {
         return $query
             ->where('products.status', ProductStatus::Active->value)
@@ -121,15 +113,7 @@ class Product extends Model implements HasMedia
             ->whereHas('category', fn ($q) => $q->where('is_active', true))
             ->where(fn ($q) => $q->whereNull('products.sub_category_id')->orWhereHas('subCategory', fn ($s) => $s
                 ->where('is_active', true)
-                ->where(fn ($p) => $p->whereNull('parent_id')->orWhereHas('parent', fn ($x) => $x->where('is_active', true)))))
-            ->whereExists(function ($q) use ($channelCode) {
-                $q->select(DB::raw(1))->from('product_channels')
-                    ->join('sales_channels', 'sales_channels.id', '=', 'product_channels.channel_id')
-                    ->whereColumn('product_channels.product_id', 'products.id')
-                    ->where('product_channels.is_active', true)
-                    ->where('sales_channels.is_active', true)
-                    ->when($channelCode, fn ($c) => $c->where('sales_channels.code', $channelCode));
-            });
+                ->where(fn ($p) => $p->whereNull('parent_id')->orWhereHas('parent', fn ($x) => $x->where('is_active', true)))));
     }
 
     /** Products carrying an active tag with this slug (one indexed lookup through product_tag). */
@@ -141,13 +125,12 @@ class Product extends Model implements HasMedia
             ->where('tags.slug', $slug)->where('tags.is_active', true));
     }
 
-    /** Products with at least one sellable unit on the channel. */
-    public function scopeInStockOn(Builder $query, int $channelId): Builder
+    /** Products with at least one sellable unit. */
+    public function scopeInStock(Builder $query): Builder
     {
         return $query->whereExists(fn ($q) => $q->select(DB::raw(1))->from('product_variants as v')
-            ->join('variant_channel_stock as s', 's.variant_id', '=', 'v.id')
             ->whereColumn('v.product_id', 'products.id')
-            ->where('v.is_active', true)->where('s.is_active', true)->where('s.channel_id', $channelId)
-            ->whereRaw('s.stock_qty - s.reserved_qty > 0'));
+            ->where('v.is_active', true)
+            ->whereRaw('v.stock_qty - v.reserved_qty > 0'));
     }
 }

@@ -7,7 +7,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * An order for its owner. As a list row it needs `items` (for the thumbnails) loaded; the detail also needs `addresses`, `history`,
- * `payment`, `shipments` and `channel` (see Store\OrderController). Money is in the shop currency, tax is included in all prices.
+ * `payment` and `shipments` (see Store\OrderController). Money is in the shop currency, tax is included in all prices.
  */
 class StoreOrderResource extends JsonResource
 {
@@ -26,7 +26,6 @@ class StoreOrderResource extends JsonResource
             'status' => $o->status->value,
             'status_label' => OrderPresenter::statusLabel($o->status),
             'can_cancel' => $o->status->isCancellable(),
-            'channel' => $o->relationLoaded('channel') ? $o->channel->code : null,
             'placed_at' => $o->placed_at,
             'estimated_delivery_date' => $o->estimated_delivery_date?->toDateString(),
             'items_count' => $o->items_count,

@@ -35,19 +35,17 @@ Route::get('brands/{slug}', [BrandController::class, 'show']);
 Route::get('categories', [CategoryController::class, 'index']);
 Route::get('categories/{slug}', [CategoryController::class, 'show']);
 
-// Products. `channel` middleware: ?channel=standard (default) | instadent (guests get 401)
-Route::middleware('channel')->group(function () {
-    Route::get('products', [ProductController::class, 'index']);
-    Route::get('products/{slug}', [ProductController::class, 'show']);
-});
+// Products
+Route::get('products', [ProductController::class, 'index']);
+Route::get('products/{slug}', [ProductController::class, 'show']);
 Route::get('tags', [TagController::class, 'index']);
 Route::get('products/{slug}/reviews', [ReviewController::class, 'index']);
 Route::post('products/{slug}/reviews', [ReviewController::class, 'store'])
     ->middleware(['auth:sanctum', 'actor:customer', 'throttle:reviews']);
 
 
-// Cart (stored in the database). Guest: X-Cart-Token header; customer: Bearer token. ?channel=standard|instadent picks the cart.
-Route::middleware(['channel', 'throttle:cart'])->prefix('cart')->group(function () {
+// Cart (stored in the database). Guest: X-Cart-Token header; customer: Bearer token.
+Route::middleware(['throttle:cart'])->prefix('cart')->group(function () {
     Route::get('/', [CartController::class, 'show']);
     Route::delete('/', [CartController::class, 'clear']);
     Route::post('items', [CartController::class, 'add']);
@@ -71,7 +69,7 @@ Route::middleware(['auth:sanctum', 'actor:customer'])->group(function () {
     });
 
     Route::middleware('throttle:orders')->group(function () {
-        Route::post('orders', [OrderController::class, 'store'])->middleware('channel');
+        Route::post('orders', [OrderController::class, 'store']);
         Route::post('orders/{orderNumber}/cancel', [OrderController::class, 'cancel']);
         Route::post('orders/{orderNumber}/reorder', [OrderController::class, 'reorder']);
     });

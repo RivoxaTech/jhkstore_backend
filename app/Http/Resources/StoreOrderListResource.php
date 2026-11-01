@@ -2,7 +2,7 @@
 
 namespace App\Http\Resources;
 
-/** The short order row of "My orders" (needs `items` and `channel` loaded). */
+/** The short order row of "My orders" (needs `items` loaded). */
 class StoreOrderListResource extends StoreOrderResource
 {
     public function __construct($resource)

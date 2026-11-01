@@ -4,7 +4,6 @@ namespace Tests;
 
 use App\Domain\Auth\Models\Admin;
 use App\Domain\Support\Settings;
-use Database\Seeders\SalesChannelSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Laravel\Sanctum\Sanctum;
@@ -17,7 +16,7 @@ abstract class TestCase extends BaseTestCase
      */
     protected function seedBasics(): void
     {
-        $this->seed([SalesChannelSeeder::class, SettingsSeeder::class]);
+        $this->seed(SettingsSeeder::class);
 
         app(Settings::class)->set([
             'currency_code' => 'PKR', 'currency_symbol' => 'Rs', 'order_number_prefix' => 'DK',

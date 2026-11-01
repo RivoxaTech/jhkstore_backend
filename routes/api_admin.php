@@ -45,7 +45,7 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin'])->group(function () {
     Route::match(['put', 'patch', 'post'], 'sub-categories/{subCategory}', [SubCategoryController::class, 'update']);
     Route::delete('sub-categories/{subCategory}', [SubCategoryController::class, 'destroy']);
 
-    // Products (variants, tags, channels + stock per channel, content tabs in the JSON body; pictures separately)
+    // Products (variants with stock, tags, content tabs in the JSON body; pictures separately)
     Route::get('products/options', [ProductController::class, 'options']);
     Route::get('products', [ProductController::class, 'index']);
     Route::post('products', [ProductController::class, 'store']);

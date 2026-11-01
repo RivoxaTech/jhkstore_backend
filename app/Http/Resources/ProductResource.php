@@ -9,7 +9,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * Full admin view of a product (everything the edit form needs). Needs brand, category, subCategory, tags,
- * channels, contentTabs, media, remoteImages, related (with media + remoteImages) and variants.stocks.channel / variants.priceTiers loaded.
+ * contentTabs, media, remoteImages, related (with media + remoteImages) and variants.priceTiers loaded.
  * Every product has at least one option (variant); the cheapest one gives the starting price.
  */
 class ProductResource extends JsonResource
@@ -63,11 +63,10 @@ class ProductResource extends JsonResource
                 'is_active' => $v->is_active,
                 'sort_order' => $v->sort_order,
                 'price_tiers' => $v->priceTiers->map(fn ($t) => ['min_qty' => $t->min_qty, 'price' => (float) $t->price])->values(),
-                // channel code => quantity in stock
-                'stock' => $v->stocks->mapWithKeys(fn ($s) => [$s->channel->code => $s->stock_qty])->all() ?: (object) [],
-                'reserved' => $v->stocks->mapWithKeys(fn ($s) => [$s->channel->code => $s->reserved_qty])->all() ?: (object) [],
+                'stock' => (int) $v->stock_qty,
+                'reserved' => (int) $v->reserved_qty,
+                'low_stock_threshold' => (int) $v->low_stock_threshold,
             ])->values(),
-            'channels' => $this->channels->map(fn ($c) => ['code' => $c->code, 'name' => $c->name, 'is_active' => (bool) $c->pivot->is_active])->values(),
             'related_ids' => $this->related->pluck('id')->values(),
             'related' => $this->related->map(fn ($r) => [
                 'id' => $r->id, 'name' => $r->name, 'sku' => $r->sku, 'status' => $r->status->value, 'thumb_url' => ProductImages::primary($r)['thumb_url'],

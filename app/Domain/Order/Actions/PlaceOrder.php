@@ -12,8 +12,7 @@ use App\Domain\Cart\PricedCart;
 use App\Domain\Cart\PricedLine;
 use App\Domain\Catalog\Actions\RefreshProductSummary;
 use App\Domain\Catalog\Models\InventoryMovement;
-use App\Domain\Catalog\Models\SalesChannel;
-use App\Domain\Catalog\Models\VariantChannelStock;
+use App\Domain\Catalog\Models\ProductVariant;
 use App\Domain\Catalog\ProductImages;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Enums\PaymentMethod;
@@ -36,7 +35,7 @@ use Illuminate\Support\Str;
  * Checkout: turns the customer's cart into an order. Everything happens in ONE database transaction:
  *
  *   1. lock the cart row (a second tap on "Place order" waits here, then finds an empty cart or - with the same idempotency key - the order)
- *   2. lock the stock rows of the cart's options (FOR UPDATE, always in variant order, so two checkouts can never deadlock or oversell)
+ *   2. lock the variant (stock) rows of the cart's options (FOR UPDATE, always in variant order, so two checkouts can never deadlock or oversell)
  *   3. lock the coin batches, price the cart again from live data (CartPricing) and re-validate everything
  *      (stock, quantity limits, minimum order, cash-on-delivery limit, address ownership, the total the customer saw)
  *   4. write order + lines + address snapshots + payment + history, deduct the stock (movement type `sale`), debit the coins, empty the cart
@@ -58,14 +57,14 @@ class PlaceOrder
      * @param  array{address_id?:int, address?:array, save_address?:bool, billing_address_id?:int, payment_method?:string, coins_to_redeem?:int, customer_note?:string, expected_total?:numeric}  $input
      * @return array{0: Order, 1: bool}  the order and whether it is an earlier order returned for the same idempotency key
      */
-    public function handle(User $user, SalesChannel $channel, array $input, ?string $idempotencyKey = null): array
+    public function handle(User $user, array $input, ?string $idempotencyKey = null): array
     {
         if ($idempotencyKey && ($existing = $this->replay($user, $idempotencyKey))) {
             return [$existing, true];
         }
 
         try {
-            $order = DB::transaction(fn () => $this->place($user, $channel, $input, $idempotencyKey), 3);
+            $order = DB::transaction(fn () => $this->place($user, $input, $idempotencyKey), 3);
         } catch (UniqueConstraintViolationException $e) {
             if ($idempotencyKey && ($existing = $this->replay($user, $idempotencyKey))) {
                 return [$existing, true];   // two requests with the same key raced: the loser gets the winner's order
@@ -76,9 +75,9 @@ class PlaceOrder
         return [$order, ! $order->wasRecentlyCreated];
     }
 
-    private function place(User $user, SalesChannel $channel, array $input, ?string $key): Order
+    private function place(User $user, array $input, ?string $key): Order
     {
-        $cart = Cart::query()->where('user_id', $user->id)->where('channel_id', $channel->id)->where('status', Cart::ACTIVE)->lockForUpdate()->first();
+        $cart = Cart::query()->where('user_id', $user->id)->where('status', Cart::ACTIVE)->lockForUpdate()->first();
 
         if ($key && ($existing = $this->replay($user, $key))) {
             return $existing;   // the same request arrived while the first one was running
@@ -88,20 +87,20 @@ class PlaceOrder
             throw new CommerceException('cart_empty', 'Your cart is empty.');
         }
 
-        $stocks = VariantChannelStock::query()->where('channel_id', $channel->id)->whereIn('variant_id', $variantIds)
-            ->orderBy('variant_id')->lockForUpdate()->get()->keyBy('variant_id');
+        $stocks = ProductVariant::query()->whereIn('id', $variantIds)
+            ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
         $wallet = $this->ledger->spendable($user->id, lock: true);
 
         $coins = isset($input['coins_to_redeem']) ? (int) $input['coins_to_redeem'] : (int) $cart->coins_to_redeem;
-        $priced = $this->pricing->forCart($cart, $channel, $user, $coins, $stocks, $wallet);
+        $priced = $this->pricing->forCart($cart, $user, $coins, $stocks, $wallet);
 
         $this->validate($priced, $input);
         [$shipping, $billing] = $this->addresses($user, $input);
         $this->validateDelivery($shipping);
 
-        $order = $this->createOrder($user, $channel, $priced, $shipping, $billing, $input, $key);
+        $order = $this->createOrder($user, $priced, $shipping, $billing, $input, $key);
         $this->createItems($order, $priced);
-        $this->deductStock($order, $channel, $priced, $stocks);
+        $this->deductStock($order, $priced, $stocks);
 
         if ($priced->coins['applied'] > 0) {
             $this->ledger->redeem($user->id, $priced->coins['applied'], $order);
@@ -114,12 +113,12 @@ class PlaceOrder
             $this->refreshProduct->handle($product);
         }
 
-        return $order->load(['items', 'addresses', 'history', 'payment', 'channel']);
+        return $order->load(['items', 'addresses', 'history', 'payment']);
     }
 
     private function replay(User $user, string $key): ?Order
     {
-        return Order::query()->where('user_id', $user->id)->where('idempotency_key', $key)->first()?->load(['items', 'addresses', 'history', 'payment', 'channel']);
+        return Order::query()->where('user_id', $user->id)->where('idempotency_key', $key)->first()?->load(['items', 'addresses', 'history', 'payment']);
     }
 
     private function validate(PricedCart $priced, array $input): void
@@ -206,12 +205,11 @@ class PlaceOrder
         }
     }
 
-    private function createOrder(User $user, SalesChannel $channel, PricedCart $priced, array $shipping, array $billing, array $input, ?string $key): Order
+    private function createOrder(User $user, PricedCart $priced, array $shipping, array $billing, array $input, ?string $key): Order
     {
         $order = Order::create([
             'order_number' => 'TMP-'.Str::random(20),   // replaced below, once the id exists
             'user_id' => $user->id,
-            'channel_id' => $channel->id,
             'customer_name' => $user->full_name,
             'customer_email' => $user->email,
             'customer_phone' => $user->mobile ?: ($shipping['phone'] ?? null),
@@ -234,7 +232,7 @@ class PlaceOrder
             'coins_to_earn' => $priced->coinsToEarn,
             'customer_gst_number' => $shipping['gst_number'] ?? null,
             'customer_note' => trim((string) ($input['customer_note'] ?? '')) ?: null,
-            'estimated_delivery_date' => now()->addDays((int) $channel->delivery_days)->toDateString(),
+            'estimated_delivery_date' => now()->addDays((int) app(Settings::class)->get('delivery_days'))->toDateString(),
             'placed_at' => now(),
             'source' => 'web',
             'idempotency_key' => $key,
@@ -294,7 +292,7 @@ class PlaceOrder
     }
 
     /** Takes the units off the (locked) stock rows and logs one `sale` movement per option. A low-stock alert is logged when it runs low. */
-    private function deductStock(Order $order, SalesChannel $channel, PricedCart $priced, Collection $stocks): void
+    private function deductStock(Order $order, PricedCart $priced, Collection $stocks): void
     {
         foreach ($priced->countedLines() as $line) {
             $stock = $stocks->get($line->variant->id);
@@ -306,14 +304,14 @@ class PlaceOrder
             $stock->save();
 
             InventoryMovement::create([
-                'variant_id' => $line->variant->id, 'channel_id' => $channel->id, 'type' => 'sale', 'qty_change' => -$line->qty,
+                'variant_id' => $line->variant->id, 'type' => 'sale', 'qty_change' => -$line->qty,
                 'balance_after' => $stock->stock_qty, 'reference_type' => 'order', 'reference_id' => $order->id,
                 'note' => "Order {$order->order_number}",
             ]);
 
             if ($stock->available() <= $stock->low_stock_threshold) {
                 Audit::log(null, 'inventory.low_stock', $line->variant, [
-                    'channel' => $channel->code, 'available' => $stock->available(), 'threshold' => $stock->low_stock_threshold, 'order' => $order->order_number,
+                    'available' => $stock->available(), 'threshold' => $stock->low_stock_threshold, 'order' => $order->order_number,
                 ]);
             }
         }

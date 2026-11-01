@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Keeps the denormalized columns of `products` in sync, so listing pages never aggregate:
- * min_price, max_discount_percent (from the active variants) and is_in_stock (any unit sellable on any active channel row).
+ * min_price, max_discount_percent (from the active variants) and is_in_stock (any active variant with a sellable unit).
  * Call it after every change of variants or stock. (rating_avg / rating_count are kept by RecomputeProductRating.)
  */
 class RefreshProductSummary
@@ -19,10 +19,9 @@ class RefreshProductSummary
             ->selectRaw('MIN(selling_price) as min_price, MAX(discount_percent) as max_discount')
             ->first();
 
-        $inStock = DB::table('product_variants as v')
-            ->join('variant_channel_stock as s', 's.variant_id', '=', 'v.id')
-            ->where('v.product_id', $product->id)->where('v.is_active', true)->where('s.is_active', true)
-            ->whereRaw('s.stock_qty - s.reserved_qty > 0')
+        $inStock = DB::table('product_variants')
+            ->where('product_id', $product->id)->where('is_active', true)
+            ->whereRaw('stock_qty - reserved_qty > 0')
             ->exists();
 
         $product->forceFill([

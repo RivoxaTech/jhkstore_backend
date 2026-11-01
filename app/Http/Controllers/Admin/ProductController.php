@@ -8,7 +8,6 @@ use App\Domain\Catalog\Actions\SaveProduct;
 use App\Domain\Catalog\Enums\ProductStatus;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
-use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\Models\SubCategory;
 use App\Domain\Catalog\Models\Tag;
 use App\Domain\Support\Settings;
@@ -30,18 +29,17 @@ class ProductController extends Controller
 {
     /** Relations the full product view needs. */
     private const FULL = [
-        'brand:id,name', 'category:id,name', 'subCategory:id,name', 'tags', 'channels',
-        'contentTabs', 'media', 'remoteImages', 'variants.stocks.channel', 'variants.priceTiers', 'related.media', 'related.remoteImages',
+        'brand:id,name', 'category:id,name', 'subCategory:id,name', 'tags',
+        'contentTabs', 'media', 'remoteImages', 'variants.priceTiers', 'related.media', 'related.remoteImages',
     ];
 
-    /** What the dropdowns of the product form need: active brands, tags, channels, statuses. */
+    /** What the dropdowns of the product form need: active brands, tags, statuses. */
     public function options(Settings $settings): JsonResponse
     {
         return response()->json([
             'brands' => $settings->brandsEnabled() ? Brand::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']) : [],
             'features' => ['brands' => $settings->brandsEnabled(), 'rewards' => $settings->rewardsEnabled()],
             'tags' => Tag::query()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'slug', 'color', 'is_active']),
-            'channels' => SalesChannel::query()->orderBy('id')->get(['code', 'name', 'requires_login']),
             'currency' => ['code' => $settings->currencyCode(), 'symbol' => $settings->currencySymbol(), 'decimals' => $settings->decimals()],
             'statuses' => ProductStatus::values(),
             'content_tabs' => collect(ProductContentTab::TABS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label])->values(),
@@ -50,7 +48,7 @@ class ProductController extends Controller
 
     /**
      * Lean product list. Filters: ?q (name, SKU, variant SKU) ?status ?brand_id ?category_id ?sub_category_id
-     * ?tag (slug) ?channel (code) ?page ?per_page. Newest first; `counts` = products per status.
+     * ?tag (slug) ?page ?per_page. Newest first; `counts` = products per status.
      */
     public function index(Request $request)
     {
@@ -61,12 +59,11 @@ class ProductController extends Controller
             'category_id' => ['nullable', 'integer'],
             'sub_category_id' => ['nullable', 'integer'],
             'tag' => ['nullable', 'string', 'max:80'],
-            'channel' => ['nullable', 'string', 'max:20'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         $products = Product::query()
-            ->with(['brand:id,name', 'category:id,name', 'subCategory:id,name', 'tags', 'channels', 'media', 'remoteImages', 'variants.stocks.channel'])
+            ->with(['brand:id,name', 'category:id,name', 'subCategory:id,name', 'tags', 'media', 'remoteImages', 'variants'])
             ->when($request->query('q'), fn ($q, $term) => ProductSearch::apply($q, $term, includeVariantSku: true))
             ->when($request->query('status'), fn ($q, $v) => $q->where('products.status', $v))
             ->when($request->query('brand_id'), fn ($q, $v) => $q->where('products.brand_id', $v))
@@ -74,7 +71,6 @@ class ProductController extends Controller
             ->when($request->query('sub_category_id'), fn ($q, $id) => $q->whereIn('products.sub_category_id',
                 SubCategory::query()->where('parent_id', $id)->pluck('id')->push((int) $id))) // a parent also lists its children's products
             ->when($request->query('tag'), fn ($q, $slug) => $q->whereHas('tags', fn ($t) => $t->where('tags.slug', $slug)))
-            ->when($request->query('channel'), fn ($q, $code) => $q->whereHas('channels', fn ($c) => $c->where('sales_channels.code', $code)))
             ->latest('products.id')
             ->paginate((int) $request->query('per_page', 20))
             ->withQueryString();
@@ -89,7 +85,7 @@ class ProductController extends Controller
         return new ProductResource($this->loaded($product->id));
     }
 
-    /** Create a product with its variants, tags, channels and content tabs (JSON). Pictures go to POST /products/{id}/images. */
+    /** Create a product with its variants, tags and content tabs (JSON). Pictures go to POST /products/{id}/images. */
     public function store(SaveProductRequest $request, SaveProduct $save): JsonResponse
     {
         $product = $save->create($request->productData(), $request->user());
@@ -97,7 +93,7 @@ class ProductController extends Controller
         return (new ProductResource($this->loaded($product->id)))->response()->setStatusCode(201);
     }
 
-    /** Update a product (send only what changes; `variants`, `tag_ids`, `channels`, `content_tabs` replace the whole list). */
+    /** Update a product (send only what changes; `variants`, `tag_ids`, `content_tabs` replace the whole list). */
     public function update(SaveProductRequest $request, Product $product, SaveProduct $save): ProductResource
     {
         $save->update($product, $request->productData(), $request->user());

@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * The full order for the admin panel. Needs items, addresses, history, payment, shipments, channel loaded.
+ * The full order for the admin panel. Needs items, addresses, history, payment, shipments loaded.
  * `$context` = ['orders_count' => int, 'member_since' => ?date, 'admins' => [id => name]] (looked up once by the controller).
  */
 class AdminOrderResource extends JsonResource
@@ -35,7 +35,6 @@ class AdminOrderResource extends JsonResource
             'delivered_at' => $o->delivered_at,
             'cancelled_at' => $o->cancelled_at,
             'estimated_delivery_date' => $o->estimated_delivery_date?->toDateString(),
-            'channel' => ['code' => $o->channel->code, 'name' => $o->channel->name],
             'source' => $o->source,
             'customer' => [
                 'id' => $o->user_id,

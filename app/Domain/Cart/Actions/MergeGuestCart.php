@@ -10,7 +10,7 @@ use App\Domain\Catalog\Models\ProductVariant;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Called when a guest logs in or registers: the guest cart (found by its token) is merged into the customer's cart of the same channel.
+ * Called when a guest logs in or registers: the guest cart (found by its token) is merged into the customer's cart.
  * The same option is added up (quantities summed) and capped by max_order_qty and the stock; an option that is no longer sold is skipped.
  * The guest cart is deleted afterwards, so a token works once.
  */
@@ -31,27 +31,25 @@ class MergeGuestCart
                 return 0;
             }
 
-            $channel = $guest->channel()->first();
-            $cart = $this->resolver->forUser($user, $channel) ?? $this->resolver->createForUser($user, $channel);
+            $cart = $this->resolver->forUser($user) ?? $this->resolver->createForUser($user);
             Cart::query()->whereKey($cart->id)->lockForUpdate()->first();
 
             $guestLines = CartItem::query()->where('cart_id', $guest->id)->get();
             $variants = ProductVariant::query()
                 ->whereIn('id', $guestLines->pluck('variant_id'))->where('is_active', true)
-                ->whereIn('product_id', Product::query()->storefront($channel->code)->select('products.id'))
-                ->with(['product:id,min_order_qty,max_order_qty', 'stocks' => fn ($q) => $q->where('channel_id', $channel->id)->where('is_active', true)])
+                ->whereIn('product_id', Product::query()->storefront()->select('products.id'))
+                ->with('product:id,min_order_qty,max_order_qty')
                 ->get()->keyBy('id');
             $mine = CartItem::query()->where('cart_id', $cart->id)->get()->keyBy('variant_id');
 
             $merged = 0;
             foreach ($guestLines as $line) {
                 $variant = $variants->get($line->variant_id);
-                $stock = $variant?->stocks->first();
-                if (! $variant || ! $stock) {
+                if (! $variant) {
                     continue;
                 }
 
-                $available = max(0, (int) $stock->stock_qty - (int) $stock->reserved_qty);
+                $available = $variant->available();
                 $qty = min(($mine->get($line->variant_id)->qty ?? 0) + $line->qty, (int) $variant->product->max_order_qty, $available);
                 if ($qty <= 0 || $qty < $variant->product->min_order_qty) {
                     continue;

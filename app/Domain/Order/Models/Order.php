@@ -3,7 +3,6 @@
 namespace App\Domain\Order\Models;
 
 use App\Domain\Auth\Models\User;
-use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Enums\PaymentStatus;
 use Illuminate\Database\Eloquent\Model;
@@ -40,11 +39,6 @@ class Order extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function channel(): BelongsTo
-    {
-        return $this->belongsTo(SalesChannel::class, 'channel_id');
     }
 
     public function items(): HasMany

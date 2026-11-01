@@ -4,15 +4,14 @@ namespace App\Domain\Cart\Actions;
 
 use App\Domain\Auth\Models\User;
 use App\Domain\Cart\Models\Cart;
-use App\Domain\Catalog\Models\SalesChannel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * Finds (or creates) the cart of the caller for one sales channel.
- *  - a logged-in customer: the active cart of (customer, channel)
- *  - a guest: the cart named by the `X-Cart-Token` header (Standard channel only; Instadent needs a login anyway)
+ * Finds (or creates) the cart of the caller.
+ *  - a logged-in customer: the active cart of the customer
+ *  - a guest: the cart named by the `X-Cart-Token` header
  * A guest never chooses a token: the server creates it on the first "add" and returns it (header + body).
  */
 class CartResolver
@@ -27,10 +26,10 @@ class CartResolver
         return $user instanceof User && $user->is_active ? $user : null;
     }
 
-    public function find(Request $request, SalesChannel $channel): ?Cart
+    public function find(Request $request): ?Cart
     {
         if ($user = $this->customer($request)) {
-            return $this->forUser($user, $channel);
+            return $this->forUser($user);
         }
 
         $token = (string) $request->header(self::HEADER, '');
@@ -38,37 +37,37 @@ class CartResolver
             return null;
         }
 
-        return Cart::query()->where('guest_token', $token)->where('channel_id', $channel->id)->where('status', Cart::ACTIVE)
+        return Cart::query()->where('guest_token', $token)->where('status', Cart::ACTIVE)
             ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))->first();
     }
 
-    public function findOrCreate(Request $request, SalesChannel $channel): Cart
+    public function findOrCreate(Request $request): Cart
     {
-        if ($cart = $this->find($request, $channel)) {
+        if ($cart = $this->find($request)) {
             return $cart;
         }
         if ($user = $this->customer($request)) {
-            return $this->createForUser($user, $channel);
+            return $this->createForUser($user);
         }
 
         return Cart::create([
-            'guest_token' => Str::random(40), 'channel_id' => $channel->id, 'status' => Cart::ACTIVE,
+            'guest_token' => Str::random(40), 'status' => Cart::ACTIVE,
             'expires_at' => now()->addDays(Cart::GUEST_DAYS),
         ]);
     }
 
-    public function forUser(User $user, SalesChannel $channel): ?Cart
+    public function forUser(User $user): ?Cart
     {
-        return Cart::query()->where('user_id', $user->id)->where('channel_id', $channel->id)->where('status', Cart::ACTIVE)->first();
+        return Cart::query()->where('user_id', $user->id)->where('status', Cart::ACTIVE)->first();
     }
 
-    /** One cart per customer and channel: the customer row is locked so two first requests cannot make two carts. */
-    public function createForUser(User $user, SalesChannel $channel): Cart
+    /** One cart per customer: the customer row is locked so two first requests cannot make two carts. */
+    public function createForUser(User $user): Cart
     {
-        return DB::transaction(function () use ($user, $channel) {
+        return DB::transaction(function () use ($user) {
             User::query()->whereKey($user->id)->lockForUpdate()->first();
 
-            return $this->forUser($user, $channel) ?? Cart::create(['user_id' => $user->id, 'channel_id' => $channel->id, 'status' => Cart::ACTIVE]);
+            return $this->forUser($user) ?? Cart::create(['user_id' => $user->id, 'status' => Cart::ACTIVE]);
         });
     }
 

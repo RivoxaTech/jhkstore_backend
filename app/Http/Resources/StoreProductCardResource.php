@@ -11,7 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * Product card for the customer site (lists, homepage sections, related products).
  * Eager load (see ProductListing::cardRelations): brand.media, category, tags, media, remoteImages and
- * the active variants with their stock rows of the requested channel. `price` / `mrp` / `reward_points` are those of
+ * the active variants. `price` / `mrp` / `reward_points` are those of
  * the cheapest variant, so the three always belong together.
  *
  * A product with ONE option is shown as that option (its name, a direct price, "3 Offers" = its bulk prices, or "1 Option"
@@ -53,7 +53,7 @@ class StoreProductCardResource extends JsonResource
             'rating_count' => $this->rating_count,
             'badge_text' => $this->badge_text,
             'tags' => $this->tags->pluck('slug')->values(),
-            'in_stock' => $variants->contains(fn ($v) => $v->stocks->contains(fn ($s) => $s->available() > 0)),
+            'in_stock' => $variants->contains(fn ($v) => $v->available() > 0),
         ];
     }
 }

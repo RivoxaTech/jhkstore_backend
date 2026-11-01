@@ -154,24 +154,6 @@ class OrderTest extends TestCase
             ->assertJsonPath('data.billing_address.name', 'Accounts Dept');
     }
 
-    public function test_orders_on_instadent_use_the_instadent_stock_and_cart(): void
-    {
-        $user = $this->customer();
-        $address = $this->address($user)->id;
-        $variant = $this->variantOf($this->shopProduct());
-        $this->actAs($user);
-        $this->addToCart($variant, 2, 'instadent');
-        $this->addToCart($variant, 1, 'standard');
-
-        $d = $this->placeOrder(['address_id' => $address], 'instadent')->assertCreated()->json('data');
-
-        $this->assertSame('instadent', $d['channel']);
-        $this->assertSame(now()->addDays(3)->toDateString(), $d['estimated_delivery_date']);
-        $this->assertSame(3, $this->stockOf($variant, 'instadent')->stock_qty);   // 5 - 2
-        $this->assertSame(50, $this->stockOf($variant, 'standard')->stock_qty);   // untouched
-        $this->assertSame(1, $this->cart('standard')->json('data.items.0.qty'));   // the Standard cart is still there
-    }
-
     public function test_order_numbers_are_unique_and_readable(): void
     {
         [, , $address] = $this->shopper(1);
@@ -186,7 +168,7 @@ class OrderTest extends TestCase
 
     public function test_selling_the_last_unit_marks_the_product_out_of_stock_and_logs_a_low_stock_alert(): void
     {
-        [, $variant, $address] = $this->shopper(3, ['stock' => ['standard' => 3, 'instadent' => 0]], coins: 0);
+        [, $variant, $address] = $this->shopper(3, ['stock' => 3], coins: 0);
 
         $this->placeOrder(['address_id' => $address])->assertCreated();
 
@@ -370,8 +352,8 @@ class OrderTest extends TestCase
         [, $variant, $address] = $this->shopper(2, coins: 0);
         $key = 'order-key-0001';
 
-        $first = $this->placeOrder(['address_id' => $address], 'standard', ['Idempotency-Key' => $key])->assertCreated();
-        $second = $this->placeOrder(['address_id' => $address], 'standard', ['Idempotency-Key' => $key])->assertOk()->assertHeader('Idempotency-Replayed', 'true');
+        $first = $this->placeOrder(['address_id' => $address], ['Idempotency-Key' => $key])->assertCreated();
+        $second = $this->placeOrder(['address_id' => $address], ['Idempotency-Key' => $key])->assertOk()->assertHeader('Idempotency-Replayed', 'true');
 
         $this->assertSame($first->json('data.order_number'), $second->json('data.order_number'));
         $this->assertSame(1, Order::count());
@@ -393,12 +375,12 @@ class OrderTest extends TestCase
     {
         [, , $address] = $this->shopper(1);
 
-        $this->placeOrder(['address_id' => $address], 'standard', ['Idempotency-Key' => 'x'])->assertStatus(422)->assertJsonPath('code', 'idempotency_key_invalid');
+        $this->placeOrder(['address_id' => $address], ['Idempotency-Key' => 'x'])->assertStatus(422)->assertJsonPath('code', 'idempotency_key_invalid');
     }
 
     public function test_the_last_unit_can_only_be_sold_once(): void
     {
-        $variant = $this->variantOf($this->shopProduct(['stock' => ['standard' => 1, 'instadent' => 0]]));
+        $variant = $this->variantOf($this->shopProduct(['stock' => 1]));
         $alice = $this->customer('alice@example.test');
         $bob = $this->customer('bob@example.test');
         $aliceAddress = $this->address($alice)->id;
@@ -421,7 +403,7 @@ class OrderTest extends TestCase
 
     public function test_stock_never_goes_below_zero_however_many_customers_check_out(): void
     {
-        $variant = $this->variantOf($this->shopProduct(['stock' => ['standard' => 5, 'instadent' => 0]], ['max_order_qty' => 5]));
+        $variant = $this->variantOf($this->shopProduct(['stock' => 5], ['max_order_qty' => 5]));
         $customers = collect(range(1, 6))->map(function ($i) use ($variant) {
             $user = $this->customer("c$i@example.test");
             $address = $this->address($user)->id;
@@ -451,8 +433,8 @@ class OrderTest extends TestCase
         $this->placeOrder(['address_id' => $address])->assertCreated();
         $queries = collect(DB::getQueryLog())->pluck('query');
 
-        $lockAt = $queries->search(fn ($q) => str_contains($q, 'variant_channel_stock') && str_contains(strtolower($q), 'for update'));
-        $decrementAt = $queries->search(fn ($q) => str_starts_with($q, 'update `variant_channel_stock`'));
+        $lockAt = $queries->search(fn ($q) => str_contains($q, 'product_variants') && str_contains(strtolower($q), 'for update'));
+        $decrementAt = $queries->search(fn ($q) => str_starts_with($q, 'update `product_variants`'));
         $cartLock = $queries->search(fn ($q) => str_contains($q, 'from `carts`') && str_contains(strtolower($q), 'for update'));
 
         $this->assertNotFalse($lockAt, 'the stock rows must be read with FOR UPDATE');
@@ -529,7 +511,7 @@ class OrderTest extends TestCase
         $res = $this->getJson(self::STORE.'/orders?per_page=2')->assertOk();
         $this->assertSame([$numbers[2], $numbers[1]], collect($res->json('data'))->pluck('order_number')->all());   // newest first
         $res->assertJsonPath('meta.total', 3)->assertJsonPath('meta.per_page', 2);
-        $this->assertSame(['id', 'order_number', 'status', 'status_label', 'can_cancel', 'channel', 'placed_at', 'estimated_delivery_date', 'items_count', 'grand_total', 'payment_method', 'payment_method_label', 'payment_status', 'preview'], array_keys($res->json('data.0')));
+        $this->assertSame(['id', 'order_number', 'status', 'status_label', 'can_cancel', 'placed_at', 'estimated_delivery_date', 'items_count', 'grand_total', 'payment_method', 'payment_method_label', 'payment_status', 'preview'], array_keys($res->json('data.0')));
 
         $this->assertSame([$numbers[0]], collect($this->getJson(self::STORE.'/orders?status=cancelled')->json('data'))->pluck('order_number')->all());
         $this->getJson(self::STORE.'/orders?per_page=101')->assertStatus(422);
@@ -562,7 +544,7 @@ class OrderTest extends TestCase
 
         $d = $this->getJson(self::STORE."/orders/$number")->assertOk()->json('data');
 
-        $this->assertSame(['id', 'order_number', 'status', 'status_label', 'can_cancel', 'channel', 'placed_at', 'estimated_delivery_date', 'items_count', 'grand_total', 'payment_method', 'payment_method_label',
+        $this->assertSame(['id', 'order_number', 'status', 'status_label', 'can_cancel', 'placed_at', 'estimated_delivery_date', 'items_count', 'grand_total', 'payment_method', 'payment_method_label',
             'payment_status', 'customer_note', 'cancel_reason', 'items', 'shipping_address', 'billing_address', 'totals', 'tracking', 'timeline'], array_keys($d));
         $this->assertNull($d['tracking']);
         $this->assertCount(1, $d['items']);
@@ -572,7 +554,7 @@ class OrderTest extends TestCase
 
     public function test_reorder_fills_the_cart_with_what_is_still_sold(): void
     {
-        [, $variant, $address] = $this->shopper(6, ['stock' => ['standard' => 8, 'instadent' => 0]]);
+        [, $variant, $address] = $this->shopper(6, ['stock' => 8]);
         $gone = $this->shopProduct();
         $this->addToCart($this->variantOf($gone), 2);
         $number = $this->placeOrder(['address_id' => $address])->json('data.order_number');

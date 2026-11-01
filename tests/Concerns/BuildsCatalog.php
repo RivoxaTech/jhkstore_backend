@@ -75,14 +75,13 @@ trait BuildsCatalog
             'mrp' => 1000,
             'selling_price' => 800,
             'reward_points' => 10,
-            'stock' => ['standard' => 20, 'instadent' => 5],
-            'channels' => [['code' => 'standard', 'is_active' => true], ['code' => 'instadent', 'is_active' => true]],
+            'stock' => 20,
             'status' => 'active',
         ], $overrides);
     }
 
     /**
-     * A saved product through the real action. Defaults: simple product, MRP 1000 / price 800, both channels, 20 + 5 in stock, active.
+     * A saved product through the real action. Defaults: simple product, MRP 1000 / price 800, 20 in stock, active.
      * Pass `variants` to get a product with options, or the flat price keys to change the single variant.
      */
     protected function makeProduct(Category $category, array $overrides = [], array $tagSlugs = []): Product

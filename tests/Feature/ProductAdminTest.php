@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Domain\Catalog\Models\InventoryMovement;
 use App\Domain\Catalog\Models\Product;
-use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\Models\Tag;
 use App\Domain\Support\Models\AuditLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -75,16 +74,14 @@ class ProductAdminTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'product.created', 'actor_id' => $admin->id]);
     }
 
-    public function test_a_product_gets_the_standard_channel_and_draft_status_by_default(): void
+    public function test_a_product_is_a_draft_by_default(): void
     {
         $this->actingAsAdmin();
         $payload = $this->simplePayload($this->makeCategory());
-        unset($payload['channels'], $payload['status'], $payload['stock']);
+        unset($payload['status'], $payload['stock']);
 
         $this->create($payload)->assertCreated()
             ->assertJsonPath('data.status', 'draft')
-            ->assertJsonCount(1, 'data.channels')
-            ->assertJsonPath('data.channels.0.code', 'standard')
             ->assertJsonPath('data.is_in_stock', false)
             ->assertJsonPath('data.published_at', null);
     }
@@ -105,7 +102,7 @@ class ProductAdminTest extends TestCase
             ->assertCreated()->assertJsonPath('data.slug', 'my-own-slug');
     }
 
-    public function test_product_with_options_tags_channels_stock_per_channel_and_content_tabs(): void
+    public function test_product_with_options_tags_stock_and_content_tabs(): void
     {
         $this->actingAsAdmin();
         $category = $this->makeCategory();
@@ -114,8 +111,8 @@ class ProductAdminTest extends TestCase
         $res = $this->create($this->simplePayload($category, [
             'name' => 'Gloves', 'sku' => 'GLV',
             'variants' => [
-                ['name' => 'Small', 'sku' => 'GLV-S', 'mrp' => 500, 'selling_price' => 400, 'reward_points' => 4, 'expiry_date' => '2030-01-31', 'stock' => ['standard' => 10, 'instadent' => 3]],
-                ['name' => 'Large', 'sku' => 'GLV-L', 'mrp' => 600, 'selling_price' => 300, 'reward_points' => 6, 'stock' => ['standard' => 0, 'instadent' => 7]],
+                ['name' => 'Small', 'sku' => 'GLV-S', 'mrp' => 500, 'selling_price' => 400, 'reward_points' => 4, 'expiry_date' => '2030-01-31', 'stock' => 10],
+                ['name' => 'Large', 'sku' => 'GLV-L', 'mrp' => 600, 'selling_price' => 300, 'reward_points' => 6, 'stock' => 0],
             ],
             'tag_ids' => $tags,
             'content_tabs' => [
@@ -127,10 +124,8 @@ class ProductAdminTest extends TestCase
 
         $res->assertJsonPath('data.min_price', 300)
             ->assertJsonCount(2, 'data.variants')
-            ->assertJsonPath('data.variants.0.stock.standard', 10)
-            ->assertJsonPath('data.variants.0.stock.instadent', 3)
-            ->assertJsonPath('data.variants.1.stock.standard', 0)
-            ->assertJsonPath('data.variants.1.stock.instadent', 7)
+            ->assertJsonPath('data.variants.0.stock', 10)
+            ->assertJsonPath('data.variants.1.stock', 0)
             ->assertJsonPath('data.variants.1.discount_percent', 50)
             ->assertJsonPath('data.min_price', 300)
             ->assertJsonPath('data.max_discount_percent', 50)
@@ -140,22 +135,11 @@ class ProductAdminTest extends TestCase
             ->assertJsonPath('data.content_tabs.0.tab_key', 'features')
             ->assertJsonPath('data.content_tabs.0.label', 'Features');
 
-        // exactly one default variant, and the stock is separate per channel
+        // exactly one default variant
         $product = Product::first();
         $this->assertSame(1, $product->variants()->where('is_default', true)->count());
-        $this->assertSame(4, DB::table('variant_channel_stock')->count());
         // every quantity written is logged
-        $this->assertSame(3, InventoryMovement::where('type', 'initial')->count()); // the 0 quantity needs no movement
-    }
-
-    public function test_a_product_can_be_instadent_only(): void
-    {
-        $this->actingAsAdmin();
-
-        $this->create($this->simplePayload($this->makeCategory(), ['channels' => [['code' => 'instadent', 'is_active' => true]]]))
-            ->assertCreated()
-            ->assertJsonCount(1, 'data.channels')
-            ->assertJsonPath('data.channels.0.code', 'instadent');
+        $this->assertSame(1, InventoryMovement::where('type', 'initial')->count()); // the 0 quantity needs no movement
     }
 
     // ------------------------------------------------------------------ validation
@@ -245,9 +229,8 @@ class ProductAdminTest extends TestCase
 
         $this->create($this->simplePayload($category, ['status' => 'live']))->assertUnprocessable()->assertJsonValidationErrors('status');
         $this->create($this->simplePayload($category, ['min_order_qty' => 5, 'max_order_qty' => 2]))->assertUnprocessable()->assertJsonValidationErrors('max_order_qty');
-        $this->create($this->simplePayload($category, ['channels' => [['code' => 'amazon']]]))->assertUnprocessable()->assertJsonValidationErrors('channels.0.code');
         $this->create($this->simplePayload($category, ['tag_ids' => [9999]]))->assertUnprocessable()->assertJsonValidationErrors('tag_ids.0');
-        $this->create($this->simplePayload($category, ['stock' => ['standard' => -1]]))->assertUnprocessable()->assertJsonValidationErrors('variants.0.stock.standard');
+        $this->create($this->simplePayload($category, ['stock' => -1]))->assertUnprocessable()->assertJsonValidationErrors('variants.0.stock');
         $this->create($this->simplePayload($category, ['content_tabs' => [['tab_key' => 'nonsense', 'content' => 'x']]]))->assertUnprocessable()->assertJsonValidationErrors('content_tabs.0.tab_key');
     }
 
@@ -257,62 +240,60 @@ class ProductAdminTest extends TestCase
     {
         $admin = $this->actingAsAdmin();
         $category = $this->makeCategory();
-        $product = $this->makeProduct($category, ['mrp' => 1000, 'selling_price' => 800, 'stock' => ['standard' => 10, 'instadent' => 0]]);
+        $product = $this->makeProduct($category, ['mrp' => 1000, 'selling_price' => 800, 'stock' => 10]);
         $this->assertSame('20.00', $product->fresh()->max_discount_percent);
 
         $this->putJson(self::ADMIN."/products/{$product->id}", [
-            'mrp' => 1000, 'selling_price' => 600, 'reward_points' => 30, 'stock' => ['standard' => 4, 'instadent' => 9],
+            'mrp' => 1000, 'selling_price' => 600, 'reward_points' => 30, 'stock' => 4,
         ])->assertOk()
             ->assertJsonPath('data.variants.0.discount_percent', 40)
             ->assertJsonPath('data.min_price', 600)
             ->assertJsonPath('data.max_discount_percent', 40)
-            ->assertJsonPath('data.variants.0.stock.standard', 4)
-            ->assertJsonPath('data.variants.0.stock.instadent', 9)
+            ->assertJsonPath('data.variants.0.stock', 4)
             ->assertJsonCount(1, 'data.variants'); // the same variant was updated, not duplicated
 
         $variantId = $product->variants()->value('id');
         $this->assertSame(
-            [-6, 9],
-            InventoryMovement::where('variant_id', $variantId)->where('type', 'adjustment')->orderBy('channel_id')->pluck('qty_change')->all(),
+            [-6],
+            InventoryMovement::where('variant_id', $variantId)->where('type', 'adjustment')->pluck('qty_change')->all(),
         );
         $this->assertDatabaseHas('inventory_movements', ['variant_id' => $variantId, 'type' => 'adjustment', 'balance_after' => 4, 'admin_id' => $admin->id]);
         $this->assertDatabaseHas('audit_logs', ['action' => 'product.updated']);
 
         // selling out everything flips is_in_stock
-        $this->putJson(self::ADMIN."/products/{$product->id}", ['mrp' => 1000, 'selling_price' => 600, 'stock' => ['standard' => 0, 'instadent' => 0]])
+        $this->putJson(self::ADMIN."/products/{$product->id}", ['mrp' => 1000, 'selling_price' => 600, 'stock' => 0])
             ->assertOk()->assertJsonPath('data.is_in_stock', false);
     }
 
     public function test_saving_an_old_form_does_not_give_sold_units_back(): void
     {
         $this->actingAsAdmin();
-        $product = $this->makeProduct($this->makeCategory(), ['stock' => ['standard' => 100, 'instadent' => 20]]);
+        $product = $this->makeProduct($this->makeCategory(), ['stock' => 100]);
         $variantId = $product->variants()->value('id');
-        $stock = fn (string $code) => (int) DB::table('variant_channel_stock')->where('variant_id', $variantId)->where('channel_id', SalesChannel::idsByCode()[$code])->value('stock_qty');
+        $stock = fn () => (int) DB::table('product_variants')->where('id', $variantId)->value('stock_qty');
 
         // 9 units were sold while the admin had the form open (the form still shows 100)
-        DB::table('variant_channel_stock')->where('variant_id', $variantId)->where('channel_id', SalesChannel::idsByCode()['standard'])->update(['stock_qty' => 91]);
+        DB::table('product_variants')->where('id', $variantId)->update(['stock_qty' => 91]);
 
-        $form = fn (array $stock, array $was) => [
+        $form = fn (int $stock, int $was) => [
             'mrp' => 1000, 'selling_price' => 700, 'stock' => $stock, 'stock_was' => $was,
         ];
 
         // price edited only, stock box untouched (100 = 100): the live 91 stays
-        $this->putJson(self::ADMIN."/products/{$product->id}", $form(['standard' => 100, 'instadent' => 20], ['standard' => 100, 'instadent' => 20]))->assertOk();
-        $this->assertSame(91, $stock('standard'));
+        $this->putJson(self::ADMIN."/products/{$product->id}", $form(100, 100))->assertOk();
+        $this->assertSame(91, $stock());
 
         // the admin really adds 10 (100 -> 110): applied on top of what is really left
-        $this->putJson(self::ADMIN."/products/{$product->id}", $form(['standard' => 110, 'instadent' => 20], ['standard' => 100, 'instadent' => 20]))->assertOk();
-        $this->assertSame(101, $stock('standard'));
-        $this->assertSame(20, $stock('instadent'));
+        $this->putJson(self::ADMIN."/products/{$product->id}", $form(110, 100))->assertOk();
+        $this->assertSame(101, $stock());
 
         // removing more than is left never goes below zero
-        $this->putJson(self::ADMIN."/products/{$product->id}", $form(['standard' => 0, 'instadent' => 20], ['standard' => 500, 'instadent' => 20]))->assertOk();
-        $this->assertSame(0, $stock('standard'));
+        $this->putJson(self::ADMIN."/products/{$product->id}", $form(0, 500))->assertOk();
+        $this->assertSame(0, $stock());
 
         // without stock_was (API clients) the number is absolute, as before
-        $this->putJson(self::ADMIN."/products/{$product->id}", ['mrp' => 1000, 'selling_price' => 700, 'stock' => ['standard' => 33, 'instadent' => 20]])->assertOk();
-        $this->assertSame(33, $stock('standard'));
+        $this->putJson(self::ADMIN."/products/{$product->id}", ['mrp' => 1000, 'selling_price' => 700, 'stock' => 33])->assertOk();
+        $this->assertSame(33, $stock());
     }
 
     public function test_update_keeps_the_slug_and_changes_only_what_is_sent(): void
@@ -326,8 +307,7 @@ class ProductAdminTest extends TestCase
             ->assertJsonPath('data.slug', 'old-name')
             ->assertJsonPath('data.sku', 'KEEP-1')
             ->assertJsonPath('data.is_cod_available', false)
-            ->assertJsonPath('data.variants.0.mrp', 1000)   // variants untouched
-            ->assertJsonCount(2, 'data.channels');           // channels untouched
+            ->assertJsonPath('data.variants.0.mrp', 1000);   // variants untouched
         // sku and slug may keep their own value in a full update
         $this->putJson(self::ADMIN."/products/{$product->id}", ['sku' => 'KEEP-1', 'slug' => 'old-name'])->assertOk();
     }
@@ -339,8 +319,8 @@ class ProductAdminTest extends TestCase
         $defaultId = $product->variants()->value('id');
 
         $this->putJson(self::ADMIN."/products/{$product->id}", ['variants' => [
-            ['id' => $defaultId, 'name' => '10 pcs', 'sku' => 'FLIP', 'is_default' => true, 'mrp' => 100, 'selling_price' => 90, 'stock' => ['standard' => 5]],
-            ['name' => '50 pcs', 'sku' => 'FLIP-50', 'mrp' => 450, 'selling_price' => 360, 'stock' => ['standard' => 5]],
+            ['id' => $defaultId, 'name' => '10 pcs', 'sku' => 'FLIP', 'is_default' => true, 'mrp' => 100, 'selling_price' => 90, 'stock' => 5],
+            ['name' => '50 pcs', 'sku' => 'FLIP-50', 'mrp' => 450, 'selling_price' => 360, 'stock' => 5],
         ]])->assertOk()->assertJsonCount(2, 'data.variants');
 
         // the price fields of a simple product are refused while the product has options
@@ -465,21 +445,20 @@ class ProductAdminTest extends TestCase
         $endo = $this->makeCategory('Endo');
 
         $a = $this->makeProduct($restorative, ['name' => 'Composite Kit', 'sku' => 'CK-1', 'brand_id' => $acme->id, 'sub_category_id' => $composites->id, 'mrp' => 1000, 'selling_price' => 750,
-            'stock' => ['standard' => 7, 'instadent' => 2]], ['best-seller']);
+            'stock' => 7], ['best-seller']);
         $b = $this->makeProduct($endo, ['name' => 'Rotary File', 'sku' => 'RF-1', 'status' => 'draft', 'brand_id' => $beta->id,
-            'channels' => [['code' => 'standard', 'is_active' => true]], 'stock' => ['standard' => 0]], ['hot-selling']);
-        $c = $this->makeProduct($restorative, ['name' => 'Cement', 'sku' => 'CE-1', 'status' => 'inactive', 'brand_id' => $acme->id,
-            'channels' => [['code' => 'instadent', 'is_active' => true]]]);
+            'stock' => 0], ['hot-selling']);
+        $c = $this->makeProduct($restorative, ['name' => 'Cement', 'sku' => 'CE-1', 'status' => 'inactive', 'brand_id' => $acme->id]);
 
         $res = $this->getJson(self::ADMIN.'/products')->assertOk();
         $res->assertJsonCount(3, 'data')->assertJsonPath('counts.active', 1)->assertJsonPath('counts.draft', 1)->assertJsonPath('counts.inactive', 1);
         $row = collect($res->json('data'))->firstWhere('id', $a->id);
         $this->assertSame(['id', 'name', 'slug', 'sku', 'status', 'thumb_url', 'brand', 'category', 'sub_category', 'min_price', 'mrp', 'discount_percent',
-            'variants_count', 'is_in_stock', 'stock', 'channels', 'tags', 'rating_avg', 'rating_count', 'updated_at'], array_keys($row));
+            'variants_count', 'is_in_stock', 'stock', 'tags', 'rating_avg', 'rating_count', 'updated_at'], array_keys($row));
         $this->assertEquals(750, $row['min_price']);
         $this->assertEquals(1000, $row['mrp']);
         $this->assertEquals(25, $row['discount_percent']);
-        $this->assertSame(['standard' => 7, 'instadent' => 2], $row['stock']);   // stock per channel
+        $this->assertSame(7, $row['stock']);   // units in stock
         $this->assertSame('Acme Brand', $row['brand']['name']);
         $this->assertSame('best-seller', $row['tags'][0]['slug']);
         $this->assertNull($row['thumb_url']);
@@ -492,8 +471,6 @@ class ProductAdminTest extends TestCase
         $this->assertSame([$a->id, $c->id], $ids('category_id='.$restorative->id));
         $this->assertSame([$a->id], $ids('sub_category_id='.$composites->id));
         $this->assertSame([$b->id], $ids('tag=hot-selling'));
-        $this->assertSame([$a->id, $c->id], $ids('channel=instadent'));
-        $this->assertSame([$a->id, $b->id], $ids('channel=standard'));
         $this->assertSame([], $ids('q=nothing-matches'));
         $this->assertCount(1, $this->getJson(self::ADMIN.'/products?per_page=1')->json('data'));
         $this->getJson(self::ADMIN.'/products?status=bogus')->assertUnprocessable();
@@ -530,8 +507,6 @@ class ProductAdminTest extends TestCase
         $res->assertJsonCount(1, 'brands')                          // active brands only
             ->assertJsonPath('brands.0.name', 'First Brand')
             ->assertJsonCount(7, 'tags')
-            ->assertJsonPath('channels.1.code', 'instadent')
-            ->assertJsonPath('channels.1.requires_login', true)
             ->assertJsonPath('statuses', ['draft', 'active', 'inactive', 'archived'])
             ->assertJsonCount(7, 'content_tabs');
     }

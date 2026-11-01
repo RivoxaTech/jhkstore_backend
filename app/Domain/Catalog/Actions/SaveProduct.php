@@ -6,16 +6,15 @@ use App\Domain\Auth\Models\Admin;
 use App\Domain\Catalog\Enums\ProductStatus;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
-use App\Domain\Catalog\Models\SalesChannel;
 use App\Support\Audit;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Creates / updates a product with everything it owns (variants, stock per channel, tags, channels, content tabs)
+ * Creates / updates a product with everything it owns (variants with their stock, tags, content tabs)
  * in one transaction, then refreshes the denormalized columns. Images are handled by ManageProductImages.
  *
- * Parts that are missing from `$data` are left as they are on update (on create: no tags, Standard channel only).
+ * Parts that are missing from `$data` are left as they are on update (on create: no tags).
  */
 class SaveProduct
 {
@@ -30,7 +29,7 @@ class SaveProduct
             $this->stampPublished($product);
             $product->save();
 
-            $this->saveParts($product, $data + ['channels' => [['code' => SalesChannel::STANDARD, 'is_active' => true]]], $admin);
+            $this->saveParts($product, $data, $admin);
             Audit::log($admin, 'product.created', $product);
 
             return $product;
@@ -91,12 +90,6 @@ class SaveProduct
         if (isset($data['tag_ids'])) {
             $product->tags()->sync($data['tag_ids']);
         }
-        if (isset($data['channels'])) {
-            $ids = SalesChannel::idsByCode();
-            $product->channels()->sync(collect($data['channels'])->mapWithKeys(
-                fn ($c) => [$ids[$c['code']] => ['is_active' => $c['is_active'] ?? true]]
-            )->all());
-        }
         if (isset($data['content_tabs'])) {
             $this->saveTabs($product, $data['content_tabs']);
         }
@@ -139,6 +132,6 @@ class SaveProduct
     /** Only the product's own columns (the rest of the payload is children). */
     private function columns(array $data): array
     {
-        return Arr::except($data, ['slug', 'status', 'variants', 'tag_ids', 'channels', 'content_tabs', 'related_ids']);
+        return Arr::except($data, ['slug', 'status', 'variants', 'tag_ids', 'content_tabs', 'related_ids']);
     }
 }

@@ -34,7 +34,7 @@ class DashboardController extends Controller
         // Orders: three small indexed aggregates (today's orders and revenue, orders waiting for a decision, options running low)
         $today = Order::query()->toBase()->where('created_at', '>=', today())->where('status', '!=', 'cancelled')
             ->selectRaw('COUNT(*) as total, COALESCE(SUM(grand_total), 0) as revenue')->first();
-        $lowStock = DB::table('variant_channel_stock')->where('is_active', true)->whereRaw('stock_qty - reserved_qty <= low_stock_threshold')->count();
+        $lowStock = DB::table('product_variants')->where('is_active', true)->whereRaw('stock_qty - reserved_qty <= low_stock_threshold')->count();
 
         return response()->json([
             'orders' => [

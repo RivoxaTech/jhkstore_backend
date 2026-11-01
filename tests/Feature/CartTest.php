@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Domain\Cart\Models\Cart;
 use App\Domain\Catalog\Enums\ProductStatus;
-use App\Domain\Catalog\Models\SalesChannel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -33,14 +32,13 @@ class CartTest extends TestCase
 
         $this->assertSame(40, strlen($token));
         $res->assertHeader('X-Cart-Token', $token)
-            ->assertJsonPath('data.channel', 'standard')
             ->assertJsonPath('data.items_count', 2)
             ->assertJsonPath('data.lines_count', 1)
             ->assertJsonPath('data.items.0.variant_id', $variant)
             ->assertJsonPath('data.items.0.qty', 2);
 
         // the same guest reads it back with the token; another guest (no token) sees an empty cart
-        $this->cart('standard', ['X-Cart-Token' => $token])->assertOk()->assertJsonPath('data.items_count', 2);
+        $this->cart(['X-Cart-Token' => $token])->assertOk()->assertJsonPath('data.items_count', 2);
         $this->cart()->assertOk()->assertJsonPath('data.items_count', 0)->assertJsonPath('data.token', null);
     }
 
@@ -49,8 +47,8 @@ class CartTest extends TestCase
         $variant = $this->variantOf($this->shopProduct());
         $fake = str_repeat('a', 40);
 
-        $this->cart('standard', ['X-Cart-Token' => $fake])->assertOk()->assertJsonPath('data.items_count', 0);
-        $new = $this->addToCart($variant, 1, 'standard', ['X-Cart-Token' => $fake])->assertCreated()->json('data.token');
+        $this->cart(['X-Cart-Token' => $fake])->assertOk()->assertJsonPath('data.items_count', 0);
+        $new = $this->addToCart($variant, 1, ['X-Cart-Token' => $fake])->assertCreated()->json('data.token');
 
         $this->assertNotSame($fake, $new, 'the server never lets the client choose a token');
     }
@@ -106,7 +104,7 @@ class CartTest extends TestCase
         $headers = ['X-Cart-Token' => $this->addToCart($variant, 1)->json('data.token')];
 
         $at = function (int $qty) use ($variant, $headers) {
-            return $this->withHeaders($headers)->putJson(self::STORE."/cart/items/$variant?channel=standard", ['qty' => $qty])->assertOk()->json('data.items.0');
+            return $this->withHeaders($headers)->putJson(self::STORE."/cart/items/$variant", ['qty' => $qty])->assertOk()->json('data.items.0');
         };
 
         $this->assertEquals(160, $at(4)['unit_price']);
@@ -135,35 +133,33 @@ class CartTest extends TestCase
         $headers = ['X-Cart-Token' => $this->addToCart($variant, 5)->json('data.token')];   // subtotal 760
 
         $this->setSetting('free_delivery_min_cart', 760);
-        $s = $this->cart('standard', $headers)->json('data.summary');
+        $s = $this->cart($headers)->json('data.summary');
         $this->assertEquals(0, $s['delivery_fee']);
         $this->assertTrue($s['delivery_free']);
         $this->assertEquals(760, $s['grand_total']);
 
         $this->setSetting('free_delivery_min_cart', 761);
-        $s = $this->cart('standard', $headers)->json('data.summary');
+        $s = $this->cart($headers)->json('data.summary');
         $this->assertEquals(300, $s['delivery_fee']);
         $this->assertEquals(1, $s['amount_for_free_delivery']);
 
         $this->setSetting('free_delivery_min_cart', 0);   // 0 = no free delivery, ever
-        $s = $this->cart('standard', $headers)->json('data.summary');
+        $s = $this->cart($headers)->json('data.summary');
         $this->assertEquals(300, $s['delivery_fee']);
         $this->assertFalse($s['delivery_free']);
         $this->assertNull($s['amount_for_free_delivery']);
     }
 
-    public function test_the_delivery_fee_is_one_admin_setting_for_both_channels(): void
+    public function test_the_delivery_fee_is_one_admin_setting(): void
     {
         $variant = $this->variantOf($this->shopProduct());
         $user = $this->customer();
         $this->actAs($user);
         $this->setSetting('delivery_fee', 120);
 
-        $this->addToCart($variant, 1, 'standard');
-        $this->addToCart($variant, 1, 'instadent');
+        $this->addToCart($variant, 1);
 
-        $this->assertEquals(120, $this->cart('standard')->json('data.summary.delivery_fee'));
-        $this->assertEquals(120, $this->cart('instadent')->json('data.summary.delivery_fee'));
+        $this->assertEquals(120, $this->cart()->json('data.summary.delivery_fee'));
     }
 
     public function test_an_empty_cart_has_no_delivery_fee(): void
@@ -184,7 +180,7 @@ class CartTest extends TestCase
         $this->addToCart($variant, 5);   // subtotal 760
         $this->giveCoins($user, 100);
 
-        $coins = fn (int $ask) => $this->putJson(self::STORE.'/cart/coins?channel=standard', ['coins_to_redeem' => $ask])->assertOk()->json('data.summary.coins');
+        $coins = fn (int $ask) => $this->putJson(self::STORE.'/cart/coins', ['coins_to_redeem' => $ask])->assertOk()->json('data.summary.coins');
 
         // wallet: 100 coins, asking for 500
         $c = $coins(500);
@@ -233,7 +229,7 @@ class CartTest extends TestCase
         $this->addToCart($variant, 5);   // subtotal 760
         $this->giveCoins($user, 100);
 
-        $s = $this->putJson(self::STORE.'/cart/coins?channel=standard', ['coins_to_redeem' => 50])->json('data.summary');
+        $s = $this->putJson(self::STORE.'/cart/coins', ['coins_to_redeem' => 50])->json('data.summary');
         $this->assertEquals(1, $s['coins']['coin_value']);
         $this->assertEquals(50, $s['coins_discount']);
 
@@ -250,21 +246,21 @@ class CartTest extends TestCase
         $headers = ['X-Cart-Token' => $this->addToCart($variant, 1)->json('data.token')];
 
         $this->withHeaders($headers)->putJson(self::STORE.'/cart/coins', ['coins_to_redeem' => 10])->assertStatus(401);
-        $this->assertSame(0, $this->cart('standard', $headers)->json('data.summary.coins.wallet_balance'));
+        $this->assertSame(0, $this->cart($headers)->json('data.summary.coins.wallet_balance'));
     }
 
     // ------------------------------------------------------------------ rules on every change
 
     public function test_a_line_respects_the_minimum_the_maximum_and_the_stock(): void
     {
-        $product = $this->shopProduct(['stock' => ['standard' => 8, 'instadent' => 0]], ['min_order_qty' => 2, 'max_order_qty' => 6]);
+        $product = $this->shopProduct(['stock' => 8], ['min_order_qty' => 2, 'max_order_qty' => 6]);
         $variant = $this->variantOf($product);
 
         $this->addToCart($variant, 1)->assertStatus(422)->assertJsonPath('code', 'below_min_qty')->assertJsonValidationErrors('qty');
         $headers = ['X-Cart-Token' => $this->addToCart($variant, 2)->assertCreated()->json('data.token')];
 
-        $this->addToCart($variant, 5, 'standard', $headers)->assertStatus(422)->assertJsonPath('code', 'above_max_qty');   // 2 + 5 = 7 > 6
-        $this->addToCart($variant, 4, 'standard', $headers)->assertCreated()->assertJsonPath('data.items.0.qty', 6);       // adds up to the maximum
+        $this->addToCart($variant, 5, $headers)->assertStatus(422)->assertJsonPath('code', 'above_max_qty');   // 2 + 5 = 7 > 6
+        $this->addToCart($variant, 4, $headers)->assertCreated()->assertJsonPath('data.items.0.qty', 6);       // adds up to the maximum
 
         $this->withHeaders($headers)->putJson(self::STORE."/cart/items/$variant", ['qty' => 1])->assertStatus(422)->assertJsonPath('code', 'below_min_qty');
         $this->withHeaders($headers)->putJson(self::STORE."/cart/items/$variant", ['qty' => 7])->assertStatus(422)->assertJsonPath('code', 'above_max_qty');
@@ -277,7 +273,7 @@ class CartTest extends TestCase
 
     public function test_an_out_of_stock_inactive_or_hidden_option_cannot_be_added(): void
     {
-        $soldOut = $this->variantOf($this->shopProduct(['stock' => ['standard' => 0, 'instadent' => 0]]));
+        $soldOut = $this->variantOf($this->shopProduct(['stock' => 0]));
         $this->addToCart($soldOut, 1)->assertStatus(422)->assertJsonPath('code', 'out_of_stock');
 
         $draft = $this->shopProduct([], ['status' => 'draft']);
@@ -296,7 +292,7 @@ class CartTest extends TestCase
         $variant = $this->variantOf($this->shopProduct());
         $headers = ['X-Cart-Token' => $this->addToCart($variant, 2)->json('data.token')];
 
-        $res = $this->addToCart($variant, 3, 'standard', $headers)->assertCreated();
+        $res = $this->addToCart($variant, 3, $headers)->assertCreated();
 
         $this->assertSame(1, $res->json('data.lines_count'));
         $this->assertSame(5, $res->json('data.items.0.qty'));
@@ -308,7 +304,7 @@ class CartTest extends TestCase
         $a = $this->variantOf($this->shopProduct());
         $b = $this->variantOf($this->shopProduct());
         $headers = ['X-Cart-Token' => $this->addToCart($a, 2)->json('data.token')];
-        $this->addToCart($b, 1, 'standard', $headers);
+        $this->addToCart($b, 1, $headers);
 
         $this->withHeaders($headers)->putJson(self::STORE."/cart/items/$a", ['qty' => 4])->assertOk()->assertJsonPath('data.items.0.qty', 4);
         $this->withHeaders($headers)->putJson(self::STORE."/cart/items/$a", ['qty' => 1])->assertOk()->assertJsonPath('data.items.0.qty', 1);
@@ -322,41 +318,6 @@ class CartTest extends TestCase
 
     // ------------------------------------------------------------------ channels
 
-    public function test_standard_and_instadent_carts_are_separate(): void
-    {
-        $variant = $this->variantOf($this->shopProduct());
-        $user = $this->customer();
-        $this->actAs($user);
-
-        $this->addToCart($variant, 2, 'standard')->assertCreated();
-        $this->addToCart($variant, 3, 'instadent')->assertCreated()->assertJsonPath('data.channel', 'instadent');
-
-        $this->assertSame(2, $this->cart('standard')->json('data.items.0.qty'));
-        $this->assertSame(3, $this->cart('instadent')->json('data.items.0.qty'));
-        $this->assertSame(2, Cart::query()->where('user_id', $user->id)->count());
-    }
-
-    public function test_instadent_has_its_own_stock_and_needs_a_login(): void
-    {
-        $variant = $this->variantOf($this->shopProduct());   // 50 standard, 5 instadent
-
-        $this->addToCart($variant, 1, 'instadent')->assertStatus(401);   // guest
-
-        $this->actAs($this->customer());
-        $this->addToCart($variant, 6, 'instadent')->assertStatus(422)->assertJsonPath('code', 'insufficient_stock');
-        $this->addToCart($variant, 5, 'instadent')->assertCreated();
-        $this->addToCart($variant, 6, 'standard')->assertCreated();   // the standard stock is a separate pool
-    }
-
-    public function test_a_product_not_sold_on_instadent_cannot_go_into_the_instadent_cart(): void
-    {
-        $product = $this->shopProduct([], ['channels' => [['code' => 'standard', 'is_active' => true]]]);
-        $this->actAs($this->customer());
-
-        $this->addToCart($this->variantOf($product), 1, 'instadent')->assertStatus(422)->assertJsonPath('code', 'unavailable');
-        $this->addToCart($this->variantOf($product), 1, 'standard')->assertCreated();
-    }
-
     // ------------------------------------------------------------------ warnings
 
     public function test_a_line_whose_price_changed_shows_a_warning_and_stays(): void
@@ -367,17 +328,17 @@ class CartTest extends TestCase
 
         $product->variants()->update(['selling_price' => 170, 'discount_percent' => 15]);
 
-        $line = $this->cart('standard', $headers)->json('data.items.0');
+        $line = $this->cart($headers)->json('data.items.0');
         $this->assertEquals(170, $line['unit_price']);               // never the old price
         $this->assertEquals(['from' => 160, 'to' => 170], $line['price_changed']);
         $this->assertSame('price_changed', $line['warnings'][0]['code']);
         $this->assertFalse($line['warnings'][0]['blocking']);
         $this->assertTrue($line['can_buy']);
-        $this->assertEquals(170 + 300, $this->cart('standard', $headers)->json('data.summary.grand_total'));
+        $this->assertEquals(170 + 300, $this->cart($headers)->json('data.summary.grand_total'));
 
         // touching the line accepts the new price
         $this->withHeaders($headers)->putJson(self::STORE."/cart/items/$variant", ['qty' => 2])->assertOk();
-        $this->assertNull($this->cart('standard', $headers)->json('data.items.0.price_changed'));
+        $this->assertNull($this->cart($headers)->json('data.items.0.price_changed'));
     }
 
     public function test_stock_dropping_after_adding_warns_without_dropping_the_line(): void
@@ -386,10 +347,10 @@ class CartTest extends TestCase
         $variant = $this->variantOf($product);
         $other = $this->variantOf($this->shopProduct());
         $headers = ['X-Cart-Token' => $this->addToCart($variant, 6)->json('data.token')];
-        $this->addToCart($other, 1, 'standard', $headers);
+        $this->addToCart($other, 1, $headers);
 
         $this->stockOf($variant)->update(['stock_qty' => 4]);
-        $res = $this->cart('standard', $headers);
+        $res = $this->cart($headers);
         $line = $res->json('data.items.0');
         $this->assertSame(6, $line['qty']);                           // not touched
         $this->assertSame('insufficient_stock', $line['warnings'][0]['code']);
@@ -399,7 +360,7 @@ class CartTest extends TestCase
         $this->assertSame('insufficient_stock', $res->json('data.issues.0.code'));
 
         $this->stockOf($variant)->update(['stock_qty' => 0]);
-        $res = $this->cart('standard', $headers);
+        $res = $this->cart($headers);
         $line = $res->json('data.items.0');
         $this->assertSame('out_of_stock', $line['warnings'][0]['code']);
         $this->assertFalse($line['in_totals']);
@@ -407,7 +368,7 @@ class CartTest extends TestCase
         $this->assertSame(2, $res->json('data.lines_count'));
 
         $product->update(['status' => ProductStatus::Inactive]);
-        $this->assertSame('unavailable', $this->cart('standard', $headers)->json('data.items.0.warnings.0.code'));
+        $this->assertSame('unavailable', $this->cart($headers)->json('data.items.0.warnings.0.code'));
     }
 
     public function test_a_product_deleted_after_it_was_added_is_reported_not_a_server_error(): void
@@ -432,7 +393,7 @@ class CartTest extends TestCase
 
     public function test_a_low_stock_line_says_how_many_are_left(): void
     {
-        $variant = $this->variantOf($this->shopProduct(['stock' => ['standard' => 3, 'instadent' => 0]]));
+        $variant = $this->variantOf($this->shopProduct(['stock' => 3]));
 
         $line = $this->addToCart($variant, 1)->json('data.items.0');
 
@@ -456,7 +417,7 @@ class CartTest extends TestCase
         // as a guest: 3 of A and 1 of B
         $this->actAs(null);
         $token = $this->addToCart($a, 3)->json('data.token');
-        $this->addToCart($b, 1, 'standard', ['X-Cart-Token' => $token]);
+        $this->addToCart($b, 1, ['X-Cart-Token' => $token]);
 
         $this->actAs(null);
         $res = $this->postJson(self::STORE.'/auth/login', ['login' => 'merge@example.test', 'password' => 'secret-pass', 'cart_token' => $token])->assertOk();
@@ -472,7 +433,7 @@ class CartTest extends TestCase
     public function test_the_merge_is_capped_by_max_order_qty_and_stock_and_skips_what_is_no_longer_sold(): void
     {
         $user = $this->customer('cap@example.test');
-        $capped = $this->variantOf($this->shopProduct(['stock' => ['standard' => 7, 'instadent' => 0]], ['max_order_qty' => 10]));
+        $capped = $this->variantOf($this->shopProduct(['stock' => 7], ['max_order_qty' => 10]));
         $gone = $this->shopProduct();
         $goneVariant = $this->variantOf($gone);
 
@@ -481,7 +442,7 @@ class CartTest extends TestCase
 
         $this->actAs(null);
         $token = $this->addToCart($capped, 5)->json('data.token');
-        $this->addToCart($goneVariant, 1, 'standard', ['X-Cart-Token' => $token]);
+        $this->addToCart($goneVariant, 1, ['X-Cart-Token' => $token]);
         $gone->update(['status' => ProductStatus::Inactive]);
 
         $this->actAs(null);
@@ -564,7 +525,7 @@ class CartTest extends TestCase
         $this->assertSame($product->variants()->value('name'), $line['option_name']);
         $this->assertSame($product->name, $line['name']);
 
-        $this->assertSame(['token', 'channel', 'currency', 'currency_symbol', 'items_count', 'lines_count', 'items', 'summary', 'can_checkout', 'issues'], array_keys($this->cart()->json('data')));
+        $this->assertSame(['token', 'currency', 'currency_symbol', 'items_count', 'lines_count', 'items', 'summary', 'can_checkout', 'issues'], array_keys($this->cart()->json('data')));
     }
 
     public function test_the_cart_costs_a_fixed_number_of_queries_however_many_lines_it_has(): void
@@ -608,7 +569,7 @@ class CartTest extends TestCase
         $this->assertSame(2, Cart::count());   // nothing is old yet
 
         Cart::where('guest_token', $token)->update(['expires_at' => now()->subDay()]);
-        $old = Cart::create(['user_id' => $this->customer('old@example.test')->id, 'channel_id' => SalesChannel::idsByCode()['standard'], 'status' => 'active']);
+        $old = Cart::create(['user_id' => $this->customer('old@example.test')->id, 'status' => 'active']);
         DB::table('carts')->where('id', $old->id)->update(['updated_at' => now()->subDays(120)]);
 
         $this->artisan('carts:prune')->assertSuccessful();

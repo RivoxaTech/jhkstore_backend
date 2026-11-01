@@ -5,7 +5,6 @@ namespace App\Http\Resources;
 use App\Domain\Cart\CartPricing;
 use App\Domain\Cart\PricedCart;
 use App\Domain\Cart\PricedLine;
-use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\ProductImages;
 use App\Domain\Support\Settings;
 use Illuminate\Http\Request;
@@ -18,7 +17,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class CartResource extends JsonResource
 {
-    public function __construct(PricedCart $priced, private readonly SalesChannel $channel, private readonly ?string $token = null)
+    public function __construct(PricedCart $priced, private readonly ?string $token = null)
     {
         parent::__construct($priced);
     }
@@ -50,7 +49,6 @@ class CartResource extends JsonResource
 
         return [
             'token' => $this->token,
-            'channel' => $this->channel->code,
             'currency' => $settings->currencyCode(),
             'currency_symbol' => $symbol,
             'items_count' => $c->unitsCount,

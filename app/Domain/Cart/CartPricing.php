@@ -5,8 +5,6 @@ namespace App\Domain\Cart;
 use App\Domain\Auth\Models\User;
 use App\Domain\Cart\Models\Cart;
 use App\Domain\Catalog\Models\Product;
-use App\Domain\Catalog\Models\SalesChannel;
-use App\Domain\Catalog\Models\VariantChannelStock;
 use App\Domain\Reward\Actions\RewardLedger;
 use App\Domain\Support\Settings;
 use Illuminate\Support\Collection;
@@ -26,8 +24,8 @@ class CartPricing
 {
     public function __construct(private readonly Settings $settings, private readonly RewardLedger $ledger) {}
 
-    /** Relations the calculation needs (and the cart screen shows). Stock rows are limited to the channel. */
-    public static function relations(SalesChannel $channel): array
+    /** Relations the calculation needs (and the cart screen shows). */
+    public static function relations(): array
     {
         return [
             // a product or brand deleted after the customer added it must still load (the line is then reported as unavailable)
@@ -35,29 +33,28 @@ class CartPricing
             'variant.product.brand' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug']),
             'variant.product.media', 'variant.product.remoteImages',
             'variant.priceTiers',
-            'variant.stocks' => fn ($q) => $q->where('channel_id', $channel->id),
         ];
     }
 
     /** Loads a cart's lines and prices them. `$user` supplies the coin wallet (guests have none). */
-    public function forCart(Cart $cart, SalesChannel $channel, ?User $user, ?int $coins = null, ?Collection $lockedStocks = null, ?int $walletCoins = null): PricedCart
+    public function forCart(Cart $cart, ?User $user, ?int $coins = null, ?Collection $lockedVariants = null, ?int $walletCoins = null): PricedCart
     {
-        $items = $cart->items()->with(self::relations($channel))->get();
+        $items = $cart->items()->with(self::relations())->get();
 
         $productIds = $items->map(fn ($i) => $i->variant->product_id)->unique()->values();
-        $visible = $productIds->isEmpty() ? collect() : Product::query()->storefront($channel->code)->whereIn('products.id', $productIds)->pluck('products.id');
+        $visible = $productIds->isEmpty() ? collect() : Product::query()->storefront()->whereIn('products.id', $productIds)->pluck('products.id');
 
         $wallet = $walletCoins ?? ($user ? $this->ledger->spendable($user->id) : 0);
 
-        return $this->price($items, $channel, $visible->all(), (int) ($coins ?? $cart->coins_to_redeem), $wallet, $lockedStocks);
+        return $this->price($items, $visible->all(), (int) ($coins ?? $cart->coins_to_redeem), $wallet, $lockedVariants);
     }
 
     /**
      * @param  Collection<int, \App\Domain\Cart\Models\CartItem>  $items  with CartPricing::relations() loaded
-     * @param  list<int>  $visibleProductIds  products the website currently shows on this channel
-     * @param  Collection<int, VariantChannelStock>|null  $stocks  variant_id => row, when the caller holds the row locks (checkout)
+     * @param  list<int>  $visibleProductIds  products the website currently shows
+     * @param  Collection<int, \App\Domain\Catalog\Models\ProductVariant>|null  $locked  variant_id => freshly locked row, when the caller holds the row locks (checkout)
      */
-    public function price(Collection $items, SalesChannel $channel, array $visibleProductIds, int $requestedCoins, int $walletCoins, ?Collection $stocks = null): PricedCart
+    public function price(Collection $items, array $visibleProductIds, int $requestedCoins, int $walletCoins, ?Collection $locked = null): PricedCart
     {
         $symbol = $this->settings->currencySymbol();
         $lines = [];
@@ -65,7 +62,7 @@ class CartPricing
         foreach ($items as $item) {
             $variant = $item->variant;
             $product = $variant->product;
-            $stock = $stocks ? $stocks->get($variant->id) : $variant->stocks->first();
+            $stock = $locked ? $locked->get($variant->id) : $variant;   // the row that holds the stock numbers
 
             $qty = (int) $item->qty;
             $mrp = app(Settings::class)->cents($variant->mrp);
@@ -73,7 +70,7 @@ class CartPricing
             [$bulk, $next] = $this->tiers($variant->priceTiers, $base, $qty, (int) $product->max_order_qty);
             $unit = $bulk['price'] ?? $base;
 
-            $sellable = $variant->is_active && in_array($product->id, $visibleProductIds, true) && $stock && $stock->is_active;
+            $sellable = $variant->is_active && in_array($product->id, $visibleProductIds, true) && $stock;
             $available = $sellable ? max(0, (int) $stock->stock_qty - (int) $stock->reserved_qty) : 0;
             $name = $variant->name ?: $product->name;
             $issues = [];

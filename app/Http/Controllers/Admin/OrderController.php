@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Auth\Models\Admin;
-use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Order\Actions\ChangeOrderStatus;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Enums\PaymentMethod;
@@ -23,21 +22,20 @@ use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
-    private const DETAIL = ['items', 'addresses', 'history', 'payment', 'shipments', 'channel'];
+    private const DETAIL = ['items', 'addresses', 'history', 'payment', 'shipments'];
 
     /** Values for the filter boxes of the orders screen. */
     public function options(): JsonResponse
     {
         return response()->json([
             'statuses' => array_map(fn (OrderStatus $s) => $s->value, array_filter(OrderStatus::cases(), fn ($s) => $s !== OrderStatus::Returned)),
-            'channels' => SalesChannel::query()->orderBy('id')->get(['code', 'name']),
             'payment_statuses' => PaymentStatus::values(),
             'payment_methods' => array_map(fn (PaymentMethod $m) => ['code' => $m->value, 'name' => $m->label()], PaymentMethod::cases()),
         ]);
     }
 
     /**
-     * Paginated orders, newest first. Filters: ?q (order number, customer name, phone, email) ?status ?channel ?payment_status ?payment_method
+     * Paginated orders, newest first. Filters: ?q (order number, customer name, phone, email) ?status ?payment_status ?payment_method
      * ?from ?to (dates, placed) ?user_id ?page ?per_page (max 100). `counts` = orders per status for the same filters (without the status filter).
      */
     public function index(Request $request)
@@ -45,7 +43,6 @@ class OrderController extends Controller
         $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', Rule::in(OrderStatus::values())],
-            'channel' => ['nullable', 'string', 'max:20'],
             'payment_status' => ['nullable', Rule::in(PaymentStatus::values())],
             'payment_method' => ['nullable', Rule::in(PaymentMethod::values())],
             'from' => ['nullable', 'date_format:Y-m-d'],
@@ -56,7 +53,6 @@ class OrderController extends Controller
 
         $filtered = fn (): Builder => Order::query()
             ->when($request->query('q'), fn ($q, $term) => OrderSearch::apply($q, $term))
-            ->when($request->query('channel'), fn ($q, $code) => $q->whereIn('orders.channel_id', SalesChannel::query()->where('code', $code)->select('id')))
             ->when($request->query('payment_status'), fn ($q, $v) => $q->where('orders.payment_status', $v))
             ->when($request->query('payment_method'), fn ($q, $v) => $q->where('orders.payment_method', $v))
             ->when($request->query('user_id'), fn ($q, $v) => $q->where('orders.user_id', $v))
@@ -67,7 +63,6 @@ class OrderController extends Controller
 
         $orders = $filtered()
             ->when($request->query('status'), fn ($q, $v) => $q->where('orders.status', $v))
-            ->with('channel:id,code,name')
             ->orderByDesc('orders.created_at')->orderByDesc('orders.id')
             ->paginate((int) $request->query('per_page', 25))->withQueryString();
 

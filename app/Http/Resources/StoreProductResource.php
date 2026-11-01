@@ -4,11 +4,12 @@ namespace App\Http\Resources;
 
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\ProductImages;
+use App\Domain\Support\Settings;
 use Illuminate\Http\Request;
 
 /**
  * Product detail for the customer site: the card fields plus description, content tabs, variants (own name, SKU, pictures,
- * quantity prices, stock of the requested channel), the product gallery, delivery estimate and related products
+ * quantity prices, stock), the product gallery, delivery estimate and related products
  * (set by the controller as the `related` relation).
  * With ONE option (`has_single_option`) the page is that option: its name, SKU, price, bulk prices and add-to-cart come first
  * and its pictures lead the gallery; with several options the parent's name and the list of options are shown.
@@ -17,13 +18,13 @@ class StoreProductResource extends StoreProductCardResource
 {
     public function toArray(Request $request): array
     {
-        $channel = $request->attributes->get('channel');
         $images = collect(ProductImages::all($this->resource))->map(fn ($i) => [
             'variant_id' => $i['variant_id'], 'url' => $i['url'], 'medium_url' => $i['medium_url'], 'thumb_url' => $i['thumb_url'], 'is_primary' => $i['is_primary'],
         ]);
         $strip = fn ($list) => $list->map(fn ($i) => ['url' => $i['url'], 'medium_url' => $i['medium_url'], 'thumb_url' => $i['thumb_url'], 'is_primary' => $i['is_primary']])->values();
 
         $card = parent::toArray($request);
+        $days = (int) app(Settings::class)->get('delivery_days');
 
         return $card + [
             'product_name' => $this->name,   // the parent's name (a single-option product's `name` is its option's)
@@ -40,19 +41,18 @@ class StoreProductResource extends StoreProductCardResource
             'is_cod_available' => $this->is_cod_available,
             'is_professional_only' => $this->is_professional_only,
             'gst_rate' => (float) $this->gst_rate,
-            'delivery' => $channel ? [
-                'channel' => $channel->code,
-                'days' => $channel->delivery_days,
-                'arrives_by' => now()->addDays($channel->delivery_days)->toDateString(),   // "Arrives by Oct 30, 2026"
-            ] : null,
+            'delivery' => [
+                'days' => $days,
+                'arrives_by' => now()->addDays($days)->toDateString(),   // "Arrives by Oct 30, 2026"
+            ],
             'meta_title' => $this->meta_title,
             'meta_description' => $this->meta_description,
             'content_tabs' => $this->contentTabs->map(fn (ProductContentTab $t) => [
                 'key' => $t->tab_key, 'title' => $t->label(), 'format' => $t->format, 'content' => $t->content, 'manual_url' => $t->manual_url,
             ])->values(),
             'variants' => $this->variants->map(function ($v) use ($images, $strip, $card) {
-                $qty = $v->stocks->sum(fn ($s) => $s->available());
-                $threshold = $v->stocks->first()?->low_stock_threshold ?? 0;
+                $qty = $v->available();
+                $threshold = (int) $v->low_stock_threshold;
                 $own = $strip($images->where('variant_id', $v->id));
 
                 return [

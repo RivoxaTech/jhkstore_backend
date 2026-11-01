@@ -6,13 +6,12 @@ use App\Domain\Cart\Models\Cart;
 use App\Domain\Cart\Models\CartItem;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductVariant;
-use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Order\Exceptions\CommerceException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Changes the lines of a cart. Every write checks the option live: it must be active and shown on the website for the cart's channel,
- * and the quantity must respect min_order_qty, max_order_qty and the channel's stock (stock_qty - reserved_qty).
+ * Changes the lines of a cart. Every write checks the option live: it must be active and shown on the website,
+ * and the quantity must respect min_order_qty, max_order_qty and the stock (stock_qty - reserved_qty).
  * One line per option; adding an option that is already in the cart adds to its quantity. The cart row is locked while it changes,
  * so two quick taps on "+" cannot create two lines or lose a click.
  */
@@ -24,11 +23,11 @@ class ManageCartItems
      * Adds `$qty` units of an option. `$clamp` (used by "reorder") cuts the quantity down to what max_order_qty and the stock allow
      * instead of refusing it; the quantity actually in the cart afterwards is returned.
      */
-    public function add(Cart $cart, SalesChannel $channel, int $variantId, int $qty, bool $clamp = false): int
+    public function add(Cart $cart, int $variantId, int $qty, bool $clamp = false): int
     {
-        return DB::transaction(function () use ($cart, $channel, $variantId, $qty, $clamp) {
+        return DB::transaction(function () use ($cart, $variantId, $qty, $clamp) {
             Cart::query()->whereKey($cart->id)->lockForUpdate()->first();
-            [$variant, $available] = $this->purchasable($channel, $variantId);
+            [$variant, $available] = $this->purchasable($variantId);
 
             $line = CartItem::query()->where('cart_id', $cart->id)->where('variant_id', $variantId)->first();
             if (! $line && $cart->items()->count() >= Cart::MAX_LINES) {
@@ -52,9 +51,9 @@ class ManageCartItems
     }
 
     /** Sets the quantity of an existing line (increase or decrease). */
-    public function setQty(Cart $cart, SalesChannel $channel, int $variantId, int $qty): void
+    public function setQty(Cart $cart, int $variantId, int $qty): void
     {
-        DB::transaction(function () use ($cart, $channel, $variantId, $qty) {
+        DB::transaction(function () use ($cart, $variantId, $qty) {
             Cart::query()->whereKey($cart->id)->lockForUpdate()->first();
 
             $line = CartItem::query()->where('cart_id', $cart->id)->where('variant_id', $variantId)->first();
@@ -62,7 +61,7 @@ class ManageCartItems
                 throw new CommerceException('not_in_cart', 'This item is not in your cart.', 'variant_id', 404);
             }
 
-            [$variant, $available] = $this->purchasable($channel, $variantId);
+            [$variant, $available] = $this->purchasable($variantId);
             $this->assertQty($variant, $available, $qty);
 
             $line->update(['qty' => $qty, 'unit_price' => $variant->selling_price]);
@@ -93,22 +92,21 @@ class ManageCartItems
     }
 
     /**
-     * @return array{0: ProductVariant, 1: int}  the option (with its product) and the units the channel can still sell
+     * @return array{0: ProductVariant, 1: int}  the option (with its product) and the units that can still be sold
      */
-    private function purchasable(SalesChannel $channel, int $variantId): array
+    private function purchasable(int $variantId): array
     {
         $variant = ProductVariant::query()
             ->whereKey($variantId)->where('is_active', true)
-            ->whereIn('product_id', Product::query()->storefront($channel->code)->select('products.id'))
-            ->with(['product:id,name,min_order_qty,max_order_qty', 'stocks' => fn ($q) => $q->where('channel_id', $channel->id)->where('is_active', true)])
+            ->whereIn('product_id', Product::query()->storefront()->select('products.id'))
+            ->with('product:id,name,min_order_qty,max_order_qty')
             ->first();
 
-        $stock = $variant?->stocks->first();
-        if (! $variant || ! $stock) {
-            throw new CommerceException('unavailable', 'This item is not available'.($channel->code === SalesChannel::INSTADENT ? ' on Instadent.' : '.'), 'variant_id');
+        if (! $variant) {
+            throw new CommerceException('unavailable', 'This item is not available.', 'variant_id');
         }
 
-        return [$variant, max(0, (int) $stock->stock_qty - (int) $stock->reserved_qty)];
+        return [$variant, $variant->available()];
     }
 
     private function assertQty(ProductVariant $variant, int $available, int $qty): void

@@ -4,7 +4,6 @@ namespace App\Domain\Catalog;
 
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
-use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\Models\SubCategory;
 use App\Domain\Catalog\Models\Brand;
 use App\Domain\Support\Settings;
@@ -22,8 +21,8 @@ class ProductListing
 {
     public const SORTS = ['popularity', 'newest', 'price_asc', 'price_desc', 'discount', 'rating'];
 
-    /** Relations a product card needs; the variants' stock rows are limited to the requested channel. */
-    public static function cardRelations(SalesChannel $channel): array
+    /** Relations a product card needs. */
+    public static function cardRelations(): array
     {
         return [
             'brand.media',
@@ -32,41 +31,40 @@ class ProductListing
             'media', 'remoteImages',
             'variants' => fn ($q) => $q->where('is_active', true),
             'variants.priceTiers',
-            'variants.stocks' => fn ($q) => $q->where('channel_id', $channel->id)->where('is_active', true),
         ];
     }
 
     /**
      * @param  array{tag?:string,category?:string,sub_category?:string,brand?:string,q?:string,min_price?:numeric,max_price?:numeric,in_stock?:bool,rating?:int,sort?:string}  $filters
      */
-    public function paginate(array $filters, SalesChannel $channel, int $perPage): LengthAwarePaginator
+    public function paginate(array $filters, int $perPage): LengthAwarePaginator
     {
-        $query = Product::query()->storefront($channel->code)->with(self::cardRelations($channel));
+        $query = Product::query()->storefront()->with(self::cardRelations());
 
-        $this->filter($query, $filters, $channel);
+        $this->filter($query, $filters);
         $this->sort($query, $filters['sort'] ?? 'popularity');
 
         return $query->paginate($perPage)->withQueryString();
     }
 
     /** The product page: the card relations plus content tabs and the sub-category; null-safe 404 when not visible. */
-    public function find(string $slug, SalesChannel $channel): Product
+    public function find(string $slug): Product
     {
-        $product = Product::query()->storefront($channel->code)
-            ->with([...self::cardRelations($channel), 'subCategory:id,name,slug', 'contentTabs'])
+        $product = Product::query()->storefront()
+            ->with([...self::cardRelations(), 'subCategory:id,name,slug', 'contentTabs'])
             ->where('products.slug', $slug)
             ->firstOrFail();
 
-        return $product->setRelation('related', $this->related($product, $channel));
+        return $product->setRelation('related', $this->related($product));
     }
 
     /** Hand-picked related products if the admin set any, otherwise popular products of the same category. */
-    public function related(Product $product, SalesChannel $channel, int $limit = 10): Collection
+    public function related(Product $product, int $limit = 10): Collection
     {
         $picked = DB::table('product_relations')->where('product_id', $product->id)->where('type', 'related')
             ->orderBy('sort_order')->limit($limit)->pluck('related_product_id');
 
-        $query = Product::query()->storefront($channel->code)->with(self::cardRelations($channel))->whereKeyNot($product->id);
+        $query = Product::query()->storefront()->with(self::cardRelations())->whereKeyNot($product->id);
 
         if ($picked->isNotEmpty()) {
             return $query->whereIn('products.id', $picked)->get()->sortBy(fn ($p) => $picked->search($p->id))->values();
@@ -76,7 +74,7 @@ class ProductListing
             ->orderByDesc('products.popularity_score')->orderByDesc('products.id')->limit($limit)->get();
     }
 
-    private function filter(Builder $query, array $f, SalesChannel $channel): void
+    private function filter(Builder $query, array $f): void
     {
         if (! empty($f['tag'])) {
             $query->withTagSlug($f['tag']);
@@ -104,7 +102,7 @@ class ProductListing
             $query->where('products.min_price', '<=', $f['max_price']);
         }
         if (! empty($f['in_stock'])) {
-            $query->inStockOn($channel->id);
+            $query->inStock();
         }
         if (! empty($f['rating'])) {
             $query->where('products.rating_avg', '>=', $f['rating']);

@@ -21,10 +21,10 @@ use Illuminate\Validation\Rule;
 /** Orders of the logged-in customer. Every query is scoped to the customer: someone else's order answers 404. */
 class OrderController extends Controller
 {
-    private const DETAIL = ['items', 'addresses', 'history', 'payment', 'shipments', 'channel'];
+    private const DETAIL = ['items', 'addresses', 'history', 'payment', 'shipments'];
 
     /**
-     * Place the order from the cart of `?channel=`. Body: address_id (or an inline `address`), payment_method (cod), coins_to_redeem,
+     * Place the order from the cart. Body: address_id (or an inline `address`), payment_method (cod), coins_to_redeem,
      * customer_note, expected_total. Send an `Idempotency-Key` header (any unique string, max 64) so a double tap or a retry returns
      * the same order (200 + `Idempotency-Replayed: true`) instead of a second one. 201 = new order.
      */
@@ -35,7 +35,7 @@ class OrderController extends Controller
             return response()->json(['message' => 'The Idempotency-Key must be 8 to 64 letters, digits or . _ - :', 'code' => 'idempotency_key_invalid', 'errors' => ['idempotency_key' => ['The Idempotency-Key must be 8 to 64 letters, digits or . _ - :']]], 422);
         }
 
-        [$order, $replayed] = $place->handle($request->user(), $request->attributes->get('channel'), $request->validated(), $key ?: null);
+        [$order, $replayed] = $place->handle($request->user(), $request->validated(), $key ?: null);
         $order->loadMissing(self::DETAIL);
 
         $response = (new StoreOrderResource($order))->response()->setStatusCode($replayed ? 200 : 201);
@@ -54,7 +54,7 @@ class OrderController extends Controller
         return StoreOrderListResource::collection(
             Order::query()->where('user_id', $request->user()->id)
                 ->when($request->query('status'), fn ($q, $s) => $q->where('status', $s))
-                ->with(['items', 'channel'])
+                ->with('items')
                 ->orderByDesc('id')
                 ->paginate((int) $request->query('per_page', 10))->withQueryString()
         );
@@ -73,13 +73,13 @@ class OrderController extends Controller
         return new StoreOrderResource($status->handle($order, OrderStatus::Cancelled, $request->user(), ['reason' => $request->validated('reason')]));
     }
 
-    /** Order again: adds the options of this order to the cart of its channel; answers the cart plus the lines that could not be added. */
+    /** Order again: adds the options of this order to the cart; answers the cart plus the lines that could not be added. */
     public function reorder(Request $request, string $orderNumber, ReorderOrder $reorder, CartPricing $pricing): JsonResponse
     {
         $order = $this->mine($request, $orderNumber, ['items']);
-        [$cart, $channel, $skipped, $added] = $reorder->handle($request->user(), $order);
+        [$cart, $skipped, $added] = $reorder->handle($request->user(), $order);
 
-        return (new CartResource($pricing->forCart($cart, $channel, $request->user()), $channel))
+        return (new CartResource($pricing->forCart($cart, $request->user())))
             ->additional(['reorder' => ['added' => $added, 'skipped' => $skipped]])
             ->response();
     }

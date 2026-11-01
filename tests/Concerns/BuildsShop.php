@@ -8,8 +8,7 @@ use App\Domain\Auth\Models\Admin;
 use App\Domain\Auth\Models\User;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
-use App\Domain\Catalog\Models\VariantChannelStock;
-use App\Domain\Company\Models\Company;
+use App\Domain\Catalog\Models\ProductVariant;
 use App\Domain\Order\Models\Order;
 use App\Domain\Reward\Actions\RewardLedger;
 use Illuminate\Testing\TestResponse;
@@ -57,7 +56,7 @@ trait BuildsShop
     }
 
     /**
-     * A product with ONE option: MRP 200 / price 160 / 5 coins, bulk prices "5+ for 152" and "10+ for 140", 50 units on Standard and 5 on Instadent.
+     * A product with ONE option: MRP 200 / price 160 / 5 coins, bulk prices "5+ for 152" and "10+ for 140", 50 units in stock.
      * `$variant` overrides the option, `$product` the product (e.g. min_order_qty, max_order_qty, gst_rate, status).
      */
     protected function shopProduct(array $variant = [], array $product = []): Product
@@ -70,7 +69,7 @@ trait BuildsShop
             'sku' => "SHOP-$n",
             'variants' => [array_merge([
                 'name' => "Shop Item $n (15ml)", 'sku' => "SHOP-$n-V", 'is_default' => true, 'mrp' => 200, 'selling_price' => 160, 'reward_points' => 5,
-                'stock' => ['standard' => 50, 'instadent' => 5],
+                'stock' => 50,
                 'price_tiers' => [['min_qty' => 5, 'price' => 152], ['min_qty' => 10, 'price' => 140]],
             ], $variant)],
         ]);
@@ -81,10 +80,9 @@ trait BuildsShop
         return $product->variants()->value('id');
     }
 
-    protected function stockOf(int $variantId, string $channel = 'standard'): VariantChannelStock
+    protected function stockOf(int $variantId): ProductVariant
     {
-        return VariantChannelStock::query()->where('variant_id', $variantId)
-            ->where('channel_id', \App\Domain\Catalog\Models\SalesChannel::idsByCode()[$channel])->firstOrFail();
+        return ProductVariant::query()->findOrFail($variantId);
     }
 
     protected function giveCoins(User $user, int $coins): void
@@ -108,31 +106,31 @@ trait BuildsShop
     }
 
     /** Places a COD order for `$user` with a new product; returns the stored order. */
-    protected function orderFor(User $user, int $qty = 1, array $variant = [], string $channel = 'standard', int $coins = 0): Order
+    protected function orderFor(User $user, int $qty = 1, array $variant = [], int $coins = 0): Order
     {
         $address = UserAddress::query()->where('user_id', $user->id)->first() ?? $this->address($user);
         $variantId = $this->variantOf($this->shopProduct($variant));
         $this->actAs($user);
-        $this->addToCart($variantId, $qty, $channel)->assertCreated();
-        $number = $this->placeOrder(['address_id' => $address->id, 'coins_to_redeem' => $coins], $channel)->assertCreated()->json('data.order_number');
+        $this->addToCart($variantId, $qty)->assertCreated();
+        $number = $this->placeOrder(['address_id' => $address->id, 'coins_to_redeem' => $coins])->assertCreated()->json('data.order_number');
 
         return Order::query()->where('order_number', $number)->firstOrFail();
     }
 
     // ------------------------------------------------------------------ calls
 
-    protected function addToCart(int $variantId, int $qty = 1, string $channel = 'standard', array $headers = []): TestResponse
+    protected function addToCart(int $variantId, int $qty = 1, array $headers = []): TestResponse
     {
-        return $this->flushHeaders()->withHeaders($headers)->postJson(self::STORE."/cart/items?channel=$channel", ['variant_id' => $variantId, 'qty' => $qty]);
+        return $this->flushHeaders()->withHeaders($headers)->postJson(self::STORE."/cart/items", ['variant_id' => $variantId, 'qty' => $qty]);
     }
 
-    protected function cart(string $channel = 'standard', array $headers = [], string $query = ''): TestResponse
+    protected function cart(array $headers = [], string $query = ''): TestResponse
     {
-        return $this->flushHeaders()->withHeaders($headers)->getJson(self::STORE."/cart?channel=$channel".$query);
+        return $this->flushHeaders()->withHeaders($headers)->getJson(self::STORE."/cart".$query);
     }
 
-    protected function placeOrder(array $body = [], string $channel = 'standard', array $headers = []): TestResponse
+    protected function placeOrder(array $body = [], array $headers = []): TestResponse
     {
-        return $this->flushHeaders()->withHeaders($headers)->postJson(self::STORE."/orders?channel=$channel", $body);
+        return $this->flushHeaders()->withHeaders($headers)->postJson(self::STORE."/orders", $body);
     }
 }

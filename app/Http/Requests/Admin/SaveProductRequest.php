@@ -6,7 +6,6 @@ use App\Domain\Catalog\Enums\ProductStatus;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
-use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Catalog\Models\SubCategory;
 use App\Domain\Support\Settings;
 use App\Domain\Catalog\Models\Brand;
@@ -16,9 +15,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
- * Create (POST /products) or update (product in the URL) a product with its variants, tags, channels and content tabs.
+ * Create (POST /products) or update (product in the URL) a product with its variants, tags and content tabs.
  *
- * A SIMPLE product may send `mrp`, `selling_price`, `reward_points`, `expiry_date` and `stock` ({standard: n, instadent: n})
+ * A SIMPLE product may send `mrp`, `selling_price`, `reward_points`, `expiry_date` and `stock` (a number)
  * at the top level instead of `variants`; they become the product's single hidden default variant.
  * Send `variants` for a product with options (an `id` keeps/updates a variant; variants missing from the list are removed).
  */
@@ -49,8 +48,8 @@ class SaveProductRequest extends FormRequest
                 'selling_price' => $this->input('selling_price'),
                 'reward_points' => $this->input('reward_points'),
                 'expiry_date' => $this->input('expiry_date'),
-                'stock' => $this->input('stock', []),
-                'stock_was' => $this->input('stock_was', []),
+                'stock' => $this->input('stock'),
+                'stock_was' => $this->input('stock_was'),
             ];
             foreach (['price_tiers', 'weight_grams', 'barcode'] as $key) {
                 if ($this->has($key)) {
@@ -65,7 +64,6 @@ class SaveProductRequest extends FormRequest
     {
         $product = $this->route('product');
         $req = $product ? 'sometimes' : 'required';
-        $channelCodes = array_keys(SalesChannel::idsByCode());
 
         return [
             'brand_id' => ['nullable', 'integer', Rule::exists('brands', 'id')->whereNull('deleted_at')],
@@ -104,10 +102,9 @@ class SaveProductRequest extends FormRequest
             'variants.*.weight_grams' => ['nullable', 'integer', 'min:0'],
             'variants.*.is_active' => ['sometimes', 'boolean'],
             'variants.*.sort_order' => ['sometimes', 'integer', 'min:0'],
-            'variants.*.stock' => ['nullable', 'array'],
-            'variants.*.stock.*' => ['nullable', 'integer', 'min:0', 'max:10000000'],
-            'variants.*.stock_was' => ['nullable', 'array'],
-            'variants.*.stock_was.*' => ['nullable', 'integer', 'min:0', 'max:10000000'],
+            'variants.*.stock' => ['nullable', 'integer', 'min:0', 'max:10000000'],
+            'variants.*.stock_was' => ['nullable', 'integer', 'min:0', 'max:10000000'],
+            'variants.*.low_stock_threshold' => ['sometimes', 'integer', 'min:0', 'max:100000'],
             'variants.*.price_tiers' => ['sometimes', 'nullable', 'array', 'max:5'],
             'variants.*.price_tiers.*.min_qty' => ['required', 'integer', 'min:2', 'max:65535', 'distinct'],
             'variants.*.price_tiers.*.price' => ['required', 'numeric', 'min:0', 'max:99999999'],
@@ -117,10 +114,6 @@ class SaveProductRequest extends FormRequest
 
             'tag_ids' => ['sometimes', 'array'],
             'tag_ids.*' => ['integer', 'distinct', Rule::exists('tags', 'id')],
-
-            'channels' => ['sometimes', 'array', 'min:1'],
-            'channels.*.code' => ['required', Rule::in($channelCodes), 'distinct'],
-            'channels.*.is_active' => ['sometimes', 'boolean'],
 
             'content_tabs' => ['sometimes', 'array'],
             'content_tabs.*.tab_key' => ['required', Rule::in(array_keys(ProductContentTab::TABS)), 'distinct'],
@@ -213,7 +206,6 @@ class SaveProductRequest extends FormRequest
 
             return;
         }
-        $stockCodes = SalesChannel::idsByCode();
 
         foreach ($rows as $i => $row) {
             if (! empty($row['id']) && ! in_array((int) $row['id'], $own, true)) {
@@ -224,15 +216,10 @@ class SaveProductRequest extends FormRequest
             }
             $this->checkTiers($validator, $i, $row);
             if (! $this->flat && blank($row['name'] ?? null)) {
-                $validator->errors()->add("variants.$i.name", 'Name the option (for example "Maarc Pure Eugenol (15ml)").');
+                $validator->errors()->add("variants.$i.name", 'Name the option (for example "Blue, 500 ml").');
             }
             if (count($rows) > 1 && blank($row['sku'] ?? null)) {
                 $validator->errors()->add("variants.$i.sku", 'Enter a SKU for the option.');
-            }
-            foreach (array_keys($row['stock'] ?? []) as $code) {
-                if (! isset($stockCodes[$code])) {
-                    $validator->errors()->add("variants.$i.stock.$code", 'Unknown sales channel.');
-                }
             }
 
             $sku = $row['sku'] ?? (count($rows) === 1 ? $this->input('sku', $product?->sku) : null);

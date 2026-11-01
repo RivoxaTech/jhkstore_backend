@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Domain\Catalog\Models\SalesChannel;
 use App\Domain\Order\Models\Order;
 use App\Domain\Reward\Models\RewardTransaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -69,21 +68,20 @@ class AdminOrderTest extends TestCase
 
         $this->assertSame($orders->pluck('order_number')->reverse()->values()->take(3)->all(), collect($res->json('data'))->pluck('order_number')->all());
         $res->assertJsonPath('meta.total', 4)->assertJsonPath('meta.per_page', 3)->assertJsonPath('counts.pending', 2)->assertJsonPath('counts.confirmed', 1)->assertJsonPath('counts.cancelled', 1);
-        $this->assertSame(['id', 'order_number', 'placed_at', 'customer', 'items_count', 'grand_total', 'payment_method', 'payment_method_label', 'payment_status', 'channel', 'status', 'status_label'], array_keys($res->json('data.0')));
+        $this->assertSame(['id', 'order_number', 'placed_at', 'customer', 'items_count', 'grand_total', 'payment_method', 'payment_method_label', 'payment_status', 'status', 'status_label'], array_keys($res->json('data.0')));
         $this->assertSame(['id', 'name', 'email', 'phone'], array_keys($res->json('data.0.customer')));
-        $this->assertSame(['code', 'name'], array_keys($res->json('data.0.channel')));
         $this->assertSame(2, $res->json('data.0.items_count'));
 
         $this->getJson(self::ADMIN.'/orders?per_page=101')->assertStatus(422);
         $this->assertCount(4, $this->getJson(self::ADMIN.'/orders?per_page=100')->json('data'));
     }
 
-    public function test_the_list_filters_by_status_channel_payment_and_dates(): void
+    public function test_the_list_filters_by_status_payment_and_dates(): void
     {
         $alice = $this->customer('alice@example.test', 'Alice Ahmed');
         $bob = $this->customer('bob@example.test', 'Bob Baig');
         $standard = $this->orderFor($alice);
-        $instadent = $this->orderFor($bob, 1, [], 'instadent');
+        $instadent = $this->orderFor($bob);
         $old = $this->orderFor($alice);
         DB::table('orders')->where('id', $old->id)->update(['created_at' => '2026-01-10 10:00:00', 'placed_at' => '2026-01-10 10:00:00']);
         $this->asAdmin();
@@ -94,8 +92,6 @@ class AdminOrderTest extends TestCase
         $only = fn (Order ...$o) => collect($o)->pluck('order_number')->sort()->values()->all();
 
         $this->assertSame($only($standard), $numbers('status=confirmed'));
-        $this->assertSame($only($instadent), $numbers('channel=instadent'));
-        $this->assertSame($only($standard, $old), $numbers('channel=standard'));
         $this->assertSame($only($instadent), $numbers('payment_status=paid'));
         $this->assertSame($only($standard, $instadent, $old), $numbers('payment_method=cod'));
         $this->assertSame($only($old), $numbers('from=2026-01-01&to=2026-01-31'));
@@ -104,8 +100,8 @@ class AdminOrderTest extends TestCase
         $this->assertSame($only($standard, $old), $numbers('user_id='.$alice->id));
 
         // the status tabs count the other filters too
-        $res = $this->getJson(self::ADMIN.'/orders?channel=standard')->json('counts');
-        $this->assertSame(['confirmed' => 1, 'pending' => 1], collect($res)->sortKeys()->all());
+        $res = $this->getJson(self::ADMIN.'/orders')->json('counts');
+        $this->assertSame(['confirmed' => 1, 'pending' => 2], collect($res)->sortKeys()->all());
 
         $this->getJson(self::ADMIN.'/orders?status=bogus')->assertStatus(422);
         $this->getJson(self::ADMIN.'/orders?from=10-01-2026')->assertStatus(422);
@@ -162,7 +158,6 @@ class AdminOrderTest extends TestCase
 
         $this->getJson(self::ADMIN.'/orders/options')->assertOk()
             ->assertJsonPath('statuses', ['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled'])
-            ->assertJsonPath('channels.0.code', 'standard')
             ->assertJsonPath('payment_methods.0.code', 'cod');
     }
 
@@ -173,7 +168,7 @@ class AdminOrderTest extends TestCase
         $user = $this->customer('detail@example.test', 'Dr. Detail');
         $this->address($user, ['gst_number' => '27ABCDE1234F1Z5']);
         $this->giveCoins($user, 100);
-        $order = $this->orderFor($user, 5, [], 'standard', 50);
+        $order = $this->orderFor($user, 5, [], 50);
         $this->orderFor($user, 1);
         $this->asAdmin();
 
@@ -182,7 +177,6 @@ class AdminOrderTest extends TestCase
 
         $this->assertSame($order->order_number, $d['order_number']);
         $this->assertSame('pending', $d['status']);
-        $this->assertSame('standard', $d['channel']['code']);
         $this->assertSame('Dr. Detail', $d['customer']['name']);
         $this->assertSame('detail@example.test', $d['customer']['email']);
         $this->assertSame($user->id, $d['customer']['id']);
@@ -313,7 +307,7 @@ class AdminOrderTest extends TestCase
     {
         $user = $this->customer();
         $this->giveCoins($user, 100);
-        $order = $this->orderFor($user, 4, [], 'standard', 60);
+        $order = $this->orderFor($user, 4, [], 60);
         $variant = $order->items()->value('variant_id');
         $this->assertSame(46, $this->stockOf($variant)->stock_qty);
         $admin = $this->asAdmin();
@@ -400,11 +394,11 @@ class AdminOrderTest extends TestCase
         $user = $this->customer();
         $one = $this->orderFor($user, 2);   // 2 x 160 + 300 = 620
         $two = $this->orderFor($user, 1);   // 160 + 300 = 460
-        $three = $this->orderFor($user, 1, ['stock' => ['standard' => 7, 'instadent' => 0]]);   // 460, leaves 6; threshold 5 -> not low
+        $three = $this->orderFor($user, 1, ['stock' => 7]);   // 460, leaves 6; threshold 5 -> not low
         $this->asAdmin();
         $this->setStatus($two, 'confirmed');
         $this->setStatus($three, 'cancelled', ['reason' => 'Test']);
-        DB::table('variant_channel_stock')->where('variant_id', $one->items()->value('variant_id'))->where('channel_id', SalesChannel::idsByCode()['standard'])->update(['stock_qty' => 4]);   // running low
+        DB::table('product_variants')->where('id', $one->items()->value('variant_id'))->update(['stock_qty' => 4]);   // running low
 
         $o = $this->getJson(self::ADMIN.'/dashboard')->assertOk()->json('orders');
 

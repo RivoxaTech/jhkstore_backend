@@ -171,7 +171,7 @@ class ProductStoreTest extends TestCase
         $waldent = $this->makeBrand('Waldent');
         $this->makeProduct($category, ['name' => 'Alpha Composite', 'short_description' => 'light cured', 'selling_price' => 100, 'mrp' => 100]);
         $this->makeProduct($category, ['name' => 'Beta File', 'selling_price' => 500, 'mrp' => 500, 'brand_id' => $waldent->id, 'sku' => 'BETA-9',
-            'stock' => ['standard' => 0, 'instadent' => 4]]);
+            'stock' => 0]);
         $this->makeProduct($category, ['name' => 'Gamma Cement', 'selling_price' => 900, 'mrp' => 900]);
         Product::where('name', 'Alpha Composite')->update(['rating_avg' => 4.5, 'rating_count' => 10]);
         Product::where('name', 'Gamma Cement')->update(['rating_avg' => 3.0, 'rating_count' => 2]);
@@ -238,8 +238,8 @@ class ProductStoreTest extends TestCase
         $few = $count();
         foreach (range(1, 8) as $i) {
             $this->makeProduct($category, ['variants' => [
-                ['name' => 'S', 'sku' => "S$i", 'mrp' => 10, 'selling_price' => 9, 'stock' => ['standard' => 3]],
-                ['name' => 'L', 'sku' => "L$i", 'mrp' => 20, 'selling_price' => 18, 'stock' => ['standard' => 3]],
+                ['name' => 'S', 'sku' => "S$i", 'mrp' => 10, 'selling_price' => 9, 'stock' => 3],
+                ['name' => 'L', 'sku' => "L$i", 'mrp' => 20, 'selling_price' => 18, 'stock' => 3],
             ]], ['best-seller', 'featured']);
         }
 
@@ -278,11 +278,11 @@ class ProductStoreTest extends TestCase
         $this->makeProduct($category, ['name' => 'Parent off', 'sub_category_id' => $kid->id]);
         $parent->update(['is_active' => false]);
 
-        $standardOff = $this->makeProduct($category, ['name' => 'Channel off']);
-        $standardOff->channels()->updateExistingPivot(DB::table('sales_channels')->where('code', 'standard')->value('id'), ['is_active' => false]);
+        $noOption = $this->makeProduct($category, ['name' => 'No active option']);
+        DB::table('product_variants')->where('product_id', $noOption->id)->update(['is_active' => false]);
 
         $this->assertSame(['visible'], $this->slugs());
-        foreach ([$draft, $inactive, $archived, $deleted, $standardOff] as $hidden) {
+        foreach ([$draft, $inactive, $archived, $deleted, $noOption] as $hidden) {
             $this->getJson(self::STORE.'/products/'.$hidden->slug)->assertNotFound();
         }
         $this->getJson(self::STORE.'/products/'.$visible->slug)->assertOk();
@@ -294,66 +294,18 @@ class ProductStoreTest extends TestCase
 
     public function test_out_of_stock_products_still_list_with_in_stock_false(): void
     {
-        $this->makeProduct($this->makeCategory(), ['stock' => ['standard' => 0, 'instadent' => 0]]);
+        $this->makeProduct($this->makeCategory(), ['stock' => 0]);
 
         $res = $this->getJson(self::STORE.'/products')->assertOk();
         $res->assertJsonCount(1, 'data')->assertJsonPath('data.0.in_stock', false);
     }
 
-    // ------------------------------------------------------------------ channels
-
-    public function test_instadent_needs_a_login(): void
-    {
-        $product = $this->makeProduct($this->makeCategory());
-
-        $this->getJson(self::STORE.'/products?channel=instadent')->assertUnauthorized();
-        $this->getJson(self::STORE.'/products/'.$product->slug.'?channel=instadent')->assertUnauthorized();
-        // standard stays open to guests
-        $this->getJson(self::STORE.'/products?channel=standard')->assertOk();
-        $this->getJson(self::STORE.'/products/'.$product->slug)->assertOk();
-        // an unknown channel
-        $this->getJson(self::STORE.'/products?channel=amazon')->assertUnprocessable();
-    }
-
-    public function test_an_admin_token_does_not_open_instadent(): void
-    {
-        $this->makeProduct($this->makeCategory());
-        $this->actingAsAdmin();
-
-        $this->getJson(self::STORE.'/products?channel=instadent')->assertUnauthorized();
-    }
-
-    public function test_a_logged_in_customer_sees_instadent_products_and_their_own_stock(): void
-    {
-        $category = $this->makeCategory();
-        $both = $this->makeProduct($category, ['name' => 'Both', 'stock' => ['standard' => 0, 'instadent' => 6]]);
-        $this->makeProduct($category, ['name' => 'Standard only', 'channels' => [['code' => 'standard', 'is_active' => true]]]);
-        $this->makeProduct($category, ['name' => 'Instadent only', 'channels' => [['code' => 'instadent', 'is_active' => true]], 'stock' => ['instadent' => 9]]);
-        $off = $this->makeProduct($category, ['name' => 'Instadent switched off']);
-        $off->channels()->updateExistingPivot(DB::table('sales_channels')->where('code', 'instadent')->value('id'), ['is_active' => false]);
-
-        // guests: the standard catalogue
-        $this->assertEqualsCanonicalizing(['both', 'standard-only', 'instadent-switched-off'], $this->slugs());
-
-        Sanctum::actingAs($this->customer());
-        $this->assertEqualsCanonicalizing(['both', 'instadent-only'], $this->slugs('channel=instadent'));
-        $this->assertEqualsCanonicalizing(['both', 'standard-only', 'instadent-switched-off'], $this->slugs('channel=standard'));
-
-        // stock is separate per channel: "Both" has no standard stock but 6 on Instadent
-        $standard = $this->getJson(self::STORE.'/products/both')->assertOk();
-        $standard->assertJsonPath('data.in_stock', false)->assertJsonPath('data.variants.0.qty', 0)->assertJsonPath('data.variants.0.in_stock', false);
-        $instadent = $this->getJson(self::STORE.'/products/both?channel=instadent')->assertOk();
-        $instadent->assertJsonPath('data.in_stock', true)->assertJsonPath('data.variants.0.qty', 6)->assertJsonPath('data.variants.0.in_stock', true);
-        $this->assertEqualsCanonicalizing(['both', 'instadent-only'], $this->slugs('channel=instadent&in_stock=1'));
-        $this->getJson(self::STORE.'/products/instadent-only')->assertNotFound();                // not on standard
-        $this->getJson(self::STORE.'/products/standard-only?channel=instadent')->assertNotFound();
-        $this->assertNotNull($both);
-    }
+    // ------------------------------------------------------------------ stock
 
     public function test_reserved_units_are_not_counted_as_available(): void
     {
-        $product = $this->makeProduct($this->makeCategory(), ['stock' => ['standard' => 5]]);
-        DB::table('variant_channel_stock')->update(['reserved_qty' => 5]);
+        $product = $this->makeProduct($this->makeCategory(), ['stock' => 5]);
+        DB::table('product_variants')->update(['reserved_qty' => 5]);
 
         $this->getJson(self::STORE.'/products/'.$product->slug)->assertJsonPath('data.variants.0.qty', 0)->assertJsonPath('data.in_stock', false);
     }
@@ -368,8 +320,8 @@ class ProductStoreTest extends TestCase
             'name' => 'Gloves', 'sku' => 'GLV', 'sub_category_id' => $sub->id, 'description' => 'Long text', 'country_of_origin' => 'Japan',
             'is_returnable' => false, 'max_order_qty' => 5,
             'variants' => [
-                ['name' => 'Small', 'sku' => 'GLV-S', 'mrp' => 500, 'selling_price' => 400, 'reward_points' => 4, 'expiry_date' => '2030-01-31', 'stock' => ['standard' => 10]],
-                ['name' => 'Large', 'sku' => 'GLV-L', 'mrp' => 600, 'selling_price' => 300, 'reward_points' => 6, 'stock' => ['standard' => 0]],
+                ['name' => 'Small', 'sku' => 'GLV-S', 'mrp' => 500, 'selling_price' => 400, 'reward_points' => 4, 'expiry_date' => '2030-01-31', 'stock' => 10],
+                ['name' => 'Large', 'sku' => 'GLV-L', 'mrp' => 600, 'selling_price' => 300, 'reward_points' => 6, 'stock' => 0],
             ],
             'content_tabs' => [['tab_key' => 'warranty', 'content' => '1 year'], ['tab_key' => 'features', 'format' => 'bullets', 'content' => "Soft\nStrong"]],
         ], ['featured']);
@@ -429,7 +381,7 @@ class ProductStoreTest extends TestCase
     public function test_the_detail_page_does_not_run_queries_per_variant(): void
     {
         $category = $this->makeCategory();
-        $variants = fn (int $n) => array_map(fn ($i) => ['name' => "V$i", 'sku' => "V$i-".$n, 'mrp' => 10, 'selling_price' => 9, 'stock' => ['standard' => 2]], range(1, $n));
+        $variants = fn (int $n) => array_map(fn ($i) => ['name' => "V$i", 'sku' => "V$i-".$n, 'mrp' => 10, 'selling_price' => 9, 'stock' => 2], range(1, $n));
         $few = $this->makeProduct($category, ['name' => 'Few', 'variants' => $variants(1)]);
         $many = $this->makeProduct($category, ['name' => 'Many', 'variants' => $variants(8)], ['best-seller']);
         $count = function (string $slug) {
@@ -590,8 +542,8 @@ class ProductStoreTest extends TestCase
             'name' => 'Maarc Pure Eugenol', 'return_days' => 10, 'meta_title' => 'Eugenol', 'meta_description' => 'Pure eugenol',
             'variants' => [
                 ['name' => 'Maarc Pure Eugenol (15ml) (3002/015)', 'sku' => '3002-015', 'mrp' => 190, 'selling_price' => 160, 'reward_points' => 3,
-                    'price_tiers' => [['min_qty' => 2, 'price' => 155], ['min_qty' => 5, 'price' => 152]], 'stock' => ['standard' => 3]],
-                ['name' => 'Maarc Pure Eugenol (30ml) (3002/030)', 'sku' => '3002-030', 'mrp' => 330, 'selling_price' => 210, 'stock' => ['standard' => 40]],
+                    'price_tiers' => [['min_qty' => 2, 'price' => 155], ['min_qty' => 5, 'price' => 152]], 'stock' => 3],
+                ['name' => 'Maarc Pure Eugenol (30ml) (3002/030)', 'sku' => '3002-030', 'mrp' => 330, 'selling_price' => 210, 'stock' => 40],
             ],
         ]);
         [$small, $large] = $product->variants()->get()->all();
@@ -625,22 +577,22 @@ class ProductStoreTest extends TestCase
         $this->assertFalse($d['variants'][0]['is_cod_available']);        // the option overrides the product
         $this->assertTrue($d['variants'][1]['is_cod_available']);
         $this->assertSame(10, $d['return_days']);
-        $this->assertSame(['channel' => 'standard', 'days' => 5, 'arrives_by' => now()->addDays(5)->toDateString()], $d['delivery']);
+        $this->assertSame(['days' => 5, 'arrives_by' => now()->addDays(5)->toDateString()], $d['delivery']);
         $this->assertSame('Eugenol', $d['meta_title']);
         $this->assertEquals(3, $d['variants'][0]['reward_points']);
 
-        // Instadent delivers faster
-        Sanctum::actingAs($this->customer());
-        $this->assertSame(3, $this->getJson(self::STORE.'/products/'.$product->slug.'?channel=instadent')->json('data.delivery.days'));
+        // the delivery time is a setting
+        app(\App\Domain\Support\Settings::class)->set(['delivery_days' => 2]);
+        $this->assertSame(2, $this->getJson(self::STORE.'/products/'.$product->slug)->json('data.delivery.days'));
     }
 
     public function test_a_product_is_a_parent_of_its_options_and_starts_at_the_cheapest_one(): void
     {
         $category = $this->makeCategory();
         $gun = $this->makeProduct($category, ['name' => 'Glock', 'variants' => [
-            ['name' => 'Glock 17', 'sku' => 'G17', 'mrp' => 900, 'selling_price' => 800, 'stock' => ['standard' => 2]],
-            ['name' => 'Glock 19', 'sku' => 'G19', 'mrp' => 700, 'selling_price' => 600, 'stock' => ['standard' => 0]],
-            ['name' => 'Glock 26', 'sku' => 'G26', 'mrp' => 800, 'selling_price' => 650, 'stock' => ['standard' => 5]],
+            ['name' => 'Glock 17', 'sku' => 'G17', 'mrp' => 900, 'selling_price' => 800, 'stock' => 2],
+            ['name' => 'Glock 19', 'sku' => 'G19', 'mrp' => 700, 'selling_price' => 600, 'stock' => 0],
+            ['name' => 'Glock 26', 'sku' => 'G26', 'mrp' => 800, 'selling_price' => 650, 'stock' => 5],
         ]]);
         $single = $this->makeProduct($category, ['name' => 'Single Gun']);
 
@@ -662,12 +614,12 @@ class ProductStoreTest extends TestCase
         $category = $this->makeCategory();
         $offers = $this->makeProduct($category, ['name' => 'Scan Body', 'variants' => [
             ['name' => 'Scan Body NC Compatible', 'sku' => 'SB', 'mrp' => 1490, 'selling_price' => 840,
-                'price_tiers' => [['min_qty' => 2, 'price' => 820], ['min_qty' => 5, 'price' => 800], ['min_qty' => 10, 'price' => 760]], 'stock' => ['standard' => 3]],
+                'price_tiers' => [['min_qty' => 2, 'price' => 820], ['min_qty' => 5, 'price' => 800], ['min_qty' => 10, 'price' => 760]], 'stock' => 3],
         ]]);
         $this->makeProduct($category, ['name' => 'Plain Gun']);
         $this->makeProduct($category, ['name' => 'Glock', 'variants' => [
-            ['name' => 'Glock 17', 'sku' => 'G17', 'mrp' => 900, 'selling_price' => 800, 'price_tiers' => [['min_qty' => 2, 'price' => 790]], 'stock' => ['standard' => 2]],
-            ['name' => 'Glock 19', 'sku' => 'G19', 'mrp' => 700, 'selling_price' => 600, 'stock' => ['standard' => 1]],
+            ['name' => 'Glock 17', 'sku' => 'G17', 'mrp' => 900, 'selling_price' => 800, 'price_tiers' => [['min_qty' => 2, 'price' => 790]], 'stock' => 2],
+            ['name' => 'Glock 19', 'sku' => 'G19', 'mrp' => 700, 'selling_price' => 600, 'stock' => 1],
         ]]);
 
         $cards = collect($this->getJson(self::STORE.'/products')->json('data'))->keyBy('slug');
@@ -703,20 +655,17 @@ class ProductStoreTest extends TestCase
         $this->assertSame('Glock', $this->getJson(self::STORE.'/products/glock')->json('data.name'));
     }
 
-    public function test_every_option_has_its_own_stock_in_every_channel(): void
+    public function test_every_option_has_its_own_stock(): void
     {
         $product = $this->makeProduct($this->makeCategory(), ['name' => 'Shirt', 'variants' => [
-            ['name' => 'Shirt Red', 'sku' => 'S-R', 'mrp' => 10, 'selling_price' => 9, 'stock' => ['standard' => 3, 'instadent' => 0]],
-            ['name' => 'Shirt Blue', 'sku' => 'S-B', 'mrp' => 10, 'selling_price' => 9, 'stock' => ['standard' => 10, 'instadent' => 7]],
+            ['name' => 'Shirt Red', 'sku' => 'S-R', 'mrp' => 10, 'selling_price' => 9, 'stock' => 3],
+            ['name' => 'Shirt Blue', 'sku' => 'S-B', 'mrp' => 10, 'selling_price' => 9, 'stock' => 10],
         ]]);
-        Sanctum::actingAs($this->customer());
 
-        $standard = $this->getJson(self::STORE.'/products/'.$product->slug)->json('data.variants');
-        $this->assertSame([3, 10], array_column($standard, 'qty'));
-        $this->assertSame([true, false], array_column($standard, 'low_stock'));   // red: 3 left
-        $instadent = $this->getJson(self::STORE.'/products/'.$product->slug.'?channel=instadent')->json('data.variants');
-        $this->assertSame([0, 7], array_column($instadent, 'qty'));
-        $this->assertSame([false, true], array_column($instadent, 'in_stock'));        // red is sold out on Instadent only
+        $variants = $this->getJson(self::STORE.'/products/'.$product->slug)->json('data.variants');
+        $this->assertSame([3, 10], array_column($variants, 'qty'));
+        $this->assertSame([true, false], array_column($variants, 'low_stock'));   // red: 3 left
+        $this->assertSame([true, true], array_column($variants, 'in_stock'));
     }
 
     public function test_an_inactive_option_is_not_sold_and_a_product_without_active_options_is_hidden(): void
