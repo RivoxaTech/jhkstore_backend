@@ -91,7 +91,7 @@ class PlaceOrder
             ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
         $wallet = $this->ledger->spendable($user->id, lock: true);
 
-        $coins = isset($input['coins_to_redeem']) ? (int) $input['coins_to_redeem'] : (int) $cart->coins_to_redeem;
+        $coins = ! $this->ledger->enabled() ? 0 : (isset($input['coins_to_redeem']) ? (int) $input['coins_to_redeem'] : (int) $cart->coins_to_redeem);
         $priced = $this->pricing->forCart($cart, $user, $coins, $stocks, $wallet);
 
         $this->validate($priced, $input);
@@ -227,10 +227,11 @@ class PlaceOrder
             'coins_discount' => app(Settings::class)->money($priced->coinsDiscount),
             'shipping_fee' => app(Settings::class)->money($priced->deliveryFee),
             'cod_fee' => 0,
-            'tax_total' => app(Settings::class)->money($priced->taxIncluded),
+            'tax_total' => app(Settings::class)->money($priced->taxTotal),
+            'tax_inclusive' => $priced->taxInclusive,
             'grand_total' => app(Settings::class)->money($priced->grandTotal),
             'coins_to_earn' => $priced->coinsToEarn,
-            'customer_gst_number' => $shipping['gst_number'] ?? null,
+            'customer_tax_number' => $shipping['tax_number'] ?? null,
             'customer_note' => trim((string) ($input['customer_note'] ?? '')) ?: null,
             'estimated_delivery_date' => now()->addDays((int) app(Settings::class)->get('delivery_days'))->toDateString(),
             'placed_at' => now(),
@@ -241,7 +242,7 @@ class PlaceOrder
 
         foreach (['shipping' => $shipping, 'billing' => $billing] as $type => $address) {
             OrderAddress::create(['order_id' => $order->id, 'type' => $type, 'address_type' => $address['type'] ?? null]
-                + collect(UserAddress::SNAPSHOT_FIELDS)->mapWithKeys(fn ($f) => [$f => $address[$f] ?? ($f === 'country' ? 'Pakistan' : null)])->all());
+                + collect(UserAddress::SNAPSHOT_FIELDS)->mapWithKeys(fn ($f) => [$f => $address[$f] ?? ($f === 'country' ? (string) app(Settings::class)->get('store_country') : null)])->all());
         }
 
         OrderStatusHistory::create([
@@ -281,12 +282,11 @@ class PlaceOrder
                 'qty' => $line->qty,
                 'discount' => app(Settings::class)->money($line->productDiscount() + $line->bulkDiscount()),
                 'bulk_discount' => app(Settings::class)->money($line->bulkDiscount()),
-                'tax_rate' => $product->gst_rate,
-                'tax_amount' => app(Settings::class)->money($line->taxIncluded()),
+                'tax_rate' => $line->taxRate,
+                'tax_amount' => app(Settings::class)->money($line->tax()),
                 'line_total' => app(Settings::class)->money($line->lineTotal()),
                 'coins_earned' => $line->coinsToEarn(),
                 'expiry_date' => $variant->expiry_date,
-                'hsn_code' => $product->hsn_code,
             ]);
         }
     }

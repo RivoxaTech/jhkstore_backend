@@ -81,7 +81,7 @@ class CartTest extends TestCase
         $this->assertSame(25, $s['coins_to_earn']);
         $this->assertEquals(240, $s['total_savings']);
         $this->assertSame('Inclusive of all taxes', $s['tax_note']);
-        $this->assertEquals(round(760 * 18 / 118, 2), $s['tax_included']);   // the product's sales tax (18%) is inside the price
+        $this->assertEquals(round(760 * 18 / 118, 2), $s['tax_total']);   // the product's sales tax (18%) is inside the price
         $res->assertJsonPath('data.can_checkout', true);
     }
 
@@ -518,8 +518,8 @@ class CartTest extends TestCase
         $line = $this->addToCart($variant, 1)->json('data.items.0');
 
         $this->assertSame(['variant_id', 'product_id', 'slug', 'name', 'option_name', 'sku', 'image_url', 'thumb_url', 'brand', 'qty', 'min_order_qty', 'max_order_qty', 'available_qty',
-            'mrp', 'price', 'unit_price', 'bulk_applied', 'next_offer', 'line_mrp_total', 'line_total', 'product_saving', 'bulk_saving', 'saving', 'reward_points', 'coins_to_earn',
-            'gst_rate', 'in_totals', 'can_buy', 'price_changed', 'warnings'], array_keys($line));
+            'mrp', 'price', 'unit_price', 'bulk_applied', 'next_offer', 'line_mrp_total', 'line_total', 'product_saving', 'bulk_saving', 'saving',
+            'tax_rate', 'tax', 'in_totals', 'can_buy', 'price_changed', 'warnings', 'reward_points', 'coins_to_earn'], array_keys($line));
         $this->assertSame(['name', 'slug'], array_keys($line['brand']));
         $this->assertNull($line['image_url']);   // the test product has no picture: null, never a relative path
         $this->assertSame($product->variants()->value('name'), $line['option_name']);

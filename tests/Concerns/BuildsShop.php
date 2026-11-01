@@ -49,15 +49,15 @@ trait BuildsShop
     protected function address(User $user, array $overrides = []): UserAddress
     {
         return app(SaveAddress::class)->create($user, $overrides + [
-            'type' => 'clinic', 'name' => $user->full_name, 'phone' => '03001234567', 'alt_phone' => '03111234567',
-            'line1' => 'Smile Clinic, Shop 4', 'area' => 'Block B, Gulberg', 'landmark' => 'Near the park',
+            'type' => 'work', 'name' => $user->full_name, 'phone' => '03001234567', 'alt_phone' => '03111234567',
+            'line1' => 'Shop 4, Market Plaza', 'area' => 'Block B, Gulberg', 'landmark' => 'Near the park',
             'city' => 'Lahore', 'state' => 'Punjab', 'postcode' => '54660', 'country' => 'Pakistan',
         ]);
     }
 
     /**
      * A product with ONE option: MRP 200 / price 160 / 5 coins, bulk prices "5+ for 152" and "10+ for 140", 50 units in stock.
-     * `$variant` overrides the option, `$product` the product (e.g. min_order_qty, max_order_qty, gst_rate, status).
+     * `$variant` overrides the option, `$product` the product (e.g. min_order_qty, max_order_qty, tax_rate, status).
      */
     protected function shopProduct(array $variant = [], array $product = []): Product
     {

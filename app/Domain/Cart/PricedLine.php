@@ -30,6 +30,9 @@ final class PricedLine
         public readonly int $snapshotPrice,
         public readonly bool $counted,
         public readonly array $issues,
+        public readonly int $points = 0,
+        public readonly float $taxRate = 0.0,
+        public readonly int $tax = 0,
     ) {}
 
     public function lineTotal(): int
@@ -54,17 +57,16 @@ final class PricedLine
         return ($this->basePrice - $this->unitPrice) * $this->qty;
     }
 
+    /** Reward points this line earns (0 while the feature is off; see RewardLedger::pointsForLine). */
     public function coinsToEarn(): int
     {
-        return (int) $this->variant->reward_points * $this->qty;
+        return $this->points;
     }
 
-    /** Sales tax already inside the line total (prices are tax inclusive): total x rate / (100 + rate). */
-    public function taxIncluded(): int
+    /** The tax of the line: already inside the total when prices include tax, added on top otherwise (see CartPricing). */
+    public function tax(): int
     {
-        $rate = (float) $this->product->gst_rate;
-
-        return (int) round($this->lineTotal() * $rate / (100 + $rate));
+        return $this->tax;
     }
 
     public function isBlocking(): bool

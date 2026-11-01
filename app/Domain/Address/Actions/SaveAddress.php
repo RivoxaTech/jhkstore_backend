@@ -4,6 +4,7 @@ namespace App\Domain\Address\Actions;
 
 use App\Domain\Address\Models\UserAddress;
 use App\Domain\Auth\Models\User;
+use App\Domain\Support\Settings;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -22,7 +23,9 @@ class SaveAddress
                 UserAddress::query()->where('user_id', $user->id)->update(['is_default' => false]);
             }
 
-            return UserAddress::create(['user_id' => $user->id, 'is_default' => $makeDefault] + $this->clean($data));
+            $fields = $this->clean($data) + ['country' => (string) app(Settings::class)->get('store_country')];   // the store's country unless one was given
+
+            return UserAddress::create(['user_id' => $user->id, 'is_default' => $makeDefault] + $fields);
         });
     }
 
@@ -61,7 +64,7 @@ class SaveAddress
     private function clean(array $data): array
     {
         $out = [];
-        foreach (['label', 'type', 'name', 'phone', 'alt_phone', 'line1', 'area', 'landmark', 'city', 'state', 'postcode', 'country', 'gst_number', 'latitude', 'longitude'] as $key) {
+        foreach (['label', 'type', 'name', 'phone', 'alt_phone', 'line1', 'area', 'landmark', 'city', 'state', 'postcode', 'country', 'tax_number', 'latitude', 'longitude'] as $key) {
             if (array_key_exists($key, $data)) {
                 $value = is_string($data[$key]) ? trim($data[$key]) : $data[$key];
                 $out[$key] = $value === '' ? null : $value;

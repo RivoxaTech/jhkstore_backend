@@ -22,19 +22,18 @@ class Product extends Model implements HasMedia
 
     protected $fillable = [
         'brand_id', 'category_id', 'sub_category_id', 'name', 'sku', 'short_description', 'description',
-        'badge_text', 'hsn_code', 'gst_rate', 'country_of_origin', 'warranty_text', 'min_order_qty', 'max_order_qty',
-        'is_returnable', 'return_days', 'is_cod_available', 'is_professional_only', 'status', 'meta_title', 'meta_description',
+        'badge_text', 'tax_rate', 'country_of_origin', 'warranty_text', 'min_order_qty', 'max_order_qty',
+        'is_returnable', 'return_days', 'is_cod_available', 'status', 'meta_title', 'meta_description',
     ];
 
     protected function casts(): array
     {
         return [
             'status' => ProductStatus::class,
-            'gst_rate' => 'decimal:2',
+            'tax_rate' => 'decimal:2',
             'is_returnable' => 'boolean',
             'return_days' => 'integer',
             'is_cod_available' => 'boolean',
-            'is_professional_only' => 'boolean',
             'is_in_stock' => 'boolean',
             'min_price' => 'decimal:2',
             'max_discount_percent' => 'decimal:2',

@@ -5,6 +5,8 @@ namespace App\Http\Resources;
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\ProductImages;
 use App\Domain\Support\Settings;
+use App\Domain\Reward\Actions\RewardLedger;
+use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
 
 /**
@@ -26,7 +28,7 @@ class StoreProductResource extends StoreProductCardResource
         $card = parent::toArray($request);
         $days = (int) app(Settings::class)->get('delivery_days');
 
-        return $card + [
+        $out = $card + [
             'product_name' => $this->name,   // the parent's name (a single-option product's `name` is its option's)
             'display_mode' => $card['has_single_option'] ? 'single_option' : 'multiple_options',
             'sku' => $card['has_single_option'] ? $this->variants->first()->sku : $this->sku,
@@ -39,8 +41,7 @@ class StoreProductResource extends StoreProductCardResource
             'is_returnable' => $this->is_returnable,
             'return_days' => $this->is_returnable ? $this->return_days : null,   // "10-Days Returnable"
             'is_cod_available' => $this->is_cod_available,
-            'is_professional_only' => $this->is_professional_only,
-            'gst_rate' => (float) $this->gst_rate,
+            'tax_rate' => $this->tax_rate === null ? (float) app(Settings::class)->get('tax_rate') : (float) $this->tax_rate,
             'delivery' => [
                 'days' => $days,
                 'arrives_by' => now()->addDays($days)->toDateString(),   // "Arrives by Oct 30, 2026"
@@ -88,5 +89,10 @@ class StoreProductResource extends StoreProductCardResource
                 : collect(ProductImages::gallery($this->resource))),
             'related' => StoreProductCardResource::collection($this->related),
         ];
+        if (! app(RewardLedger::class)->enabled()) {
+            $out['variants'] = $out['variants']->map(fn ($v) => Arr::except($v, 'reward_points'));
+        }
+
+        return $out;
     }
 }

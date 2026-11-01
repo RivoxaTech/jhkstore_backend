@@ -166,7 +166,7 @@ class AdminOrderTest extends TestCase
     public function test_the_detail_shows_everything_about_the_order(): void
     {
         $user = $this->customer('detail@example.test', 'Dr. Detail');
-        $this->address($user, ['gst_number' => '27ABCDE1234F1Z5']);
+        $this->address($user, ['tax_number' => '27ABCDE1234F1Z5']);
         $this->giveCoins($user, 100);
         $order = $this->orderFor($user, 5, [], 50);
         $this->orderFor($user, 1);
@@ -181,13 +181,13 @@ class AdminOrderTest extends TestCase
         $this->assertSame('detail@example.test', $d['customer']['email']);
         $this->assertSame($user->id, $d['customer']['id']);
         $this->assertSame(2, $d['customer']['orders_count']);
-        $this->assertSame('27ABCDE1234F1Z5', $d['customer']['gst_number']);
-        $this->assertSame(['name', 'phone', 'alt_phone', 'line1', 'area', 'landmark', 'city', 'state', 'postcode', 'country', 'gst_number', 'type', 'latitude', 'longitude'], array_keys($d['shipping_address']));
-        $this->assertSame('Smile Clinic, Shop 4', $d['shipping_address']['line1']);
-        $this->assertSame('27ABCDE1234F1Z5', $d['billing_address']['gst_number']);
+        $this->assertSame('27ABCDE1234F1Z5', $d['customer']['tax_number']);
+        $this->assertSame(['name', 'phone', 'alt_phone', 'line1', 'area', 'landmark', 'city', 'state', 'postcode', 'country', 'tax_number', 'type', 'latitude', 'longitude'], array_keys($d['shipping_address']));
+        $this->assertSame('Shop 4, Market Plaza', $d['shipping_address']['line1']);
+        $this->assertSame('27ABCDE1234F1Z5', $d['billing_address']['tax_number']);
 
         $item = $d['items'][0];
-        $this->assertSame(['id', 'product_id', 'variant_id', 'name', 'option_name', 'sku', 'image_url', 'brand', 'qty', 'mrp', 'price', 'unit_price', 'bulk_applied', 'discount', 'bulk_discount', 'line_total', 'tax_rate', 'tax_amount', 'coins_earned', 'expiry_date', 'status'], array_keys($item));
+        $this->assertSame(['id', 'product_id', 'variant_id', 'name', 'option_name', 'sku', 'image_url', 'brand', 'qty', 'mrp', 'price', 'unit_price', 'bulk_applied', 'discount', 'bulk_discount', 'line_total', 'tax_rate', 'tax_amount', 'expiry_date', 'status', 'coins_earned'], array_keys($item));
         $this->assertSame(5, $item['qty']);
         $this->assertEquals(152, $item['unit_price']);
         $this->assertEquals(160, $item['price']);

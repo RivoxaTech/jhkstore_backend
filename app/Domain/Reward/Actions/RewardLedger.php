@@ -10,7 +10,10 @@ use App\Domain\Support\Settings;
 use Illuminate\Support\Facades\DB;
 
 /**
- * The coin (Dentacoin) ledger. `reward_transactions` is append-only; spendable coins live in "batches" (earn / reverse / adjust rows with
+ * The reward points service: the ONLY place that decides whether points exist (`Settings::rewardsEnabled()`), how many a purchase earns,
+ * and how they are credited, spent and refunded. With the "Enable reward points" setting off nothing is earned, spent or shown.
+ *
+ * The ledger: `reward_transactions` is append-only; spendable coins live in "batches" (earn / reverse / adjust rows with
  * `remaining` > 0 that have not expired) and are spent earliest-expiry first. `reward_wallets` caches the balance.
  *
  *  earn    - when an order is DELIVERED (never on placing)       redeem  - when an order is PLACED (debit)
@@ -21,9 +24,34 @@ class RewardLedger
 {
     public function __construct(private readonly Settings $settings) {}
 
-    /** Coins a customer can spend right now (sum of the batches that are available and not expired). */
+    /** Is the reward points feature switched on? Every other part of the shop asks here. */
+    public function enabled(): bool
+    {
+        return $this->settings->rewardsEnabled();
+    }
+
+    /**
+     * Points a purchase line earns: the option's own points per unit (`reward_points`), or - when it has none - the store-wide earn rate
+     * (points per 1 currency unit of the line total). Always 0 while the feature is off.
+     */
+    public function pointsForLine(int $optionPoints, int $qty, int $lineTotalCents): int
+    {
+        if (! $this->enabled()) {
+            return 0;
+        }
+        if ($optionPoints > 0) {
+            return $optionPoints * $qty;
+        }
+
+        return (int) floor($this->settings->money($lineTotalCents) * (float) $this->settings->get('reward_earn_rate'));
+    }
+
+    /** Coins a customer can spend right now (sum of the batches that are available and not expired). 0 while the feature is off. */
     public function spendable(int $userId, bool $lock = false): int
     {
+        if (! $this->enabled()) {
+            return 0;
+        }
         $query = $this->batches($userId);
 
         return (int) ($lock ? $query->lockForUpdate()->get()->sum('remaining') : $query->sum('remaining'));
@@ -66,7 +94,10 @@ class RewardLedger
         return $redeem;
     }
 
-    /** Gives the redeemed coins of a cancelled order back (once). A new batch is created, valid for the normal expiry period. */
+    /**
+     * Gives the redeemed coins of a cancelled order back (once) as a new batch, valid for the normal expiry period.
+     * Runs even when the feature was switched off meanwhile: it returns what the customer paid with.
+     */
     public function refund(Order $order): void
     {
         if ($order->coins_redeemed <= 0 || $this->existing($order, RewardTransaction::REVERSE)) {
@@ -82,7 +113,7 @@ class RewardLedger
     /** Credits the coins an order earns (once). Called when the order is delivered. */
     public function credit(Order $order): void
     {
-        if ($order->coins_to_earn <= 0 || $this->existing($order, RewardTransaction::EARN)) {
+        if (! $this->enabled() || $order->coins_to_earn <= 0 || $this->existing($order, RewardTransaction::EARN)) {
             return;
         }
 

@@ -15,8 +15,8 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [
-        'full_name', 'email', 'mobile', 'whatsapp', 'password', 'professional_type', 'speciality', 'gender',
-        'business_name', 'date_of_birth', 'anniversary', 'council_reg_no', 'is_active', 'last_login_at',
+        'full_name', 'email', 'mobile', 'whatsapp', 'password', 'gender',
+        'business_name', 'date_of_birth', 'is_active', 'last_login_at',
     ];
 
     protected $hidden = ['password'];
@@ -35,7 +35,6 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'mobile_verified_at' => 'datetime',
             'date_of_birth' => 'date',
-            'anniversary' => 'date',
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
         ];

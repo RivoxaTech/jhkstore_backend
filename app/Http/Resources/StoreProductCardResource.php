@@ -5,6 +5,8 @@ namespace App\Http\Resources;
 use App\Domain\Catalog\ProductImages;
 use App\Support\MediaUrl;
 use App\Domain\Support\Settings;
+use App\Domain\Reward\Actions\RewardLedger;
+use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,7 +29,7 @@ class StoreProductCardResource extends JsonResource
         $single = $variants->count() === 1;
         $offers = $single ? $variants->first()->priceTiers->count() : 0;
 
-        return [
+        $card = [
             'id' => $this->id,
             'name' => $single ? ($cheapest->name ?: $this->name) : $this->name,
             'slug' => $this->slug,
@@ -55,5 +57,7 @@ class StoreProductCardResource extends JsonResource
             'tags' => $this->tags->pluck('slug')->values(),
             'in_stock' => $variants->contains(fn ($v) => $v->available() > 0),
         ];
+
+        return app(RewardLedger::class)->enabled() ? $card : Arr::except($card, 'reward_points');
     }
 }

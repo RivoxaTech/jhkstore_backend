@@ -7,7 +7,9 @@ use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\Models\SubCategory;
+use App\Domain\Reward\Actions\RewardLedger;
 use App\Domain\Support\Settings;
+use Illuminate\Support\Arr;
 use App\Domain\Catalog\Models\Brand;
 use Illuminate\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -75,8 +77,7 @@ class SaveProductRequest extends FormRequest
             'short_description' => ['nullable', 'string', 'max:500'],
             'description' => ['nullable', 'string', 'max:100000'],
             'badge_text' => ['nullable', 'string', 'max:40'],
-            'hsn_code' => ['nullable', 'string', 'max:12'],
-            'gst_rate' => ['nullable', 'numeric', 'between:0,99.99'],
+            'tax_rate' => ['nullable', 'numeric', 'between:0,99.99'],
             'country_of_origin' => ['nullable', 'string', 'max:80'],
             'warranty_text' => ['nullable', 'string', 'max:255'],
             'min_order_qty' => ['sometimes', 'integer', 'min:1', 'max:65535'],
@@ -84,7 +85,6 @@ class SaveProductRequest extends FormRequest
             'is_returnable' => ['sometimes', 'boolean'],
             'return_days' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:365'],
             'is_cod_available' => ['sometimes', 'boolean'],
-            'is_professional_only' => ['sometimes', 'boolean'],
             'status' => ['sometimes', Rule::in(ProductStatus::values())],
             'meta_title' => ['nullable', 'string', 'max:255'],
             'meta_description' => ['nullable', 'string', 'max:255'],
@@ -253,6 +253,10 @@ class SaveProductRequest extends FormRequest
             unset($data['brand_id']); // brands are switched off: a product keeps whatever brand it had
         }
         unset($data['mrp'], $data['selling_price'], $data['reward_points'], $data['expiry_date'], $data['stock'], $data['stock_was']);
+        if (! app(RewardLedger::class)->enabled() && isset($data['variants'])) {
+            // points are not editable while the feature is off: existing values stay as they are
+            $data['variants'] = array_map(fn ($row) => Arr::except($row, 'reward_points'), $data['variants']);
+        }
         if (array_key_exists('return_days', $data) && $data['return_days'] === null) {
             unset($data['return_days']); // keeps the default (10)
         }

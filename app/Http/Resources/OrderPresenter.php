@@ -8,6 +8,7 @@ use App\Domain\Order\Models\Order;
 use App\Domain\Order\Models\OrderAddress;
 use App\Domain\Order\Models\OrderItem;
 use App\Domain\Order\Models\OrderStatusHistory;
+use App\Domain\Reward\Actions\RewardLedger;
 use App\Domain\Support\Settings;
 
 /** The pieces of an order answer that the customer and the admin resources share, so both always show the same numbers. */
@@ -26,25 +27,34 @@ class OrderPresenter
     /** Price breakdown. `subtotal` = items at MRP - product discount - bulk offer; `grand_total` = subtotal - coins discount + delivery. */
     public static function totals(Order $o): array
     {
-        return [
+        $settings = app(Settings::class);
+        $totals = [
             'items_total' => (float) $o->mrp_total,
             'product_discount' => (float) $o->product_discount_total,
             'bulk_discount' => (float) $o->bulk_discount_total,
             'subtotal' => (float) $o->items_subtotal,
-            'coins_redeemed' => $o->coins_redeemed,
-            'coins_discount' => (float) $o->coins_discount,
             'delivery_fee' => (float) $o->shipping_fee,
             'grand_total' => (float) $o->grand_total,
-            'tax_included' => (float) $o->tax_total,
-            'tax_note' => 'Inclusive of all taxes',
-            'coins_to_earn' => $o->coins_to_earn,
-            'total_savings' => round((float) $o->product_discount_total + (float) $o->bulk_discount_total + (float) $o->coins_discount, 2),
+            'tax_total' => (float) $o->tax_total,
+            'tax_inclusive' => (bool) $o->tax_inclusive,
+            'tax_label' => (string) $settings->get('tax_label'),
+            'tax_note' => $o->tax_inclusive ? 'Inclusive of all taxes' : 'Tax is added to the total',
+            'total_savings' => round((float) $o->product_discount_total + (float) $o->bulk_discount_total, 2),
         ];
+        if (app(RewardLedger::class)->enabled()) {
+            // reward points exist only while the feature is on
+            $totals['coins_redeemed'] = $o->coins_redeemed;
+            $totals['coins_discount'] = (float) $o->coins_discount;
+            $totals['coins_to_earn'] = $o->coins_to_earn;
+            $totals['total_savings'] = round($totals['total_savings'] + (float) $o->coins_discount, 2);
+        }
+
+        return $totals;
     }
 
     public static function item(OrderItem $i): array
     {
-        return [
+        $item = [
             'id' => $i->id,
             'product_id' => $i->product_id,
             'variant_id' => $i->variant_id,
@@ -63,10 +73,14 @@ class OrderPresenter
             'line_total' => (float) $i->line_total,
             'tax_rate' => (float) $i->tax_rate,
             'tax_amount' => (float) $i->tax_amount,
-            'coins_earned' => $i->coins_earned,
             'expiry_date' => $i->expiry_date?->toDateString(),
             'status' => $i->status,
         ];
+        if (app(RewardLedger::class)->enabled()) {
+            $item['coins_earned'] = $i->coins_earned;
+        }
+
+        return $item;
     }
 
     public static function address(?OrderAddress $a): ?array
@@ -86,7 +100,7 @@ class OrderPresenter
             'state' => $a->state,
             'postcode' => $a->postcode,
             'country' => $a->country,
-            'gst_number' => $a->gst_number,
+            'tax_number' => $a->tax_number,
             'type' => $a->address_type,
             'latitude' => $a->latitude,
             'longitude' => $a->longitude,

@@ -31,13 +31,15 @@ class SyncProductVariants
                 'sku' => $row['sku'] ?? ($single ? $product->sku : $variant->sku),
                 'mrp' => $row['mrp'],
                 'selling_price' => $row['selling_price'],
-                'reward_points' => $row['reward_points'] ?? 0,
                 'expiry_date' => $row['expiry_date'] ?? null,
                 'barcode' => $row['barcode'] ?? null,
                 'weight_grams' => $row['weight_grams'] ?? null,
                 'is_active' => $row['is_active'] ?? true,
                 'sort_order' => $row['sort_order'] ?? $i,
             ]);
+            if (array_key_exists('reward_points', $row) || ! $variant->exists) {
+                $variant->reward_points = (int) ($row['reward_points'] ?? 0);   // left alone while the feature is off
+            }
             $variant->discount_percent = ProductVariant::discountFor($row['mrp'], $row['selling_price']);
             $variant->product_id = $product->id;
             $variant->is_default = false; // fixed below: exactly one default

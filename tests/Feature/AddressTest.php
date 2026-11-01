@@ -23,8 +23,8 @@ class AddressTest extends TestCase
     {
         return $overrides + [
             'name' => 'Dr. Asha Khan', 'phone' => '0300 1234567', 'alt_phone' => '0311 7654321',
-            'line1' => 'Smile Dental Clinic, Shop 4, Medicare Plaza', 'area' => 'Block B, Gulberg III', 'landmark' => 'Near the boulevard',
-            'city' => 'Lahore', 'state' => 'Punjab', 'postcode' => '54660', 'gst_number' => '27abcde1234f1z5', 'type' => 'clinic',
+            'line1' => 'Shop 4, Market Plaza', 'area' => 'Block B, Gulberg III', 'landmark' => 'Near the boulevard',
+            'city' => 'Lahore', 'state' => 'Punjab', 'postcode' => '54660', 'tax_number' => '27ABCDE1234F1Z5', 'type' => 'work',
             'latitude' => 31.5204, 'longitude' => 74.3587,
         ];
     }
@@ -42,15 +42,15 @@ class AddressTest extends TestCase
 
         $res = $this->postJson(self::STORE.'/addresses', $this->payload())->assertCreated();
 
-        $this->assertSame(['id', 'label', 'type', 'name', 'phone', 'alt_phone', 'line1', 'area', 'landmark', 'city', 'state', 'postcode', 'country', 'gst_number', 'latitude', 'longitude', 'is_default'], array_keys($res->json('data')));
+        $this->assertSame(['id', 'label', 'type', 'name', 'phone', 'alt_phone', 'line1', 'area', 'landmark', 'city', 'state', 'postcode', 'country', 'tax_number', 'latitude', 'longitude', 'is_default'], array_keys($res->json('data')));
         $res->assertJsonPath('data.name', 'Dr. Asha Khan')
             ->assertJsonPath('data.alt_phone', '0311 7654321')
-            ->assertJsonPath('data.line1', 'Smile Dental Clinic, Shop 4, Medicare Plaza')
+            ->assertJsonPath('data.line1', 'Shop 4, Market Plaza')
             ->assertJsonPath('data.area', 'Block B, Gulberg III')
             ->assertJsonPath('data.landmark', 'Near the boulevard')
             ->assertJsonPath('data.postcode', '54660')
-            ->assertJsonPath('data.type', 'clinic')
-            ->assertJsonPath('data.gst_number', '27ABCDE1234F1Z5')   // stored in upper case
+            ->assertJsonPath('data.type', 'work')
+            ->assertJsonPath('data.tax_number', '27ABCDE1234F1Z5')
             ->assertJsonPath('data.country', 'Pakistan')
             ->assertJsonPath('data.latitude', 31.5204)
             ->assertJsonPath('data.is_default', true);               // the first address is the default
@@ -60,9 +60,9 @@ class AddressTest extends TestCase
     {
         $this->actAs($this->customer());
 
-        $this->postJson(self::STORE.'/addresses', $this->payload(['alt_phone' => '', 'landmark' => '', 'gst_number' => '', 'type' => null, 'latitude' => null, 'longitude' => null]))
+        $this->postJson(self::STORE.'/addresses', $this->payload(['alt_phone' => '', 'landmark' => '', 'tax_number' => '', 'type' => null, 'latitude' => null, 'longitude' => null]))
             ->assertCreated()
-            ->assertJsonPath('data.alt_phone', null)->assertJsonPath('data.landmark', null)->assertJsonPath('data.gst_number', null)
+            ->assertJsonPath('data.alt_phone', null)->assertJsonPath('data.landmark', null)->assertJsonPath('data.tax_number', null)
             ->assertJsonPath('data.type', 'home')->assertJsonPath('data.latitude', null);
     }
 
@@ -72,13 +72,11 @@ class AddressTest extends TestCase
 
         $res = $this->postJson(self::STORE.'/addresses', [])->assertStatus(422);
         $res->assertJsonValidationErrors(['name', 'phone', 'line1', 'area', 'city', 'state', 'postcode']);
-        $this->assertSame('Enter the clinic name / house no. / building / apartment.', $res->json('errors.line1.0'));
-        $this->assertSame('Enter the area / street / sector / village.', $res->json('errors.area.0'));
+        $this->assertSame('Enter the house no. / building / apartment.', $res->json('errors.line1.0'));
+        $this->assertSame('Enter the area / street.', $res->json('errors.area.0'));
 
-        $this->postJson(self::STORE.'/addresses', $this->payload(['gst_number' => '12345']))->assertStatus(422)
-            ->assertJsonPath('errors.gst_number.0', 'Enter a valid 15-character GSTIN, for example 27ABCDE1234F1Z5.');
         $this->postJson(self::STORE.'/addresses', $this->payload(['phone' => 'abc']))->assertStatus(422)->assertJsonValidationErrors('phone');
-        $this->postJson(self::STORE.'/addresses', $this->payload(['type' => 'office']))->assertStatus(422)->assertJsonPath('errors.type.0', 'The address type must be clinic, home or other.');
+        $this->postJson(self::STORE.'/addresses', $this->payload(['type' => 'office']))->assertStatus(422)->assertJsonPath('errors.type.0', 'The address type must be home, work or other.');
         $this->postJson(self::STORE.'/addresses', $this->payload(['latitude' => 95]))->assertStatus(422)->assertJsonValidationErrors('latitude');
         $this->postJson(self::STORE.'/addresses', $this->payload(['longitude' => null, 'latitude' => 31.5]))->assertStatus(422)->assertJsonValidationErrors('longitude');
     }

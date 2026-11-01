@@ -77,6 +77,7 @@ class CartController extends Controller
     /** Use reward points on this cart (customer token): body { coins_to_redeem }. The answer shows how many were applied after the limits. */
     public function coins(SetCartCoinsRequest $request): JsonResponse
     {
+        abort_unless($this->ledger->enabled(), 404, 'Reward points are not enabled.');
         $cart = $this->resolver->findOrCreate($request);
         $this->items->setCoins($cart, (int) $request->validated('coins_to_redeem'));
 

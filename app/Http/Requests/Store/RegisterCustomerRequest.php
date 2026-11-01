@@ -29,7 +29,6 @@ class RegisterCustomerRequest extends FormRequest
             'email' => ['required', 'email:rfc', 'max:190', 'unique:users,email'],
             'mobile' => ['required', 'string', 'regex:/^[0-9]{7,15}$/', 'unique:users,mobile'],
             'password' => ['required', 'string', 'min:8', 'max:190', 'confirmed'],
-            'professional_type' => ['nullable', 'string', 'max:30'],
             'cart_token' => ['nullable', 'string', 'size:40'],
         ];
     }

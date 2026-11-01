@@ -67,7 +67,7 @@ class OrderTest extends TestCase
         $this->assertEquals(100, $t['coins_discount']);
         $this->assertEquals(300, $t['delivery_fee']);
         $this->assertEquals(960, $t['grand_total']);
-        $this->assertEquals(round(760 * 18 / 118, 2), $t['tax_included']);
+        $this->assertEquals(round(760 * 18 / 118, 2), $t['tax_total']);
         $this->assertSame(25, $t['coins_to_earn']);
         $this->assertSame('Inclusive of all taxes', $t['tax_note']);
 
@@ -88,9 +88,9 @@ class OrderTest extends TestCase
         $this->assertSame(25, $item['coins_earned']);
 
         // addresses are snapshots, billing = shipping by default
-        $this->assertSame('Smile Clinic, Shop 4', $d['shipping_address']['line1']);
+        $this->assertSame('Shop 4, Market Plaza', $d['shipping_address']['line1']);
         $this->assertSame('03111234567', $d['shipping_address']['alt_phone']);
-        $this->assertSame('clinic', $d['shipping_address']['type']);
+        $this->assertSame('work', $d['shipping_address']['type']);
         $this->assertSame($d['shipping_address'], $d['billing_address']);
 
         // timeline
@@ -125,18 +125,18 @@ class OrderTest extends TestCase
 
         $this->getJson(self::STORE."/orders/$number")->assertOk()
             ->assertJsonPath('data.shipping_address.city', 'Lahore')
-            ->assertJsonPath('data.shipping_address.line1', 'Smile Clinic, Shop 4');
+            ->assertJsonPath('data.shipping_address.line1', 'Shop 4, Market Plaza');
     }
 
     public function test_an_inline_address_is_saved_to_the_address_book_unless_told_otherwise(): void
     {
         [$user] = $this->shopper(1);
-        $inline = ['name' => 'Dr. New', 'phone' => '03211234567', 'line1' => 'New Clinic', 'area' => 'Sector F-7', 'city' => 'Islamabad', 'state' => 'ICT', 'postcode' => '44000', 'type' => 'home', 'gst_number' => '27ABCDE1234F1Z5'];
+        $inline = ['name' => 'Dr. New', 'phone' => '03211234567', 'line1' => 'New Shop', 'area' => 'Sector F-7', 'city' => 'Islamabad', 'state' => 'ICT', 'postcode' => '44000', 'type' => 'home', 'tax_number' => '27ABCDE1234F1Z5'];
 
         $res = $this->placeOrder(['address' => $inline])->assertCreated();
-        $res->assertJsonPath('data.shipping_address.city', 'Islamabad')->assertJsonPath('data.shipping_address.gst_number', '27ABCDE1234F1Z5');
+        $res->assertJsonPath('data.shipping_address.city', 'Islamabad')->assertJsonPath('data.shipping_address.tax_number', '27ABCDE1234F1Z5');
         $this->assertDatabaseHas('user_addresses', ['user_id' => $user->id, 'city' => 'Islamabad']);
-        $this->assertDatabaseHas('orders', ['id' => $res->json('data.id'), 'customer_gst_number' => '27ABCDE1234F1Z5']);
+        $this->assertDatabaseHas('orders', ['id' => $res->json('data.id'), 'customer_tax_number' => '27ABCDE1234F1Z5']);
 
         $this->addToCart($this->variantOf($this->shopProduct()), 1);
         $this->placeOrder(['address' => ['city' => 'Multan'] + $inline, 'save_address' => false])->assertCreated()->assertJsonPath('data.shipping_address.city', 'Multan');
@@ -146,7 +146,7 @@ class OrderTest extends TestCase
     public function test_the_billing_address_can_differ_from_the_shipping_address(): void
     {
         [$user, , $address] = $this->shopper(1);
-        $billing = $this->address($user, ['name' => 'Accounts Dept', 'city' => 'Karachi', 'gst_number' => '27ABCDE1234F1Z5'])->id;
+        $billing = $this->address($user, ['name' => 'Accounts Dept', 'city' => 'Karachi', 'tax_number' => '27ABCDE1234F1Z5'])->id;
 
         $this->placeOrder(['address_id' => $address, 'billing_address_id' => $billing])->assertCreated()
             ->assertJsonPath('data.shipping_address.city', 'Lahore')
@@ -263,8 +263,8 @@ class OrderTest extends TestCase
         $this->shopper(1);
 
         $this->placeOrder(['address' => ['name' => 'X']])->assertStatus(422)->assertJsonValidationErrors(['address.phone', 'address.line1', 'address.area', 'address.city', 'address.postcode']);
-        $this->placeOrder(['address' => ['name' => 'X', 'phone' => '0300123456', 'line1' => 'a', 'area' => 'b', 'city' => 'c', 'state' => 'd', 'postcode' => '1', 'gst_number' => 'bad']])
-            ->assertStatus(422)->assertJsonValidationErrors(['address.postcode', 'address.gst_number']);
+        $this->placeOrder(['address' => ['name' => 'X', 'phone' => '0300123456', 'line1' => 'a', 'area' => 'b', 'city' => 'c', 'state' => 'd', 'postcode' => '1']])
+            ->assertStatus(422)->assertJsonValidationErrors(['address.postcode']);
     }
 
     public function test_only_cash_on_delivery_exists_for_now(): void

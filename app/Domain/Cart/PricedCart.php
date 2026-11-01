@@ -5,7 +5,7 @@ namespace App\Domain\Cart;
 /**
  * The fully calculated cart (amounts in cents):
  *   items_total (all lines at MRP) - product_discount (MRP -> option price) - bulk_discount (option price -> bulk price) = subtotal
- *   grand_total = subtotal - coins_discount + delivery_fee      (prices already include sales tax)
+ *   grand_total = subtotal - coins_discount + delivery_fee (+ tax_total when prices are tax exclusive)
  */
 final class PricedCart
 {
@@ -26,7 +26,8 @@ final class PricedCart
         public readonly int $freeDeliveryMin,
         public readonly int $grandTotal,
         public readonly int $coinsToEarn,
-        public readonly int $taxIncluded,
+        public readonly int $taxTotal,
+        public readonly bool $taxInclusive,
         public readonly int $unitsCount,
         public readonly int $minOrderAmount,
     ) {}

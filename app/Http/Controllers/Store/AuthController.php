@@ -48,7 +48,7 @@ class AuthController extends Controller
         $data = $request->validated();
         $user = User::create([
             'full_name' => $data['full_name'], 'email' => strtolower($data['email']), 'mobile' => preg_replace('/\D/', '', $data['mobile']),
-            'password' => $data['password'], 'professional_type' => $data['professional_type'] ?? null, 'is_active' => true,
+            'password' => $data['password'], 'is_active' => true,
         ]);
         $user->forceFill(['last_login_at' => now()])->save();
 
@@ -84,14 +84,10 @@ class AuthController extends Controller
             'email' => $user->email,
             'mobile' => $user->mobile,
             'whatsapp' => $user->whatsapp,
-            'professional_type' => $user->professional_type,
-            'speciality' => $user->speciality,
             'gender' => $user->gender,
             'business_name' => $user->business_name,
             'date_of_birth' => $user->date_of_birth?->toDateString(),
-            'anniversary' => $user->anniversary?->toDateString(),
             'referral_code' => $user->referral_code,
-            'verification_status' => $user->verification_status,
         ];
     }
 }

@@ -4,7 +4,7 @@ namespace App\Domain\Order\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/** Snapshot of the shipping or billing address of an order (`type`). `address_type` = clinic | home | other. */
+/** Snapshot of the shipping or billing address of an order (`type`). `address_type` = home | work | other. */
 class OrderAddress extends Model
 {
     protected $guarded = ['id'];

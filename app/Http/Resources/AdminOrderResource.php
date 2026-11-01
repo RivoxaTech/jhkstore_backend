@@ -41,7 +41,7 @@ class AdminOrderResource extends JsonResource
                 'name' => $o->customer_name,
                 'email' => $o->customer_email,
                 'phone' => $o->customer_phone,
-                'gst_number' => $o->customer_gst_number,
+                'tax_number' => $o->customer_tax_number,
                 'orders_count' => $this->context['orders_count'] ?? null,
                 'member_since' => $this->context['member_since'] ?? null,
             ],

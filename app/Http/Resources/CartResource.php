@@ -6,6 +6,7 @@ use App\Domain\Cart\CartPricing;
 use App\Domain\Cart\PricedCart;
 use App\Domain\Cart\PricedLine;
 use App\Domain\Catalog\ProductImages;
+use App\Domain\Reward\Actions\RewardLedger;
 use App\Domain\Support\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -31,7 +32,8 @@ class CartResource extends JsonResource
         $money = fn (int $cents) => app(Settings::class)->money($cents);
         $symbol = $settings->currencySymbol();
 
-        $lines = array_map(fn (PricedLine $l) => $this->line($l, $pricing, $money), $c->lines);
+        $rewards = app(RewardLedger::class)->enabled();
+        $lines = array_map(fn (PricedLine $l) => $this->line($l, $pricing, $money, $rewards), $c->lines);
         $issues = [];
         foreach ($c->lines as $l) {
             foreach ($l->issues as $issue) {
@@ -47,6 +49,38 @@ class CartResource extends JsonResource
 
         $coins = $c->coins;
 
+        $summary = [
+            'items_total' => $money($c->itemsTotal),               // everything at MRP
+            'product_discount' => $money($c->productDiscount),     // MRP -> option price
+            'bulk_discount' => $money($c->bulkDiscount),           // option price -> bulk price ("Buy 5+ for ...")
+            'subtotal' => $money($c->subtotal),
+            'delivery_fee' => $money($c->deliveryFee),
+            'delivery_free' => $c->deliveryFree,
+            'free_delivery_min_cart' => $money($c->freeDeliveryMin),   // 0 = no free delivery
+            'amount_for_free_delivery' => ($c->freeDeliveryMin > 0 && ! $c->deliveryFree && $c->countedLines() !== []) ? $money($c->freeDeliveryMin - $c->subtotal) : null,
+            'grand_total' => $money($c->grandTotal),
+            'total_savings' => $money($c->totalSavings()),         // product + bulk (+ points) discounts
+            'tax_total' => $money($c->taxTotal),
+            'tax_inclusive' => $c->taxInclusive,
+            'tax_label' => (string) $settings->get('tax_label'),
+            'tax_note' => $c->taxInclusive ? 'Inclusive of all taxes' : 'Tax is added to the total',
+            'min_order_amount' => $money($c->minOrderAmount),      // 0 = no minimum
+        ];
+        if ($rewards) {
+            // reward points exist only while the feature is on
+            $summary['coins'] = [
+                'requested' => $coins['requested'],
+                'applied' => $coins['applied'],
+                'discount' => $money($c->coinsDiscount),
+                'coin_value' => $money($coins['value']),           // money per point
+                'wallet_balance' => $coins['wallet'],
+                'max_redeemable' => $coins['max'],
+                'limited_by' => $coins['limited_by'],              // wallet_balance | order_amount | max_per_order | order_percent_cap | balance_percent_cap
+            ];
+            $summary['coins_discount'] = $money($c->coinsDiscount);
+            $summary['coins_to_earn'] = $c->coinsToEarn;
+        }
+
         return [
             'token' => $this->token,
             'currency' => $settings->currencyCode(),
@@ -54,38 +88,13 @@ class CartResource extends JsonResource
             'items_count' => $c->unitsCount,
             'lines_count' => count($lines),
             'items' => $lines,
-            'summary' => [
-                'items_total' => $money($c->itemsTotal),               // everything at MRP
-                'product_discount' => $money($c->productDiscount),     // MRP -> option price
-                'bulk_discount' => $money($c->bulkDiscount),           // option price -> bulk price ("Buy 5+ for ...")
-                'subtotal' => $money($c->subtotal),
-                'coins' => [
-                    'requested' => $coins['requested'],
-                    'applied' => $coins['applied'],
-                    'discount' => $money($c->coinsDiscount),
-                    'coin_value' => $money($coins['value']),           // money per coin
-                    'wallet_balance' => $coins['wallet'],
-                    'max_redeemable' => $coins['max'],
-                    'limited_by' => $coins['limited_by'],              // wallet_balance | order_amount | max_per_order | order_percent_cap | balance_percent_cap
-                ],
-                'coins_discount' => $money($c->coinsDiscount),
-                'delivery_fee' => $money($c->deliveryFee),
-                'delivery_free' => $c->deliveryFree,
-                'free_delivery_min_cart' => $money($c->freeDeliveryMin),   // 0 = no free delivery
-                'amount_for_free_delivery' => ($c->freeDeliveryMin > 0 && ! $c->deliveryFree && $c->countedLines() !== []) ? $money($c->freeDeliveryMin - $c->subtotal) : null,
-                'grand_total' => $money($c->grandTotal),
-                'coins_to_earn' => $c->coinsToEarn,
-                'total_savings' => $money($c->totalSavings()),         // product + bulk + coins discounts
-                'tax_included' => $money($c->taxIncluded),
-                'tax_note' => 'Inclusive of all taxes',
-                'min_order_amount' => $money($c->minOrderAmount),      // 0 = no minimum
-            ],
+            'summary' => $summary,
             'can_checkout' => $c->canCheckout(),
             'issues' => $issues,
         ];
     }
 
-    private function line(PricedLine $l, CartPricing $pricing, callable $money): array
+    private function line(PricedLine $l, CartPricing $pricing, callable $money, bool $rewards): array
     {
         $v = $l->variant;
         $p = $l->product;
@@ -94,7 +103,7 @@ class CartResource extends JsonResource
         $offer = fn (array $tier) => 'Buy '.$tier['min_qty'].'+ for '.$pricing->fmt($tier['price']).' each';
         $extra = fn (array $tier) => $l->basePrice > 0 ? round(($l->basePrice - $tier['price']) / $l->basePrice * 100, 2) : 0.0;
 
-        return [
+        $row = [
             'variant_id' => $v->id,
             'product_id' => $p->id,
             'slug' => $p->slug,
@@ -118,13 +127,18 @@ class CartResource extends JsonResource
             'product_saving' => $money($l->productDiscount()),
             'bulk_saving' => $money($l->bulkDiscount()),
             'saving' => $money($l->productDiscount() + $l->bulkDiscount()),
-            'reward_points' => (int) $v->reward_points,              // coins per unit
-            'coins_to_earn' => $l->coinsToEarn(),
-            'gst_rate' => (float) $p->gst_rate,
+            'tax_rate' => $l->taxRate,
+            'tax' => $money($l->tax()),
             'in_totals' => $l->counted,                              // false = the option can no longer be bought; it is shown with a warning, not counted
             'can_buy' => $l->counted && ! $l->isBlocking(),
             'price_changed' => $l->snapshotPrice !== $l->basePrice ? ['from' => $money($l->snapshotPrice), 'to' => $money($l->basePrice)] : null,
             'warnings' => $l->issues,
         ];
+        if ($rewards) {
+            $row['reward_points'] = (int) $v->reward_points;   // points per unit
+            $row['coins_to_earn'] = $l->coinsToEarn();
+        }
+
+        return $row;
     }
 }

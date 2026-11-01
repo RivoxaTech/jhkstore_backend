@@ -29,7 +29,7 @@ class CartPricing
     {
         return [
             // a product or brand deleted after the customer added it must still load (the line is then reported as unavailable)
-            'variant.product' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug', 'sku', 'brand_id', 'status', 'gst_rate', 'hsn_code', 'min_order_qty', 'max_order_qty', 'is_cod_available']),
+            'variant.product' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug', 'sku', 'brand_id', 'status', 'tax_rate', 'min_order_qty', 'max_order_qty', 'is_cod_available']),
             'variant.product.brand' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug']),
             'variant.product.media', 'variant.product.remoteImages',
             'variant.priceTiers',
@@ -57,6 +57,7 @@ class CartPricing
     public function price(Collection $items, array $visibleProductIds, int $requestedCoins, int $walletCoins, ?Collection $locked = null): PricedCart
     {
         $symbol = $this->settings->currencySymbol();
+        $inclusive = (bool) $this->settings->get('tax_inclusive');
         $lines = [];
 
         foreach ($items as $item) {
@@ -98,7 +99,12 @@ class CartPricing
                 $issues[] = $this->issue('price_changed', "The price of \"$name\" has $word from ".$this->fmt($snapshot, $symbol).' to '.$this->fmt($base, $symbol).'.', false);
             }
 
-            $lines[] = new PricedLine($variant, $product, $qty, $mrp, $base, $unit, $bulk, $next, $available, $snapshot, $sellable && $available > 0, $issues);
+            $lineTotal = $unit * $qty;
+            $taxRate = $product->tax_rate !== null ? (float) $product->tax_rate : (float) $this->settings->get('tax_rate');
+            $tax = $inclusive ? (int) round($lineTotal * $taxRate / (100 + $taxRate)) : (int) round($lineTotal * $taxRate / 100);
+            $points = $this->ledger->pointsForLine((int) $variant->reward_points, $qty, $lineTotal);
+
+            $lines[] = new PricedLine($variant, $product, $qty, $mrp, $base, $unit, $bulk, $next, $available, $snapshot, $sellable && $available > 0, $issues, $points, $taxRate, $tax);
         }
 
         $counted = array_filter($lines, fn (PricedLine $l) => $l->counted);
@@ -110,6 +116,7 @@ class CartPricing
         $coins = $this->clampCoins($requestedCoins, $walletCoins, $subtotal);
         $coinsDiscount = $coins['applied'] * $coins['value'];
 
+        $taxTotal = array_sum(array_map(fn (PricedLine $l) => $l->tax(), $counted));
         $freeMin = $this->settings->freeDeliveryMinCents();
         $deliveryFree = $counted !== [] && $freeMin > 0 && $subtotal >= $freeMin;
         $deliveryFee = ($counted === [] || $deliveryFree) ? 0 : $this->settings->deliveryFeeCents();
@@ -125,9 +132,10 @@ class CartPricing
             deliveryFee: $deliveryFee,
             deliveryFree: $deliveryFree,
             freeDeliveryMin: $freeMin,
-            grandTotal: $subtotal - $coinsDiscount + $deliveryFee,
+            grandTotal: $subtotal - $coinsDiscount + $deliveryFee + ($inclusive ? 0 : $taxTotal),
             coinsToEarn: array_sum(array_map(fn (PricedLine $l) => $l->coinsToEarn(), $counted)),
-            taxIncluded: array_sum(array_map(fn (PricedLine $l) => $l->taxIncluded(), $counted)),
+            taxTotal: $taxTotal,
+            taxInclusive: $inclusive,
             unitsCount: array_sum(array_map(fn (PricedLine $l) => $l->qty, $counted)),
             minOrderAmount: $this->settings->minOrderCents(),
         );
@@ -169,6 +177,9 @@ class CartPricing
     private function clampCoins(int $requested, int $wallet, int $subtotal): array
     {
         $value = $this->settings->rewardRedeemCents();
+        if (! $this->ledger->enabled()) {
+            return ['requested' => 0, 'applied' => 0, 'max' => 0, 'wallet' => 0, 'value' => $value, 'limited_by' => null];   // reward points are switched off
+        }
         $requested = max(0, $requested);
 
         $limits = [
@@ -198,7 +209,9 @@ class CartPricing
     public function fmt(int $cents, ?string $symbol = null): string
     {
         $symbol ??= $this->settings->currencySymbol();
-        $amount = $cents % 100 === 0 ? number_format($cents / 100) : number_format($cents / 100, 2);
+        $decimals = $this->settings->decimals();
+        $whole = $cents % (10 ** $decimals) === 0;   // "Rs 152" when there is nothing after the point, "Rs 1,520.50" otherwise
+        $amount = number_format($this->settings->money($cents), $whole ? 0 : $decimals);
 
         return "$symbol $amount";
     }

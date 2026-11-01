@@ -51,7 +51,7 @@ class ProductAdminTest extends TestCase
 
         $res = $this->create($this->simplePayload($category, [
             'name' => 'Prime Composite Kit', 'sku' => 'PCK-1', 'sub_category_id' => $sub->id,
-            'mrp' => 4500, 'selling_price' => 2495, 'reward_points' => 25, 'badge_text' => 'BEST SELLER', 'hsn_code' => '3006', 'gst_rate' => 12,
+            'mrp' => 4500, 'selling_price' => 2495, 'reward_points' => 25, 'badge_text' => 'BEST SELLER', 'tax_rate' => 12,
         ]))->assertCreated();
 
         $res->assertJsonPath('data.name', 'Prime Composite Kit')
@@ -68,7 +68,7 @@ class ProductAdminTest extends TestCase
             ->assertJsonPath('data.is_in_stock', true)
             ->assertJsonPath('data.brand.id', $this->defaultBrand()->id)
             ->assertJsonPath('data.sub_category.id', $sub->id)
-            ->assertJsonPath('data.gst_rate', 12);
+            ->assertJsonPath('data.tax_rate', 12);
 
         $this->assertNotNull(Product::first()->published_at);
         $this->assertDatabaseHas('audit_logs', ['action' => 'product.created', 'actor_id' => $admin->id]);

@@ -4,6 +4,8 @@ namespace App\Http\Resources;
 
 use App\Domain\Catalog\ProductImages;
 use App\Domain\Support\Settings;
+use App\Domain\Reward\Actions\RewardLedger;
+use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -18,7 +20,7 @@ class ProductResource extends JsonResource
     {
         $ref = fn ($relation) => $this->{$relation} ? ['id' => $this->{$relation}->id, 'name' => $this->{$relation}->name] : null;
 
-        return [
+        $out = [
             'id' => $this->id,
             'brand' => ($this->brand && app(Settings::class)->brandsEnabled()) ? ['id' => $this->brand->id, 'name' => $this->brand->name] : null,
             'category' => $ref('category'),
@@ -29,8 +31,7 @@ class ProductResource extends JsonResource
             'short_description' => $this->short_description,
             'description' => $this->description,
             'badge_text' => $this->badge_text,
-            'hsn_code' => $this->hsn_code,
-            'gst_rate' => (float) $this->gst_rate,
+            'tax_rate' => $this->tax_rate === null ? null : (float) $this->tax_rate,   // null = the store's default rate
             'country_of_origin' => $this->country_of_origin,
             'warranty_text' => $this->warranty_text,
             'min_order_qty' => $this->min_order_qty,
@@ -38,7 +39,6 @@ class ProductResource extends JsonResource
             'is_returnable' => $this->is_returnable,
             'return_days' => $this->return_days,
             'is_cod_available' => $this->is_cod_available,
-            'is_professional_only' => $this->is_professional_only,
             'status' => $this->status->value,
             'published_at' => $this->published_at,
             'min_price' => $this->min_price === null ? null : (float) $this->min_price,
@@ -80,5 +80,10 @@ class ProductResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+        if (! app(RewardLedger::class)->enabled()) {
+            $out['variants'] = $out['variants']->map(fn ($v) => Arr::except($v, 'reward_points'));
+        }
+
+        return $out;
     }
 }
