@@ -9,7 +9,10 @@ The OpenAPI reference is generated at `/docs/api`; a Postman collection is in `d
 `GET /settings` (public) – call it once on start-up so one storefront build adapts to every client:
 
 ```json
-{ "store": {"name","tagline","logo_url","email","phone","address","country"},
+{ "store": {"name","tagline","logo_url","favicon_url","email","phone","address","country"},
+  "social_links": [{"platform","label","url"}],
+  "footer": {"text","copyright","support_hours","whatsapp_number","whatsapp_url"},
+  "seo": {"meta_title","meta_description","share_image_url"},
   "currency": {"code","symbol","decimals"},
   "tax": {"rate","inclusive","label"},
   "delivery": {"fee","free_delivery_min_cart","days"},
@@ -19,6 +22,9 @@ The OpenAPI reference is generated at `/docs/api`; a Postman collection is in `d
 ```
 
 `features.rewards` tells you whether to build the points UI. When rewards are off, no points fields appear anywhere in the API.
+`logo_url`, `favicon_url` and `seo.share_image_url` are absolute URLs or `null`. `social_links` holds only the **active** links, **already in the order the store owner set** (render them as they come);
+`platform` is one of `facebook, instagram, linkedin, x, youtube, tiktok, whatsapp, pinterest, website, custom` (pick an icon from it), `label` is never empty. `footer.whatsapp_url` is `https://wa.me/<digits>` or `null`.
+The `seo` values are site-wide defaults for pages that have no title / description of their own (products and categories carry their own `meta_title` / `meta_description`).
 Prices in all responses are plain numbers in the store currency.
 
 ## 2. Catalogue

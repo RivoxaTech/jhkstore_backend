@@ -5,12 +5,21 @@ default below, so a fresh install works without any setup; `SettingsSeeder` writ
 
 * **Read**: `app(Settings::class)->get('delivery_fee')` – typed, cached (one cache entry plus a per-request copy).
 * **Write**: `app(Settings::class)->set(['delivery_fee' => 5])` – clears the cache. (The service does not validate; the admin API validates by type.)
-* **Admin panel**: *Settings*, built from the list of definitions, so a new setting appears automatically.
-  API: `GET/PUT /api/v1/admin/settings`, `POST/DELETE /api/v1/admin/settings/logo`.
-* **Storefront**: `GET /api/v1/store/settings` – the public subset (store profile, currency, tax, delivery, enabled features).
+* **Admin panel**: *Settings*, built from the list of definitions, so a new setting appears automatically. Seven tabs:
+  **General**, **Branding**, **Footer & Social**, **Currency & Tax**, **Orders & Delivery**, **Features**, **SEO** (the tab → section map is `SettingController::TABS`).
+  API: `GET/PUT /api/v1/admin/settings`; pictures: `POST/DELETE /api/v1/admin/settings/{logo|favicon|share-image}`.
+* **Storefront**: `GET /api/v1/store/settings` – the public subset (store profile and branding, footer and social links, SEO defaults, currency, tax, delivery, enabled features). See [STOREFRONT-API.md](STOREFRONT-API.md).
 * **Add a setting**: add one line to `Settings::DEFINITIONS` (group, type, default, label, help) and regenerate the tables below.
 
-**Types**: `string`, `text`, `bool`, `int`, `money` / `percent` (numbers with 2 decimals), `file` (the logo – uploaded through its own endpoint).
+**Types**: `string`, `text`, `bool`, `int`, `money` / `percent` (numbers with 2 decimals), `file` (a picture, uploaded through its own endpoint) and `links` (a JSON list).
+
+* **`file`** – the picture is stored with spatie medialibrary: the setting's row owns one file (single-file collection, disk `public`) and the setting value is the media id.
+  A new upload replaces (and deletes) the old file. `Settings::fileUrl($key)` returns the absolute URL (cached with the settings). The file settings cannot be written through `PUT /admin/settings` (422).
+  Accepted: logo PNG/JPG/WEBP ≤ 2 MB and ≤ 4000 px; favicon PNG/ICO/JPG/WEBP ≤ 512 KB; share image PNG/JPG/WEBP ≤ 4 MB and ≤ 6000 px. **SVG is rejected** on purpose (it can carry scripts).
+* **`links`** – a list of `{platform, label, url, active}`; **the order of the list is the display order** (the admin panel has drag-to-reorder, move buttons, add and remove).
+  `platform` is one of `facebook, instagram, linkedin, x, youtube, tiktok, whatsapp, pinterest, website, custom`; `label` is optional (the storefront falls back to the platform name);
+  `url` must be a valid `http://` or `https://` address (≤ 500 characters – `javascript:` and other schemes are refused); `active` hides a link without deleting it.
+  There is no fixed number of entries. The service casts the value by type (`Settings::get` always returns a clean list) and `Settings::rules()` holds the validation rules by type, used by the admin API.
 
 **Feature switch** (`rewards_enabled`) is read in one place: `RewardLedger::enabled()`.
 When a feature is off it disappears from the admin panel, the API responses and the checkout; its data is kept, so switching it back on restores everything.
@@ -32,11 +41,35 @@ information); off, it is added to the cart total.
 |---|---|---|---|
 | `store_name` | string | `My Store` | Store name |
 | `store_tagline` | string | `(empty)` | Tagline |
-| `store_logo` | file | `(empty)` | Logo. Upload from the Settings page (PNG, JPG or WEBP) |
 | `store_email` | string | `(empty)` | Contact email |
 | `store_phone` | string | `(empty)` | Contact phone |
 | `store_address` | text | `(empty)` | Address |
 | `store_country` | string | `(empty)` | Country. Used as the default country of addresses |
+
+### Branding
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `store_logo` | file | `(none)` | Logo (admin panel, store, invoices). Upload: `POST /admin/settings/logo`, field `logo` |
+| `store_favicon` | file | `(none)` | Favicon. Upload: `POST /admin/settings/favicon`, field `favicon` |
+
+### Footer & Social
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `social_links` | links | `[]` | Social and footer links, in display order |
+| `footer_text` | text | `(empty)` | Footer text (≤ 500 characters) |
+| `footer_copyright` | string | `(empty)` | Copyright text |
+| `support_hours` | string | `(empty)` | Support hours |
+| `whatsapp_number` | string | `(empty)` | WhatsApp number with country code (digits, `+`, spaces, `()`, `-`); the public API also gives a `https://wa.me/…` link |
+
+### SEO
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `seo_meta_title` | string | `(empty)` | Default meta title (≤ 70 characters) |
+| `seo_meta_description` | text | `(empty)` | Default meta description (≤ 300 characters) |
+| `seo_share_image` | file | `(none)` | Default share image. Upload: `POST /admin/settings/share-image`, field `share_image` |
 
 ### Currency
 

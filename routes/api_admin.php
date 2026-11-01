@@ -65,6 +65,7 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin'])->group(function () {
     // Settings
     Route::get('settings', [SettingController::class, 'show']);
     Route::put('settings', [SettingController::class, 'update']);
-    Route::post('settings/logo', [SettingController::class, 'uploadLogo']);
-    Route::delete('settings/logo', [SettingController::class, 'deleteLogo']);
+    // pictures: logo, favicon, share-image (stored with medialibrary)
+    Route::post('settings/{slot}', [SettingController::class, 'uploadFile'])->whereIn('slot', ['logo', 'favicon', 'share-image']);
+    Route::delete('settings/{slot}', [SettingController::class, 'deleteFile'])->whereIn('slot', ['logo', 'favicon', 'share-image']);
 });

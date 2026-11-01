@@ -20,7 +20,7 @@ the admin panel is a Vue single-page app that talks to the same API. **One deplo
 | Database | MySQL 8 (FULLTEXT search, row locks – SQLite is not supported) |
 | Auth | Laravel Sanctum: customers = bearer tokens; admin panel = HttpOnly session cookie + CSRF (same endpoint also issues a token to non-browser clients) |
 | Roles | spatie/laravel-permission is installed (a `super_admin` role is seeded) but permissions are **not enforced yet** – every admin can do everything |
-| Media | spatie/laravel-medialibrary (category icons, product pictures) |
+| Media | spatie/laravel-medialibrary (category icons, product pictures, the logo / favicon / share image of the settings) |
 | API docs | dedoc/scramble → `/docs/api` |
 | Admin panel | Vue 3 + Vite + Pinia + Vue Router in `admin-frontend/` (builds into `public/admin-assets`, served at `/admin`) |
 | Tests | PHPUnit feature tests against a MySQL test database (`jhkstore_test`) |
@@ -48,7 +48,7 @@ Rule: controller → FormRequest → **Action class** → Eloquent → Resource.
 
 ## Settings and optional features
 
-* `Settings` (`app/Domain/Support/Settings.php`) is the only reader/writer of store configuration (see [SETTINGS.md](SETTINGS.md)).
+* `Settings` (`app/Domain/Support/Settings.php`) is the only reader/writer of store configuration (see [SETTINGS.md](SETTINGS.md)). Typed values include `file` (medialibrary picture owned by the setting row) and `links` (ordered JSON list), with validation rules by type in `Settings::rules()`.
 * **Reward points** are optional (`rewards_enabled`, default off): *all* points logic goes through `RewardLedger` (`enabled()`, `pointsForLine()`,
   `spendable()`, `credit()`, `redeem()`, `refund()`). Off = nothing earned, redeemed or shown (cart, checkout, orders, products, admin). Data is kept.
 * Money: amounts are `DECIMAL(12,2)`; cart maths run in whole minor units (`Settings::cents()/money()`), the number of decimals comes from `currency_decimals` (0–2).

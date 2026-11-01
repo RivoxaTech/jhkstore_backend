@@ -3,8 +3,10 @@
 namespace App\Domain\Support;
 
 use App\Domain\Support\Models\Setting;
+use App\Support\MediaUrl;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Storage;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
  * The one place that reads and writes store settings (table `settings`, key/value, cached).
@@ -14,22 +16,44 @@ use Illuminate\Support\Facades\Storage;
  * live here, not in code. Feature switches (`rewards_enabled`) are read through the helpers at the bottom,
  * so every module checks them in the same way.
  *
- * Types: string | text | bool | int | money | percent | url
+ * Types: string | text | bool | int | money | percent | file | links
+ *  - `file`  a picture owned by the setting's row (medialibrary); the value is the media id, uploaded through the admin endpoints
+ *  - `links` a JSON list of {platform, label, url, active}; the order of the list is the display order
  */
 class Settings
 {
     public const CACHE_KEY = 'settings.all';
+
+    public const FILES_CACHE_KEY = 'settings.files';
+
+    /** Platforms a footer / social link can have. `custom` is any other site. */
+    public const LINK_PLATFORMS = ['facebook', 'instagram', 'linkedin', 'x', 'youtube', 'tiktok', 'whatsapp', 'pinterest', 'website', 'custom'];
 
     /** key => [group, type, default, label, help?, min?, max?] */
     public const DEFINITIONS = [
         // --- store profile
         'store_name' => ['general', 'string', 'My Store', 'Store name'],
         'store_tagline' => ['general', 'string', '', 'Tagline'],
-        'store_logo' => ['general', 'file', '', 'Logo', 'Upload from the Settings page (PNG, JPG or WEBP).'],
         'store_email' => ['general', 'string', '', 'Contact email'],
         'store_phone' => ['general', 'string', '', 'Contact phone'],
         'store_address' => ['general', 'text', '', 'Address'],
         'store_country' => ['general', 'string', '', 'Country', 'Used as the default country of addresses.'],
+
+        // --- branding (pictures are uploaded, not typed)
+        'store_logo' => ['branding', 'file', '', 'Logo', 'PNG, JPG or WEBP, up to 2 MB.'],
+        'store_favicon' => ['branding', 'file', '', 'Favicon', 'PNG, ICO, JPG or WEBP, up to 512 KB. A square picture works best.'],
+
+        // --- footer and social links
+        'social_links' => ['footer', 'links', [], 'Social and footer links', 'Any number of links, shown in this order.'],
+        'footer_text' => ['footer', 'text', '', 'Footer text', 'A short text for the footer, e.g. what the store sells.'],
+        'footer_copyright' => ['footer', 'string', '', 'Copyright text', 'e.g. © 2026 My Store. All rights reserved.'],
+        'support_hours' => ['footer', 'string', '', 'Support hours', 'e.g. Mon-Fri 9:00-18:00.'],
+        'whatsapp_number' => ['footer', 'string', '', 'WhatsApp number', 'With the country code, e.g. +49 170 1234567.'],
+
+        // --- search engines and sharing
+        'seo_meta_title' => ['seo', 'string', '', 'Default meta title', 'Used by pages that have no title of their own.'],
+        'seo_meta_description' => ['seo', 'text', '', 'Default meta description', 'About 150 characters.'],
+        'seo_share_image' => ['seo', 'file', '', 'Default share image', 'Shown when a page is shared (PNG, JPG or WEBP, up to 4 MB; 1200x630 is ideal).'],
 
         // --- currency and tax
         'currency_code' => ['currency', 'string', 'USD', 'Currency code', 'ISO code, e.g. USD, EUR, GBP.'],
@@ -62,6 +86,9 @@ class Settings
 
     /** @var array<string,mixed>|null per-request copy of the stored values */
     private ?array $stored = null;
+
+    /** @var array<int,string>|null media id => absolute URL of every `file` setting picture */
+    private ?array $fileUrls = null;
 
     /** Typed value of a setting (the stored one, or the declared default). */
     public function get(string $key): mixed
@@ -111,7 +138,9 @@ class Settings
     public function flush(): void
     {
         $this->stored = null;
+        $this->fileUrls = null;
         Cache::forget(self::CACHE_KEY);
+        Cache::forget(self::FILES_CACHE_KEY);
     }
 
     // ------------------------------------------------------------------ feature switches (the single place they are read)
@@ -140,9 +169,86 @@ class Settings
 
     public function logoUrl(): ?string
     {
-        $path = (string) $this->get('store_logo');
+        return $this->fileUrl('store_logo');
+    }
 
-        return $path === '' ? null : url(Storage::disk('public')->url($path));
+    // ------------------------------------------------------------------ files and links
+
+    /** Absolute URL of the picture of a `file` setting, or null when none is uploaded. */
+    public function fileUrl(string $key): ?string
+    {
+        $id = (int) $this->get($key);
+
+        return $id > 0 ? ($this->fileUrls()[$id] ?? null) : null;
+    }
+
+    /** Replaces the picture of a `file` setting (the old file is deleted). Validate the upload before calling. */
+    public function attachFile(string $key, UploadedFile $file): void
+    {
+        [$group, $type] = self::DEFINITIONS[$key] ?? throw new \InvalidArgumentException("Unknown setting [$key].");
+        if ($type !== 'file') {
+            throw new \InvalidArgumentException("Setting [$key] is not a file.");
+        }
+
+        $row = Setting::query()->firstOrCreate(['key' => $key], ['group_key' => $group, 'value' => '']);
+        $media = $row->addMedia($file)->toMediaCollection('file');   // single-file collection: the previous picture is removed
+        $this->set([$key => (string) $media->id]);
+    }
+
+    public function removeFile(string $key): void
+    {
+        Setting::query()->where('key', $key)->first()?->clearMediaCollection('file');
+        $this->set([$key => '']);
+    }
+
+    /** The social / footer links the storefront shows: active ones only, in order, with a label. */
+    public function publicLinks(): array
+    {
+        return collect($this->get('social_links'))->where('active', true)->map(fn ($l) => [
+            'platform' => $l['platform'],
+            'label' => $l['label'] !== '' ? $l['label'] : ($l['platform'] === 'x' ? 'X' : ucfirst($l['platform'])),
+            'url' => $l['url'],
+        ])->values()->all();
+    }
+
+    /** Validation rules by setting type for the keys that are sent (the admin API uses them; the service itself does not validate on set). */
+    public function rules(array $keys): array
+    {
+        $rules = [];
+        foreach ($keys as $key) {
+            $def = self::DEFINITIONS[$key];
+            $rules[$key] = match ($def[1]) {
+                'bool' => ['required', 'boolean'],
+                'int' => ['required', 'integer', 'min:'.($def[5] ?? 0), 'max:'.($def[6] ?? 100000000)],
+                'money' => ['required', 'numeric', 'min:0', 'max:1000000000'],
+                'percent' => ['required', 'numeric', 'min:0', 'max:100'],
+                'text' => ['nullable', 'string', 'max:1000'],
+                'file' => ['prohibited'],                      // only through the upload endpoints
+                'links' => ['present', 'array'],
+                default => ['nullable', 'string', 'max:255'],
+            };
+            if ($def[1] === 'links') {
+                $rules["$key.*.platform"] = ['required', 'string', 'in:'.implode(',', self::LINK_PLATFORMS)];
+                $rules["$key.*.label"] = ['nullable', 'string', 'max:60'];
+                $rules["$key.*.url"] = ['required', 'url:http,https', 'max:500'];   // no javascript: / data: links
+                $rules["$key.*.active"] = ['nullable', 'boolean'];
+            }
+        }
+        $overrides = [
+            'store_name' => ['required', 'string', 'max:120'],
+            'store_email' => ['nullable', 'email', 'max:190'],
+            'currency_code' => ['required', 'string', 'size:3', 'alpha'],
+            'currency_symbol' => ['required', 'string', 'max:8'],
+            'order_number_prefix' => ['required', 'string', 'max:12', 'regex:/^[A-Za-z0-9]+$/'],
+            'tax_label' => ['required', 'string', 'max:30'],
+            'reward_redeem_rate' => ['required', 'numeric', 'min:0.01', 'max:100000'],
+            'whatsapp_number' => ['nullable', 'string', 'max:25', 'regex:/^\+?[0-9][0-9 ()-]{4,23}$/'],
+            'seo_meta_title' => ['nullable', 'string', 'max:70'],
+            'seo_meta_description' => ['nullable', 'string', 'max:300'],
+            'footer_text' => ['nullable', 'string', 'max:500'],
+        ];
+
+        return array_intersect_key($overrides, $rules) + $rules;
     }
 
     public function deliveryFeeCents(): int
@@ -194,13 +300,44 @@ class Settings
         return $this->stored ??= Cache::rememberForever(self::CACHE_KEY, fn () => Setting::query()->pluck('value', 'key')->all());
     }
 
+    /** @return array<int,string> */
+    private function fileUrls(): array
+    {
+        return $this->fileUrls ??= Cache::rememberForever(self::FILES_CACHE_KEY, fn () => Media::query()
+            ->where('model_type', (new Setting)->getMorphClass())->get()
+            ->mapWithKeys(fn (Media $m) => [$m->id => MediaUrl::media($m)])->all());
+    }
+
     private function cast(string $type, mixed $value): mixed
     {
         return match ($type) {
+            'links' => $this->castLinks($value),
             'bool' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
             'int' => (int) $value,
             'money', 'percent' => round((float) $value, 2),
             default => $value === null ? '' : (string) $value,
         };
+    }
+
+    /** Keeps only well-formed rows, in the given order. */
+    private function castLinks(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = json_decode($value, true);
+        }
+        $out = [];
+        foreach (is_array($value) ? $value : [] as $row) {
+            if (! is_array($row) || trim((string) ($row['url'] ?? '')) === '') {
+                continue;
+            }
+            $out[] = [
+                'platform' => in_array($row['platform'] ?? null, self::LINK_PLATFORMS, true) ? $row['platform'] : 'custom',
+                'label' => trim((string) ($row['label'] ?? '')),
+                'url' => trim((string) $row['url']),
+                'active' => filter_var($row['active'] ?? true, FILTER_VALIDATE_BOOLEAN),
+            ];
+        }
+
+        return $out;
     }
 }

@@ -7,28 +7,48 @@ use App\Http\Controllers\Controller;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class SettingController extends Controller
 {
-    public const GROUPS = [
+    /** The Settings page: tab => [label, the setting groups (sections) it shows]. */
+    public const TABS = [
+        'general' => ['General', ['general']],
+        'branding' => ['Branding', ['branding']],
+        'footer' => ['Footer & Social', ['footer']],
+        'currency_tax' => ['Currency & Tax', ['currency', 'tax']],
+        'orders_delivery' => ['Orders & Delivery', ['orders', 'shipping']],
+        'features' => ['Features', ['features', 'rewards']],
+        'seo' => ['SEO', ['seo']],
+    ];
+
+    public const SECTIONS = [
         'general' => 'Store profile',
+        'branding' => 'Logo and favicon',
+        'footer' => 'Footer and social links',
         'currency' => 'Currency',
         'tax' => 'Tax',
         'orders' => 'Orders',
         'shipping' => 'Delivery',
         'features' => 'Features',
         'rewards' => 'Reward points',
+        'seo' => 'Search engines and sharing',
     ];
 
-    /** Every setting, grouped, with its type, label, help text and current value (the Settings page is built from this). */
+    /** Upload slot (the URL segment) => [setting key, request field, accepted extensions, max size in KB, largest side in px (null = not checked)]. SVG is not accepted: it can carry scripts. */
+    private const FILES = [
+        'logo' => ['store_logo', 'logo', ['png', 'jpg', 'jpeg', 'webp'], 2048, 4000],
+        'favicon' => ['store_favicon', 'favicon', ['png', 'ico', 'jpg', 'jpeg', 'webp'], 512, null],
+        'share-image' => ['seo_share_image', 'share_image', ['png', 'jpg', 'jpeg', 'webp'], 4096, 6000],
+    ];
+
+    /** Every setting, by tab and section, with its type, label, help text and current value (the Settings page is built from this). */
     public function show(Settings $settings): JsonResponse
     {
         return response()->json($this->payload($settings));
     }
 
-    /** Partial update: send only the keys that change. Unknown keys are rejected. */
+    /** Partial update: send only the keys that change. Unknown keys are rejected; pictures have their own endpoints. */
     public function update(Request $request, Settings $settings): JsonResponse
     {
         $unknown = array_diff(array_keys($request->all()), array_keys(Settings::DEFINITIONS));
@@ -36,87 +56,72 @@ class SettingController extends Controller
             throw ValidationException::withMessages(array_fill_keys($unknown, ['Unknown setting.']));
         }
 
-        $data = $request->validate($this->rules(array_keys($request->all())));
+        $data = $request->validate($settings->rules(array_keys($request->all())));
         $settings->set($data);
         Audit::log($request->user(), 'settings.updated', null, $data);
 
         return response()->json($this->payload($settings));
     }
 
-    public function uploadLogo(Request $request, Settings $settings): JsonResponse
+    /** POST settings/{logo|favicon|share-image}: replaces the picture (image type and size are validated). */
+    public function uploadFile(Request $request, Settings $settings): JsonResponse
     {
-        $request->validate(['logo' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048']]);
+        [$key, $field, $extensions, $maxKb, $maxSide] = self::FILES[$request->route('slot')];
+        $request->validate([$field => array_filter([
+            'required',
+            in_array('ico', $extensions, true) ? 'file' : 'image',      // the image rule does not know .ico
+            'mimes:'.implode(',', $extensions),
+            'max:'.$maxKb,
+            $maxSide ? "dimensions:max_width=$maxSide,max_height=$maxSide" : null,
+        ])]);
 
-        $this->deleteLogoFile($settings);
-        $path = $request->file('logo')->store('branding', 'public');
-        $settings->set(['store_logo' => $path]);
-        Audit::log($request->user(), 'settings.logo_updated');
+        $settings->attachFile($key, $request->file($field));
+        Audit::log($request->user(), 'settings.file_updated', null, ['setting' => $key]);
 
         return response()->json($this->payload($settings));
     }
 
-    public function deleteLogo(Request $request, Settings $settings): JsonResponse
+    /** DELETE settings/{logo|favicon|share-image} */
+    public function deleteFile(Request $request, Settings $settings): JsonResponse
     {
-        $this->deleteLogoFile($settings);
-        $settings->set(['store_logo' => '']);
-        Audit::log($request->user(), 'settings.logo_removed');
+        [$key] = self::FILES[$request->route('slot')];
+        $settings->removeFile($key);
+        Audit::log($request->user(), 'settings.file_removed', null, ['setting' => $key]);
 
         return response()->json($this->payload($settings));
-    }
-
-    private function deleteLogoFile(Settings $settings): void
-    {
-        if ($path = (string) $settings->get('store_logo')) {
-            Storage::disk('public')->delete($path);
-        }
     }
 
     private function payload(Settings $settings): array
     {
-        $groups = [];
-        foreach (self::GROUPS as $key => $label) {
-            $groups[$key] = ['key' => $key, 'label' => $label, 'fields' => []];
+        $sections = [];
+        foreach (self::SECTIONS as $key => $label) {
+            $sections[$key] = ['key' => $key, 'label' => $label, 'fields' => []];
+        }
+        $files = [];
+        $uploads = [];
+        foreach (self::FILES as $slot => [$key, $field, $extensions, $maxKb]) {
+            $uploads[$key] = ['slot' => $slot, 'field' => $field, 'extensions' => $extensions, 'max_kb' => $maxKb];
         }
         foreach (Settings::DEFINITIONS as $key => $def) {
-            $groups[$def[0]]['fields'][] = [
+            $sections[$def[0]]['fields'][] = [
                 'key' => $key, 'type' => $def[1], 'label' => $def[3], 'help' => $def[4] ?? null,
-                'min' => $def[5] ?? null, 'max' => $def[6] ?? null, 'value' => $settings->get($key),
-            ];
+                'min' => $def[5] ?? null, 'max' => $def[6] ?? null, 'value' => $def[1] === 'file' ? null : $settings->get($key),
+            ] + ($def[1] === 'file' ? ['upload' => $uploads[$key]] : []);
+            if ($def[1] === 'file') {
+                $files[$key] = $settings->fileUrl($key);
+            }
+        }
+
+        $tabs = [];
+        foreach (self::TABS as $key => [$label, $groups]) {
+            $tabs[] = ['key' => $key, 'label' => $label, 'sections' => array_map(fn ($g) => $sections[$g], $groups)];
         }
 
         return [
-            'groups' => array_values($groups),
-            'values' => $settings->all(),
-            'logo_url' => $settings->logoUrl(),
+            'tabs' => $tabs,
+            'values' => array_diff_key($settings->all(), $files),
+            'files' => $files,
+            'link_platforms' => Settings::LINK_PLATFORMS,
         ];
-    }
-
-    /** Validation rules by setting type, only for the keys that were sent. */
-    private function rules(array $keys): array
-    {
-        $rules = [];
-        foreach ($keys as $key) {
-            $def = Settings::DEFINITIONS[$key];
-            $rules[$key] = match ($def[1]) {
-                'bool' => ['required', 'boolean'],
-                'int' => ['required', 'integer', 'min:'.($def[5] ?? 0), 'max:'.($def[6] ?? 100000000)],
-                'money' => ['required', 'numeric', 'min:0', 'max:1000000000'],
-                'percent' => ['required', 'numeric', 'min:0', 'max:100'],
-                'text' => ['nullable', 'string', 'max:1000'],
-                'file' => ['prohibited'],
-                default => ['nullable', 'string', 'max:255'],
-            };
-        }
-        $overrides = [
-            'store_name' => ['required', 'string', 'max:120'],
-            'store_email' => ['nullable', 'email', 'max:190'],
-            'currency_code' => ['required', 'string', 'size:3', 'alpha'],
-            'currency_symbol' => ['required', 'string', 'max:8'],
-            'order_number_prefix' => ['required', 'string', 'max:12', 'regex:/^[A-Za-z0-9]+$/'],
-            'tax_label' => ['required', 'string', 'max:30'],
-            'reward_redeem_rate' => ['required', 'numeric', 'min:0.01', 'max:100000'],
-        ];
-
-        return array_intersect_key($overrides, $rules) + $rules;
     }
 }

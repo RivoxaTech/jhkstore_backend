@@ -6,7 +6,7 @@
 
 | Area | Feature |
 |---|---|
-| Store configuration | ✅ key/value settings with an admin Settings page: store profile + logo, currency (code, symbol, decimals), tax (rate, inclusive/exclusive, label), order number prefix, delivery fee / free-delivery limit / days, minimum order, COD limit |
+| Store configuration | ✅ key/value settings with a tabbed admin Settings page (General, Branding, Footer & Social, Currency & Tax, Orders & Delivery, Features, SEO): store profile, logo + favicon uploads, unlimited ordered social/footer links with an active switch, footer / copyright / support hours / WhatsApp, default meta title + description + share image, currency (code, symbol, decimals), tax (rate, inclusive/exclusive, label), order number prefix, delivery fee / free-delivery limit / days, minimum order, COD limit |
 | Catalogue | ✅ two-level categories with icon + image, "top" categories for the home screen · ✅ products with options, per-option price / MRP / stock / SKU / pictures, bulk prices, tags, content tabs, related products, SEO fields, status workflow (draft / active / inactive / archived) · ✅ stock per option with movement log and low-stock alerts · ✅ search (FULLTEXT + SKU) and filters |
 | Customers | ✅ registration, login (email or mobile), address book · ❌ password reset / e-mail verification / OTP (⏳) |
 | Cart | ✅ guest + customer carts, merge on login, live repricing, bulk-price hints, stock and price-change warnings, quantity limits |
