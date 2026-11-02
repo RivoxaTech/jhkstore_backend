@@ -6,19 +6,18 @@ import { useSiteStore } from '@/stores/site.js'
 
 /**
  * Dropdown data of the product screens (tags, statuses, content tabs, categories tree) plus the currency and
- * the feature switches (reward points). Loaded once per session and shared by the product screens and the
+ * Loaded once per session and shared by the product screens and the
  * navigation; `reload()` after tags or settings change.
  */
 export const useCatalogStore = defineStore('catalog', () => {
   const site = useSiteStore()
-  const options = ref({ tags: [], statuses: [], content_tabs: [], features: null })
+  const options = ref({ tags: [], statuses: [], content_tabs: [] })
   const currency = ref({ code: '', symbol: '$', decimals: 2 })
   const categories = ref([]) // [{ id, name, sub_categories: [{ id, name }] }]
   const loaded = ref(false)
   let loading = null
 
   // Until the options arrived, the public store settings give the same answer.
-  const features = computed(() => ({ rewards: false, ...(options.value.features || site.features) }))
 
   function load(force = false) {
     if (loaded.value && !force) return Promise.resolve()
@@ -34,5 +33,5 @@ export const useCatalogStore = defineStore('catalog', () => {
     return loading
   }
 
-  return { options, currency, categories, features, loaded, load, reload: () => load(true) }
+  return { options, currency, categories, loaded, load, reload: () => load(true) }
 })

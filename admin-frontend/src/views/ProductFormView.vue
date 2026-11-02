@@ -36,8 +36,8 @@ const related = ref([])            // [{ id, name, sku, thumb_url }]
 const form = reactive({
   category_id: '', sub_category_id: '',
   name: '', sku: '', short_description: '', description: '', badge_text: '', tax_rate: '',
-  country_of_origin: '', warranty_text: '', min_order_qty: 1, max_order_qty: 10,
-  is_returnable: true, return_days: 10, is_cod_available: true, status: 'draft',
+  min_order_qty: 1, max_order_qty: 10,
+  is_cod_available: true, status: 'draft',
   meta_title: '', meta_description: '',
 })
 const tagIds = ref([])
@@ -45,12 +45,11 @@ const tabs = reactive({})          // key -> { content, format, manual_url }
 const openTabs = ref(new Set())
 
 const symbol = computed(() => catalog.currency.symbol)
-const canManage = computed(() => auth.can('catalog.manage'))   // roles without it see the product read-only
-const showRewards = computed(() => catalog.features.rewards)
+const canManage = computed(() => auth.can('products.manage'))   // an admin without it sees the product read-only
 const taxPlaceholder = computed(() => (site.tax.rate !== null && site.tax.rate !== undefined && site.tax.rate !== '' ? `Store default (${site.tax.rate}%)` : 'Store default'))
 
 const blankVariant = (over = {}) => ({
-  id: null, name: '', sku: '', mrp: '', selling_price: '', reward_points: 0, expiry_date: '', weight_grams: '', is_active: true, is_default: false,
+  id: null, name: '', sku: '', mrp: '', selling_price: '', weight_grams: '', is_active: true, is_default: false,
   price_tiers: [], pending: [], stock: 0, stock_was: null, reserved: 0, low_stock_threshold: 0, ...over,
 })
 const variants = ref([])   // the options: every product has at least one; the cheapest one gives the starting price
@@ -118,14 +117,14 @@ function applyProduct(p) {
   Object.assign(form, {
     category_id: p.category?.id ?? '', sub_category_id: p.sub_category?.id ?? '',
     name: p.name, sku: p.sku, short_description: p.short_description ?? '', description: p.description ?? '', badge_text: p.badge_text ?? '',
-    tax_rate: p.tax_rate ?? '', country_of_origin: p.country_of_origin ?? '', warranty_text: p.warranty_text ?? '',
-    min_order_qty: p.min_order_qty, max_order_qty: p.max_order_qty, is_returnable: p.is_returnable, return_days: p.return_days ?? 10,
+    tax_rate: p.tax_rate ?? '',
+    min_order_qty: p.min_order_qty, max_order_qty: p.max_order_qty,
     is_cod_available: p.is_cod_available, status: p.status,
     meta_title: p.meta_title ?? '', meta_description: p.meta_description ?? '',
   })
   const toRow = (v) => blankVariant({
-    id: v.id, name: v.name, sku: v.sku, mrp: v.mrp, selling_price: v.selling_price, reward_points: v.reward_points ?? 0,
-    expiry_date: v.expiry_date ?? '', weight_grams: v.weight_grams ?? '', is_active: v.is_active, is_default: v.is_default,
+    id: v.id, name: v.name, sku: v.sku, mrp: v.mrp, selling_price: v.selling_price,
+    weight_grams: v.weight_grams ?? '', is_active: v.is_active, is_default: v.is_default,
     price_tiers: v.price_tiers.map(t => ({ min_qty: t.min_qty, price: t.price })), stock: v.stock ?? 0, stock_was: Number(v.stock ?? 0),
     reserved: v.reserved ?? 0, low_stock_threshold: v.low_stock_threshold ?? 0,
   })
@@ -201,8 +200,7 @@ function clientValidate() {
 function variantPayload(v, index) {
   return {
     id: v.id, name: v.name.trim(), sku: v.sku.trim() || undefined, is_default: Boolean(v.is_default), mrp: v.mrp, selling_price: v.selling_price,
-    ...(showRewards.value ? { reward_points: Number(v.reward_points) || 0 } : {}),
-    expiry_date: v.expiry_date || null, weight_grams: String(v.weight_grams).trim() === '' ? null : Number(v.weight_grams),
+    weight_grams: String(v.weight_grams).trim() === '' ? null : Number(v.weight_grams),
     is_active: v.is_active, sort_order: index, stock: Number(v.stock) || 0,
     // the quantity this form showed when it was opened: lets the server apply the edit as a change, so sales made meanwhile are not undone
     ...(v.id && v.stock_was !== null && v.stock_was !== undefined ? { stock_was: Number(v.stock_was) } : {}),
@@ -217,9 +215,7 @@ function buildPayload() {
     sub_category_id: form.sub_category_id ? Number(form.sub_category_id) : null,
     name: form.name.trim(), sku: form.sku.trim(), short_description: text(form.short_description), description: text(form.description),
     badge_text: text(form.badge_text), tax_rate: form.tax_rate === '' || form.tax_rate === null ? null : Number(form.tax_rate),
-    country_of_origin: text(form.country_of_origin), warranty_text: text(form.warranty_text),
     min_order_qty: Number(form.min_order_qty) || 1, max_order_qty: Number(form.max_order_qty) || 1,
-    is_returnable: form.is_returnable, return_days: form.is_returnable ? Number(form.return_days) : null,
     is_cod_available: form.is_cod_available,
     status: form.status, meta_title: text(form.meta_title), meta_description: text(form.meta_description),
     variants: variants.value.map((v, i) => variantPayload(v, i)),
@@ -368,8 +364,6 @@ function showErrors(message) {
                 <p v-if="err('tax_rate')" class="err">{{ err('tax_rate') }}</p>
                 <p v-else class="hint">Leave empty to use the store default.</p>
               </div>
-              <div class="field"><label for="origin">Country of origin</label><input id="origin" v-model="form.country_of_origin" class="input" maxlength="80" /></div>
-              <div class="field"><label for="warranty">Warranty</label><input id="warranty" v-model="form.warranty_text" class="input" maxlength="255" placeholder="e.g. 1 year" /></div>
               <div class="field">
                 <label for="minq">Min order qty</label>
                 <input id="minq" v-model="form.min_order_qty" class="input" type="number" min="1" :class="{ 'has-error': err('min_order_qty') }" />
@@ -380,15 +374,8 @@ function showErrors(message) {
                 <input id="maxq" v-model="form.max_order_qty" class="input" type="number" min="1" :class="{ 'has-error': err('max_order_qty') }" @input="clearError('max_order_qty')" />
                 <p v-if="err('max_order_qty')" class="err">{{ err('max_order_qty') }}</p>
               </div>
-              <div v-if="form.is_returnable" class="field">
-                <label for="returndays">Return period (days)</label>
-                <input id="returndays" v-model="form.return_days" class="input" type="number" min="1" max="365" :class="{ 'has-error': err('return_days') }" @input="clearError('return_days')" />
-                <p v-if="err('return_days')" class="err">{{ err('return_days') }}</p>
-                <p v-else class="hint">Shown as "10-Days Returnable".</p>
-              </div>
             </div>
             <div style="display: flex; gap: 22px; flex-wrap: wrap">
-              <label style="display: flex; gap: 8px; align-items: center"><span class="switch"><input v-model="form.is_returnable" type="checkbox" /><span /></span> Returnable</label>
               <label style="display: flex; gap: 8px; align-items: center"><span class="switch"><input v-model="form.is_cod_available" type="checkbox" /><span /></span> Cash on delivery</label>
             </div>
           </div>

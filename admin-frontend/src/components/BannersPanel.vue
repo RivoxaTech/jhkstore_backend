@@ -1,22 +1,19 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
 import { ArrowDown, ArrowUp, GalleryHorizontal, GripVertical, Pencil, Plus, Trash2 } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { formatDate } from '@/utils/format.js'
 import { useUiStore } from '@/stores/ui.js'
-import { useAuthStore } from '@/stores/auth.js'
 import BannerModal from '@/components/BannerModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 
-// Banners grouped by the spot they are shown in. A spot holds one banner or several (the store decides between a single
+// The Banners tab of the Settings page. Banners grouped by the spot they are shown in. A spot holds one banner or several (the store decides between a single
 // banner and a slider); inside a spot the order is set by drag and drop or the arrow buttons and saved at once.
 const ui = useUiStore()
-const auth = useAuthStore()
-const canManage = computed(() => auth.can('banners.manage'))   // staff can look but not change
+const canManage = true   // the tab itself needs the settings.banners permission: whoever sees it may change banners
 
 const banners = ref([])
 const placements = ref([])      // [{ key, label }]
@@ -122,14 +119,10 @@ function window_(b) {
 </script>
 
 <template>
-  <div class="page-head">
-    <div>
-      <h1>Banners</h1>
-      <div class="crumbs"><RouterLink :to="{ name: 'dashboard' }">Dashboard</RouterLink> › <span>Banners</span></div>
-    </div>
-    <div class="page-actions">
-      <button v-if="canManage" class="btn btn-primary" type="button" :disabled="loading || !placements.length" @click="openCreate()"><Plus :size="17" /> Add banner</button>
-    </div>
+  <div class="banners-panel">
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px">
+    <p class="muted" style="margin: 0">Pictures shown on the store, grouped by the spot they appear in. Drag to reorder.</p>
+    <button class="btn btn-primary" type="button" :disabled="loading || !placements.length" @click="openCreate()"><Plus :size="17" /> Add banner</button>
   </div>
 
   <div v-if="error" class="alert alert--error" role="alert">{{ error }} <button class="btn btn-outline btn-sm" type="button" style="margin-left: auto" @click="load">Retry</button></div>
@@ -188,6 +181,7 @@ function window_(b) {
     :message="`Delete ${toDelete.title ? `“${toDelete.title}”` : 'this banner'}? Its pictures are removed too.`"
     @confirm="confirmDelete" @close="toDelete = null"
   />
+  </div>
 </template>
 
 <style scoped>

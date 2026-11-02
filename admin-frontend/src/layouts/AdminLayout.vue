@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Bell, ChevronsLeft, ChevronsRight, FolderTree, GalleryHorizontal, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Users } from '@lucide/vue'
+import { Bell, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Users } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useCatalogStore } from '@/stores/catalog.js'
@@ -30,7 +30,7 @@ async function refreshPending() {
 }
 let timer
 onMounted(() => {
-  if (auth.can('catalog.view')) catalog.load().catch(() => { /* the features fall back to the public store settings */ })
+  if (auth.can('products.view') || auth.can('categories.view')) catalog.load().catch(() => { /* the features fall back to the public store settings */ })
   refreshPending()
   timer = setInterval(refreshPending, 60000)
   document.addEventListener('click', closeMenu)
@@ -45,7 +45,7 @@ function search() {
   router.push({ name: 'products', query: q ? { q } : {} })
 }
 
-const roleLabel = computed(() => ({ super_admin: 'Super admin', manager: 'Manager', staff: 'Staff' })[auth.role] || auth.role)
+const roleLabel = computed(() => ({ developer: 'Developer', admin: 'Admin' })[auth.role] || auth.role)
 
 async function logout() {
   await auth.logout()
@@ -61,36 +61,27 @@ async function logout() {
         <div class="brand-text">{{ site.name }}<small>Admin</small></div>
       </div>
       <nav class="sidebar__nav">
-        <p class="nav-label">Main</p>
         <RouterLink v-if="auth.can('dashboard.view')" :to="{ name: 'dashboard' }" class="nav-item" :class="{ 'is-active': route.name === 'dashboard' }" exact-active-class="" active-class="">
           <LayoutDashboard :size="19" /><span>Dashboard</span>
         </RouterLink>
-
-        <p v-if="auth.can('catalog.view')" class="nav-label" style="margin-top: 18px">Catalogue</p>
-        <RouterLink v-if="auth.can('catalog.view')" :to="{ name: 'categories' }" class="nav-item" :class="{ 'is-active': route.name === 'categories' }" exact-active-class="" active-class="">
-          <FolderTree :size="19" /><span>Categories</span>
-        </RouterLink>
-        <RouterLink v-if="auth.can('catalog.view')" :to="{ name: 'products' }" class="nav-item" :class="{ 'is-active': String(route.name).startsWith('product') }" exact-active-class="" active-class="">
-          <Package :size="19" /><span>Products</span>
-        </RouterLink>
-
-        <p v-if="auth.can('banners.view')" class="nav-label" style="margin-top: 18px">Content</p>
-        <RouterLink v-if="auth.can('banners.view')" :to="{ name: 'banners' }" class="nav-item" :class="{ 'is-active': route.name === 'banners' }" exact-active-class="" active-class="">
-          <GalleryHorizontal :size="19" /><span>Banners</span>
-        </RouterLink>
-
-        <p v-if="auth.can('orders.view')" class="nav-label" style="margin-top: 18px">Sales</p>
         <RouterLink v-if="auth.can('orders.view')" :to="{ name: 'orders' }" class="nav-item" :class="{ 'is-active': route.name === 'orders' || route.name === 'order' }" exact-active-class="" active-class="">
           <ShoppingBag :size="19" /><span>Orders</span>
           <b v-if="ui.pendingOrders" class="nav-badge" :title="`${ui.pendingOrders} orders waiting`">{{ ui.pendingOrders }}</b>
         </RouterLink>
-
-        <p v-if="auth.can('settings.view') || auth.can('admins.manage')" class="nav-label" style="margin-top: 18px">System</p>
-        <RouterLink v-if="auth.can('settings.view')" :to="{ name: 'settings' }" class="nav-item" :class="{ 'is-active': route.name === 'settings' }" exact-active-class="" active-class="">
+        <RouterLink v-if="auth.can('products.view')" :to="{ name: 'products' }" class="nav-item" :class="{ 'is-active': String(route.name).startsWith('product') }" exact-active-class="" active-class="">
+          <Package :size="19" /><span>Products</span>
+        </RouterLink>
+        <RouterLink v-if="auth.can('categories.view')" :to="{ name: 'categories' }" class="nav-item" :class="{ 'is-active': route.name === 'categories' }" exact-active-class="" active-class="">
+          <FolderTree :size="19" /><span>Categories</span>
+        </RouterLink>
+        <RouterLink v-if="auth.can('customers.view')" :to="{ name: 'customers' }" class="nav-item" :class="{ 'is-active': route.name === 'customers' }" exact-active-class="" active-class="">
+          <Users :size="19" /><span>Customers</span>
+        </RouterLink>
+        <RouterLink v-if="auth.can('settings.*')" :to="{ name: 'settings' }" class="nav-item" :class="{ 'is-active': route.name === 'settings' }" exact-active-class="" active-class="">
           <Settings :size="19" /><span>Settings</span>
         </RouterLink>
-        <RouterLink v-if="auth.can('admins.manage')" :to="{ name: 'users' }" class="nav-item" :class="{ 'is-active': route.name === 'users' }" exact-active-class="" active-class="">
-          <Users :size="19" /><span>Users &amp; roles</span>
+        <RouterLink v-if="auth.can('access.manage')" :to="{ name: 'access-control' }" class="nav-item" :class="{ 'is-active': route.name === 'access-control' }" exact-active-class="" active-class="">
+          <KeyRound :size="19" /><span>Access Control</span>
         </RouterLink>
       </nav>
       <div class="sidebar__foot">
@@ -106,7 +97,7 @@ async function logout() {
       <header class="topbar">
         <!-- Phones only: opens the sidebar drawer. On desktop the collapse button lives inside the sidebar. -->
         <button class="icon-btn mobile-only" type="button" aria-label="Open menu" @click.stop="ui.toggleSidebar()"><Menu :size="18" /></button>
-        <form v-if="auth.can('catalog.view')" class="search" role="search" @submit.prevent="search">
+        <form v-if="auth.can('products.view')" class="search" role="search" @submit.prevent="search">
           <input v-model="query" type="search" placeholder="Search products by name or SKU..." aria-label="Search products (press Enter)" />
           <Search :size="18" />
         </form>

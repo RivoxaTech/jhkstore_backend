@@ -2,12 +2,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Activity, Clock, PackageSearch, Plus, ShoppingBag, Wallet } from '@lucide/vue'
+import { useAuthStore } from '@/stores/auth.js'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import { ACTION_LABELS, money, timeAgo, todayISO } from '@/utils/format.js'
 
 const ui = useUiStore()
+const auth = useAuthStore()
 const data = ref(null)
 const loading = ref(true)
 const error = ref('')
@@ -17,7 +19,7 @@ async function load() {
   error.value = ''
   try {
     data.value = await api.get('admin/dashboard')
-    ui.pendingOrders = data.value.orders?.pending ?? ui.pendingOrders
+    if (data.value.orders) ui.pendingOrders = data.value.orders.pending ?? ui.pendingOrders
   } catch (e) {
     error.value = e.message
   } finally {
@@ -26,13 +28,16 @@ async function load() {
 }
 onMounted(load)
 
-const orderStats = computed(() => {
+// Order figures only exist for an admin who may see orders (the developer gets none: the server leaves them out).
+const stats = computed(() => {
   const o = data.value?.orders
+  const low = { label: 'Low stock', value: data.value?.catalog?.low_stock, sub: 'Options at or below their alert level', icon: PackageSearch, color: '#e11d48', soft: '#fde8ed', to: { name: 'products' } }
+  if (!auth.can('orders.view')) return auth.can('products.view') ? [low] : []
   return [
     { label: 'Orders today', value: o?.today, sub: 'Placed since midnight (not cancelled)', icon: ShoppingBag, color: '#1d70ca', soft: '#e8f1fb', to: { name: 'orders', query: { from: todayISO() } } },
     { label: 'Revenue today', value: money(o?.revenue_today ?? 0), sub: 'Order totals of today', icon: Wallet, color: '#16a34a', soft: '#e7f6ec', to: { name: 'orders' } },
     { label: 'Pending orders', value: o?.pending, sub: 'Waiting to be confirmed', icon: Clock, color: '#d97706', soft: '#fff4e0', to: { name: 'orders', query: { status: 'pending' } } },
-    { label: 'Low stock', value: o?.low_stock, sub: 'Options at or below their alert level', icon: PackageSearch, color: '#e11d48', soft: '#fde8ed', to: { name: 'products' } },
+    ...(auth.can('products.view') ? [low] : []),
   ]
 })
 
@@ -49,7 +54,7 @@ function describe(a) {
       <div class="crumbs"><span>Home</span> › <span>Dashboard</span></div>
     </div>
     <div class="page-actions">
-      <RouterLink class="btn btn-primary" :to="{ name: 'product-new' }"><Plus :size="17" /> New product</RouterLink>
+      <RouterLink v-if="auth.can('products.manage')" class="btn btn-primary" :to="{ name: 'product-new' }"><Plus :size="17" /> New product</RouterLink>
     </div>
   </div>
 
@@ -57,8 +62,8 @@ function describe(a) {
     {{ error }} <button class="btn btn-outline btn-sm" type="button" style="margin-left: auto" @click="load">Retry</button>
   </div>
 
-  <div class="stats" aria-label="Orders">
-    <RouterLink v-for="s in orderStats" :key="s.label" :to="s.to" class="stat" :style="{ '--c': s.color, '--c-soft': s.soft }">
+  <div v-if="stats.length" class="stats" aria-label="Overview">
+    <RouterLink v-for="s in stats" :key="s.label" :to="s.to" class="stat" :style="{ '--c': s.color, '--c-soft': s.soft }">
       <div>
         <div class="stat__label">{{ s.label }}</div>
         <div v-if="loading" class="skeleton" style="width: 70px; height: 32px; margin: 6px 0" />

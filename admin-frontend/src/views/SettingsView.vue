@@ -10,12 +10,14 @@ import { useSiteStore } from '@/stores/site.js'
 import LinksEditor from '@/components/LinksEditor.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import UploadField from '@/components/UploadField.vue'
+import BannersPanel from '@/components/BannersPanel.vue'
 
-// Generic settings screen: the API describes the tabs, their sections and fields (key, type, label, help, min, max, value),
-// this page renders an input per field type and saves only the keys that changed (all tabs in one save).
+// Generic settings screen: the API describes the tabs the admin may open (each is guarded by its own permission), their sections and fields
+// (key, type, label, help, min, max, value); this page renders an input per field type and saves only the keys that changed (all tabs in one save).
+// The Banners tab has no fields: it shows the banner manager. A future tab (e.g. Payment details) is one more entry in the API's tab list.
 const ui = useUiStore()
 const auth = useAuthStore()
-const canManage = computed(() => auth.can('settings.manage'))   // managers can look but not change
+const canManage = computed(() => auth.can('settings.*'))   // the API lists only the tabs the admin may use, and refuses writes to the others
 const catalog = useCatalogStore()
 const site = useSiteStore()
 const route = useRoute()
@@ -34,11 +36,8 @@ const files = ref({})         // setting key -> picture url
 const form = reactive({})     // the values being edited
 let keySeq = 0
 
-// The reward-points section only exists while the feature is on (judged by the saved value).
-const visibleTabs = computed(() => tabs.value.map(t => ({
-  ...t,
-  sections: t.sections.filter(s => s.key !== 'rewards' || saved.value.rewards_enabled === true),
-})))
+const visibleTabs = computed(() => tabs.value)
+const isBanners = computed(() => activeKey.value === 'banners')
 const activeKey = computed(() => (visibleTabs.value.some(t => t.key === route.query.tab) ? route.query.tab : visibleTabs.value[0]?.key))
 const activeTab = computed(() => visibleTabs.value.find(t => t.key === activeKey.value))
 
@@ -116,7 +115,7 @@ async function save() {
   }
 }
 
-/** The store name, logo, currency and features are cached by other stores: refresh them after a change. */
+/** The store name, logo and currency are cached by other stores: refresh them after a change. */
 async function refreshCaches() {
   await Promise.allSettled([site.reload(), catalog.reload()])
 }
@@ -144,7 +143,7 @@ const affix = (f) => (f.type === 'money' ? 'left' : f.type === 'percent' ? 'righ
     </div>
     <div class="page-actions">
       <span v-if="dirty" class="muted" style="margin-right: 4px">Unsaved changes</span>
-      <button v-if="canManage" class="btn btn-primary" type="submit" form="settings-form" :disabled="saving || loading || !dirty"><span v-if="saving" class="spinner" /><Save v-else :size="16" /> Save settings</button>
+      <button v-if="canManage && !isBanners" class="btn btn-primary" type="submit" form="settings-form" :disabled="saving || loading || !dirty"><span v-if="saving" class="spinner" /><Save v-else :size="16" /> Save settings</button>
     </div>
   </div>
 
@@ -152,7 +151,6 @@ const affix = (f) => (f.type === 'money' ? 'left' : f.type === 'percent' ? 'righ
   <TableSkeleton v-if="loading" :rows="8" />
 
   <form v-else-if="!loadError" id="settings-form" novalidate @submit.prevent="save">
-    <div v-if="!canManage" class="alert alert--info" role="status">You can look at the settings but not change them.</div>
     <div class="card" style="margin-bottom: 12px">
       <div class="tabs" role="tablist" aria-label="Settings sections">
         <button
@@ -166,7 +164,8 @@ const affix = (f) => (f.type === 'money' ? 'left' : f.type === 'percent' ? 'righ
       </div>
     </div>
 
-    <fieldset v-if="activeTab" :disabled="!canManage" style="border: 0; padding: 0; margin: 0; min-width: 0">
+    <div v-if="isBanners" id="panel-banners" role="tabpanel" aria-labelledby="tab-banners"><BannersPanel /></div>
+    <fieldset v-else-if="activeTab" :disabled="!canManage" style="border: 0; padding: 0; margin: 0; min-width: 0">
     <div :id="`panel-${activeTab.key}`" role="tabpanel" :aria-labelledby="`tab-${activeTab.key}`" class="settings-grid">
       <section v-for="s in activeTab.sections" :key="s.key" class="card" :data-section="s.key">
         <div class="card__head"><h2>{{ s.label }}</h2></div>

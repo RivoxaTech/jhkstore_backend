@@ -4,8 +4,7 @@ import { Plus, Trash2 } from '@lucide/vue'
 import ProductImages from '@/components/ProductImages.vue'
 import { useCatalogStore } from '@/stores/catalog.js'
 
-// One OPTION (variant) of a product: its own name, SKU, regular price, price, live discount, stock, (reward points when
-// enabled), expiry, weight, bulk prices (a lower price for a larger quantity) and its own pictures. The row object is edited in place; errors come from the parent
+// One OPTION (variant) of a product: its own name, SKU, regular price, price, live discount, stock, weight, bulk prices (a lower price for a larger quantity) and its own pictures. The row object is edited in place; errors come from the parent
 // (`errors`, keyed like the API).
 const props = defineProps({
   row: { type: Object, required: true },
@@ -77,16 +76,6 @@ const immediate = computed(() => props.productId !== null && props.row.id !== nu
       <div class="field">
         <label>Discount</label>
         <div class="price-box" style="height: 34px"><span class="off-badge" :class="off.cls" data-testid="off-label">{{ off.text }}</span></div>
-      </div>
-      <div v-if="catalog.features.rewards" class="field">
-        <label :for="`${idp}-points`">Reward points</label>
-        <input :id="`${idp}-points`" v-model="row.reward_points" class="input" type="number" min="0" :aria-label="`${label} points`" :class="{ 'has-error': err('reward_points') }" />
-        <p v-if="err('reward_points')" class="err">{{ err('reward_points') }}</p>
-      </div>
-      <div class="field">
-        <label :for="`${idp}-expiry`">Expiry date</label>
-        <input :id="`${idp}-expiry`" v-model="row.expiry_date" class="input" type="date" :aria-label="`${label} expiry`" :class="{ 'has-error': err('expiry_date') }" />
-        <p v-if="err('expiry_date')" class="err">{{ err('expiry_date') }}</p>
       </div>
     </div>
 

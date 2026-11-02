@@ -18,7 +18,7 @@ const MAX_TOP = 12 // top categories shown on the home screen (the API enforces 
 
 const ui = useUiStore()
 const auth = useAuthStore()
-const canManage = computed(() => auth.can('catalog.manage'))   // staff can look but not change
+const canManage = computed(() => auth.can('categories.manage'))   // without it the admin can look but not change
 
 const categories = ref([])
 const meta = ref(null)                       // pagination of the top-level categories

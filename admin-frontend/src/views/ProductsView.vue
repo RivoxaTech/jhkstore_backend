@@ -23,7 +23,7 @@ const router = useRouter()
 const ui = useUiStore()
 const catalog = useCatalogStore()
 const auth = useAuthStore()
-const canManage = computed(() => auth.can('catalog.manage'))   // staff can look but not change
+const canManage = computed(() => auth.can('products.manage'))   // without it the admin can look but not change
 
 const rows = ref([])
 const meta = ref(null)

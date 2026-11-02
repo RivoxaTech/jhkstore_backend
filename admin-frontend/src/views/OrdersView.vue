@@ -13,7 +13,7 @@ import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.
 import { formatDate, money } from '@/utils/format.js'
 
 const STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled']
-const PAYMENT_STATUSES = [['cod_pending', 'Cash on delivery - to collect'], ['paid', 'Paid'], ['cancelled', 'Cancelled'], ['pending', 'Awaiting payment'], ['failed', 'Failed'], ['refunded', 'Refunded']]
+const PAYMENT_STATUSES = [['cod_pending', 'Cash on delivery - to collect'], ['paid', 'Paid'], ['cancelled', 'Cancelled'], ['pending', 'Awaiting payment'], ['failed', 'Failed']]
 
 const route = useRoute()
 const router = useRouter()

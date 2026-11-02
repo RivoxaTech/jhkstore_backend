@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useSiteStore } from '@/stores/site.js'
 
 // Every page is loaded on demand so the first screen stays small and fast.
-// `meta.permission` is the permission an admin needs to open the page (see the roles in the Users & Roles screen).
+// `meta.permission` is the permission an admin needs to open the page (see docs/ACCESS_CONTROL.md: two accounts, developer and admin; the developer switches what the admin may see).
 const routes = [
   { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { guest: true, title: 'Sign in' } },
   {
@@ -12,15 +12,16 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: '', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { title: 'Dashboard', permission: 'dashboard.view' } },
-      { path: 'products', name: 'products', component: () => import('@/views/ProductsView.vue'), meta: { title: 'Products', permission: 'catalog.view' } },
-      { path: 'products/new', name: 'product-new', component: () => import('@/views/ProductFormView.vue'), meta: { title: 'New product', permission: 'catalog.manage' } },
-      { path: 'products/:id([0-9]+)/edit', name: 'product-edit', component: () => import('@/views/ProductFormView.vue'), meta: { title: 'Edit product', permission: 'catalog.view' } },
+      { path: 'products', name: 'products', component: () => import('@/views/ProductsView.vue'), meta: { title: 'Products', permission: 'products.view' } },
+      { path: 'products/new', name: 'product-new', component: () => import('@/views/ProductFormView.vue'), meta: { title: 'New product', permission: 'products.manage' } },
+      { path: 'products/:id([0-9]+)/edit', name: 'product-edit', component: () => import('@/views/ProductFormView.vue'), meta: { title: 'Edit product', permission: 'products.view' } },
       { path: 'orders', name: 'orders', component: () => import('@/views/OrdersView.vue'), meta: { title: 'Orders', permission: 'orders.view' } },
       { path: 'orders/:id([0-9]+)', name: 'order', component: () => import('@/views/OrderDetailView.vue'), meta: { title: 'Order', permission: 'orders.view' } },
-      { path: 'banners', name: 'banners', component: () => import('@/views/BannersView.vue'), meta: { title: 'Banners', permission: 'banners.view' } },
-      { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: 'Settings', permission: 'settings.view' } },
-      { path: 'categories', name: 'categories', component: () => import('@/views/CategoriesView.vue'), meta: { title: 'Categories', permission: 'catalog.view' } },
-      { path: 'users', name: 'users', component: () => import('@/views/UsersView.vue'), meta: { title: 'Users & roles', permission: 'admins.manage' } },
+      { path: 'customers', name: 'customers', component: () => import('@/views/CustomersView.vue'), meta: { title: 'Customers', permission: 'customers.view' } },
+      // any Settings tab opens the page; the page lists only the tabs the admin may use (Banners is a tab of Settings)
+      { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: 'Settings', permission: 'settings.*' } },
+      { path: 'categories', name: 'categories', component: () => import('@/views/CategoriesView.vue'), meta: { title: 'Categories', permission: 'categories.view' } },
+      { path: 'access-control', name: 'access-control', component: () => import('@/views/AccessControlView.vue'), meta: { title: 'Access Control', permission: 'access.manage' } },
       { path: 'forbidden', name: 'forbidden', component: () => import('@/views/ForbiddenView.vue'), meta: { title: 'No access' } },
     ],
   },
@@ -45,7 +46,7 @@ router.beforeEach(async (to) => {
 
   // a page the admin's role does not allow shows "no access" (the API refuses it as well)
   const permission = to.matched.map(r => r.meta.permission).find(Boolean)
-  if (permission && auth.isLoggedIn && !auth.can(permission)) return { name: 'forbidden' }
+  if (permission && auth.isLoggedIn && !auth.can(permission)) return { name: 'forbidden' }   // `settings.*` = any settings tab (see auth.can)
 })
 
 /** "<page> | <store name> Admin" */
