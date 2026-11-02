@@ -2,71 +2,82 @@
 
 namespace App\Domain\Cart;
 
-use App\Domain\Auth\Models\User;
-use App\Domain\Cart\Models\Cart;
 use App\Domain\Catalog\Models\Product;
-use App\Domain\Reward\Actions\RewardLedger;
+use App\Domain\Catalog\Models\ProductVariant;
 use App\Domain\Support\Settings;
 use Illuminate\Support\Collection;
 
 /**
- * THE price calculator of the shop. The cart screen and the checkout both use it, so what the customer sees is what the order gets.
- * Nothing the client sends is trusted: every price comes from the option, its bulk prices and the settings.
+ * THE price calculator of the shop. The quote endpoint and the checkout both use it, so what the customer is shown is what the order gets.
+ * The storefront keeps the cart itself (variant ids and quantities); nothing it sends about prices is trusted: every price comes from the
+ * option, its bulk prices and the settings.
  *
  *  unit price   = the option price, or the bulk price of the highest tier whose min_qty <= qty
  *  items total  = sum(MRP x qty)           product discount = sum((MRP - option price) x qty)
  *  bulk offer   = sum((option price - unit price) x qty)       subtotal = items total - product discount - bulk offer
- *  coins        = requested, cut down to the wallet, the subtotal and the caps in the settings (see clampCoins)
- *  delivery     = one flat fee; free when the subtotal reaches free_delivery_min_cart (0 = never free); nothing for an empty cart
- *  grand total  = subtotal - coins discount + delivery
+ *  delivery     = one flat fee; free when the subtotal reaches free_delivery_min_cart (0 = never free); nothing for an empty order
+ *  grand total  = subtotal + delivery (+ tax when prices are tax exclusive)
  */
 class CartPricing
 {
-    public function __construct(private readonly Settings $settings, private readonly RewardLedger $ledger) {}
+    public function __construct(private readonly Settings $settings) {}
 
-    /** Relations the calculation needs (and the cart screen shows). */
+    /** Relations the calculation needs. */
     public static function relations(): array
     {
         return [
             // a product deleted after the customer added it must still load (the line is then reported as unavailable)
-            'variant.product' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug', 'sku', 'status', 'tax_rate', 'min_order_qty', 'max_order_qty', 'is_cod_available']),
-            'variant.product.media', 'variant.product.remoteImages',
-            'variant.priceTiers',
+            'product' => fn ($q) => $q->withTrashed()->select(['id', 'name', 'slug', 'sku', 'status', 'tax_rate', 'min_order_qty', 'max_order_qty', 'is_cod_available']),
+            'product.media', 'product.remoteImages',
+            'priceTiers',
         ];
     }
 
-    /** Loads a cart's lines and prices them. `$user` supplies the coin wallet (guests have none). */
-    public function forCart(Cart $cart, ?User $user, ?int $coins = null, ?Collection $lockedVariants = null, ?int $walletCoins = null): PricedCart
+    /**
+     * Prices the lines the storefront sent. Lines of the same option are added up; an unknown option id is reported as unavailable.
+     *
+     * @param  list<array{variant_id:int|string, qty:int|string}>  $items
+     * @param  Collection<int, ProductVariant>|null  $locked  variant_id => freshly locked row, when the caller holds the row locks (checkout)
+     */
+    public function forItems(array $items, ?Collection $locked = null): PricedCart
     {
-        $items = $cart->items()->with(self::relations())->get();
+        $qtys = [];
+        foreach ($items as $item) {
+            $id = (int) $item['variant_id'];
+            $qtys[$id] = ($qtys[$id] ?? 0) + (int) $item['qty'];
+        }
 
-        $productIds = $items->map(fn ($i) => $i->variant->product_id)->unique()->values();
-        $visible = $productIds->isEmpty() ? collect() : Product::query()->storefront()->whereIn('products.id', $productIds)->pluck('products.id');
+        $variants = ProductVariant::query()->whereIn('id', array_keys($qtys))->with(self::relations())->get()->keyBy('id');
+        $productIds = $variants->pluck('product_id')->unique()->values();
+        $visible = $productIds->isEmpty() ? [] : Product::query()->storefront()->whereIn('products.id', $productIds)->pluck('products.id')->all();
 
-        $wallet = $walletCoins ?? ($user ? $this->ledger->spendable($user->id) : 0);
+        $lines = [];
+        foreach ($qtys as $id => $qty) {
+            $variant = $variants->get($id);
+            if ($variant) {
+                $lines[] = ['variant' => $variant, 'qty' => $qty];
+            }
+        }
 
-        return $this->price($items, $visible->all(), (int) ($coins ?? $cart->coins_to_redeem), $wallet, $lockedVariants);
+        return $this->price($lines, $visible, $locked, array_values(array_diff(array_keys($qtys), $variants->keys()->all())));
     }
 
     /**
-     * @param  Collection<int, \App\Domain\Cart\Models\CartItem>  $items  with CartPricing::relations() loaded
+     * @param  list<array{variant: ProductVariant, qty:int}>  $items  variants with CartPricing::relations() loaded
      * @param  list<int>  $visibleProductIds  products the website currently shows
-     * @param  Collection<int, \App\Domain\Catalog\Models\ProductVariant>|null  $locked  variant_id => freshly locked row, when the caller holds the row locks (checkout)
+     * @param  list<int>  $unknownVariantIds  option ids that do not exist (they block the order)
      */
-    public function price(Collection $items, array $visibleProductIds, int $requestedCoins, int $walletCoins, ?Collection $locked = null): PricedCart
+    public function price(array $items, array $visibleProductIds, ?Collection $locked = null, array $unknownVariantIds = []): PricedCart
     {
-        $symbol = $this->settings->currencySymbol();
         $inclusive = (bool) $this->settings->get('tax_inclusive');
         $lines = [];
 
-        foreach ($items as $item) {
-            $variant = $item->variant;
+        foreach ($items as ['variant' => $variant, 'qty' => $qty]) {
             $product = $variant->product;
             $stock = $locked ? $locked->get($variant->id) : $variant;   // the row that holds the stock numbers
 
-            $qty = (int) $item->qty;
-            $mrp = app(Settings::class)->cents($variant->mrp);
-            $base = app(Settings::class)->cents($variant->selling_price);
+            $mrp = $this->settings->cents($variant->mrp);
+            $base = $this->settings->cents($variant->selling_price);
             [$bulk, $next] = $this->tiers($variant->priceTiers, $base, $qty, (int) $product->max_order_qty);
             $unit = $bulk['price'] ?? $base;
 
@@ -92,18 +103,12 @@ class CartPricing
                     $issues[] = $this->issue('above_max_qty', "You can buy at most {$product->max_order_qty} of \"$name\".", true);
                 }
             }
-            $snapshot = app(Settings::class)->cents($item->unit_price);
-            if ($snapshot !== $base) {
-                $word = $base > $snapshot ? 'increased' : 'dropped';
-                $issues[] = $this->issue('price_changed', "The price of \"$name\" has $word from ".$this->fmt($snapshot, $symbol).' to '.$this->fmt($base, $symbol).'.', false);
-            }
 
             $lineTotal = $unit * $qty;
             $taxRate = $product->tax_rate !== null ? (float) $product->tax_rate : (float) $this->settings->get('tax_rate');
             $tax = $inclusive ? (int) round($lineTotal * $taxRate / (100 + $taxRate)) : (int) round($lineTotal * $taxRate / 100);
-            $points = $this->ledger->pointsForLine((int) $variant->reward_points, $qty, $lineTotal);
 
-            $lines[] = new PricedLine($variant, $product, $qty, $mrp, $base, $unit, $bulk, $next, $available, $snapshot, $sellable && $available > 0, $issues, $points, $taxRate, $tax);
+            $lines[] = new PricedLine($variant, $product, $qty, $mrp, $base, $unit, $bulk, $next, $available, $sellable && $available > 0, $issues, $taxRate, $tax);
         }
 
         $counted = array_filter($lines, fn (PricedLine $l) => $l->counted);
@@ -111,9 +116,6 @@ class CartPricing
         $productDiscount = array_sum(array_map(fn (PricedLine $l) => $l->productDiscount(), $counted));
         $bulkDiscount = array_sum(array_map(fn (PricedLine $l) => $l->bulkDiscount(), $counted));
         $subtotal = $itemsTotal - $productDiscount - $bulkDiscount;
-
-        $coins = $this->clampCoins($requestedCoins, $walletCoins, $subtotal);
-        $coinsDiscount = $coins['applied'] * $coins['value'];
 
         $taxTotal = array_sum(array_map(fn (PricedLine $l) => $l->tax(), $counted));
         $freeMin = $this->settings->freeDeliveryMinCents();
@@ -126,17 +128,15 @@ class CartPricing
             productDiscount: $productDiscount,
             bulkDiscount: $bulkDiscount,
             subtotal: $subtotal,
-            coins: $coins,
-            coinsDiscount: $coinsDiscount,
             deliveryFee: $deliveryFee,
             deliveryFree: $deliveryFree,
             freeDeliveryMin: $freeMin,
-            grandTotal: $subtotal - $coinsDiscount + $deliveryFee + ($inclusive ? 0 : $taxTotal),
-            coinsToEarn: array_sum(array_map(fn (PricedLine $l) => $l->coinsToEarn(), $counted)),
+            grandTotal: $subtotal + $deliveryFee + ($inclusive ? 0 : $taxTotal),
             taxTotal: $taxTotal,
             taxInclusive: $inclusive,
             unitsCount: array_sum(array_map(fn (PricedLine $l) => $l->qty, $counted)),
             minOrderAmount: $this->settings->minOrderCents(),
+            unknownVariantIds: $unknownVariantIds,
         );
     }
 
@@ -151,7 +151,7 @@ class CartPricing
         $next = null;
 
         foreach ($tiers->sortBy('min_qty') as $tier) {
-            $price = app(Settings::class)->cents($tier->price);
+            $price = $this->settings->cents($tier->price);
             if ($price >= $base) {
                 continue; // a tier that is not cheaper than the option price is no offer
             }
@@ -163,40 +163,6 @@ class CartPricing
         }
 
         return [$bulk, $next];
-    }
-
-    /**
-     * Coins the customer wants to use, cut down to what is allowed. The smallest of:
-     *   the wallet (spendable, not expired) - the subtotal (coins never pay for delivery) - max_redeem_coins_per_order
-     *   - redeem_cap_order_percent of the subtotal - redeem_cap_balance_percent of the wallet.
-     * `limited_by` names the limit that cut the request (null when the whole request was applied).
-     *
-     * @return array{requested:int, applied:int, max:int, wallet:int, value:int, limited_by:?string}
-     */
-    private function clampCoins(int $requested, int $wallet, int $subtotal): array
-    {
-        $value = $this->settings->rewardRedeemCents();
-        if (! $this->ledger->enabled()) {
-            return ['requested' => 0, 'applied' => 0, 'max' => 0, 'wallet' => 0, 'value' => $value, 'limited_by' => null];   // reward points are switched off
-        }
-        $requested = max(0, $requested);
-
-        $limits = [
-            'wallet_balance' => $wallet,
-            'order_amount' => intdiv($subtotal, $value),
-            'max_per_order' => (int) $this->settings->get('max_redeem_coins_per_order'),
-            'order_percent_cap' => (int) floor($subtotal * (float) $this->settings->get('redeem_cap_order_percent') / 100 / $value),
-            'balance_percent_cap' => (int) floor($wallet * (float) $this->settings->get('redeem_cap_balance_percent') / 100),
-        ];
-
-        $max = max(0, min($limits));
-        $applied = min($requested, $max);
-        $limitedBy = null;
-        if ($applied < $requested) {
-            $limitedBy = array_search($max, $limits, true) ?: null;
-        }
-
-        return ['requested' => $requested, 'applied' => $applied, 'max' => $max, 'wallet' => $wallet, 'value' => $value, 'limited_by' => $limitedBy];
     }
 
     private function issue(string $code, string $message, bool $blocking): array

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Domain\Auth\AdminAccess;
 use App\Domain\Auth\Models\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
@@ -80,7 +81,7 @@ class AuthController extends Controller
             'name' => $admin->name,
             'email' => $admin->email,
             'roles' => $admin->getRoleNames(),
-            'permissions' => $admin->getAllPermissions()->pluck('name')->sort()->values(),
+            'permissions' => AdminAccess::effective($admin),   // what the panel uses to hide screens, tabs and buttons
         ];
     }
 }

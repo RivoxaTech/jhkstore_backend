@@ -17,7 +17,7 @@ class ChangeOrderStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', Rule::in(array_diff(OrderStatus::values(), [OrderStatus::Pending->value, OrderStatus::Returned->value]))],
+            'status' => ['required', Rule::in(array_diff(OrderStatus::values(), [OrderStatus::Pending->value]))],
             'note' => ['nullable', 'string', 'max:255'],
             'reason' => ['required_if:status,cancelled', 'nullable', 'string', 'max:255'],
             'courier' => ['required_if:status,shipped', 'nullable', 'string', 'max:60'],

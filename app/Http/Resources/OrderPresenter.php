@@ -8,7 +8,6 @@ use App\Domain\Order\Models\Order;
 use App\Domain\Order\Models\OrderAddress;
 use App\Domain\Order\Models\OrderItem;
 use App\Domain\Order\Models\OrderStatusHistory;
-use App\Domain\Reward\Actions\RewardLedger;
 use App\Domain\Support\Settings;
 
 /** The pieces of an order answer that the customer and the admin resources share, so both always show the same numbers. */
@@ -24,7 +23,7 @@ class OrderPresenter
         return $method ? (PaymentMethod::tryFrom($method)?->label() ?? strtoupper($method)) : null;
     }
 
-    /** Price breakdown. `subtotal` = items at MRP - product discount - bulk offer; `grand_total` = subtotal - coins discount + delivery. */
+    /** Price breakdown. `subtotal` = items at MRP - product discount - bulk offer; `grand_total` = subtotal + delivery (+ tax when prices exclude it). */
     public static function totals(Order $o): array
     {
         $settings = app(Settings::class);
@@ -41,20 +40,12 @@ class OrderPresenter
             'tax_note' => $o->tax_inclusive ? 'Inclusive of all taxes' : 'Tax is added to the total',
             'total_savings' => round((float) $o->product_discount_total + (float) $o->bulk_discount_total, 2),
         ];
-        if (app(RewardLedger::class)->enabled()) {
-            // reward points exist only while the feature is on
-            $totals['coins_redeemed'] = $o->coins_redeemed;
-            $totals['coins_discount'] = (float) $o->coins_discount;
-            $totals['coins_to_earn'] = $o->coins_to_earn;
-            $totals['total_savings'] = round($totals['total_savings'] + (float) $o->coins_discount, 2);
-        }
-
         return $totals;
     }
 
     public static function item(OrderItem $i): array
     {
-        $item = [
+        return [
             'id' => $i->id,
             'product_id' => $i->product_id,
             'variant_id' => $i->variant_id,
@@ -72,14 +63,8 @@ class OrderPresenter
             'line_total' => (float) $i->line_total,
             'tax_rate' => (float) $i->tax_rate,
             'tax_amount' => (float) $i->tax_amount,
-            'expiry_date' => $i->expiry_date?->toDateString(),
             'status' => $i->status,
         ];
-        if (app(RewardLedger::class)->enabled()) {
-            $item['coins_earned'] = $i->coins_earned;
-        }
-
-        return $item;
     }
 
     public static function address(?OrderAddress $a): ?array
@@ -91,7 +76,6 @@ class OrderPresenter
         return [
             'name' => $a->name,
             'phone' => $a->phone,
-            'alt_phone' => $a->alt_phone,
             'line1' => $a->line1,
             'area' => $a->area,
             'landmark' => $a->landmark,
@@ -99,10 +83,6 @@ class OrderPresenter
             'state' => $a->state,
             'postcode' => $a->postcode,
             'country' => $a->country,
-            'tax_number' => $a->tax_number,
-            'type' => $a->address_type,
-            'latitude' => $a->latitude,
-            'longitude' => $a->longitude,
         ];
     }
 

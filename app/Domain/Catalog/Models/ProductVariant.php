@@ -9,8 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ProductVariant extends Model
 {
     protected $fillable = [
-        'name', 'sku', 'is_default', 'attributes', 'mrp', 'selling_price', 'discount_percent', 'reward_points',
-        'expiry_date', 'barcode', 'weight_grams', 'is_cod_available', 'is_active', 'sort_order', 'stock_qty', 'reserved_qty', 'low_stock_threshold',
+        'name', 'sku', 'is_default', 'attributes', 'mrp', 'selling_price', 'discount_percent',
+        'weight_grams', 'is_cod_available', 'is_active', 'sort_order', 'stock_qty', 'reserved_qty', 'low_stock_threshold',
     ];
 
     protected function casts(): array
@@ -23,7 +23,6 @@ class ProductVariant extends Model
             'mrp' => 'decimal:2',
             'selling_price' => 'decimal:2',
             'discount_percent' => 'decimal:2',
-            'expiry_date' => 'date',
             'stock_qty' => 'integer',
             'reserved_qty' => 'integer',
             'low_stock_threshold' => 'integer',

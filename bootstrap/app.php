@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureActor;
 use App\Http\Middleware\EnsureAdminPermission;
+use App\Http\Middleware\RejectHoneypot;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -22,13 +23,13 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['actor' => EnsureActor::class, 'admin.can' => EnsureAdminPermission::class]);
+        $middleware->alias(['actor' => EnsureActor::class, 'admin.can' => EnsureAdminPermission::class, 'honeypot' => RejectHoneypot::class]);
         // Who you are and what you may do are checked BEFORE route models are looked up: a missing permission is 403 (never a 404 that reveals what exists).
         $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: EnsureActor::class);
         $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: EnsureAdminPermission::class);
 
         // Requests from the admin panel origin (SANCTUM_STATEFUL_DOMAINS) get sessions + CSRF protection.
-        // Everything else (customer site, Postman) stays stateless and uses bearer tokens.
+        // Everything else (the storefront, Postman) stays stateless: the storefront needs no login, scripts use admin bearer tokens.
         $middleware->statefulApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {

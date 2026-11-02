@@ -2,25 +2,20 @@
 
 namespace Database\Seeders;
 
-use App\Domain\Address\Actions\SaveAddress;
 use App\Domain\Auth\Models\Admin;
-use App\Domain\Auth\Models\User;
 use App\Domain\Catalog\Actions\SaveProduct;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\SubCategory;
 use App\Domain\Catalog\Models\Tag;
-use App\Domain\Reward\Actions\RewardLedger;
-use App\Domain\Support\Settings;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
 /**
  * OPTIONAL sample data to try the shop out (not part of DatabaseSeeder): neutral categories, tags, products
- * with options and quantity prices, and one demo customer. Safe to run again: everything is matched by slug / SKU / email.
+ * with options and quantity prices. Safe to run again: everything is matched by slug / SKU.
  *
  *   php artisan db:seed --class=DemoSeeder
  *
- * Demo customer: DEMO_CUSTOMER_EMAIL / DEMO_CUSTOMER_PASSWORD (.env, default demo@example.com / demo-password).
  * Products have no pictures: add them in the admin panel.
  */
 class DemoSeeder extends Seeder
@@ -33,7 +28,7 @@ class DemoSeeder extends Seeder
         ['Sports & Outdoors', 'sports-outdoors', ['Fitness', 'Camping']],
     ];
 
-    /** [name, sku, category slug, sub-category name, tags, [options...]] where an option is [name, sku, mrp, price, stock, points, [min_qty => price]] */
+    /** [name, sku, category slug, sub-category name, tags, [options...]] where an option is [name, sku, mrp, price, stock, [min_qty => price]] */
     private const PRODUCTS = [
         ['Wireless Headphones', 'DEMO-WH', 'electronics', 'Audio', ['best-seller', 'featured'], [
             ['Black', 'DEMO-WH-BK', 120, 89, 40, 10, [3 => 82]],
@@ -102,13 +97,12 @@ class DemoSeeder extends Seeder
                 'tag_ids' => Tag::query()->whereIn('slug', $tagSlugs)->pluck('id')->all(),
                 'variants' => collect($options)->values()->map(fn ($o, $i) => [
                     'name' => count($options) === 1 ? $name : "$name - {$o[0]}",
-                    'sku' => $o[1], 'is_default' => $i === 0, 'mrp' => $o[2], 'selling_price' => $o[3], 'stock' => $o[4], 'reward_points' => $o[5],
-                    'price_tiers' => collect($o[6])->map(fn ($price, $qty) => ['min_qty' => $qty, 'price' => $price])->values()->all(),
+                    'sku' => $o[1], 'is_default' => $i === 0, 'mrp' => $o[2], 'selling_price' => $o[3], 'stock' => $o[4],
+                    'price_tiers' => collect($o[5])->map(fn ($price, $qty) => ['min_qty' => $qty, 'price' => $price])->values()->all(),
                 ])->all(),
             ], $admin);
         }
 
-        $this->customer();
     }
 
     /** @return array<string, Category> by slug */
@@ -135,28 +129,5 @@ class DemoSeeder extends Seeder
         }
 
         return $out;
-    }
-
-    private function customer(): void
-    {
-        $email = env('DEMO_CUSTOMER_EMAIL', 'demo@example.com');
-        $password = env('DEMO_CUSTOMER_PASSWORD', 'demo-password');
-        if (app()->isProduction()) {
-            return;   // never create a known login on a live site
-        }
-
-        $user = User::query()->firstOrCreate(['email' => $email], [
-            'full_name' => 'Demo Customer', 'mobile' => '5550100100', 'password' => $password, 'is_active' => true,
-        ]);
-        if (! $user->wasRecentlyCreated) {
-            return;
-        }
-        app(SaveAddress::class)->create($user, [
-            'label' => 'Home', 'type' => 'home', 'name' => 'Demo Customer', 'phone' => '5550100100',
-            'line1' => '12 Example Street', 'area' => 'Downtown', 'city' => 'Springfield', 'state' => 'Sample State', 'postcode' => '12345',
-        ]);
-        if (app(Settings::class)->rewardsEnabled()) {
-            app(RewardLedger::class)->grant($user->id, 500, 'Welcome points (demo data)');
-        }
     }
 }

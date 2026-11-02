@@ -3,15 +3,15 @@
 namespace App\Domain\Cart;
 
 /**
- * The fully calculated cart (amounts in cents):
+ * The fully calculated order (amounts in cents):
  *   items_total (all lines at MRP) - product_discount (MRP -> option price) - bulk_discount (option price -> bulk price) = subtotal
- *   grand_total = subtotal - coins_discount + delivery_fee (+ tax_total when prices are tax exclusive)
+ *   grand_total = subtotal + delivery_fee (+ tax_total when prices are tax exclusive)
  */
 final class PricedCart
 {
     /**
      * @param  list<PricedLine>  $lines
-     * @param  array{requested:int, applied:int, max:int, wallet:int, value:int, limited_by:?string}  $coins
+     * @param  list<int>  $unknownVariantIds  option ids that were asked for but do not exist
      */
     public function __construct(
         public readonly array $lines,
@@ -19,17 +19,15 @@ final class PricedCart
         public readonly int $productDiscount,
         public readonly int $bulkDiscount,
         public readonly int $subtotal,
-        public readonly array $coins,
-        public readonly int $coinsDiscount,
         public readonly int $deliveryFee,
         public readonly bool $deliveryFree,
         public readonly int $freeDeliveryMin,
         public readonly int $grandTotal,
-        public readonly int $coinsToEarn,
         public readonly int $taxTotal,
         public readonly bool $taxInclusive,
         public readonly int $unitsCount,
         public readonly int $minOrderAmount,
+        public readonly array $unknownVariantIds = [],
     ) {}
 
     /** @return list<PricedLine> the lines that take part in the totals */
@@ -40,6 +38,9 @@ final class PricedCart
 
     public function hasBlockingIssue(): bool
     {
+        if ($this->unknownVariantIds !== []) {
+            return true;
+        }
         foreach ($this->lines as $line) {
             if ($line->isBlocking()) {
                 return true;
@@ -56,7 +57,7 @@ final class PricedCart
 
     public function totalSavings(): int
     {
-        return $this->productDiscount + $this->bulkDiscount + $this->coinsDiscount;
+        return $this->productDiscount + $this->bulkDiscount;
     }
 
     public function canCheckout(): bool

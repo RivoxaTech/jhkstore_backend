@@ -14,7 +14,6 @@ class ProductContentTab extends Model
         'specifications' => 'Key Specifications',
         'directions' => 'Direction To Use',
         'additional_info' => 'Additional Info',
-        'warranty' => 'Warranty',
     ];
 
     protected $fillable = ['product_id', 'tab_key', 'format', 'content', 'manual_url', 'sort_order'];

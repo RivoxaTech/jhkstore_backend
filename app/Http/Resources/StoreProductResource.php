@@ -5,8 +5,6 @@ namespace App\Http\Resources;
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\ProductImages;
 use App\Domain\Support\Settings;
-use App\Domain\Reward\Actions\RewardLedger;
-use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
 
 /**
@@ -28,18 +26,14 @@ class StoreProductResource extends StoreProductCardResource
         $card = parent::toArray($request);
         $days = (int) app(Settings::class)->get('delivery_days');
 
-        $out = $card + [
+        return $card + [
             'product_name' => $this->name,   // the parent's name (a single-option product's `name` is its option's)
             'display_mode' => $card['has_single_option'] ? 'single_option' : 'multiple_options',
             'sku' => $card['has_single_option'] ? $this->variants->first()->sku : $this->sku,
             'sub_category' => $this->subCategory ? ['name' => $this->subCategory->name, 'slug' => $this->subCategory->slug] : null,
             'description' => $this->description,
-            'country_of_origin' => $this->country_of_origin,
-            'warranty_text' => $this->warranty_text,
             'min_order_qty' => $this->min_order_qty,
             'max_order_qty' => $this->max_order_qty,
-            'is_returnable' => $this->is_returnable,
-            'return_days' => $this->is_returnable ? $this->return_days : null,   // "10-Days Returnable"
             'is_cod_available' => $this->is_cod_available,
             'tax_rate' => $this->tax_rate === null ? (float) app(Settings::class)->get('tax_rate') : (float) $this->tax_rate,
             'delivery' => [
@@ -64,8 +58,6 @@ class StoreProductResource extends StoreProductCardResource
                     'mrp' => (float) $v->mrp,
                     'price' => (float) $v->selling_price,
                     'discount_percent' => (float) $v->discount_percent,
-                    'reward_points' => $v->reward_points,
-                    'expiry_date' => $v->expiry_date?->toDateString(),
                     'is_cod_available' => $v->is_cod_available ?? $this->is_cod_available,
                     'in_stock' => $qty > 0,
                     'qty' => $qty,
@@ -89,10 +81,5 @@ class StoreProductResource extends StoreProductCardResource
                 : collect(ProductImages::gallery($this->resource))),
             'related' => StoreProductCardResource::collection($this->related),
         ];
-        if (! app(RewardLedger::class)->enabled()) {
-            $out['variants'] = $out['variants']->map(fn ($v) => Arr::except($v, 'reward_points'));
-        }
-
-        return $out;
     }
 }

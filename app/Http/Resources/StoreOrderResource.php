@@ -6,26 +6,20 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * An order for its owner. As a list row it needs `items` (for the thumbnails) loaded; the detail also needs `addresses`, `history`,
- * `payment` and `shipments` (see Store\OrderController). Money is in the shop currency, tax is included in all prices.
+ * An order for the guest who placed it (answer of POST /store/orders and GET /store/orders/{number}?phone=). Needs items, addresses, history,
+ * payment and shipments loaded (see Store\OrderController). Money is in the shop currency.
  */
 class StoreOrderResource extends JsonResource
 {
-    /** @param  bool  $detail  false = the short list row */
-    public function __construct($resource, private readonly bool $detail = true)
-    {
-        parent::__construct($resource);
-    }
-
     public function toArray(Request $request): array
     {
         $o = $this->resource;
-        $row = [
+
+        return [
             'id' => $o->id,
             'order_number' => $o->order_number,
             'status' => $o->status->value,
             'status_label' => OrderPresenter::statusLabel($o->status),
-            'can_cancel' => $o->status->isCancellable(),
             'placed_at' => $o->placed_at,
             'estimated_delivery_date' => $o->estimated_delivery_date?->toDateString(),
             'items_count' => $o->items_count,
@@ -33,13 +27,7 @@ class StoreOrderResource extends JsonResource
             'payment_method' => $o->payment_method,
             'payment_method_label' => OrderPresenter::paymentMethodLabel($o->payment_method),
             'payment_status' => $o->payment_status->value,
-        ];
-
-        if (! $this->detail) {
-            return $row + ['preview' => $o->items->take(4)->map(fn ($i) => ['name' => $i->option_name ?: $i->name, 'image_url' => $i->image_url])->values()];
-        }
-
-        return $row + [
+            'customer' => ['name' => $o->customer_name, 'phone' => $o->customer_phone, 'email' => $o->customer_email],
             'customer_note' => $o->customer_note,
             'cancel_reason' => $o->cancel_reason,
             'items' => $o->items->map(fn ($i) => OrderPresenter::item($i))->values(),

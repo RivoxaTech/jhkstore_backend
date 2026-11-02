@@ -1,9 +1,10 @@
 <?php
 
-use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AccessControlController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
@@ -15,8 +16,9 @@ use Illuminate\Support\Facades\Route;
 /*
 | Admin API  –  prefix /api/v1/admin
 |
-| Every route needs a logged-in admin (`actor:admin`) AND a permission (`admin.can:<permission>`), see App\Domain\Auth\AdminAccess
-| for the roles (super_admin, manager, staff) and what each may do. A missing permission answers 403.
+| Every route needs a logged-in admin (`actor:admin`) AND a permission (`admin.can:<permission>`), see App\Domain\Auth\AdminAccess:
+| two accounts (developer, admin), permissions per section and per Settings tab. A missing permission answers 403. The developer
+| can never pass `orders.*`. Only login / logout / me are open to any logged-in admin.
 */
 
 Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
@@ -28,27 +30,31 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
 
     Route::get('dashboard', DashboardController::class)->middleware('admin.can:dashboard.view');
 
-    // Catalogue: categories, sub-categories, products, tags
-    Route::middleware('admin.can:catalog.view')->group(function () {
-        Route::get('categories/options', [CategoryController::class, 'options']);
+    // Categories and sub-categories (the product form also needs the list of categories to choose from)
+    Route::get('categories/options', [CategoryController::class, 'options'])->middleware('admin.can:categories.view,products.view');
+    Route::middleware('admin.can:categories.view')->group(function () {
         Route::get('categories', [CategoryController::class, 'index']);
         Route::get('categories/{category}', [CategoryController::class, 'show']);
         Route::get('sub-categories/{subCategory}', [SubCategoryController::class, 'show']);
-        Route::get('products/options', [ProductController::class, 'options']);
-        Route::get('products', [ProductController::class, 'index']);
-        Route::get('products/{product}', [ProductController::class, 'show']);
-        Route::get('tags', [TagController::class, 'index']);
-        Route::get('tags/{tag}', [TagController::class, 'show']);
     });
-    Route::middleware('admin.can:catalog.manage')->group(function () {
+    Route::middleware('admin.can:categories.manage')->group(function () {
         Route::post('categories', [CategoryController::class, 'store']);
         Route::match(['put', 'patch', 'post'], 'categories/{category}', [CategoryController::class, 'update']);
         Route::delete('categories/{category}', [CategoryController::class, 'destroy']);
         Route::post('categories/{category}/sub-categories', [SubCategoryController::class, 'store']);
         Route::match(['put', 'patch', 'post'], 'sub-categories/{subCategory}', [SubCategoryController::class, 'update']);
         Route::delete('sub-categories/{subCategory}', [SubCategoryController::class, 'destroy']);
+    });
 
-        // Products (variants with stock, tags, content tabs in the JSON body; pictures separately)
+    // Products and tags (variants with stock, tags, content tabs in the JSON body; pictures separately)
+    Route::middleware('admin.can:products.view')->group(function () {
+        Route::get('products/options', [ProductController::class, 'options']);
+        Route::get('products', [ProductController::class, 'index']);
+        Route::get('products/{product}', [ProductController::class, 'show']);
+        Route::get('tags', [TagController::class, 'index']);
+        Route::get('tags/{tag}', [TagController::class, 'show']);
+    });
+    Route::middleware('admin.can:products.manage')->group(function () {
         Route::post('products', [ProductController::class, 'store']);
         Route::match(['put', 'patch'], 'products/{product}', [ProductController::class, 'update']);
         Route::delete('products/{product}', [ProductController::class, 'destroy']);
@@ -65,20 +71,18 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
         Route::delete('tags/{tag}', [TagController::class, 'destroy']);
     });
 
-    // Banners (multipart for the pictures; reorder = the whole order of a placement)
-    Route::middleware('admin.can:banners.view')->group(function () {
+    // Banners live in the Settings > Banners tab (multipart for the pictures; reorder = the whole order of a placement)
+    Route::middleware('admin.can:settings.banners')->group(function () {
         Route::get('banners/options', [BannerController::class, 'options']);
         Route::get('banners', [BannerController::class, 'index']);
         Route::get('banners/{banner}', [BannerController::class, 'show'])->whereNumber('banner');
-    });
-    Route::middleware('admin.can:banners.manage')->group(function () {
         Route::put('banners/reorder', [BannerController::class, 'reorder']);
         Route::post('banners', [BannerController::class, 'store']);
         Route::match(['put', 'patch', 'post'], 'banners/{banner}', [BannerController::class, 'update'])->whereNumber('banner');
         Route::delete('banners/{banner}', [BannerController::class, 'destroy'])->whereNumber('banner');
     });
 
-    // Orders
+    // Orders (never reachable by the developer)
     Route::middleware('admin.can:orders.view')->group(function () {
         Route::get('orders/options', [OrderController::class, 'options']);
         Route::get('orders', [OrderController::class, 'index']);
@@ -89,21 +93,20 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
         Route::patch('orders/{order}/note', [OrderController::class, 'note'])->whereNumber('order');
     });
 
-    // Settings
-    Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.view');
-    Route::middleware('admin.can:settings.manage')->group(function () {
-        Route::put('settings', [SettingController::class, 'update']);
-        // pictures: logo, favicon, share-image (stored with medialibrary)
-        Route::post('settings/{slot}', [SettingController::class, 'uploadFile'])->whereIn('slot', ['logo', 'favicon', 'share-image']);
-        Route::delete('settings/{slot}', [SettingController::class, 'deleteFile'])->whereIn('slot', ['logo', 'favicon', 'share-image']);
-    });
+    // Customers (read-only list and CSV export; contains personal data)
+    Route::get('customers', [CustomerController::class, 'index'])->middleware('admin.can:customers.view');
+    Route::get('customers/export', [CustomerController::class, 'export'])->middleware('admin.can:customers.export');
 
-    // Admin users and their roles
-    Route::middleware('admin.can:admins.manage')->group(function () {
-        Route::get('roles', [AdminUserController::class, 'roles']);
-        Route::get('users', [AdminUserController::class, 'index']);
-        Route::post('users', [AdminUserController::class, 'store']);
-        Route::match(['put', 'patch'], 'users/{adminUser}', [AdminUserController::class, 'update'])->whereNumber('adminUser');
-        Route::delete('users/{adminUser}', [AdminUserController::class, 'destroy'])->whereNumber('adminUser');
+    // Settings: each tab has its own permission (settings.<tab>); the controller checks it per key, here any tab opens the page
+    Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.general,settings.branding,settings.banners,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo');
+    Route::put('settings', [SettingController::class, 'update'])->middleware('admin.can:settings.general,settings.branding,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo');
+    // pictures: logo, favicon (Branding tab) and share-image (SEO tab); the controller checks the tab of the picture
+    Route::post('settings/{slot}', [SettingController::class, 'uploadFile'])->whereIn('slot', ['logo', 'favicon', 'share-image'])->middleware('admin.can:settings.branding,settings.seo');
+    Route::delete('settings/{slot}', [SettingController::class, 'deleteFile'])->whereIn('slot', ['logo', 'favicon', 'share-image'])->middleware('admin.can:settings.branding,settings.seo');
+
+    // Access Control (developer only): what the admin may see
+    Route::middleware('admin.can:access.manage')->group(function () {
+        Route::get('access-control', [AccessControlController::class, 'show']);
+        Route::put('access-control/{role}', [AccessControlController::class, 'update']);
     });
 });

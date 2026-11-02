@@ -3,16 +3,14 @@
 namespace App\Http\Resources;
 
 use App\Domain\Catalog\ProductImages;
-use App\Domain\Reward\Actions\RewardLedger;
-use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * Product card for the customer site (lists, homepage sections, related products).
  * Eager load (see ProductListing::cardRelations): category, tags, media, remoteImages and
- * the active variants. `price` / `mrp` / `reward_points` are those of
- * the cheapest variant, so the three always belong together.
+ * the active variants. `price` / `mrp` are those of
+ * the cheapest variant, so they always belong together.
  *
  * A product with ONE option is shown as that option (its name, a direct price, "3 Offers" = its bulk prices, or "1 Option"
  * when it has none); a product with several options shows the parent's name, "Starting at <cheapest>" and "N Options".
@@ -27,7 +25,7 @@ class StoreProductCardResource extends JsonResource
         $single = $variants->count() === 1;
         $offers = $single ? $variants->first()->priceTiers->count() : 0;
 
-        $card = [
+        return [
             'id' => $this->id,
             'name' => $single ? ($cheapest->name ?: $this->name) : $this->name,
             'slug' => $this->slug,
@@ -43,14 +41,9 @@ class StoreProductCardResource extends JsonResource
             'price' => $cheapest ? (float) $cheapest->selling_price : null,   // the starting price: the cheapest option
             'mrp' => $cheapest ? (float) $cheapest->mrp : null,
             'discount_percent' => $cheapest ? (float) $cheapest->discount_percent : 0.0,
-            'reward_points' => $cheapest?->reward_points ?? 0,
-            'rating_avg' => $this->rating_avg,
-            'rating_count' => $this->rating_count,
             'badge_text' => $this->badge_text,
             'tags' => $this->tags->pluck('slug')->values(),
             'in_stock' => $variants->contains(fn ($v) => $v->available() > 0),
         ];
-
-        return app(RewardLedger::class)->enabled() ? $card : Arr::except($card, 'reward_points');
     }
 }

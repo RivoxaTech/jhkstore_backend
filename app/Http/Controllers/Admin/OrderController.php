@@ -28,7 +28,7 @@ class OrderController extends Controller
     public function options(): JsonResponse
     {
         return response()->json([
-            'statuses' => array_map(fn (OrderStatus $s) => $s->value, array_filter(OrderStatus::cases(), fn ($s) => $s !== OrderStatus::Returned)),
+            'statuses' => OrderStatus::values(),
             'payment_statuses' => PaymentStatus::values(),
             'payment_methods' => array_map(fn (PaymentMethod $m) => ['code' => $m->value, 'name' => $m->label()], PaymentMethod::cases()),
         ]);
@@ -36,7 +36,7 @@ class OrderController extends Controller
 
     /**
      * Paginated orders, newest first. Filters: ?q (order number, customer name, phone, email) ?status ?payment_status ?payment_method
-     * ?from ?to (dates, placed) ?user_id ?page ?per_page (max 100). `counts` = orders per status for the same filters (without the status filter).
+     * ?from ?to (dates, placed) ?customer_id ?page ?per_page (max 100). `counts` = orders per status for the same filters (without the status filter).
      */
     public function index(Request $request)
     {
@@ -47,7 +47,7 @@ class OrderController extends Controller
             'payment_method' => ['nullable', Rule::in(PaymentMethod::values())],
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
-            'user_id' => ['nullable', 'integer'],
+            'customer_id' => ['nullable', 'integer'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -55,7 +55,7 @@ class OrderController extends Controller
             ->when($request->query('q'), fn ($q, $term) => OrderSearch::apply($q, $term))
             ->when($request->query('payment_status'), fn ($q, $v) => $q->where('orders.payment_status', $v))
             ->when($request->query('payment_method'), fn ($q, $v) => $q->where('orders.payment_method', $v))
-            ->when($request->query('user_id'), fn ($q, $v) => $q->where('orders.user_id', $v))
+            ->when($request->query('customer_id'), fn ($q, $v) => $q->where('orders.customer_id', $v))
             ->when($request->query('from'), fn ($q, $d) => $q->where('orders.created_at', '>=', $d.' 00:00:00'))
             ->when($request->query('to'), fn ($q, $d) => $q->where('orders.created_at', '<', date('Y-m-d', strtotime($d.' +1 day')).' 00:00:00'));
 
@@ -97,11 +97,11 @@ class OrderController extends Controller
     private function full(Order $order): AdminOrderResource
     {
         $order->loadMissing(self::DETAIL);
-        $user = $order->user()->withTrashed()->first(['id', 'created_at']);
+        $customer = $order->customer()->first(['id', 'orders_count', 'first_order_at']);
 
         return new AdminOrderResource($order, [
-            'orders_count' => Order::query()->where('user_id', $order->user_id)->count(),
-            'member_since' => $user?->created_at?->toDateString(),
+            'orders_count' => $customer?->orders_count,
+            'first_order_at' => $customer?->first_order_at?->toDateString(),
             'admins' => Admin::query()->whereIn('id', $order->history->where('changed_by_type', 'admin')->pluck('changed_by_id')->unique())->pluck('name', 'id')->all(),
         ]);
     }

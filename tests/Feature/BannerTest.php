@@ -277,10 +277,12 @@ class BannerTest extends TestCase
         $this->deleteJson(self::ADMIN."/banners/{$banner->id}")->assertUnauthorized();
         $this->putJson(self::ADMIN.'/banners/reorder', ['ids' => [$banner->id]])->assertUnauthorized();
 
-        // a customer token is not an admin credential
-        $customer = \App\Domain\Auth\Models\User::create(['full_name' => 'C', 'email' => 'c@example.test', 'mobile' => '03111111111', 'password' => 'secret-pass', 'is_active' => true]);
-        Sanctum::actingAs($customer, ['*']);
-        $this->getJson(self::ADMIN.'/banners')->assertUnauthorized();
+        // the Banners tab is a permission of its own: the admin without it is refused
+        $this->actingAsAdmin('admin', everything: false);
+        \App\Domain\Auth\AdminAccess::setRolePermissions('admin', ['settings.general']);
+        $this->getJson(self::ADMIN.'/banners')->assertForbidden();
+        $this->post(self::ADMIN.'/banners', [], ['Accept' => 'application/json'])->assertForbidden();
+        $this->deleteJson(self::ADMIN."/banners/{$banner->id}")->assertForbidden();
     }
 
     // ------------------------------------------------------------------ storefront

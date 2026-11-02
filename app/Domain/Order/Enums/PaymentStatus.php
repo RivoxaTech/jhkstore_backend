@@ -9,7 +9,6 @@ enum PaymentStatus: string
     case Paid = 'paid';
     case Failed = 'failed';
     case Cancelled = 'cancelled';      // the order was cancelled before any money was taken
-    case Refunded = 'refunded';
 
     /** @return list<string> */
     public static function values(): array

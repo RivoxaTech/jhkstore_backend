@@ -14,7 +14,7 @@ class AdminOrderListResource extends JsonResource
             'id' => $this->id,
             'order_number' => $this->order_number,
             'placed_at' => $this->placed_at,
-            'customer' => ['id' => $this->user_id, 'name' => $this->customer_name, 'email' => $this->customer_email, 'phone' => $this->customer_phone],
+            'customer' => ['id' => $this->customer_id, 'name' => $this->customer_name, 'email' => $this->customer_email, 'phone' => $this->customer_phone],
             'items_count' => $this->items_count,
             'grand_total' => (float) $this->grand_total,
             'payment_method' => $this->payment_method,

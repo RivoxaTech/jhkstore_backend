@@ -2,10 +2,7 @@
 
 namespace App\Domain\Order\Enums;
 
-/**
- * pending -> confirmed -> packed -> shipped -> delivered, plus cancelled (only before shipping).
- * `returned` is reserved for the returns module (a delivered order can move there later).
- */
+/** pending -> confirmed -> packed -> shipped -> delivered, plus cancelled (only before shipping). */
 enum OrderStatus: string
 {
     case Pending = 'pending';
@@ -14,7 +11,6 @@ enum OrderStatus: string
     case Shipped = 'shipped';
     case Delivered = 'delivered';
     case Cancelled = 'cancelled';
-    case Returned = 'returned';
 
     /** @return list<string> */
     public static function values(): array
@@ -30,8 +26,7 @@ enum OrderStatus: string
             self::Confirmed => [self::Packed, self::Cancelled],
             self::Packed => [self::Shipped, self::Cancelled],
             self::Shipped => [self::Delivered],
-            self::Delivered => [],      // -> returned will come with the returns module
-            self::Cancelled, self::Returned => [],
+            self::Delivered, self::Cancelled => [],
         };
     }
 
@@ -40,7 +35,7 @@ enum OrderStatus: string
         return in_array($to, $this->next(), true);
     }
 
-    /** The customer (and the admin) may cancel only before the parcel leaves. */
+    /** An order may be cancelled only before the parcel leaves. */
     public function isCancellable(): bool
     {
         return $this->canMoveTo(self::Cancelled);

@@ -3,8 +3,6 @@
 namespace App\Http\Resources;
 
 use App\Domain\Catalog\ProductImages;
-use App\Domain\Reward\Actions\RewardLedger;
-use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -19,7 +17,7 @@ class ProductResource extends JsonResource
     {
         $ref = fn ($relation) => $this->{$relation} ? ['id' => $this->{$relation}->id, 'name' => $this->{$relation}->name] : null;
 
-        $out = [
+        return [
             'id' => $this->id,
             'category' => $ref('category'),
             'sub_category' => $ref('subCategory'),
@@ -30,20 +28,14 @@ class ProductResource extends JsonResource
             'description' => $this->description,
             'badge_text' => $this->badge_text,
             'tax_rate' => $this->tax_rate === null ? null : (float) $this->tax_rate,   // null = the store's default rate
-            'country_of_origin' => $this->country_of_origin,
-            'warranty_text' => $this->warranty_text,
             'min_order_qty' => $this->min_order_qty,
             'max_order_qty' => $this->max_order_qty,
-            'is_returnable' => $this->is_returnable,
-            'return_days' => $this->return_days,
             'is_cod_available' => $this->is_cod_available,
             'status' => $this->status->value,
             'published_at' => $this->published_at,
             'min_price' => $this->min_price === null ? null : (float) $this->min_price,
             'max_discount_percent' => (float) $this->max_discount_percent,
             'is_in_stock' => $this->is_in_stock,
-            'rating_avg' => $this->rating_avg,
-            'rating_count' => $this->rating_count,
             'meta_title' => $this->meta_title,
             'meta_description' => $this->meta_description,
             'variants' => $this->variants->map(fn ($v) => [
@@ -54,9 +46,6 @@ class ProductResource extends JsonResource
                 'mrp' => (float) $v->mrp,
                 'selling_price' => (float) $v->selling_price,
                 'discount_percent' => (float) $v->discount_percent,
-                'reward_points' => $v->reward_points,
-                'expiry_date' => $v->expiry_date?->toDateString(),
-                'barcode' => $v->barcode,
                 'weight_grams' => $v->weight_grams,
                 'is_active' => $v->is_active,
                 'sort_order' => $v->sort_order,
@@ -78,10 +67,5 @@ class ProductResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
-        if (! app(RewardLedger::class)->enabled()) {
-            $out['variants'] = $out['variants']->map(fn ($v) => Arr::except($v, 'reward_points'));
-        }
-
-        return $out;
     }
 }

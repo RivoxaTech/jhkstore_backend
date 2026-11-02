@@ -5,44 +5,17 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * The complete schema of the e-commerce base for a FRESH install (squashed from the project's earlier migrations).
+ * The complete schema of the lean store for a FRESH install: products, categories, orders, customers (a contact record, no login),
+ * settings, banners, the two admin accounts with their roles, and the framework tables. See docs/DATABASE.md for every table.
  *
- * Tables are created first, foreign keys are added afterwards so the order of the tables does not matter. Tables for features that are
- * planned but not built yet (wishlist, coupons, CMS, notifications, refunds, invoices, ...) are included on purpose; see docs/DATABASE.md.
- * New changes go into new migration files after this one. An existing database that ran the old migrations must be rebuilt (migrate:fresh).
+ * Tables are created first, foreign keys are added afterwards so the order of the tables does not matter.
+ * New changes go into new migration files after this one. A database created from an earlier version of this file must be rebuilt (migrate:fresh).
  */
 return new class extends Migration
 {
     public function up(): void
     {
         // ---- Framework, authentication and permissions
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->string('full_name', 120);
-            $table->string('email', 190)->nullable();
-            $table->string('mobile', 20)->nullable();
-            $table->string('whatsapp', 20)->nullable();
-            $table->string('password', 255)->nullable();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->timestamp('mobile_verified_at')->nullable();
-            $table->string('gender', 20)->nullable();
-            $table->string('business_name', 160)->nullable();
-            $table->date('date_of_birth')->nullable();
-            $table->boolean('is_active')->default(true);
-            $table->timestamp('last_login_at')->nullable();
-            $table->softDeletes();
-            $table->timestamps();
-            $table->unique(['email'], 'users_email_unique');
-            $table->unique(['mobile'], 'users_mobile_unique');
-        });
-
-        Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email', 255);
-            $table->string('token', 255);
-            $table->timestamp('created_at')->nullable();
-            $table->primary(['email']);
-        });
-
         Schema::create('sessions', function (Blueprint $table) {
             $table->string('id', 255);
             $table->unsignedBigInteger('user_id')->nullable();
@@ -221,53 +194,23 @@ return new class extends Migration
             $table->unique(['key'], 'site_settings_key_unique');
         });
 
-        Schema::create('notifications', function (Blueprint $table) {
-            $table->char('id', 36);
-            $table->string('type', 255);
-            $table->string('notifiable_type', 255);
-            $table->unsignedBigInteger('notifiable_id');
-            $table->text('data');
-            $table->string('category', 15)->default('system');
-            $table->timestamp('read_at')->nullable();
-            $table->timestamps();
-            $table->primary(['id']);
-            $table->index(['notifiable_type', 'notifiable_id'], 'notifications_notifiable_type_notifiable_id_index');
-        });
-
         // ---- Customers
-        Schema::create('user_addresses', function (Blueprint $table) {
+        // ---- Customers: a contact record created or updated by every order. No password, no login.
+        Schema::create('customers', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
-            $table->string('label', 40)->nullable();
-            $table->string('type', 20)->default('home');
             $table->string('name', 120);
-            $table->string('phone', 20);
-            $table->string('alt_phone', 20)->nullable();
-            $table->string('line1', 255);
-            $table->string('area', 255)->nullable();
-            $table->string('landmark', 160)->nullable();
-            $table->string('city', 100);
-            $table->string('state', 100);
-            $table->string('postcode', 10);
-            $table->string('country', 60)->default('');
-            $table->string('tax_number', 40)->nullable();
-            $table->boolean('is_default')->default(false);
+            $table->string('phone', 20);                  // normalised (see App\Domain\Customer\Phone), the identity of the customer
+            $table->string('email', 190)->nullable();
+            $table->string('city', 100)->nullable();
+            $table->timestamp('first_order_at')->nullable();
+            $table->timestamp('last_order_at')->nullable();
+            $table->unsignedInteger('orders_count')->default(0);
+            $table->decimal('total_spent', 14, 2)->default(0.00);
             $table->timestamps();
-            $table->decimal('latitude', 10, 7)->nullable();
-            $table->decimal('longitude', 10, 7)->nullable();
-            $table->index(['user_id'], 'user_addresses_user_id_foreign');
-        });
-
-        Schema::create('pincodes', function (Blueprint $table) {
-            $table->id();
-            $table->string('pincode', 10);
-            $table->string('city', 100);
-            $table->string('state', 100);
-            $table->boolean('is_serviceable')->default(true);
-            $table->boolean('cod_available')->default(true);
-            $table->unsignedTinyInteger('standard_eta_days')->nullable();
-            $table->timestamps();
-            $table->unique(['pincode'], 'pincodes_pincode_unique');
+            $table->unique(['phone'], 'customers_phone_unique');
+            $table->index(['email'], 'customers_email_index');
+            $table->index(['name'], 'customers_name_index');
+            $table->index(['last_order_at'], 'customers_last_order_at_index');
         });
 
         // ---- Catalogue
@@ -276,7 +219,6 @@ return new class extends Migration
             $table->string('name', 160);
             $table->string('slug', 180);
             $table->text('description')->nullable();
-            $table->decimal('rating', 2, 1)->nullable();
             $table->string('color', 9)->nullable();
             $table->unsignedInteger('sort_order')->default(0);
             $table->boolean('is_active')->default(true);
@@ -295,7 +237,6 @@ return new class extends Migration
             $table->string('name', 160);
             $table->string('slug', 180);
             $table->text('description')->nullable();
-            $table->decimal('rating', 2, 1)->nullable();
             $table->string('color', 9)->nullable();
             $table->unsignedInteger('sort_order')->default(0);
             $table->boolean('is_active')->default(true);
@@ -330,19 +271,13 @@ return new class extends Migration
             $table->longText('description')->nullable();
             $table->string('badge_text', 40)->nullable();
             $table->decimal('tax_rate', 5, 2)->nullable();
-            $table->string('country_of_origin', 80)->nullable();
-            $table->string('warranty_text', 255)->nullable();
             $table->unsignedSmallInteger('min_order_qty')->default(1);
             $table->unsignedSmallInteger('max_order_qty')->default(10);
-            $table->boolean('is_returnable')->default(true);
-            $table->unsignedSmallInteger('return_days')->default(10);
             $table->boolean('is_cod_available')->default(true);
             $table->string('status', 20)->default('draft');
             $table->timestamp('published_at')->nullable();
             $table->decimal('min_price', 12, 2)->nullable();
             $table->decimal('max_discount_percent', 5, 2)->default(0.00);
-            $table->decimal('rating_avg', 2, 1)->default(0.0);
-            $table->unsignedInteger('rating_count')->default(0);
             $table->boolean('is_in_stock')->default(false);
             $table->unsignedInteger('popularity_score')->default(0);
             $table->string('meta_title', 255)->nullable();
@@ -369,9 +304,6 @@ return new class extends Migration
             $table->decimal('mrp', 12, 2);
             $table->decimal('selling_price', 12, 2);
             $table->decimal('discount_percent', 5, 2)->default(0.00);
-            $table->unsignedInteger('reward_points')->default(0);
-            $table->date('expiry_date')->nullable();
-            $table->string('barcode', 40)->nullable();
             $table->unsignedInteger('weight_grams')->nullable();
             $table->decimal('length_cm', 6, 2)->nullable();
             $table->decimal('width_cm', 6, 2)->nullable();
@@ -458,202 +390,14 @@ return new class extends Migration
             $table->index(['variant_id', 'created_at'], 'inventory_movements_variant_created_index');
         });
 
-        Schema::create('collections', function (Blueprint $table) {
-            $table->id();
-            $table->string('key', 60);
-            $table->string('title', 160);
-            $table->text('description')->nullable();
-            $table->string('type', 10)->default('manual');
-            $table->unsignedBigInteger('tag_id')->nullable();
-            $table->json('rule')->nullable();
-            $table->unsignedInteger('sort_order')->default(0);
-            $table->boolean('is_active')->default(true);
-            $table->timestamp('starts_at')->nullable();
-            $table->timestamp('ends_at')->nullable();
-            $table->timestamps();
-            $table->unique(['key'], 'collections_key_unique');
-            $table->index(['tag_id'], 'collections_tag_id_foreign');
-        });
-
-        Schema::create('collection_product', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('collection_id');
-            $table->unsignedBigInteger('product_id');
-            $table->unsignedInteger('sort_order')->default(0);
-            $table->unique(['collection_id', 'product_id'], 'collection_product_collection_id_product_id_unique');
-            $table->index(['product_id'], 'collection_product_product_id_foreign');
-        });
-
         // ---- Reviews
-        Schema::create('product_reviews', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('product_id');
-            $table->unsignedBigInteger('user_id');
-            $table->unsignedTinyInteger('rating');
-            $table->string('title', 160)->nullable();
-            $table->text('body')->nullable();
-            $table->string('status', 20)->default('published');
-            $table->boolean('is_verified_purchase')->default(false);
-            $table->unsignedBigInteger('order_item_id')->nullable();
-            $table->unsignedInteger('helpful_count')->default(0);
-            $table->text('admin_reply')->nullable();
-            $table->timestamp('replied_at')->nullable();
-            $table->softDeletes();
-            $table->timestamps();
-            $table->index(['order_item_id'], 'product_reviews_order_item_id_foreign');
-            $table->index(['product_id', 'status', 'created_at'], 'product_reviews_product_id_status_created_at_index');
-            $table->unique(['product_id', 'user_id'], 'product_reviews_product_id_user_id_unique');
-            $table->index(['user_id'], 'product_reviews_user_id_foreign');
-        });
-
-        Schema::create('product_rating_stats', function (Blueprint $table) {
-            $table->unsignedBigInteger('product_id');
-            $table->decimal('avg', 3, 2)->default(0.00);
-            $table->unsignedInteger('count')->default(0);
-            $table->unsignedInteger('c1')->default(0);
-            $table->unsignedInteger('c2')->default(0);
-            $table->unsignedInteger('c3')->default(0);
-            $table->unsignedInteger('c4')->default(0);
-            $table->unsignedInteger('c5')->default(0);
-            $table->timestamp('updated_at')->nullable();
-            $table->primary(['product_id']);
-        });
-
-        Schema::create('product_questions', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('product_id');
-            $table->unsignedBigInteger('user_id')->nullable();
-            $table->text('question');
-            $table->text('answer')->nullable();
-            $table->unsignedBigInteger('answered_by')->nullable();
-            $table->timestamp('answered_at')->nullable();
-            $table->string('status', 20)->default('pending');
-            $table->timestamps();
-            $table->index(['answered_by'], 'product_questions_answered_by_foreign');
-            $table->index(['product_id', 'status'], 'product_questions_product_id_status_index');
-            $table->index(['user_id'], 'product_questions_user_id_foreign');
-        });
-
-        Schema::create('product_feedback', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('product_id');
-            $table->unsignedBigInteger('user_id')->nullable();
-            $table->boolean('purchased')->nullable();
-            $table->unsignedTinyInteger('quality_rating')->nullable();
-            $table->unsignedTinyInteger('price_rating')->nullable();
-            $table->unsignedTinyInteger('overall_rating')->nullable();
-            $table->text('message')->nullable();
-            $table->timestamps();
-            $table->index(['product_id'], 'product_feedback_product_id_foreign');
-            $table->index(['user_id'], 'product_feedback_user_id_foreign');
-        });
-
         // ---- Wishlist
-        Schema::create('wishlists', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('user_id');
-            $table->string('name', 80);
-            $table->boolean('is_default')->default(false);
-            $table->string('visibility', 10)->default('public');
-            $table->char('share_token', 26)->nullable();
-            $table->timestamps();
-            $table->unique(['share_token'], 'wishlists_share_token_unique');
-            $table->unique(['user_id', 'name'], 'wishlists_user_id_name_unique');
-        });
-
-        Schema::create('wishlist_items', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('wishlist_id');
-            $table->unsignedBigInteger('product_id');
-            $table->unsignedBigInteger('variant_id');
-            $table->timestamps();
-            $table->index(['product_id'], 'wishlist_items_product_id_index');
-            $table->index(['variant_id'], 'wishlist_items_variant_id_foreign');
-            $table->unique(['wishlist_id', 'variant_id'], 'wishlist_items_wishlist_id_variant_id_unique');
-        });
-
-        Schema::create('wishlist_shares', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('wishlist_id');
-            $table->unsignedBigInteger('shared_with_user_id');
-            $table->timestamps();
-            $table->index(['shared_with_user_id'], 'wishlist_shares_shared_with_user_id_foreign');
-            $table->unique(['wishlist_id', 'shared_with_user_id'], 'wishlist_shares_wishlist_id_shared_with_user_id_unique');
-        });
-
         // ---- Promotions
-        Schema::create('coupons', function (Blueprint $table) {
-            $table->id();
-            $table->string('code', 40);
-            $table->string('title', 160);
-            $table->string('description', 500)->nullable();
-            $table->string('discount_type', 10);
-            $table->decimal('value', 10, 2);
-            $table->decimal('max_discount', 10, 2)->nullable();
-            $table->decimal('min_cart_value', 10, 2)->default(0.00);
-            $table->string('audience', 15)->default('all');
-            $table->unsignedInteger('usage_limit')->nullable();
-            $table->unsignedInteger('per_user_limit')->nullable();
-            $table->unsignedInteger('used_count')->default(0);
-            $table->boolean('is_stackable')->default(false);
-            $table->boolean('show_in_my_coupons')->default(true);
-            $table->timestamp('starts_at')->nullable();
-            $table->timestamp('ends_at')->nullable();
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-            $table->unique(['code'], 'coupons_code_unique');
-        });
-
-        Schema::create('coupon_targets', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('coupon_id');
-            $table->string('target_type', 15);
-            $table->unsignedBigInteger('target_id');
-            $table->index(['coupon_id', 'target_type'], 'coupon_targets_coupon_id_target_type_index');
-        });
-
-        Schema::create('coupon_usages', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('coupon_id');
-            $table->unsignedBigInteger('user_id');
-            $table->unsignedBigInteger('order_id');
-            $table->decimal('discount_amount', 10, 2);
-            $table->timestamps();
-            $table->unique(['coupon_id', 'order_id'], 'coupon_usages_coupon_id_order_id_unique');
-            $table->index(['order_id'], 'coupon_usages_order_id_foreign');
-            $table->index(['user_id'], 'coupon_usages_user_id_foreign');
-        });
-
         // ---- Cart, orders, payments and shipping
-        Schema::create('carts', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('user_id')->nullable();
-            $table->char('guest_token', 40)->nullable();
-            $table->unsignedBigInteger('coupon_id')->nullable();
-            $table->unsignedInteger('coins_to_redeem')->default(0);
-            $table->string('status', 15)->default('active');
-            $table->timestamp('expires_at')->nullable();
-            $table->timestamps();
-            $table->index(['coupon_id'], 'carts_coupon_id_foreign');
-            $table->unique(['guest_token'], 'carts_guest_token_unique');
-            $table->index(['user_id', 'status'], 'carts_user_status_index');
-        });
-
-        Schema::create('cart_items', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('cart_id');
-            $table->unsignedBigInteger('variant_id');
-            $table->unsignedSmallInteger('qty');
-            $table->decimal('unit_price', 12, 2);
-            $table->timestamps();
-            $table->unique(['cart_id', 'variant_id'], 'cart_items_cart_id_variant_id_unique');
-            $table->index(['variant_id'], 'cart_items_variant_id_foreign');
-        });
-
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
             $table->string('order_number', 30);
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('customer_id');
             $table->string('customer_name', 120)->nullable();
             $table->string('customer_email', 190)->nullable();
             $table->string('customer_phone', 20)->nullable();
@@ -666,18 +410,10 @@ return new class extends Migration
             $table->decimal('mrp_total', 12, 2);
             $table->decimal('product_discount_total', 12, 2)->default(0.00);
             $table->decimal('bulk_discount_total', 12, 2)->default(0.00);
-            $table->decimal('discount_total', 12, 2)->default(0.00);
-            $table->unsignedBigInteger('coupon_id')->nullable();
-            $table->string('coupon_code', 40)->nullable();
-            $table->unsignedInteger('coins_redeemed')->default(0);
-            $table->decimal('coins_discount', 12, 2)->default(0.00);
             $table->decimal('shipping_fee', 12, 2)->default(0.00);
-            $table->decimal('cod_fee', 12, 2)->default(0.00);
             $table->decimal('tax_total', 12, 2)->default(0.00);
             $table->boolean('tax_inclusive')->default(true);
             $table->decimal('grand_total', 12, 2);
-            $table->unsignedInteger('coins_to_earn')->default(0);
-            $table->string('customer_tax_number', 20)->nullable();
             $table->string('customer_note', 500)->nullable();
             $table->date('estimated_delivery_date')->nullable();
             $table->timestamp('placed_at')->nullable();
@@ -688,11 +424,9 @@ return new class extends Migration
             $table->string('cancel_reason', 255)->nullable();
             $table->string('cancelled_by', 20)->nullable();
             $table->string('source', 10)->default('web');
-            $table->boolean('membership_applied')->default(false);
             $table->timestamps();
             $table->text('admin_note')->nullable();
             $table->string('idempotency_key', 64)->nullable();
-            $table->index(['coupon_id'], 'orders_coupon_id_foreign');
             $table->index(['created_at'], 'orders_created_at_index');
             $table->index(['customer_email'], 'orders_customer_email_index');
             $table->fullText(['customer_name'], 'orders_customer_name_fulltext');
@@ -700,8 +434,8 @@ return new class extends Migration
             $table->unique(['order_number'], 'orders_order_number_unique');
             $table->index(['payment_status'], 'orders_payment_status_index');
             $table->index(['status', 'created_at'], 'orders_status_created_at_index');
-            $table->index(['user_id', 'created_at'], 'orders_user_id_created_at_index');
-            $table->unique(['user_id', 'idempotency_key'], 'orders_user_id_idempotency_key_unique');
+            $table->index(['customer_id', 'created_at'], 'orders_customer_id_created_at_index');
+            $table->unique(['customer_id', 'idempotency_key'], 'orders_customer_id_idempotency_key_unique');
         });
 
         Schema::create('order_items', function (Blueprint $table) {
@@ -723,11 +457,8 @@ return new class extends Migration
             $table->decimal('tax_rate', 4, 2)->default(0.00);
             $table->decimal('tax_amount', 12, 2)->default(0.00);
             $table->decimal('line_total', 12, 2);
-            $table->unsignedInteger('coins_earned')->default(0);
-            $table->date('expiry_date')->nullable();
             $table->string('status', 20)->default('active');
             $table->unsignedSmallInteger('cancelled_qty')->default(0);
-            $table->unsignedSmallInteger('returned_qty')->default(0);
             $table->timestamps();
             $table->index(['order_id'], 'order_items_order_id_foreign');
             $table->index(['product_id'], 'order_items_product_id_index');
@@ -740,19 +471,14 @@ return new class extends Migration
             $table->string('type', 10);
             $table->string('name', 120);
             $table->string('phone', 20);
-            $table->string('alt_phone', 20)->nullable();
             $table->string('line1', 255);
             $table->string('area', 255)->nullable();
             $table->string('landmark', 160)->nullable();
             $table->string('city', 100);
-            $table->string('state', 100);
-            $table->string('postcode', 10);
+            $table->string('state', 100)->nullable();
+            $table->string('postcode', 20)->nullable();
             $table->string('country', 60)->default('');
-            $table->string('tax_number', 40)->nullable();
             $table->timestamps();
-            $table->decimal('latitude', 10, 7)->nullable();
-            $table->decimal('longitude', 10, 7)->nullable();
-            $table->string('address_type', 20)->nullable();
             $table->unique(['order_id', 'type'], 'order_addresses_order_id_type_unique');
         });
 
@@ -789,18 +515,6 @@ return new class extends Migration
             $table->index(['payable_type', 'payable_id'], 'payments_payable_type_payable_id_index');
         });
 
-        Schema::create('webhook_events', function (Blueprint $table) {
-            $table->id();
-            $table->string('provider', 30);
-            $table->string('event_id', 100);
-            $table->string('type', 80);
-            $table->json('payload');
-            $table->timestamp('processed_at')->nullable();
-            $table->text('error')->nullable();
-            $table->timestamps();
-            $table->unique(['provider', 'event_id'], 'webhook_events_provider_event_id_unique');
-        });
-
         Schema::create('shipments', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('order_id');
@@ -819,102 +533,7 @@ return new class extends Migration
             $table->unique(['shipment_number'], 'shipments_shipment_number_unique');
         });
 
-        Schema::create('shipment_items', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('shipment_id');
-            $table->unsignedBigInteger('order_item_id');
-            $table->unsignedSmallInteger('qty');
-            $table->index(['order_item_id'], 'shipment_items_order_item_id_foreign');
-            $table->unique(['shipment_id', 'order_item_id'], 'shipment_items_shipment_id_order_item_id_unique');
-        });
-
-        Schema::create('shipment_events', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('shipment_id');
-            $table->string('status', 25);
-            $table->string('location', 160)->nullable();
-            $table->string('description', 255)->nullable();
-            $table->timestamp('occurred_at');
-            $table->json('raw')->nullable();
-            $table->timestamps();
-            $table->index(['shipment_id', 'occurred_at'], 'shipment_events_shipment_id_occurred_at_index');
-        });
-
-        Schema::create('invoices', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('order_id');
-            $table->string('invoice_number', 30);
-            $table->timestamp('issued_at');
-            $table->string('seller_tax_id', 20)->nullable();
-            $table->string('buyer_tax_id', 20)->nullable();
-            $table->decimal('total', 12, 2);
-            $table->decimal('tax_total', 12, 2);
-            $table->timestamps();
-            $table->unique(['invoice_number'], 'invoices_invoice_number_unique');
-            $table->index(['order_id'], 'invoices_order_id_foreign');
-        });
-
-        Schema::create('refunds', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('order_id');
-            $table->unsignedBigInteger('payment_id')->nullable();
-            $table->decimal('amount', 12, 2);
-            $table->string('method', 15);
-            $table->string('status', 15)->default('pending');
-            $table->string('gateway_refund_id', 80)->nullable();
-            $table->unsignedBigInteger('coupon_id')->nullable();
-            $table->string('bank_account_holder', 120)->nullable();
-            $table->text('bank_account_number')->nullable();
-            $table->string('bank_ifsc', 15)->nullable();
-            $table->string('upi_id', 80)->nullable();
-            $table->unsignedBigInteger('initiated_by')->nullable();
-            $table->timestamp('completed_at')->nullable();
-            $table->timestamps();
-            $table->index(['coupon_id'], 'refunds_coupon_id_foreign');
-            $table->index(['initiated_by'], 'refunds_initiated_by_foreign');
-            $table->index(['order_id'], 'refunds_order_id_foreign');
-            $table->index(['payment_id'], 'refunds_payment_id_foreign');
-        });
-
         // ---- Reward points
-        Schema::create('reward_wallets', function (Blueprint $table) {
-            $table->unsignedBigInteger('user_id');
-            $table->integer('available')->default(0);
-            $table->integer('pending')->default(0);
-            $table->unsignedInteger('lifetime_earned')->default(0);
-            $table->unsignedInteger('lifetime_redeemed')->default(0);
-            $table->timestamps();
-            $table->primary(['user_id']);
-        });
-
-        Schema::create('reward_transactions', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('user_id');
-            $table->string('type', 20);
-            $table->string('status', 15)->default('pending');
-            $table->integer('coins');
-            $table->unsignedInteger('remaining')->default(0);
-            $table->string('source_type', 40)->nullable();
-            $table->unsignedBigInteger('source_id')->nullable();
-            $table->timestamp('expires_at')->nullable();
-            $table->timestamp('credited_at')->nullable();
-            $table->string('note', 255)->nullable();
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->timestamps();
-            $table->index(['created_by'], 'reward_transactions_created_by_foreign');
-            $table->index(['source_type', 'source_id'], 'reward_transactions_source_type_source_id_index');
-            $table->index(['user_id', 'status', 'expires_at'], 'reward_transactions_user_id_status_expires_at_index');
-        });
-
-        Schema::create('reward_redemptions', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('redeem_transaction_id');
-            $table->unsignedBigInteger('earn_transaction_id');
-            $table->unsignedInteger('coins');
-            $table->index(['earn_transaction_id'], 'reward_redemptions_earn_transaction_id_foreign');
-            $table->index(['redeem_transaction_id'], 'reward_redemptions_redeem_transaction_id_foreign');
-        });
-
         // ---- Content (CMS)
         Schema::create('banners', function (Blueprint $table) {
             $table->id();
@@ -931,43 +550,6 @@ return new class extends Migration
             $table->index(['placement', 'is_active', 'sort_order'], 'banners_placement_is_active_sort_order_index');
         });
 
-        Schema::create('homepage_sections', function (Blueprint $table) {
-            $table->id();
-            $table->string('key', 60);
-            $table->string('type', 30);
-            $table->string('title', 160)->nullable();
-            $table->unsignedBigInteger('collection_id')->nullable();
-            $table->json('config')->nullable();
-            $table->unsignedInteger('sort_order')->default(0);
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-            $table->index(['collection_id'], 'homepage_sections_collection_id_foreign');
-            $table->unique(['key'], 'homepage_sections_key_unique');
-        });
-
-        Schema::create('cms_pages', function (Blueprint $table) {
-            $table->id();
-            $table->string('slug', 120);
-            $table->string('title', 255);
-            $table->longText('body')->nullable();
-            $table->string('meta_title', 255)->nullable();
-            $table->string('meta_description', 255)->nullable();
-            $table->boolean('is_published')->default(true);
-            $table->timestamps();
-            $table->unique(['slug'], 'cms_pages_slug_unique');
-        });
-
-        Schema::create('faqs', function (Blueprint $table) {
-            $table->id();
-            $table->string('group_key', 40);
-            $table->string('question', 255);
-            $table->text('answer');
-            $table->unsignedInteger('sort_order')->default(0);
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-            $table->index(['group_key', 'is_active', 'sort_order'], 'faqs_group_key_is_active_sort_order_index');
-        });
-
         // ---- Foreign keys
         Schema::table('model_has_permissions', function (Blueprint $table) {
             $table->foreign('permission_id', 'model_has_permissions_permission_id_foreign')->references('id')->on('permissions')->onDelete('cascade');
@@ -980,10 +562,6 @@ return new class extends Migration
         Schema::table('role_has_permissions', function (Blueprint $table) {
             $table->foreign('permission_id', 'role_has_permissions_permission_id_foreign')->references('id')->on('permissions')->onDelete('cascade');
             $table->foreign('role_id', 'role_has_permissions_role_id_foreign')->references('id')->on('roles')->onDelete('cascade');
-        });
-
-        Schema::table('user_addresses', function (Blueprint $table) {
-            $table->foreign('user_id', 'user_addresses_user_id_foreign')->references('id')->on('users')->onDelete('cascade');
         });
 
         Schema::table('sub_categories', function (Blueprint $table) {
@@ -1027,74 +605,8 @@ return new class extends Migration
             $table->foreign('variant_id', 'inventory_movements_variant_id_foreign')->references('id')->on('product_variants')->onDelete('cascade');
         });
 
-        Schema::table('collections', function (Blueprint $table) {
-            $table->foreign('tag_id', 'collections_tag_id_foreign')->references('id')->on('tags')->onDelete('set null');
-        });
-
-        Schema::table('collection_product', function (Blueprint $table) {
-            $table->foreign('collection_id', 'collection_product_collection_id_foreign')->references('id')->on('collections')->onDelete('cascade');
-            $table->foreign('product_id', 'collection_product_product_id_foreign')->references('id')->on('products')->onDelete('cascade');
-        });
-
-        Schema::table('product_reviews', function (Blueprint $table) {
-            $table->foreign('order_item_id', 'product_reviews_order_item_id_foreign')->references('id')->on('order_items')->onDelete('set null');
-            $table->foreign('product_id', 'product_reviews_product_id_foreign')->references('id')->on('products')->onDelete('cascade');
-            $table->foreign('user_id', 'product_reviews_user_id_foreign')->references('id')->on('users')->onDelete('cascade');
-        });
-
-        Schema::table('product_rating_stats', function (Blueprint $table) {
-            $table->foreign('product_id', 'product_rating_stats_product_id_foreign')->references('id')->on('products')->onDelete('cascade');
-        });
-
-        Schema::table('product_questions', function (Blueprint $table) {
-            $table->foreign('answered_by', 'product_questions_answered_by_foreign')->references('id')->on('admins')->onDelete('set null');
-            $table->foreign('product_id', 'product_questions_product_id_foreign')->references('id')->on('products')->onDelete('cascade');
-            $table->foreign('user_id', 'product_questions_user_id_foreign')->references('id')->on('users')->onDelete('set null');
-        });
-
-        Schema::table('product_feedback', function (Blueprint $table) {
-            $table->foreign('product_id', 'product_feedback_product_id_foreign')->references('id')->on('products')->onDelete('cascade');
-            $table->foreign('user_id', 'product_feedback_user_id_foreign')->references('id')->on('users')->onDelete('set null');
-        });
-
-        Schema::table('wishlists', function (Blueprint $table) {
-            $table->foreign('user_id', 'wishlists_user_id_foreign')->references('id')->on('users')->onDelete('cascade');
-        });
-
-        Schema::table('wishlist_items', function (Blueprint $table) {
-            $table->foreign('product_id', 'wishlist_items_product_id_foreign')->references('id')->on('products')->onDelete('cascade');
-            $table->foreign('variant_id', 'wishlist_items_variant_id_foreign')->references('id')->on('product_variants')->onDelete('cascade');
-            $table->foreign('wishlist_id', 'wishlist_items_wishlist_id_foreign')->references('id')->on('wishlists')->onDelete('cascade');
-        });
-
-        Schema::table('wishlist_shares', function (Blueprint $table) {
-            $table->foreign('shared_with_user_id', 'wishlist_shares_shared_with_user_id_foreign')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('wishlist_id', 'wishlist_shares_wishlist_id_foreign')->references('id')->on('wishlists')->onDelete('cascade');
-        });
-
-        Schema::table('coupon_targets', function (Blueprint $table) {
-            $table->foreign('coupon_id', 'coupon_targets_coupon_id_foreign')->references('id')->on('coupons')->onDelete('cascade');
-        });
-
-        Schema::table('coupon_usages', function (Blueprint $table) {
-            $table->foreign('coupon_id', 'coupon_usages_coupon_id_foreign')->references('id')->on('coupons')->onDelete('cascade');
-            $table->foreign('order_id', 'coupon_usages_order_id_foreign')->references('id')->on('orders')->onDelete('cascade');
-            $table->foreign('user_id', 'coupon_usages_user_id_foreign')->references('id')->on('users')->onDelete('cascade');
-        });
-
-        Schema::table('carts', function (Blueprint $table) {
-            $table->foreign('coupon_id', 'carts_coupon_id_foreign')->references('id')->on('coupons')->onDelete('set null');
-            $table->foreign('user_id', 'carts_user_id_foreign')->references('id')->on('users')->onDelete('cascade');
-        });
-
-        Schema::table('cart_items', function (Blueprint $table) {
-            $table->foreign('cart_id', 'cart_items_cart_id_foreign')->references('id')->on('carts')->onDelete('cascade');
-            $table->foreign('variant_id', 'cart_items_variant_id_foreign')->references('id')->on('product_variants')->onDelete('cascade');
-        });
-
         Schema::table('orders', function (Blueprint $table) {
-            $table->foreign('coupon_id', 'orders_coupon_id_foreign')->references('id')->on('coupons')->onDelete('set null');
-            $table->foreign('user_id', 'orders_user_id_foreign')->references('id')->on('users')->onDelete('restrict');
+            $table->foreign('customer_id', 'orders_customer_id_foreign')->references('id')->on('customers')->onDelete('restrict');
         });
 
         Schema::table('order_items', function (Blueprint $table) {
@@ -1115,43 +627,6 @@ return new class extends Migration
             $table->foreign('order_id', 'shipments_order_id_foreign')->references('id')->on('orders')->onDelete('cascade');
         });
 
-        Schema::table('shipment_items', function (Blueprint $table) {
-            $table->foreign('order_item_id', 'shipment_items_order_item_id_foreign')->references('id')->on('order_items')->onDelete('cascade');
-            $table->foreign('shipment_id', 'shipment_items_shipment_id_foreign')->references('id')->on('shipments')->onDelete('cascade');
-        });
-
-        Schema::table('shipment_events', function (Blueprint $table) {
-            $table->foreign('shipment_id', 'shipment_events_shipment_id_foreign')->references('id')->on('shipments')->onDelete('cascade');
-        });
-
-        Schema::table('invoices', function (Blueprint $table) {
-            $table->foreign('order_id', 'invoices_order_id_foreign')->references('id')->on('orders')->onDelete('cascade');
-        });
-
-        Schema::table('refunds', function (Blueprint $table) {
-            $table->foreign('coupon_id', 'refunds_coupon_id_foreign')->references('id')->on('coupons')->onDelete('set null');
-            $table->foreign('initiated_by', 'refunds_initiated_by_foreign')->references('id')->on('admins')->onDelete('set null');
-            $table->foreign('order_id', 'refunds_order_id_foreign')->references('id')->on('orders')->onDelete('cascade');
-            $table->foreign('payment_id', 'refunds_payment_id_foreign')->references('id')->on('payments')->onDelete('set null');
-        });
-
-        Schema::table('reward_wallets', function (Blueprint $table) {
-            $table->foreign('user_id', 'reward_wallets_user_id_foreign')->references('id')->on('users')->onDelete('cascade');
-        });
-
-        Schema::table('reward_transactions', function (Blueprint $table) {
-            $table->foreign('created_by', 'reward_transactions_created_by_foreign')->references('id')->on('admins')->onDelete('set null');
-            $table->foreign('user_id', 'reward_transactions_user_id_foreign')->references('id')->on('users')->onDelete('cascade');
-        });
-
-        Schema::table('reward_redemptions', function (Blueprint $table) {
-            $table->foreign('earn_transaction_id', 'reward_redemptions_earn_transaction_id_foreign')->references('id')->on('reward_transactions')->onDelete('cascade');
-            $table->foreign('redeem_transaction_id', 'reward_redemptions_redeem_transaction_id_foreign')->references('id')->on('reward_transactions')->onDelete('cascade');
-        });
-
-        Schema::table('homepage_sections', function (Blueprint $table) {
-            $table->foreign('collection_id', 'homepage_sections_collection_id_foreign')->references('id')->on('collections')->onDelete('set null');
-        });
     }
 
     public function down(): void
@@ -1159,38 +634,13 @@ return new class extends Migration
         Schema::disableForeignKeyConstraints();
 
         foreach ([
-            'faqs',
-            'cms_pages',
-            'homepage_sections',
             'banners',
-            'reward_redemptions',
-            'reward_transactions',
-            'reward_wallets',
-            'refunds',
-            'invoices',
-            'shipment_events',
-            'shipment_items',
-            'shipments',
-            'webhook_events',
             'payments',
+            'shipments',
             'order_status_history',
             'order_addresses',
             'order_items',
             'orders',
-            'cart_items',
-            'carts',
-            'coupon_usages',
-            'coupon_targets',
-            'coupons',
-            'wishlist_shares',
-            'wishlist_items',
-            'wishlists',
-            'product_feedback',
-            'product_questions',
-            'product_rating_stats',
-            'product_reviews',
-            'collection_product',
-            'collections',
             'inventory_movements',
             'product_relations',
             'product_content_tabs',
@@ -1202,9 +652,7 @@ return new class extends Migration
             'tags',
             'sub_categories',
             'categories',
-            'pincodes',
-            'user_addresses',
-            'notifications',
+            'customers',
             'settings',
             'audit_logs',
             'media',
@@ -1221,8 +669,6 @@ return new class extends Migration
             'cache_locks',
             'cache',
             'sessions',
-            'password_reset_tokens',
-            'users',
         ] as $table) {
             Schema::dropIfExists($table);
         }

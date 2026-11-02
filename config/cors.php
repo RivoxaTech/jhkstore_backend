@@ -13,12 +13,12 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => ['X-Cart-Token', 'Idempotency-Replayed'],
+    'exposed_headers' => ['Idempotency-Replayed'],
 
     'max_age' => 0,
 
     // The admin panel logs in with a session cookie. Origins above are explicit (no "*"), as credentials require.
-    // Customer site calls use bearer tokens and are not affected.
+    // The storefront calls are public (no login), so credentials are not needed for them.
     'supports_credentials' => true,
 
 ];

@@ -4,13 +4,11 @@ namespace App\Domain\Order\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/** Snapshot of the shipping or billing address of an order (`type`). `address_type` = home | work | other. */
+/** Snapshot of the shipping or billing address of an order (`type`), copied from the checkout request. */
 class OrderAddress extends Model
 {
-    protected $guarded = ['id'];
+    /** The address fields of the checkout request that are stored. */
+    public const FIELDS = ['name', 'phone', 'line1', 'area', 'landmark', 'city', 'state', 'postcode', 'country'];
 
-    protected function casts(): array
-    {
-        return ['latitude' => 'float', 'longitude' => 'float'];
-    }
+    protected $guarded = ['id'];
 }

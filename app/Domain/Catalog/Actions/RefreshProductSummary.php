@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * Keeps the denormalized columns of `products` in sync, so listing pages never aggregate:
  * min_price, max_discount_percent (from the active variants) and is_in_stock (any active variant with a sellable unit).
- * Call it after every change of variants or stock. (rating_avg / rating_count are kept by RecomputeProductRating.)
+ * Call it after every change of variants or stock.
  */
 class RefreshProductSummary
 {

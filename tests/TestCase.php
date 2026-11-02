@@ -21,15 +21,15 @@ abstract class TestCase extends BaseTestCase
         $this->seed(SettingsSeeder::class);
 
         app(Settings::class)->set([
-            'currency_code' => 'PKR', 'currency_symbol' => 'Rs', 'order_number_prefix' => 'DK',
+            'currency_code' => 'USD', 'currency_symbol' => '$', 'order_number_prefix' => 'ORD',
             'delivery_fee' => 300, 'free_delivery_min_cart' => 8500, 'delivery_days' => 5, 'cod_max_amount' => 150000,
-            'rewards_enabled' => true, 'tax_rate' => 18, 'tax_inclusive' => true, 'store_country' => 'Pakistan',
+            'tax_rate' => 18, 'tax_inclusive' => true, 'tax_label' => 'VAT', 'store_country' => 'Testland',
         ]);
         app(Settings::class)->all();   // warm the per-request copy so query-count tests do not see the one-off load
     }
 
-    /** An admin with the given role (the roles and permissions are written first). */
-    protected function makeAdmin(string $role = AdminAccess::SUPER_ADMIN, string $username = 'tester'): Admin
+    /** An admin account with the given role (the roles and permissions are written first). */
+    protected function makeAdmin(string $role = AdminAccess::ADMIN, string $username = 'tester'): Admin
     {
         AdminAccess::sync();
         $admin = Admin::query()->where('username', $username)->first()
@@ -39,12 +39,20 @@ abstract class TestCase extends BaseTestCase
         return $admin;
     }
 
-    /** Makes an admin (a super admin unless another role is given) the caller of the following requests. */
-    protected function actingAsAdmin(string $role = AdminAccess::SUPER_ADMIN): Admin
+    /**
+     * Makes an admin the caller of the following requests. The default is the `admin` role with EVERY switchable permission on
+     * (what a developer would get by switching everything on); pass `$everything = false` for the real defaults of the role.
+     * The `developer` role always has its own fixed access, whatever `$everything` says.
+     */
+    protected function actingAsAdmin(string $role = AdminAccess::ADMIN, bool $everything = true): Admin
     {
         $this->app['auth']->forgetGuards();
         $admin = $this->makeAdmin($role);
-        $admin->getAllPermissions();   // load the roles and permissions now, so query-count tests do not see the one-off load
+        if ($role === AdminAccess::ADMIN && $everything) {
+            AdminAccess::setRolePermissions(AdminAccess::ADMIN, AdminAccess::togglable(AdminAccess::ADMIN));
+        }
+        $admin->unsetRelation('roles')->unsetRelation('permissions');
+        AdminAccess::effective($admin);   // load the roles and permissions now, so query-count tests do not see the one-off load
         app(PermissionRegistrar::class)->getPermissions();
         Sanctum::actingAs($admin, ['*']);
 

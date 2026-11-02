@@ -2,14 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Domain\Auth\Models\User;
 use App\Domain\Catalog\Models\Product;
-use App\Domain\Review\Models\ProductRatingStat;
-use App\Domain\Review\Models\ProductReview;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\BuildsCatalog;
 use Tests\TestCase;
 
@@ -26,11 +22,6 @@ class ProductStoreTest extends TestCase
         $this->seedCatalog();
     }
 
-    private function customer(string $email = 'buyer@example.test', string $name = 'Asha Verma'): User
-    {
-        return User::create(['full_name' => $name, 'email' => $email, 'mobile' => '98'.random_int(10000000, 99999999), 'password' => 'secret', 'is_active' => true]);
-    }
-
     /** slugs of the products a list call returns, in order */
     private function slugs(string $query = ''): array
     {
@@ -41,25 +32,24 @@ class ProductStoreTest extends TestCase
 
     public function test_the_card_has_the_agreed_shape_with_absolute_urls_or_null(): void
     {
-        $category = $this->makeCategory('Restorative');
+        $category = $this->makeCategory('Gadgets');
         $product = $this->makeProduct($category, [
-            'name' => 'Prime Kit', 'short_description' => 'A kit', 'badge_text' => 'MADE IN USA', 'mrp' => 4500, 'selling_price' => 2495, 'reward_points' => 25,
+            'name' => 'Prime Pack', 'short_description' => 'A kit', 'badge_text' => 'MADE IN USA', 'mrp' => 4500, 'selling_price' => 2495,
         ], ['hot-selling', 'best-seller']);
 
         $res = $this->getJson(self::STORE.'/products')->assertOk();
         $card = $res->json('data.0');
 
         $this->assertSame(['id', 'name', 'slug', 'short_description', 'image_url', 'thumb_url', 'category', 'options_count', 'has_single_option', 'offers_count', 'show_starting_at', 'badge_label', 'price', 'mrp', 'discount_percent',
-            'reward_points', 'rating_avg', 'rating_count', 'badge_text', 'tags', 'in_stock'], array_keys($card));
-        $this->assertSame('Prime Kit', $card['name']);
-        $this->assertSame('prime-kit', $card['slug']);
+            'badge_text', 'tags', 'in_stock'], array_keys($card));
+        $this->assertSame('Prime Pack', $card['name']);
+        $this->assertSame('prime-pack', $card['slug']);
         $this->assertEquals(2495, $card['price']);
         $this->assertEquals(4500, $card['mrp']);
         $this->assertEquals(44.56, $card['discount_percent']);
-        $this->assertSame(25, $card['reward_points']);
         $this->assertSame('MADE IN USA', $card['badge_text']);
         $this->assertEqualsCanonicalizing(['hot-selling', 'best-seller'], $card['tags']);
-        $this->assertSame(['name' => 'Restorative', 'slug' => 'restorative'], $card['category']);
+        $this->assertSame(['name' => 'Gadgets', 'slug' => 'gadgets'], $card['category']);
         $this->assertTrue($card['in_stock']);
         // no picture yet: null everywhere (the frontend shows its placeholder)
         $this->assertNull($card['image_url']);
@@ -126,52 +116,48 @@ class ProductStoreTest extends TestCase
 
     public function test_category_and_sub_category_filters(): void
     {
-        $restorative = $this->makeCategory('Restorative');
-        $composites = $this->makeSub($restorative, 'Composites');
-        $nano = $this->makeSub($restorative, 'Nano Composites');
-        $endo = $this->makeCategory('Endo');
-        $files = $this->makeSub($endo, 'Files');
-        $filesDuplicate = $this->makeSub($restorative, 'Files');                          // same slug in another category
+        $gadgets = $this->makeCategory('Gadgets');
+        $chargers = $this->makeSub($gadgets, 'Chargers');
+        $nano = $this->makeSub($gadgets, 'Fast Chargers');
+        $endo = $this->makeCategory('Audio');
+        $files = $this->makeSub($endo, 'Cables');
+        $filesDuplicate = $this->makeSub($gadgets, 'Cables');                          // same slug in another category
 
-        $this->makeProduct($restorative, ['name' => 'P1', 'sub_category_id' => $composites->id]);
-        $this->makeProduct($restorative, ['name' => 'P2', 'sub_category_id' => $nano->id]);
+        $this->makeProduct($gadgets, ['name' => 'P1', 'sub_category_id' => $chargers->id]);
+        $this->makeProduct($gadgets, ['name' => 'P2', 'sub_category_id' => $nano->id]);
         $this->makeProduct($endo, ['name' => 'P3', 'sub_category_id' => $files->id]);
-        $this->makeProduct($restorative, ['name' => 'P4', 'sub_category_id' => $filesDuplicate->id]);
+        $this->makeProduct($gadgets, ['name' => 'P4', 'sub_category_id' => $filesDuplicate->id]);
 
-        $this->assertEqualsCanonicalizing(['p1', 'p2', 'p4'], $this->slugs('category=restorative'));
-        $this->assertSame(['p3'], $this->slugs('category=endo'));
-        $this->assertSame(['p1'], $this->slugs('sub_category=composites'));
-        $this->assertSame(['p2'], $this->slugs('sub_category=nano-composites'));
-        $this->assertSame(['p3'], $this->slugs('category=endo&sub_category='.$files->slug));            // narrowed by the category
-        $this->assertSame(['p4'], $this->slugs('category=restorative&sub_category='.$filesDuplicate->slug));
+        $this->assertEqualsCanonicalizing(['p1', 'p2', 'p4'], $this->slugs('category=gadgets'));
+        $this->assertSame(['p3'], $this->slugs('category=audio'));
+        $this->assertSame(['p1'], $this->slugs('sub_category=chargers'));
+        $this->assertSame(['p2'], $this->slugs('sub_category=fast-chargers'));
+        $this->assertSame(['p3'], $this->slugs('category=audio&sub_category='.$files->slug));            // narrowed by the category
+        $this->assertSame(['p4'], $this->slugs('category=gadgets&sub_category='.$filesDuplicate->slug));
         $this->assertSame([], $this->slugs('category=nothing'));
     }
 
-    public function test_search_price_stock_and_rating_filters(): void
+    public function test_search_price_and_stock_filters(): void
     {
         $category = $this->makeCategory();
-        $this->makeProduct($category, ['name' => 'Alpha Composite', 'short_description' => 'light cured', 'selling_price' => 100, 'mrp' => 100]);
-        $this->makeProduct($category, ['name' => 'Beta File', 'selling_price' => 500, 'mrp' => 500, 'sku' => 'BETA-9',
+        $this->makeProduct($category, ['name' => 'Alpha Cable', 'short_description' => 'braided', 'selling_price' => 100, 'mrp' => 100]);
+        $this->makeProduct($category, ['name' => 'Beta Adapter', 'selling_price' => 500, 'mrp' => 500, 'sku' => 'BETA-9',
             'stock' => 0]);
-        $this->makeProduct($category, ['name' => 'Gamma Cement', 'selling_price' => 900, 'mrp' => 900]);
-        Product::where('name', 'Alpha Composite')->update(['rating_avg' => 4.5, 'rating_count' => 10]);
-        Product::where('name', 'Gamma Cement')->update(['rating_avg' => 3.0, 'rating_count' => 2]);
+        $this->makeProduct($category, ['name' => 'Gamma Dock', 'selling_price' => 900, 'mrp' => 900]);
 
-        $this->assertSame(['beta-file'], $this->slugs('q=BETA-9'));                      // exact SKU
+        $this->assertSame(['beta-adapter'], $this->slugs('q=BETA-9'));                      // exact SKU
         $this->assertSame([], $this->slugs('q=zzz'));
 
-        $this->assertEqualsCanonicalizing(['beta-file', 'gamma-cement'], $this->slugs('min_price=200'));
-        $this->assertEqualsCanonicalizing(['alpha-composite', 'beta-file'], $this->slugs('max_price=500'));
-        $this->assertSame(['beta-file'], $this->slugs('min_price=200&max_price=500'));
+        $this->assertEqualsCanonicalizing(['beta-adapter', 'gamma-dock'], $this->slugs('min_price=200'));
+        $this->assertEqualsCanonicalizing(['alpha-cable', 'beta-adapter'], $this->slugs('max_price=500'));
+        $this->assertSame(['beta-adapter'], $this->slugs('min_price=200&max_price=500'));
 
-        $this->assertEqualsCanonicalizing(['alpha-composite', 'gamma-cement'], $this->slugs('in_stock=1'));   // beta has no standard stock
+        $this->assertEqualsCanonicalizing(['alpha-cable', 'gamma-dock'], $this->slugs('in_stock=1'));   // beta has no standard stock
         $this->assertCount(3, $this->slugs());                                                                  // out of stock products still list
-        $this->assertSame(['alpha-composite'], $this->slugs('rating=4'));
-        $this->assertEqualsCanonicalizing(['alpha-composite', 'gamma-cement'], $this->slugs('rating=3'));
+        $this->getJson(self::STORE.'/products?rating=4')->assertOk();   // the rating filter is gone: an unknown filter is ignored
 
         $this->getJson(self::STORE.'/products?sort=nonsense')->assertUnprocessable();
         $this->getJson(self::STORE.'/products?per_page=500')->assertUnprocessable();
-        $this->getJson(self::STORE.'/products?rating=9')->assertUnprocessable();
     }
 
     public function test_sorting(): void
@@ -180,9 +166,9 @@ class ProductStoreTest extends TestCase
         $a = $this->makeProduct($category, ['name' => 'A', 'mrp' => 1000, 'selling_price' => 900]);   // 10% off
         $b = $this->makeProduct($category, ['name' => 'B', 'mrp' => 400, 'selling_price' => 100]);    // 75% off
         $c = $this->makeProduct($category, ['name' => 'C', 'mrp' => 600, 'selling_price' => 500]);    // 16.67% off
-        $a->forceFill(['popularity_score' => 50, 'rating_avg' => 3.5, 'rating_count' => 4, 'published_at' => now()->subDays(1)])->save();
-        $b->forceFill(['popularity_score' => 10, 'rating_avg' => 4.9, 'rating_count' => 8, 'published_at' => now()->subDays(3)])->save();
-        $c->forceFill(['popularity_score' => 30, 'rating_avg' => 4.0, 'rating_count' => 2, 'published_at' => now()->subDays(2)])->save();
+        $a->forceFill(['popularity_score' => 50, 'published_at' => now()->subDays(1)])->save();
+        $b->forceFill(['popularity_score' => 10, 'published_at' => now()->subDays(3)])->save();
+        $c->forceFill(['popularity_score' => 30, 'published_at' => now()->subDays(2)])->save();
 
         $this->assertSame(['a', 'c', 'b'], $this->slugs('sort=popularity'));
         $this->assertSame(['a', 'c', 'b'], $this->slugs());                    // popularity is the default
@@ -190,7 +176,7 @@ class ProductStoreTest extends TestCase
         $this->assertSame(['b', 'c', 'a'], $this->slugs('sort=price_asc'));
         $this->assertSame(['a', 'c', 'b'], $this->slugs('sort=price_desc'));
         $this->assertSame(['b', 'c', 'a'], $this->slugs('sort=discount'));
-        $this->assertSame(['b', 'c', 'a'], $this->slugs('sort=rating'));
+        $this->getJson(self::STORE.'/products?sort=rating')->assertUnprocessable();   // sorting by rating is gone
     }
 
     public function test_the_list_is_paginated(): void
@@ -284,43 +270,39 @@ class ProductStoreTest extends TestCase
 
     public function test_product_detail(): void
     {
-        $category = $this->makeCategory('Restorative');
-        $sub = $this->makeSub($category, 'Composites');
+        $category = $this->makeCategory('Gadgets');
+        $sub = $this->makeSub($category, 'Chargers');
         $product = $this->makeProduct($category, [
-            'name' => 'Gloves', 'sku' => 'GLV', 'sub_category_id' => $sub->id, 'description' => 'Long text', 'country_of_origin' => 'Japan',
-            'is_returnable' => false, 'max_order_qty' => 5,
+            'name' => 'Mittens', 'sku' => 'GLV', 'sub_category_id' => $sub->id, 'description' => 'Long text',
+            'max_order_qty' => 5,
             'variants' => [
-                ['name' => 'Small', 'sku' => 'GLV-S', 'mrp' => 500, 'selling_price' => 400, 'reward_points' => 4, 'expiry_date' => '2030-01-31', 'stock' => 10],
-                ['name' => 'Large', 'sku' => 'GLV-L', 'mrp' => 600, 'selling_price' => 300, 'reward_points' => 6, 'stock' => 0],
+                ['name' => 'Small', 'sku' => 'GLV-S', 'mrp' => 500, 'selling_price' => 400, 'stock' => 10],
+                ['name' => 'Large', 'sku' => 'GLV-L', 'mrp' => 600, 'selling_price' => 300, 'stock' => 0],
             ],
-            'content_tabs' => [['tab_key' => 'warranty', 'content' => '1 year'], ['tab_key' => 'features', 'format' => 'bullets', 'content' => "Soft\nStrong"]],
+            'content_tabs' => [['tab_key' => 'specifications', 'content' => '1 year'], ['tab_key' => 'features', 'format' => 'bullets', 'content' => "Soft\nStrong"]],
         ], ['featured']);
         $related = $this->makeProduct($category, ['name' => 'Related One']);
 
         $res = $this->getJson(self::STORE.'/products/'.$product->slug)->assertOk();
         $d = $res->json('data');
 
-        $this->assertSame('Gloves', $d['name']);
+        $this->assertSame('Mittens', $d['name']);
         $this->assertSame('Long text', $d['description']);
-        $this->assertSame('Japan', $d['country_of_origin']);
-        $this->assertFalse($d['is_returnable']);
         $this->assertSame(5, $d['max_order_qty']);
-        $this->assertSame(['name' => 'Composites', 'slug' => 'composites'], $d['sub_category']);
+        $this->assertSame(['name' => 'Chargers', 'slug' => 'chargers'], $d['sub_category']);
         $this->assertEquals(300, $d['price']);                                  // the card shows the cheapest variant
         $this->assertEquals(600, $d['mrp']);
-        $this->assertSame(6, $d['reward_points']);
         $this->assertTrue($d['in_stock']);
-        $this->assertSame(['features', 'warranty'], array_column($d['content_tabs'], 'key'));   // in the tab order
+        $this->assertSame(['features', 'specifications'], array_column($d['content_tabs'], 'key'));   // in the tab order
         $this->assertSame('Features', $d['content_tabs'][0]['title']);
         $this->assertSame('bullets', $d['content_tabs'][0]['format']);
 
         $this->assertCount(2, $d['variants']);
-        $this->assertSame(['id', 'name', 'sku', 'is_default', 'mrp', 'price', 'discount_percent', 'reward_points', 'expiry_date', 'is_cod_available',
+        $this->assertSame(['id', 'name', 'sku', 'is_default', 'mrp', 'price', 'discount_percent', 'is_cod_available',
             'in_stock', 'qty', 'low_stock', 'price_tiers', 'image_url', 'thumb_url', 'images'], array_keys($d['variants'][0]));
         $this->assertSame('Small', $d['variants'][0]['name']);
         $this->assertEquals(400, $d['variants'][0]['price']);
         $this->assertEquals(20, $d['variants'][0]['discount_percent']);
-        $this->assertSame('2030-01-31', $d['variants'][0]['expiry_date']);
         $this->assertTrue($d['variants'][0]['in_stock']);
         $this->assertSame(10, $d['variants'][0]['qty']);
         $this->assertFalse($d['variants'][1]['in_stock']);
@@ -376,143 +358,17 @@ class ProductStoreTest extends TestCase
         $this->assertSame('best-seller', $res->json('data.0.slug'));
     }
 
-    // ------------------------------------------------------------------ reviews
+    // ------------------------------------------------------------------ product page
 
-    public function test_reviews_list_starts_empty_with_a_zero_summary(): void
-    {
-        $product = $this->makeProduct($this->makeCategory());
-
-        $this->getJson(self::STORE.'/products/'.$product->slug.'/reviews')->assertOk()
-            ->assertJsonCount(0, 'data')
-            ->assertJsonPath('summary.avg', 0)->assertJsonPath('summary.count', 0)
-            ->assertJsonPath('summary.distribution', ['1' => 0, '2' => 0, '3' => 0, '4' => 0, '5' => 0]);
-        $this->getJson(self::STORE.'/products/nope/reviews')->assertNotFound();
-    }
-
-    public function test_posting_a_review_needs_a_customer_login(): void
-    {
-        $product = $this->makeProduct($this->makeCategory());
-        $url = self::STORE.'/products/'.$product->slug.'/reviews';
-
-        $this->postJson($url, ['rating' => 5])->assertUnauthorized();
-
-        $this->actingAsAdmin();                                  // an admin token is not a customer
-        $this->postJson($url, ['rating' => 5])->assertUnauthorized();
-        $this->assertSame(0, ProductReview::count());
-    }
-
-    public function test_posting_a_review_validates_the_input(): void
-    {
-        $product = $this->makeProduct($this->makeCategory());
-        $url = self::STORE.'/products/'.$product->slug.'/reviews';
-        Sanctum::actingAs($this->customer());
-
-        $this->postJson($url, [])->assertUnprocessable()->assertJsonValidationErrors('rating');
-        $this->postJson($url, ['rating' => 0])->assertUnprocessable()->assertJsonValidationErrors('rating');
-        $this->postJson($url, ['rating' => 6])->assertUnprocessable()->assertJsonValidationErrors('rating');
-        $this->postJson($url, ['rating' => 3.5])->assertUnprocessable()->assertJsonValidationErrors('rating');
-        $this->postJson($url, ['rating' => 5, 'title' => str_repeat('a', 161)])->assertUnprocessable()->assertJsonValidationErrors('title');
-        $this->postJson($url, ['rating' => 5, 'body' => str_repeat('a', 2001)])->assertUnprocessable()->assertJsonValidationErrors('body');
-        $this->assertSame(0, ProductReview::count());
-    }
-
-    public function test_one_review_per_customer_and_the_rating_numbers_are_recomputed(): void
-    {
-        $product = $this->makeProduct($this->makeCategory());
-        $url = self::STORE.'/products/'.$product->slug.'/reviews';
-
-        $asha = $this->customer('asha@example.test', 'Asha Verma');
-        $ravi = $this->customer('ravi@example.test', 'Ravi');
-        $meena = $this->customer('meena@example.test', 'Meena K Sharma');
-
-        // first review: 201
-        Sanctum::actingAs($asha);
-        $this->postJson($url, ['rating' => 5, 'title' => 'Great', 'body' => 'Works well'])->assertCreated()
-            ->assertJsonPath('data.rating', 5)->assertJsonPath('data.title', 'Great')->assertJsonPath('data.author', 'Asha V.')->assertJsonPath('data.is_verified_purchase', false)
-            ->assertJsonPath('summary.count', 1)->assertJsonPath('summary.avg', 5);
-
-        // posting again updates the same review: 200, still one row
-        $this->postJson($url, ['rating' => 3, 'body' => 'Changed my mind'])->assertOk()
-            ->assertJsonPath('data.rating', 3)->assertJsonPath('data.title', null)->assertJsonPath('summary.count', 1)->assertJsonPath('summary.avg', 3);
-        $this->assertSame(1, ProductReview::count());
-
-        Sanctum::actingAs($ravi);
-        $this->postJson($url, ['rating' => 4])->assertCreated()->assertJsonPath('data.author', 'Ravi');
-        Sanctum::actingAs($meena);
-        $this->postJson($url, ['rating' => 4])->assertCreated()->assertJsonPath('data.author', 'Meena S.');
-
-        // numbers: ratings 3, 4, 4 -> avg 3.67, count 3, distribution 0/0/1/2/0
-        $stats = ProductRatingStat::find($product->id);
-        $this->assertSame(3, $stats->count);
-        $this->assertEquals(3.67, $stats->avg);
-        $this->assertSame([0, 0, 1, 2, 0], [$stats->c1, $stats->c2, $stats->c3, $stats->c4, $stats->c5]);
-        $fresh = $product->fresh();
-        $this->assertSame(3, $fresh->rating_count);
-        $this->assertEquals(3.7, $fresh->rating_avg);
-
-        // the public list shows them newest first, with the summary; the card and detail carry the same numbers
-        $list = $this->getJson($url)->assertOk();
-        $list->assertJsonCount(3, 'data')
-            ->assertJsonPath('summary.avg', 3.67)->assertJsonPath('summary.count', 3)
-            ->assertJsonPath('summary.distribution', ['1' => 0, '2' => 0, '3' => 1, '4' => 2, '5' => 0])
-            ->assertJsonPath('data.0.author', 'Meena S.');
-        $this->assertSame(['id', 'rating', 'title', 'body', 'author', 'is_verified_purchase', 'created_at'], array_keys($list->json('data.0')));
-        $this->getJson(self::STORE.'/products/'.$product->slug)->assertJsonPath('data.rating_count', 3)->assertJsonPath('data.rating_avg', 3.7);
-        $this->assertCount(1, $this->slugs('rating=3'));
-        $this->assertSame([], $this->slugs('rating=4'));
-    }
-
-    public function test_changing_a_review_moves_the_distribution_and_a_hidden_review_is_not_counted(): void
-    {
-        $product = $this->makeProduct($this->makeCategory());
-        $url = self::STORE.'/products/'.$product->slug.'/reviews';
-        Sanctum::actingAs($asha = $this->customer('a@example.test'));
-        $this->postJson($url, ['rating' => 1])->assertCreated();
-        Sanctum::actingAs($this->customer('b@example.test'));
-        $this->postJson($url, ['rating' => 5])->assertCreated()->assertJsonPath('summary.avg', 3);
-
-        Sanctum::actingAs($asha);
-        $this->postJson($url, ['rating' => 5])->assertOk()
-            ->assertJsonPath('summary.distribution', ['1' => 0, '2' => 0, '3' => 0, '4' => 0, '5' => 2])->assertJsonPath('summary.avg', 5);
-
-        ProductReview::where('user_id', $asha->id)->update(['status' => 'hidden']);
-        app(\App\Domain\Review\Actions\RecomputeProductRating::class)->handle($product->id);
-        $this->getJson($url)->assertJsonCount(1, 'data')->assertJsonPath('summary.count', 1);
-        $this->assertSame(1, $product->fresh()->rating_count);
-    }
-
-    public function test_a_deleted_review_can_be_posted_again(): void
-    {
-        $product = $this->makeProduct($this->makeCategory());
-        $url = self::STORE.'/products/'.$product->slug.'/reviews';
-        Sanctum::actingAs($this->customer());
-        $this->postJson($url, ['rating' => 2])->assertCreated();
-        ProductReview::first()->delete();
-
-        $this->postJson($url, ['rating' => 4])->assertCreated()->assertJsonPath('summary.count', 1)->assertJsonPath('summary.avg', 4);
-        $this->assertSame(1, ProductReview::withTrashed()->count());
-    }
-
-    public function test_reviews_of_a_hidden_product_are_not_available(): void
-    {
-        $product = $this->makeProduct($this->makeCategory(), ['status' => 'draft']);
-        Sanctum::actingAs($this->customer());
-
-        $this->getJson(self::STORE.'/products/'.$product->slug.'/reviews')->assertNotFound();
-        $this->postJson(self::STORE.'/products/'.$product->slug.'/reviews', ['rating' => 5])->assertNotFound();
-    }
-
-    // ------------------------------------------------------------------ dentalkart-style product page
-
-    public function test_the_product_page_has_option_pictures_quantity_prices_delivery_and_return_days(): void
+    public function test_the_product_page_has_option_pictures_quantity_prices_and_delivery(): void
     {
         $category = $this->makeCategory();
         $product = $this->makeProduct($category, [
-            'name' => 'Maarc Pure Eugenol', 'return_days' => 10, 'meta_title' => 'Eugenol', 'meta_description' => 'Pure eugenol',
+            'name' => 'Travel Bottle', 'meta_title' => 'Bottle', 'meta_description' => 'Pure bottle',
             'variants' => [
-                ['name' => 'Maarc Pure Eugenol (15ml) (3002/015)', 'sku' => '3002-015', 'mrp' => 190, 'selling_price' => 160, 'reward_points' => 3,
+                ['name' => 'Travel Bottle (15ml) (15)', 'sku' => '3002-015', 'mrp' => 190, 'selling_price' => 160,
                     'price_tiers' => [['min_qty' => 2, 'price' => 155], ['min_qty' => 5, 'price' => 152]], 'stock' => 3],
-                ['name' => 'Maarc Pure Eugenol (30ml) (3002/030)', 'sku' => '3002-030', 'mrp' => 330, 'selling_price' => 210, 'stock' => 40],
+                ['name' => 'Travel Bottle (30ml) (30)', 'sku' => '3002-030', 'mrp' => 330, 'selling_price' => 210, 'stock' => 40],
             ],
         ]);
         [$small, $large] = $product->variants()->get()->all();
@@ -524,7 +380,7 @@ class ProductStoreTest extends TestCase
         $d = $this->getJson(self::STORE.'/products/'.$product->slug)->assertOk()->json('data');
 
         // different names per option
-        $this->assertSame(['Maarc Pure Eugenol (15ml) (3002/015)', 'Maarc Pure Eugenol (30ml) (3002/030)'], array_column($d['variants'], 'name'));
+        $this->assertSame(['Travel Bottle (15ml) (15)', 'Travel Bottle (30ml) (30)'], array_column($d['variants'], 'name'));
         // quantity prices with the extra discount
         $this->assertEquals([['min_qty' => 2, 'price' => 155, 'extra_discount_percent' => 3.13], ['min_qty' => 5, 'price' => 152, 'extra_discount_percent' => 5]],
             array_map(fn ($t) => ['min_qty' => $t['min_qty'], 'price' => (int) $t['price'], 'extra_discount_percent' => (float) $t['extra_discount_percent']], $d['variants'][0]['price_tiers']));
@@ -540,15 +396,13 @@ class ProductStoreTest extends TestCase
         $this->assertArrayNotHasKey('variant_id', $d['images'][0]);
         // card picture = the product's own primary picture
         $this->assertSame($d['images'][0]['medium_url'], $this->getJson(self::STORE.'/products')->json('data.0.image_url'));
-        // low stock, cod override, delivery, return period, meta
+        // low stock, cod override, delivery, meta
         $this->assertTrue($d['variants'][0]['low_stock']);                // 3 left, threshold 5
         $this->assertFalse($d['variants'][1]['low_stock']);
         $this->assertFalse($d['variants'][0]['is_cod_available']);        // the option overrides the product
         $this->assertTrue($d['variants'][1]['is_cod_available']);
-        $this->assertSame(10, $d['return_days']);
         $this->assertSame(['days' => 5, 'arrives_by' => now()->addDays(5)->toDateString()], $d['delivery']);
-        $this->assertSame('Eugenol', $d['meta_title']);
-        $this->assertEquals(3, $d['variants'][0]['reward_points']);
+        $this->assertSame('Bottle', $d['meta_title']);
 
         // the delivery time is a setting
         app(\App\Domain\Support\Settings::class)->set(['delivery_days' => 2]);
@@ -581,8 +435,8 @@ class ProductStoreTest extends TestCase
     public function test_a_single_option_product_shows_its_offers_or_one_option_and_a_direct_price(): void
     {
         $category = $this->makeCategory();
-        $offers = $this->makeProduct($category, ['name' => 'Scan Body', 'variants' => [
-            ['name' => 'Scan Body NC Compatible', 'sku' => 'SB', 'mrp' => 1490, 'selling_price' => 840,
+        $offers = $this->makeProduct($category, ['name' => 'Phone Case', 'variants' => [
+            ['name' => 'Phone Case NC Compatible', 'sku' => 'SB', 'mrp' => 1490, 'selling_price' => 840,
                 'price_tiers' => [['min_qty' => 2, 'price' => 820], ['min_qty' => 5, 'price' => 800], ['min_qty' => 10, 'price' => 760]], 'stock' => 3],
         ]]);
         $this->makeProduct($category, ['name' => 'Plain Gun']);
@@ -594,12 +448,12 @@ class ProductStoreTest extends TestCase
         $cards = collect($this->getJson(self::STORE.'/products')->json('data'))->keyBy('slug');
 
         // one option with bulk prices: its name, a direct price and "3 Offers"
-        $c = $cards['scan-body'];
+        $c = $cards['phone-case'];
         $this->assertTrue($c['has_single_option']);
         $this->assertFalse($c['show_starting_at']);
         $this->assertSame(3, $c['offers_count']);
         $this->assertSame('3 Offers', $c['badge_label']);
-        $this->assertSame('Scan Body NC Compatible', $c['name']);
+        $this->assertSame('Phone Case NC Compatible', $c['name']);
         $this->assertEquals(840, $c['price']);
 
         // one option without offers: "1 Option"
@@ -617,8 +471,8 @@ class ProductStoreTest extends TestCase
         // the detail page: a single option leads with the option; several options keep the parent
         $d = $this->getJson(self::STORE.'/products/'.$offers->slug)->assertOk()->json('data');
         $this->assertSame('single_option', $d['display_mode']);
-        $this->assertSame('Scan Body NC Compatible', $d['name']);
-        $this->assertSame('Scan Body', $d['product_name']);
+        $this->assertSame('Phone Case NC Compatible', $d['name']);
+        $this->assertSame('Phone Case', $d['product_name']);
         $this->assertSame('SB', $d['sku']);
         $this->assertSame('multiple_options', $this->getJson(self::STORE.'/products/glock')->json('data.display_mode'));
         $this->assertSame('Glock', $this->getJson(self::STORE.'/products/glock')->json('data.name'));
@@ -654,13 +508,6 @@ class ProductStoreTest extends TestCase
         $this->getJson(self::STORE.'/products/'.$product->slug)->assertNotFound();
     }
 
-    public function test_a_product_that_is_not_returnable_has_no_return_days(): void
-    {
-        $product = $this->makeProduct($this->makeCategory(), ['is_returnable' => false]);
-
-        $this->getJson(self::STORE.'/products/'.$product->slug)->assertJsonPath('data.is_returnable', false)->assertJsonPath('data.return_days', null);
-    }
-
     public function test_when_only_the_options_have_pictures_the_gallery_and_cards_use_them(): void
     {
         $product = $this->makeProduct($this->makeCategory());
@@ -671,20 +518,8 @@ class ProductStoreTest extends TestCase
         $this->assertStringContainsString('/conversions/', $this->getJson(self::STORE.'/products')->json('data.0.image_url'));
     }
 
-    public function test_the_currency_is_pkr(): void
+    public function test_the_currency_comes_from_the_settings(): void
     {
-        $this->getJson(self::STORE.'/settings')->assertOk()->assertJsonPath('currency.code', 'PKR')->assertJsonPath('currency.symbol', 'Rs');
-    }
-
-    public function test_the_review_list_is_paginated(): void
-    {
-        $product = $this->makeProduct($this->makeCategory());
-        foreach (range(1, 3) as $i) {
-            Sanctum::actingAs($this->customer("u$i@example.test"));
-            $this->postJson(self::STORE.'/products/'.$product->slug.'/reviews', ['rating' => 5])->assertCreated();
-        }
-
-        $this->getJson(self::STORE.'/products/'.$product->slug.'/reviews?per_page=2')->assertOk()
-            ->assertJsonCount(2, 'data')->assertJsonPath('meta.total', 3)->assertJsonPath('summary.count', 3);
+        $this->getJson(self::STORE.'/settings')->assertOk()->assertJsonPath('currency.code', 'USD')->assertJsonPath('currency.symbol', '$');
     }
 }

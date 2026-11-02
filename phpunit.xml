@@ -20,6 +20,12 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
+        <env name="CHECKOUT_PER_MINUTE" value="1000"/>
+        <env name="CHECKOUT_PER_HOUR" value="10000"/>
+        <env name="CHECKOUT_PER_PHONE_HOUR" value="10000"/>
+        <env name="ORDER_LOOKUP_PER_MINUTE" value="1000"/>
+        <env name="ORDER_LOOKUP_PER_ORDER_HOUR" value="10000"/>
+        <env name="QUOTE_PER_MINUTE" value="1000"/>
         <env name="DB_CONNECTION" value="mysql"/>
         <env name="SANCTUM_STATEFUL_DOMAINS" value="localhost:5190"/>
         <env name="DB_DATABASE" value="jhkstore_test"/>

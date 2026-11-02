@@ -7,8 +7,6 @@ use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\Models\SubCategory;
-use App\Domain\Reward\Actions\RewardLedger;
-use Illuminate\Support\Arr;
 use Illuminate\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +15,7 @@ use Illuminate\Validation\Rule;
 /**
  * Create (POST /products) or update (product in the URL) a product with its variants, tags and content tabs.
  *
- * A SIMPLE product may send `mrp`, `selling_price`, `reward_points`, `expiry_date` and `stock` (a number)
+ * A SIMPLE product may send `mrp`, `selling_price` and `stock` (a number)
  * at the top level instead of `variants`; they become the product's single hidden default variant.
  * Send `variants` for a product with options (an `id` keeps/updates a variant; variants missing from the list are removed).
  */
@@ -46,12 +44,10 @@ class SaveProductRequest extends FormRequest
                 'is_default' => true,
                 'mrp' => $this->input('mrp'),
                 'selling_price' => $this->input('selling_price'),
-                'reward_points' => $this->input('reward_points'),
-                'expiry_date' => $this->input('expiry_date'),
                 'stock' => $this->input('stock'),
                 'stock_was' => $this->input('stock_was'),
             ];
-            foreach (['price_tiers', 'weight_grams', 'barcode'] as $key) {
+            foreach (['price_tiers', 'weight_grams'] as $key) {
                 if ($this->has($key)) {
                     $row[$key] = $this->input($key);
                 }
@@ -75,12 +71,8 @@ class SaveProductRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:100000'],
             'badge_text' => ['nullable', 'string', 'max:40'],
             'tax_rate' => ['nullable', 'numeric', 'between:0,99.99'],
-            'country_of_origin' => ['nullable', 'string', 'max:80'],
-            'warranty_text' => ['nullable', 'string', 'max:255'],
             'min_order_qty' => ['sometimes', 'integer', 'min:1', 'max:65535'],
             'max_order_qty' => ['sometimes', 'integer', 'min:1', 'max:65535'],
-            'is_returnable' => ['sometimes', 'boolean'],
-            'return_days' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:365'],
             'is_cod_available' => ['sometimes', 'boolean'],
             'status' => ['sometimes', Rule::in(ProductStatus::values())],
             'meta_title' => ['nullable', 'string', 'max:255'],
@@ -93,9 +85,6 @@ class SaveProductRequest extends FormRequest
             'variants.*.is_default' => ['sometimes', 'boolean'],
             'variants.*.mrp' => ['required', 'numeric', 'min:0.01', 'max:99999999'],
             'variants.*.selling_price' => ['required', 'numeric', 'min:0', 'max:99999999'],
-            'variants.*.reward_points' => ['nullable', 'integer', 'min:0', 'max:10000000'],
-            'variants.*.expiry_date' => ['nullable', 'date'],
-            'variants.*.barcode' => ['nullable', 'string', 'max:40'],
             'variants.*.weight_grams' => ['nullable', 'integer', 'min:0'],
             'variants.*.is_active' => ['sometimes', 'boolean'],
             'variants.*.sort_order' => ['sometimes', 'integer', 'min:0'],
@@ -238,14 +227,7 @@ class SaveProductRequest extends FormRequest
     public function productData(): array
     {
         $data = $this->validated();
-        unset($data['mrp'], $data['selling_price'], $data['reward_points'], $data['expiry_date'], $data['stock'], $data['stock_was']);
-        if (! app(RewardLedger::class)->enabled() && isset($data['variants'])) {
-            // points are not editable while the feature is off: existing values stay as they are
-            $data['variants'] = array_map(fn ($row) => Arr::except($row, 'reward_points'), $data['variants']);
-        }
-        if (array_key_exists('return_days', $data) && $data['return_days'] === null) {
-            unset($data['return_days']); // keeps the default (10)
-        }
+        unset($data['mrp'], $data['selling_price'], $data['stock'], $data['stock_was']);
 
         return $data;
     }

@@ -40,22 +40,22 @@ class ProductSearchTest extends TestCase
     private function catalogue(): void
     {
         $category = $this->makeCategory();
-        $this->makeProduct($category, ['name' => 'Prime-Dent Hybrid Composite Kit', 'short_description' => 'Light cured restorative', 'sku' => 'PD-100']);
-        $this->makeProduct($category, ['name' => 'Rotary Endo File Set', 'short_description' => 'Nickel titanium files', 'sku' => 'RF-200']);
-        $this->makeProduct($category, ['name' => '3M ESPE Cavit G Filling', 'short_description' => 'Temporary filling material', 'sku' => 'CV-300']);
+        $this->makeProduct($category, ['name' => 'Prime-Tech Hybrid Charger Kit', 'short_description' => 'Light braided portable', 'sku' => 'PD-100']);
+        $this->makeProduct($category, ['name' => 'Rotary Audio Cable Set', 'short_description' => 'Nickel titanium cables', 'sku' => 'RF-200']);
+        $this->makeProduct($category, ['name' => '3M ESPE Cable G Filling', 'short_description' => 'Temporary cable material', 'sku' => 'CV-300']);
     }
 
     public function test_the_store_search_finds_words_anywhere_in_the_name_and_description(): void
     {
         $this->catalogue();
 
-        $this->assertSame(['prime-dent-hybrid-composite-kit'], $this->slugs('composite'));      // a word in the middle of the name
-        $this->assertSame(['prime-dent-hybrid-composite-kit'], $this->slugs('comp'));           // the start of a word
-        $this->assertSame(['prime-dent-hybrid-composite-kit'], $this->slugs('hybrid composite'));   // every word must match
-        $this->assertSame([], $this->slugs('hybrid endo'));
-        $this->assertSame(['prime-dent-hybrid-composite-kit'], $this->slugs('dent'));           // "Prime-Dent" is two words
-        $this->assertSame(['prime-dent-hybrid-composite-kit'], $this->slugs('restorative'));    // short description
-        $this->assertSame(['rotary-endo-file-set'], $this->slugs('titanium'));
+        $this->assertSame(['prime-tech-hybrid-charger-kit'], $this->slugs('charger'));      // a word in the middle of the name
+        $this->assertSame(['prime-tech-hybrid-charger-kit'], $this->slugs('char'));           // the start of a word
+        $this->assertSame(['prime-tech-hybrid-charger-kit'], $this->slugs('hybrid charger'));   // every word must match
+        $this->assertSame([], $this->slugs('hybrid audio'));
+        $this->assertSame(['prime-tech-hybrid-charger-kit'], $this->slugs('tech'));           // "Prime-Tech" is two words
+        $this->assertSame(['prime-tech-hybrid-charger-kit'], $this->slugs('portable'));    // short description
+        $this->assertSame(['rotary-audio-cable-set'], $this->slugs('titanium'));
         $this->assertSame([], $this->slugs('zebra'));
     }
 
@@ -63,15 +63,15 @@ class ProductSearchTest extends TestCase
     {
         $this->catalogue();
 
-        $this->assertSame(['rotary-endo-file-set'], $this->slugs('RF-2'));
+        $this->assertSame(['rotary-audio-cable-set'], $this->slugs('RF-2'));
     }
 
     public function test_short_words_and_stop_words_fall_back_to_a_plain_search(): void
     {
         $this->catalogue();
 
-        $this->assertSame(['3m-espe-cavit-g-filling'], $this->slugs('3M'));                      // shorter than 3 letters: FULLTEXT cannot be used
-        $this->assertSame(['3m-espe-cavit-g-filling'], $this->slugs('cavit g'));                  // one short word
+        $this->assertSame(['3m-espe-cable-g-filling'], $this->slugs('3M'));                      // shorter than 3 letters: FULLTEXT cannot be used
+        $this->assertSame(['3m-espe-cable-g-filling'], $this->slugs('cable g'));                  // one short word
         $this->assertSame([], $this->slugs('the'));                                               // a stop word does not break the query
     }
 
@@ -87,16 +87,16 @@ class ProductSearchTest extends TestCase
     public function test_the_admin_search_uses_the_same_rules_and_finds_variant_skus(): void
     {
         $this->catalogue();
-        $this->makeProduct($this->makeCategory('Other'), ['name' => 'Gloves', 'sku' => 'GLV', 'variants' => [
+        $this->makeProduct($this->makeCategory('Other'), ['name' => 'Mittens', 'sku' => 'GLV', 'variants' => [
             ['name' => 'Small', 'sku' => 'GLV-SMALL', 'mrp' => 10, 'selling_price' => 9],
             ['name' => 'Large', 'sku' => 'GLV-LARGE', 'mrp' => 10, 'selling_price' => 9],
         ]]);
         $this->actingAsAdmin();
         $names = fn (string $q) => collect($this->getJson(self::ADMIN.'/products?q='.urlencode($q))->assertOk()->json('data'))->pluck('name')->sort()->values()->all();
 
-        $this->assertSame(['Prime-Dent Hybrid Composite Kit'], $names('composite'));
-        $this->assertSame(['Gloves'], $names('GLV-LA'));                  // start of a variant SKU
-        $this->assertSame(['Rotary Endo File Set'], $names('RF-200'));
-        $this->assertSame(['3M ESPE Cavit G Filling'], $names('3M'));
+        $this->assertSame(['Prime-Tech Hybrid Charger Kit'], $names('charger'));
+        $this->assertSame(['Mittens'], $names('GLV-LA'));                  // start of a variant SKU
+        $this->assertSame(['Rotary Audio Cable Set'], $names('RF-200'));
+        $this->assertSame(['3M ESPE Cable G Filling'], $names('3M'));
     }
 }

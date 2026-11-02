@@ -7,7 +7,7 @@ use App\Domain\Catalog\Models\ProductVariant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** One ordered option, as it was when the order was placed (name, SKU, picture, prices, bulk price used, tax rate, coins, expiry). */
+/** One ordered option, as it was when the order was placed (name, SKU, picture, prices, bulk price used, tax rate). */
 class OrderItem extends Model
 {
     protected $guarded = ['id'];
@@ -17,7 +17,7 @@ class OrderItem extends Model
         return [
             'mrp' => 'decimal:2', 'base_price' => 'decimal:2', 'unit_price' => 'decimal:2', 'discount' => 'decimal:2', 'bulk_discount' => 'decimal:2',
             'tax_rate' => 'decimal:2', 'tax_amount' => 'decimal:2', 'line_total' => 'decimal:2',
-            'qty' => 'integer', 'coins_earned' => 'integer', 'bulk_min_qty' => 'integer', 'expiry_date' => 'date',
+            'qty' => 'integer', 'bulk_min_qty' => 'integer',
         ];
     }
 

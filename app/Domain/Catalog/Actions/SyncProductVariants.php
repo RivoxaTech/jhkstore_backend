@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * Makes the variants of a product match the submitted list: creates new ones, updates the ones that carry an `id`,
  * and removes the rest (a variant that already sits in an order is switched off instead of deleted).
- * Price, MRP, points and the automatic discount live here; so does the stock quantity (with a movement log).
+ * Price, MRP and the automatic discount live here; so does the stock quantity (with a movement log).
  */
 class SyncProductVariants
 {
@@ -31,15 +31,10 @@ class SyncProductVariants
                 'sku' => $row['sku'] ?? ($single ? $product->sku : $variant->sku),
                 'mrp' => $row['mrp'],
                 'selling_price' => $row['selling_price'],
-                'expiry_date' => $row['expiry_date'] ?? null,
-                'barcode' => $row['barcode'] ?? null,
                 'weight_grams' => $row['weight_grams'] ?? null,
                 'is_active' => $row['is_active'] ?? true,
                 'sort_order' => $row['sort_order'] ?? $i,
             ]);
-            if (array_key_exists('reward_points', $row) || ! $variant->exists) {
-                $variant->reward_points = (int) ($row['reward_points'] ?? 0);   // left alone while the feature is off
-            }
             $variant->discount_percent = ProductVariant::discountFor($row['mrp'], $row['selling_price']);
             $variant->product_id = $product->id;
             $variant->is_default = false; // fixed below: exactly one default

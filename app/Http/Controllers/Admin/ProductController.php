@@ -35,7 +35,6 @@ class ProductController extends Controller
     public function options(Settings $settings): JsonResponse
     {
         return response()->json([
-            'features' => ['rewards' => $settings->rewardsEnabled()],
             'tags' => Tag::query()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'slug', 'color', 'is_active']),
             'currency' => ['code' => $settings->currencyCode(), 'symbol' => $settings->currencySymbol(), 'decimals' => $settings->decimals()],
             'statuses' => ProductStatus::values(),

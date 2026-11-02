@@ -13,9 +13,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *
  * Every setting is declared in DEFINITIONS with its group, type, default and label, so a missing row falls back to the default,
  * the admin Settings page can be built from the list, and writes are validated by type. Client values (store name, currency, tax, …)
- * live here, not in code. Feature switches (`rewards_enabled`) are read through the helpers at the bottom,
- * so every module checks them in the same way.
- *
+ * live here, not in code. *
  * Types: string | text | bool | int | money | percent | file | links
  *  - `file`  a picture owned by the setting's row (medialibrary); the value is the media id, uploaded through the admin endpoints
  *  - `links` a JSON list of {platform, label, url, active}; the order of the list is the display order
@@ -67,21 +65,10 @@ class Settings
         'order_number_prefix' => ['orders', 'string', 'ORD', 'Order number prefix', 'Order numbers look like PREFIX-2026-000123.'],
         'min_order_amount' => ['orders', 'money', 0, 'Minimum order amount', '0 = no minimum.'],
         'cod_max_amount' => ['orders', 'money', 0, 'Cash on delivery limit', '0 = no limit.'],
-        'return_window_days' => ['orders', 'int', 10, 'Return window (days)', 'Default return period of products.'],
         'delivery_fee' => ['shipping', 'money', 0, 'Delivery charge', 'One flat charge per order. 0 = free delivery.'],
         'free_delivery_min_cart' => ['shipping', 'money', 0, 'Free delivery from', 'Cart value from which delivery is free. 0 = never free.'],
         'delivery_days' => ['shipping', 'int', 5, 'Delivery time (days)', 'Shown to customers as the delivery estimate.', 0, 60],
 
-        // --- optional features
-        'rewards_enabled' => ['features', 'bool', false, 'Enable reward points', 'Off: no points are earned, shown or redeemed anywhere.'],
-
-        // --- reward points (only used when `rewards_enabled` is on)
-        'reward_earn_rate' => ['rewards', 'money', 0, 'Earn rate', 'Points earned per 1 currency unit spent, for products without their own points. 0 = none.'],
-        'reward_redeem_rate' => ['rewards', 'money', 1, 'Redeem rate', 'Money value of one point at checkout.'],
-        'reward_expiry_days' => ['rewards', 'int', 365, 'Points expire after (days)', null, 1, 3650],
-        'max_redeem_coins_per_order' => ['rewards', 'int', 5000, 'Most points per order'],
-        'redeem_cap_order_percent' => ['rewards', 'percent', 100, 'Most % of an order points may pay', '100 = no extra cap.'],
-        'redeem_cap_balance_percent' => ['rewards', 'percent', 100, 'Most % of the balance one order may use', '100 = no extra cap.'],
     ];
 
     /** @var array<string,mixed>|null per-request copy of the stored values */
@@ -141,13 +128,6 @@ class Settings
         $this->fileUrls = null;
         Cache::forget(self::CACHE_KEY);
         Cache::forget(self::FILES_CACHE_KEY);
-    }
-
-    // ------------------------------------------------------------------ feature switches (the single place they are read)
-
-    public function rewardsEnabled(): bool
-    {
-        return (bool) $this->get('rewards_enabled');
     }
 
     // ------------------------------------------------------------------ money (whole minor units, so there are no float surprises)
@@ -274,7 +254,6 @@ class Settings
             'currency_symbol' => ['required', 'string', 'max:8'],
             'order_number_prefix' => ['required', 'string', 'max:12', 'regex:/^[A-Za-z0-9]+$/'],
             'tax_label' => ['required', 'string', 'max:30'],
-            'reward_redeem_rate' => ['required', 'numeric', 'min:0.01', 'max:100000'],
             'whatsapp_number' => ['nullable', 'string', 'max:25', 'regex:/^\+?[0-9][0-9 ()-]{4,23}$/'],
             'seo_meta_title' => ['nullable', 'string', 'max:70'],
             'seo_meta_description' => ['nullable', 'string', 'max:300'],
@@ -302,16 +281,6 @@ class Settings
     public function codMaxCents(): int
     {
         return $this->cents($this->get('cod_max_amount'));
-    }
-
-    public function rewardRedeemCents(): int
-    {
-        return max(1, $this->cents($this->get('reward_redeem_rate')));
-    }
-
-    public function rewardExpiryDays(): int
-    {
-        return max(1, (int) $this->get('reward_expiry_days'));
     }
 
     /** Amount → minor units for the configured number of decimals. */

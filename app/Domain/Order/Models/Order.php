@@ -2,7 +2,7 @@
 
 namespace App\Domain\Order\Models;
 
-use App\Domain\Auth\Models\User;
+use App\Domain\Customer\Models\Customer;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Enums\PaymentStatus;
 use Illuminate\Database\Eloquent\Model;
@@ -14,8 +14,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * A placed order. Everything on it (prices, names, addresses, customer) is a snapshot taken when it was placed, so later edits of the
  * catalogue or the customer never change an old order.
  *
- * Amounts: mrp_total (at MRP) - product_discount_total - bulk_discount_total = items_subtotal; grand_total = items_subtotal - coins_discount
- * + shipping_fee (+ cod_fee). `tax_total` is the sales tax already inside the prices.
+ * Amounts: mrp_total (at MRP) - product_discount_total - bulk_discount_total = items_subtotal; grand_total = items_subtotal + shipping_fee
+ * (+ tax_total when prices are tax exclusive). `tax_total` is the sales tax (already inside the prices when `tax_inclusive`).
  */
 class Order extends Model
 {
@@ -27,18 +27,17 @@ class Order extends Model
             'status' => OrderStatus::class,
             'payment_status' => PaymentStatus::class,
             'mrp_total' => 'decimal:2', 'product_discount_total' => 'decimal:2', 'bulk_discount_total' => 'decimal:2',
-            'items_subtotal' => 'decimal:2', 'discount_total' => 'decimal:2', 'coins_discount' => 'decimal:2',
-            'shipping_fee' => 'decimal:2', 'cod_fee' => 'decimal:2', 'tax_total' => 'decimal:2', 'grand_total' => 'decimal:2',
-            'coins_redeemed' => 'integer', 'coins_to_earn' => 'integer', 'items_count' => 'integer',
+            'items_subtotal' => 'decimal:2', 'shipping_fee' => 'decimal:2', 'tax_total' => 'decimal:2', 'grand_total' => 'decimal:2',
+            'tax_inclusive' => 'boolean', 'items_count' => 'integer',
             'estimated_delivery_date' => 'date',
             'placed_at' => 'datetime', 'confirmed_at' => 'datetime', 'shipped_at' => 'datetime',
             'delivered_at' => 'datetime', 'cancelled_at' => 'datetime',
         ];
     }
 
-    public function user(): BelongsTo
+    public function customer(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Customer::class);
     }
 
     public function items(): HasMany

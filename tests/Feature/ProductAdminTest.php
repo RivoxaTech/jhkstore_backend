@@ -50,19 +50,18 @@ class ProductAdminTest extends TestCase
         $sub = $this->makeSub($category);
 
         $res = $this->create($this->simplePayload($category, [
-            'name' => 'Prime Composite Kit', 'sku' => 'PCK-1', 'sub_category_id' => $sub->id,
-            'mrp' => 4500, 'selling_price' => 2495, 'reward_points' => 25, 'badge_text' => 'BEST SELLER', 'tax_rate' => 12,
+            'name' => 'Prime Charger Kit', 'sku' => 'PCK-1', 'sub_category_id' => $sub->id,
+            'mrp' => 4500, 'selling_price' => 2495, 'badge_text' => 'BEST SELLER', 'tax_rate' => 12,
         ]))->assertCreated();
 
-        $res->assertJsonPath('data.name', 'Prime Composite Kit')
-            ->assertJsonPath('data.slug', 'prime-composite-kit')       // slug is automatic
+        $res->assertJsonPath('data.name', 'Prime Charger Kit')
+            ->assertJsonPath('data.slug', 'prime-charger-kit')       // slug is automatic
             ->assertJsonPath('data.status', 'active')
-            ->assertJsonPath('data.variants.0.name', 'Prime Composite Kit')   // the single option is named after the product
+            ->assertJsonPath('data.variants.0.name', 'Prime Charger Kit')   // the single option is named after the product
             ->assertJsonCount(1, 'data.variants')
             ->assertJsonPath('data.variants.0.is_default', true)
             ->assertJsonPath('data.variants.0.sku', 'PCK-1')           // the default variant takes the product SKU
             ->assertJsonPath('data.variants.0.discount_percent', 44.56) // (4500-2495)/4500
-            ->assertJsonPath('data.variants.0.reward_points', 25)
             ->assertJsonPath('data.min_price', 2495)
             ->assertJsonPath('data.max_discount_percent', 44.56)
             ->assertJsonPath('data.is_in_stock', true)
@@ -108,15 +107,15 @@ class ProductAdminTest extends TestCase
         $tags = Tag::whereIn('slug', ['best-seller', 'new-arrival'])->pluck('id')->all();
 
         $res = $this->create($this->simplePayload($category, [
-            'name' => 'Gloves', 'sku' => 'GLV',
+            'name' => 'Mittens', 'sku' => 'GLV',
             'variants' => [
-                ['name' => 'Small', 'sku' => 'GLV-S', 'mrp' => 500, 'selling_price' => 400, 'reward_points' => 4, 'expiry_date' => '2030-01-31', 'stock' => 10],
-                ['name' => 'Large', 'sku' => 'GLV-L', 'mrp' => 600, 'selling_price' => 300, 'reward_points' => 6, 'stock' => 0],
+                ['name' => 'Small', 'sku' => 'GLV-S', 'mrp' => 500, 'selling_price' => 400, 'stock' => 10],
+                ['name' => 'Large', 'sku' => 'GLV-L', 'mrp' => 600, 'selling_price' => 300, 'stock' => 0],
             ],
             'tag_ids' => $tags,
             'content_tabs' => [
                 ['tab_key' => 'features', 'format' => 'bullets', 'content' => "Soft\nStrong"],
-                ['tab_key' => 'warranty', 'content' => '1 year'],
+                ['tab_key' => 'specifications', 'content' => '1 year'],
                 ['tab_key' => 'packaging', 'content' => ''], // empty tabs are dropped
             ],
         ]))->assertCreated();
@@ -235,7 +234,7 @@ class ProductAdminTest extends TestCase
         $this->assertSame('20.00', $product->fresh()->max_discount_percent);
 
         $this->putJson(self::ADMIN."/products/{$product->id}", [
-            'mrp' => 1000, 'selling_price' => 600, 'reward_points' => 30, 'stock' => 4,
+            'mrp' => 1000, 'selling_price' => 600, 'stock' => 4,
         ])->assertOk()
             ->assertJsonPath('data.variants.0.discount_percent', 40)
             ->assertJsonPath('data.min_price', 600)
@@ -416,21 +415,21 @@ class ProductAdminTest extends TestCase
     public function test_lean_list_row_and_filters(): void
     {
         $this->actingAsAdmin();
-        $restorative = $this->makeCategory('Restorative');
-        $composites = $this->makeSub($restorative, 'Composites');
-        $endo = $this->makeCategory('Endo');
+        $gadgets = $this->makeCategory('Gadgets');
+        $chargers = $this->makeSub($gadgets, 'Chargers');
+        $endo = $this->makeCategory('Audio');
 
-        $a = $this->makeProduct($restorative, ['name' => 'Composite Kit', 'sku' => 'CK-1', 'sub_category_id' => $composites->id, 'mrp' => 1000, 'selling_price' => 750,
+        $a = $this->makeProduct($gadgets, ['name' => 'Charger Kit', 'sku' => 'CK-1', 'sub_category_id' => $chargers->id, 'mrp' => 1000, 'selling_price' => 750,
             'stock' => 7], ['best-seller']);
-        $b = $this->makeProduct($endo, ['name' => 'Rotary File', 'sku' => 'RF-1', 'status' => 'draft',
+        $b = $this->makeProduct($endo, ['name' => 'Rotary Knob', 'sku' => 'RF-1', 'status' => 'draft',
             'stock' => 0], ['hot-selling']);
-        $c = $this->makeProduct($restorative, ['name' => 'Cement', 'sku' => 'CE-1', 'status' => 'inactive']);
+        $c = $this->makeProduct($gadgets, ['name' => 'Dock', 'sku' => 'CE-1', 'status' => 'inactive']);
 
         $res = $this->getJson(self::ADMIN.'/products')->assertOk();
         $res->assertJsonCount(3, 'data')->assertJsonPath('counts.active', 1)->assertJsonPath('counts.draft', 1)->assertJsonPath('counts.inactive', 1);
         $row = collect($res->json('data'))->firstWhere('id', $a->id);
         $this->assertSame(['id', 'name', 'slug', 'sku', 'status', 'thumb_url', 'category', 'sub_category', 'min_price', 'mrp', 'discount_percent',
-            'variants_count', 'is_in_stock', 'stock', 'tags', 'rating_avg', 'rating_count', 'updated_at'], array_keys($row));
+            'variants_count', 'is_in_stock', 'stock', 'tags', 'updated_at'], array_keys($row));
         $this->assertEquals(750, $row['min_price']);
         $this->assertEquals(1000, $row['mrp']);
         $this->assertEquals(25, $row['discount_percent']);
@@ -441,8 +440,8 @@ class ProductAdminTest extends TestCase
         $ids = fn (string $query) => collect($this->getJson(self::ADMIN.'/products?'.$query)->assertOk()->json('data'))->pluck('id')->sort()->values()->all();
         $this->assertSame([$b->id], $ids('q=RF-1'));
         $this->assertSame([$b->id], $ids('status=draft'));
-        $this->assertSame([$a->id, $c->id], $ids('category_id='.$restorative->id));
-        $this->assertSame([$a->id], $ids('sub_category_id='.$composites->id));
+        $this->assertSame([$a->id, $c->id], $ids('category_id='.$gadgets->id));
+        $this->assertSame([$a->id], $ids('sub_category_id='.$chargers->id));
         $this->assertSame([$b->id], $ids('tag=hot-selling'));
         $this->assertSame([], $ids('q=nothing-matches'));
         $this->assertCount(1, $this->getJson(self::ADMIN.'/products?per_page=1')->json('data'));
@@ -477,7 +476,7 @@ class ProductAdminTest extends TestCase
         $res->assertJsonMissingPath('brands')
             ->assertJsonCount(7, 'tags')
             ->assertJsonPath('statuses', ['draft', 'active', 'inactive', 'archived'])
-            ->assertJsonCount(7, 'content_tabs');
+            ->assertJsonCount(6, 'content_tabs');
     }
 
     // ------------------------------------------------------------------ images
@@ -648,7 +647,7 @@ class ProductAdminTest extends TestCase
         $this->assertGreaterThan(0, AuditLog::where('action', 'like', 'tag.%')->count());
     }
 
-    // ------------------------------------------------------------------ quantity prices, return days, related, currency
+    // ------------------------------------------------------------------ quantity prices, related, currency
 
     public function test_quantity_prices_are_saved_replaced_and_validated(): void
     {
@@ -681,14 +680,14 @@ class ProductAdminTest extends TestCase
     {
         $this->actingAsAdmin();
         $res = $this->create($this->simplePayload($this->makeCategory(), ['variants' => [
-            ['name' => 'Eugenol (15ml)', 'sku' => 'E15', 'mrp' => 190, 'selling_price' => 160, 'price_tiers' => [['min_qty' => 2, 'price' => 155]]],
-            ['name' => 'Eugenol (30ml)', 'sku' => 'E30', 'mrp' => 330, 'selling_price' => 210],
+            ['name' => 'Bottle (15ml)', 'sku' => 'E15', 'mrp' => 190, 'selling_price' => 160, 'price_tiers' => [['min_qty' => 2, 'price' => 155]]],
+            ['name' => 'Bottle (30ml)', 'sku' => 'E30', 'mrp' => 330, 'selling_price' => 210],
         ]]))->assertCreated();
 
         $res->assertJsonCount(1, 'data.variants.0.price_tiers')->assertJsonCount(0, 'data.variants.1.price_tiers');
     }
 
-    public function test_return_days_default_and_related_products_and_meta(): void
+    public function test_related_products_and_meta(): void
     {
         $this->actingAsAdmin();
         $category = $this->makeCategory();
@@ -698,20 +697,16 @@ class ProductAdminTest extends TestCase
         $res = $this->create($this->simplePayload($category, [
             'name' => 'Main', 'related_ids' => [$b->id, $a->id], 'meta_title' => 'Buy Main', 'meta_description' => 'Main product',
         ]))->assertCreated();
-        $res->assertJsonPath('data.return_days', 10)                       // default
-            ->assertJsonPath('data.related_ids', [$b->id, $a->id])          // in the chosen order
+        $res->assertJsonPath('data.related_ids', [$b->id, $a->id])          // in the chosen order
             ->assertJsonPath('data.related.0.name', 'B')
             ->assertJsonPath('data.meta_title', 'Buy Main');
         $id = $res->json('data.id');
 
-        $this->putJson(self::ADMIN."/products/$id", ['return_days' => 7, 'is_returnable' => true, 'related_ids' => [$a->id]])
-            ->assertOk()->assertJsonPath('data.return_days', 7)->assertJsonPath('data.related_ids', [$a->id]);
-        $this->putJson(self::ADMIN."/products/$id", ['return_days' => null])->assertOk()->assertJsonPath('data.return_days', 7);   // null keeps the value
+        $this->putJson(self::ADMIN."/products/$id", ['related_ids' => [$a->id]])
+            ->assertOk()->assertJsonPath('data.related_ids', [$a->id]);
         $this->putJson(self::ADMIN."/products/$id", ['related_ids' => []])->assertOk()->assertJsonCount(0, 'data.related');
-        $this->putJson(self::ADMIN."/products/$id", ['return_days' => 0])->assertUnprocessable()->assertJsonValidationErrors('return_days');
         $this->putJson(self::ADMIN."/products/$id", ['related_ids' => [$id]])->assertUnprocessable()->assertJsonValidationErrors('related_ids');
         $this->putJson(self::ADMIN."/products/$id", ['related_ids' => [99999]])->assertUnprocessable()->assertJsonValidationErrors('related_ids.0');
-        $this->assertDatabaseHas('products', ['id' => $id, 'return_days' => 7]);
     }
 
     public function test_options_have_their_own_pictures(): void
@@ -773,8 +768,8 @@ class ProductAdminTest extends TestCase
         $this->create($this->simplePayload($category, ['variants' => [['sku' => 'X1', 'mrp' => 10, 'selling_price' => 9]]]))
             ->assertUnprocessable()->assertJsonValidationErrors('variants.0.name');
         // the flat price shortcut creates one option named like the product
-        $this->create($this->simplePayload($category, ['name' => 'Waldent Airotor', 'sku' => 'WA-1']))
-            ->assertCreated()->assertJsonPath('data.variants.0.name', 'Waldent Airotor');
+        $this->create($this->simplePayload($category, ['name' => 'Acme Router', 'sku' => 'WA-1']))
+            ->assertCreated()->assertJsonPath('data.variants.0.name', 'Acme Router');
     }
 
     public function test_pictures_can_be_moved_anywhere_even_the_imported_ones(): void
@@ -849,6 +844,6 @@ class ProductAdminTest extends TestCase
     {
         $this->actingAsAdmin();
 
-        $this->getJson(self::ADMIN.'/products/options')->assertOk()->assertJsonPath('currency', ['code' => 'PKR', 'symbol' => 'Rs', 'decimals' => 2]);
+        $this->getJson(self::ADMIN.'/products/options')->assertOk()->assertJsonPath('currency', ['code' => 'USD', 'symbol' => '$', 'decimals' => 2]);
     }
 }

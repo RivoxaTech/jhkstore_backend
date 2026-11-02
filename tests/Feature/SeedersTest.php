@@ -15,15 +15,15 @@ class SeedersTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_the_base_seeder_creates_only_the_admin_and_the_default_settings(): void
+    public function test_the_base_seeder_creates_only_the_two_admins_and_the_default_settings(): void
     {
         $this->seed(DatabaseSeeder::class);
 
-        $this->assertSame(1, Admin::count());
+        $this->assertSame(2, Admin::count());
         $this->assertSame(count(Settings::DEFINITIONS), DB::table('settings')->count());
         $this->assertSame(0, Product::count());
         $this->assertSame(0, DB::table('categories')->count());
-        $this->assertSame(0, DB::table('users')->count());
+        $this->assertSame(0, DB::table('customers')->count());
     }
 
     public function test_the_demo_seeder_adds_neutral_sample_data_and_can_run_again(): void
@@ -34,7 +34,6 @@ class SeedersTest extends TestCase
 
         $this->assertSame(12, Product::count());
         $this->assertSame(5, DB::table('categories')->count());
-        $this->assertSame(1, DB::table('users')->count());
         $this->assertSame(7, DB::table('tags')->where('is_system', true)->count());
 
         // the sample catalogue is visible on the storefront

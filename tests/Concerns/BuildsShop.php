@@ -2,19 +2,14 @@
 
 namespace Tests\Concerns;
 
-use App\Domain\Address\Actions\SaveAddress;
-use App\Domain\Address\Models\UserAddress;
 use App\Domain\Auth\Models\Admin;
-use App\Domain\Auth\Models\User;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductVariant;
 use App\Domain\Order\Models\Order;
-use App\Domain\Reward\Actions\RewardLedger;
 use Illuminate\Testing\TestResponse;
-use Laravel\Sanctum\Sanctum;
 
-/** Fixtures for the cart, checkout and order tests: customers, addresses, products with bulk prices, and cart/order calls. */
+/** Fixtures for the quote, guest checkout and order tests: products with bulk prices, order payloads and the calls. */
 trait BuildsShop
 {
     use BuildsCatalog;
@@ -30,33 +25,36 @@ trait BuildsShop
         $this->shopCategory = $this->makeCategory('Shop Category');
     }
 
-    protected function customer(string $email = 'buyer@example.test', string $name = 'Asha Khan'): User
+    /** Contact of a guest. Every call gets its own phone number unless one is given. */
+    protected function contact(array $overrides = []): array
     {
-        return User::create(['full_name' => $name, 'email' => $email, 'mobile' => '03'.random_int(100000000, 999999999), 'password' => 'secret-pass', 'is_active' => true]);
+        static $n = 0;
+        $n++;
+
+        return array_merge(['name' => 'Alex Morgan', 'phone' => sprintf('+1 555 010 %04d', $n), 'email' => "alex$n@example.test"], $overrides);
     }
 
-    /** Makes `$user` the caller of the following requests (null = a guest). */
-    protected function actAs(?User $user): static
+    protected function addressData(array $overrides = []): array
     {
-        $this->app['auth']->forgetGuards();
-        if ($user) {
-            Sanctum::actingAs($user, ['*']);
+        return $overrides + [
+            'line1' => '12 Example Street', 'area' => 'Downtown', 'landmark' => 'Near the park',
+            'city' => 'Springfield', 'state' => 'Sample State', 'postcode' => '12345', 'country' => 'Testland',
+        ];
+    }
+
+    /** The body of POST /store/orders. `$items` = [[variant_id, qty], ...] or [variant_id => qty]. */
+    protected function orderBody(array $items, array $overrides = []): array
+    {
+        $lines = [];
+        foreach ($items as $key => $value) {
+            $lines[] = is_array($value) ? ['variant_id' => $value[0], 'qty' => $value[1]] : ['variant_id' => $key, 'qty' => $value];
         }
 
-        return $this;
-    }
-
-    protected function address(User $user, array $overrides = []): UserAddress
-    {
-        return app(SaveAddress::class)->create($user, $overrides + [
-            'type' => 'work', 'name' => $user->full_name, 'phone' => '03001234567', 'alt_phone' => '03111234567',
-            'line1' => 'Shop 4, Market Plaza', 'area' => 'Block B, Gulberg', 'landmark' => 'Near the park',
-            'city' => 'Lahore', 'state' => 'Punjab', 'postcode' => '54660', 'country' => 'Pakistan',
-        ]);
+        return array_merge(['customer' => $this->contact(), 'address' => $this->addressData(), 'items' => $lines], $overrides);
     }
 
     /**
-     * A product with ONE option: MRP 200 / price 160 / 5 coins, bulk prices "5+ for 152" and "10+ for 140", 50 units in stock.
+     * A product with ONE option: MRP 200 / price 160, bulk prices "5+ for 152" and "10+ for 140", 50 units in stock.
      * `$variant` overrides the option, `$product` the product (e.g. min_order_qty, max_order_qty, tax_rate, status).
      */
     protected function shopProduct(array $variant = [], array $product = []): Product
@@ -68,7 +66,7 @@ trait BuildsShop
             'name' => "Shop Item $n",
             'sku' => "SHOP-$n",
             'variants' => [array_merge([
-                'name' => "Shop Item $n (15ml)", 'sku' => "SHOP-$n-V", 'is_default' => true, 'mrp' => 200, 'selling_price' => 160, 'reward_points' => 5,
+                'name' => "Shop Item $n (15ml)", 'sku' => "SHOP-$n-V", 'is_default' => true, 'mrp' => 200, 'selling_price' => 160,
                 'stock' => 50,
                 'price_tiers' => [['min_qty' => 5, 'price' => 152], ['min_qty' => 10, 'price' => 140]],
             ], $variant)],
@@ -85,48 +83,47 @@ trait BuildsShop
         return ProductVariant::query()->findOrFail($variantId);
     }
 
-    protected function giveCoins(User $user, int $coins): void
-    {
-        app(RewardLedger::class)->grant($user->id, $coins, 'test coins');
-    }
-
     protected function setSetting(string $key, mixed $value): void
     {
         app(\App\Domain\Support\Settings::class)->set([$key => $value]);
     }
 
-    /** Logs in as an admin (the customer in front of the request is forgotten). */
-    protected function asAdmin(string $role = 'super_admin'): Admin
+    /** Logs in as an admin with every permission (the `admin` role switched fully on). */
+    protected function asAdmin(string $role = 'admin'): Admin
     {
         return $this->actingAsAdmin($role);
     }
 
-    /** Places a COD order for `$user` with a new product; returns the stored order. */
-    protected function orderFor(User $user, int $qty = 1, array $variant = [], int $coins = 0): Order
+    /** Places a COD order as a guest for a new product; returns the stored order. `$contact` overrides the guest's contact. */
+    protected function orderFor(array $contact = [], int $qty = 1, array $variant = []): Order
     {
-        $address = UserAddress::query()->where('user_id', $user->id)->first() ?? $this->address($user);
         $variantId = $this->variantOf($this->shopProduct($variant));
-        $this->actAs($user);
-        $this->addToCart($variantId, $qty)->assertCreated();
-        $number = $this->placeOrder(['address_id' => $address->id, 'coins_to_redeem' => $coins])->assertCreated()->json('data.order_number');
+        $number = $this->placeOrder($this->orderBody([$variantId => $qty], ['customer' => $this->contact($contact)]))->assertCreated()->json('data.order_number');
 
         return Order::query()->where('order_number', $number)->firstOrFail();
     }
 
     // ------------------------------------------------------------------ calls
 
-    protected function addToCart(int $variantId, int $qty = 1, array $headers = []): TestResponse
+    protected function quote(array $items, array $headers = []): TestResponse
     {
-        return $this->flushHeaders()->withHeaders($headers)->postJson(self::STORE."/cart/items", ['variant_id' => $variantId, 'qty' => $qty]);
-    }
+        $lines = [];
+        foreach ($items as $key => $value) {
+            $lines[] = is_array($value) ? ['variant_id' => $value[0], 'qty' => $value[1]] : ['variant_id' => $key, 'qty' => $value];
+        }
 
-    protected function cart(array $headers = [], string $query = ''): TestResponse
-    {
-        return $this->flushHeaders()->withHeaders($headers)->getJson(self::STORE."/cart".$query);
+        return $this->flushHeaders()->withHeaders($headers)->postJson(self::STORE.'/checkout/quote', ['items' => $lines]);
     }
 
     protected function placeOrder(array $body = [], array $headers = []): TestResponse
     {
-        return $this->flushHeaders()->withHeaders($headers)->postJson(self::STORE."/orders", $body);
+        $this->app['auth']->forgetGuards();
+
+        return $this->flushHeaders()->withHeaders($headers)->postJson(self::STORE.'/orders', $body);
+    }
+
+    protected function lookup(string $orderNumber, string $phone): TestResponse
+    {
+        return $this->flushHeaders()->getJson(self::STORE.'/orders/'.$orderNumber.'?phone='.urlencode($phone));
     }
 }

@@ -73,27 +73,27 @@ class CategoryFlowTest extends TestCase
     {
         $this->actingAsAdmin();
 
-        $res = $this->postJson(self::ADMIN.'/categories', ['name' => 'Endodontics'])
+        $res = $this->postJson(self::ADMIN.'/categories', ['name' => 'Audio'])
             ->assertCreated()
-            ->assertJsonPath('data.name', 'Endodontics')
-            ->assertJsonPath('data.slug', 'endodontics')
+            ->assertJsonPath('data.name', 'Audio')
+            ->assertJsonPath('data.slug', 'audio')
             ->assertJsonPath('data.is_active', true)
             ->assertJsonPath('data.icon_url', null)
             ->assertJsonPath('data.image_url', null)
             ->assertJsonPath('data.sub_categories_count', 0)
             ->assertJsonPath('data.products_count', 0);
 
-        $this->assertDatabaseHas('categories', ['id' => $res->json('data.id'), 'slug' => 'endodontics']);
+        $this->assertDatabaseHas('categories', ['id' => $res->json('data.id'), 'slug' => 'audio']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'category.created', 'subject_id' => $res->json('data.id')]);
     }
 
     public function test_name_is_required_and_unique(): void
     {
         $this->actingAsAdmin();
-        $this->makeCategory(['name' => 'Endodontics']);
+        $this->makeCategory(['name' => 'Audio']);
 
         $this->postJson(self::ADMIN.'/categories', [])->assertUnprocessable()->assertJsonValidationErrors('name');
-        $this->postJson(self::ADMIN.'/categories', ['name' => 'Endodontics'])->assertUnprocessable()->assertJsonValidationErrors('name');
+        $this->postJson(self::ADMIN.'/categories', ['name' => 'Audio'])->assertUnprocessable()->assertJsonValidationErrors('name');
         $this->postJson(self::ADMIN.'/categories', ['name' => 'Valid', 'color' => 'red'])->assertUnprocessable()->assertJsonValidationErrors('color');
     }
 
@@ -102,7 +102,7 @@ class CategoryFlowTest extends TestCase
         $this->actingAsAdmin();
 
         $res = $this->post(self::ADMIN.'/categories', [
-            'name' => 'Orthodontics',
+            'name' => 'Computing',
             'icon' => UploadedFile::fake()->image('icon.png', 120, 120),
             'image' => UploadedFile::fake()->image('image.jpg', 600, 400),
         ], ['Accept' => 'application/json'])->assertCreated();
@@ -171,25 +171,25 @@ class CategoryFlowTest extends TestCase
     public function test_admin_list_has_sub_categories_and_counts_and_search(): void
     {
         $this->actingAsAdmin();
-        $endo = $this->makeCategory(['name' => 'Endodontics', 'sort_order' => 2]);
-        $ortho = $this->makeCategory(['name' => 'Orthodontics', 'sort_order' => 1, 'is_active' => false]);
-        $files = $this->makeSub($endo, ['name' => 'Rotary Files', 'sort_order' => 2]);
-        $gutta = $this->makeSub($endo, ['name' => 'Gutta Percha', 'sort_order' => 1]);
+        $endo = $this->makeCategory(['name' => 'Audio', 'sort_order' => 2]);
+        $ortho = $this->makeCategory(['name' => 'Computing', 'sort_order' => 1, 'is_active' => false]);
+        $files = $this->makeSub($endo, ['name' => 'Rotary Knobs', 'sort_order' => 2]);
+        $gutta = $this->makeSub($endo, ['name' => 'Speakers', 'sort_order' => 1]);
         $this->makeProduct($endo, $files);
         $this->makeProduct($endo, $files);
         $this->makeProduct($endo);
 
         $data = $this->getJson(self::ADMIN.'/categories')->assertOk()->json('data');
 
-        $this->assertSame(['Orthodontics', 'Endodontics'], array_column($data, 'name')); // inactive ones are listed too, ordered by sort_order
+        $this->assertSame(['Computing', 'Audio'], array_column($data, 'name')); // inactive ones are listed too, ordered by sort_order
         $this->assertSame(0, $data[0]['sub_categories_count']);
         $this->assertSame(2, $data[1]['sub_categories_count']);
         $this->assertSame(3, $data[1]['products_count']);
-        $this->assertSame(['Gutta Percha', 'Rotary Files'], array_column($data[1]['sub_categories'], 'name'));
+        $this->assertSame(['Speakers', 'Rotary Knobs'], array_column($data[1]['sub_categories'], 'name'));
         $this->assertSame([0, 2], array_column($data[1]['sub_categories'], 'products_count'));
 
-        $this->assertSame(['Endodontics'], array_column($this->getJson(self::ADMIN.'/categories?q=gutta')->json('data'), 'name'));
-        $this->assertSame(['Orthodontics'], array_column($this->getJson(self::ADMIN.'/categories?q=ortho')->json('data'), 'name'));
+        $this->assertSame(['Audio'], array_column($this->getJson(self::ADMIN.'/categories?q=speak')->json('data'), 'name'));
+        $this->assertSame(['Computing'], array_column($this->getJson(self::ADMIN.'/categories?q=comp')->json('data'), 'name'));
     }
 
     public function test_admin_list_does_not_run_a_query_per_row(): void
@@ -209,17 +209,17 @@ class CategoryFlowTest extends TestCase
     public function test_options_lists_only_active_categories_and_sub_categories(): void
     {
         $this->actingAsAdmin();
-        $endo = $this->makeCategory(['name' => 'Endodontics', 'sort_order' => 1]);
+        $endo = $this->makeCategory(['name' => 'Audio', 'sort_order' => 1]);
         $this->makeCategory(['name' => 'Hidden', 'is_active' => false, 'sort_order' => 2]);
-        $this->makeSub($endo, ['name' => 'Rotary Files', 'sort_order' => 1]);
-        $this->makeSub($endo, ['name' => 'Old Files', 'is_active' => false]);
+        $this->makeSub($endo, ['name' => 'Rotary Knobs', 'sort_order' => 1]);
+        $this->makeSub($endo, ['name' => 'Old Speakers', 'is_active' => false]);
 
         $this->getJson(self::ADMIN.'/categories/options')
             ->assertOk()
             ->assertExactJson(['data' => [[
                 'id' => $endo->id,
-                'name' => 'Endodontics',
-                'sub_categories' => [['id' => $endo->subCategories()->where('name', 'Rotary Files')->value('id'), 'name' => 'Rotary Files']],
+                'name' => 'Audio',
+                'sub_categories' => [['id' => $endo->subCategories()->where('name', 'Rotary Knobs')->value('id'), 'name' => 'Rotary Knobs']],
             ]]]);
     }
 
@@ -245,33 +245,33 @@ class CategoryFlowTest extends TestCase
     public function test_admin_crud_for_sub_categories(): void
     {
         $this->actingAsAdmin();
-        $category = $this->makeCategory(['name' => 'Endodontics']);
+        $category = $this->makeCategory(['name' => 'Audio']);
         $other = $this->makeCategory(['name' => 'Oral Surgery']);
 
         $created = $this->post(self::ADMIN.'/categories/'.$category->id.'/sub-categories', [
-            'name' => 'Rotary Files',
-            'description' => 'NiTi files',
+            'name' => 'Rotary Knobs',
+            'description' => 'Wireless headphones',
             'icon' => UploadedFile::fake()->image('i.png', 80, 80),
             'image' => UploadedFile::fake()->image('p.png', 300, 200),
         ], ['Accept' => 'application/json'])
             ->assertCreated()
-            ->assertJsonPath('data.name', 'Rotary Files')
-            ->assertJsonPath('data.slug', 'rotary-files')
+            ->assertJsonPath('data.name', 'Rotary Knobs')
+            ->assertJsonPath('data.slug', 'rotary-knobs')
             ->assertJsonPath('data.category_id', $category->id)
-            ->assertJsonPath('data.category.name', 'Endodontics')
+            ->assertJsonPath('data.category.name', 'Audio')
             ->assertJsonPath('data.is_active', true)
             ->json('data');
         $this->assertStringStartsWith('http', $created['icon_url']);
         $this->assertStringStartsWith('http', $created['image_url']);
 
         $id = $created['id'];
-        $this->getJson(self::ADMIN.'/sub-categories/'.$id)->assertOk()->assertJsonPath('data.description', 'NiTi files');
+        $this->getJson(self::ADMIN.'/sub-categories/'.$id)->assertOk()->assertJsonPath('data.description', 'Wireless headphones');
 
         // Same name twice in one category is refused, but another category may reuse it.
-        $this->postJson(self::ADMIN.'/categories/'.$category->id.'/sub-categories', ['name' => 'Rotary Files'])
+        $this->postJson(self::ADMIN.'/categories/'.$category->id.'/sub-categories', ['name' => 'Rotary Knobs'])
             ->assertUnprocessable()->assertJsonValidationErrors('name');
-        $this->postJson(self::ADMIN.'/categories/'.$other->id.'/sub-categories', ['name' => 'Rotary Files'])
-            ->assertCreated()->assertJsonPath('data.slug', 'rotary-files-2');
+        $this->postJson(self::ADMIN.'/categories/'.$other->id.'/sub-categories', ['name' => 'Rotary Knobs'])
+            ->assertCreated()->assertJsonPath('data.slug', 'rotary-knobs-2');
 
         // Rename (slug follows), flags, remove_icon via POST + _method.
         $this->putJson(self::ADMIN.'/sub-categories/'.$id, ['name' => 'Rotary Systems', 'is_active' => false])
@@ -337,10 +337,10 @@ class CategoryFlowTest extends TestCase
 
     public function test_store_tree_has_the_simple_shape_and_hides_everything_inactive(): void
     {
-        $endo = $this->makeCategory(['name' => 'Endodontics', 'description' => 'Root canal', 'sort_order' => 1]);
-        $this->makeSub($endo, ['name' => 'Rotary Files', 'sort_order' => 2]);
-        $this->makeSub($endo, ['name' => 'Gutta Percha', 'sort_order' => 1]);
-        $this->makeSub($endo, ['name' => 'Old Files', 'is_active' => false]);
+        $endo = $this->makeCategory(['name' => 'Audio', 'description' => 'Sound gear', 'sort_order' => 1]);
+        $this->makeSub($endo, ['name' => 'Rotary Knobs', 'sort_order' => 2]);
+        $this->makeSub($endo, ['name' => 'Speakers', 'sort_order' => 1]);
+        $this->makeSub($endo, ['name' => 'Old Speakers', 'is_active' => false]);
 
         $hidden = $this->makeCategory(['name' => 'Hidden', 'is_active' => false, 'sort_order' => 2]);
         $this->makeSub($hidden, ['name' => 'Child of hidden']);
@@ -351,11 +351,11 @@ class CategoryFlowTest extends TestCase
         $this->assertCount(1, $data);
         $this->assertSame(['id', 'name', 'slug', 'description', 'is_top', 'icon_url', 'image_url', 'sub_categories'], array_keys($data[0]));
         $this->assertSame(['id', 'name', 'slug', 'icon_url', 'image_url'], array_keys($data[0]['sub_categories'][0]));
-        $this->assertSame(['Gutta Percha', 'Rotary Files'], array_column($data[0]['sub_categories'], 'name'));
+        $this->assertSame(['Speakers', 'Rotary Knobs'], array_column($data[0]['sub_categories'], 'name'));
         $this->assertNull($data[0]['icon_url']);
         $this->assertNull($data[0]['sub_categories'][0]['image_url']);
         $this->assertStringNotContainsString('Hidden', $res->getContent());
-        $this->assertStringNotContainsString('Old Files', $res->getContent());
+        $this->assertStringNotContainsString('Old Speakers', $res->getContent());
     }
 
     public function test_store_tree_is_ordered_by_sort_order_then_name(): void
@@ -369,16 +369,16 @@ class CategoryFlowTest extends TestCase
 
     public function test_one_category_by_slug(): void
     {
-        $endo = $this->makeCategory(['name' => 'Endodontics']);
-        $this->makeSub($endo, ['name' => 'Rotary Files']);
-        $this->makeSub($endo, ['name' => 'Hidden Files', 'is_active' => false]);
+        $endo = $this->makeCategory(['name' => 'Audio']);
+        $this->makeSub($endo, ['name' => 'Rotary Knobs']);
+        $this->makeSub($endo, ['name' => 'Hidden Speakers', 'is_active' => false]);
         $this->makeCategory(['name' => 'Off', 'is_active' => false]);
 
-        $this->getJson(self::STORE.'/categories/endodontics')
+        $this->getJson(self::STORE.'/categories/audio')
             ->assertOk()
-            ->assertJsonPath('data.name', 'Endodontics')
+            ->assertJsonPath('data.name', 'Audio')
             ->assertJsonCount(1, 'data.sub_categories')
-            ->assertJsonPath('data.sub_categories.0.name', 'Rotary Files');
+            ->assertJsonPath('data.sub_categories.0.name', 'Rotary Knobs');
 
         $this->getJson(self::STORE.'/categories/off')->assertNotFound();
         $this->getJson(self::STORE.'/categories/does-not-exist')->assertNotFound();
@@ -387,8 +387,8 @@ class CategoryFlowTest extends TestCase
     public function test_deactivating_in_the_admin_hides_it_from_customers_straight_away(): void
     {
         $this->actingAsAdmin();
-        $category = $this->makeCategory(['name' => 'Endodontics']);
-        $sub = $this->makeSub($category, ['name' => 'Rotary Files']);
+        $category = $this->makeCategory(['name' => 'Audio']);
+        $sub = $this->makeSub($category, ['name' => 'Rotary Knobs']);
 
         $this->assertCount(1, $this->getJson(self::STORE.'/categories')->json('data.0.sub_categories')); // fills the cache
 
@@ -397,7 +397,7 @@ class CategoryFlowTest extends TestCase
 
         $this->putJson(self::ADMIN.'/categories/'.$category->id, ['is_active' => false])->assertOk();
         $this->assertSame([], $this->getJson(self::STORE.'/categories')->json('data'));
-        $this->getJson(self::STORE.'/categories/endodontics')->assertNotFound();
+        $this->getJson(self::STORE.'/categories/audio')->assertNotFound();
     }
 
     public function test_the_customer_tree_is_cached_and_every_admin_write_clears_it(): void

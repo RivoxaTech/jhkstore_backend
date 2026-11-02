@@ -35,8 +35,6 @@ class ProductListResource extends JsonResource
             'is_in_stock' => $this->is_in_stock,
             'stock' => $stock,
             'tags' => $this->tags->map(fn ($t) => ['id' => $t->id, 'name' => $t->name, 'slug' => $t->slug, 'color' => $t->color])->values(),
-            'rating_avg' => $this->rating_avg,
-            'rating_count' => $this->rating_count,
             'updated_at' => $this->updated_at,
         ];
     }

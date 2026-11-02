@@ -19,13 +19,13 @@ trait BuildsCatalog
         $this->seed(TagSeeder::class);
     }
 
-    /** An admin that is NOT logged in (store tests must act as guest or customer, never as admin). */
+    /** An admin that is NOT logged in (store tests act as a guest, never as admin). */
     protected function plainAdmin(): Admin
     {
         return Admin::query()->first() ?? Admin::create(['username' => 'seeder', 'name' => 'Seeder', 'password' => 'secret-pass', 'is_active' => true]);
     }
 
-    protected function makeCategory(string $name = 'Restorative', bool $active = true): Category
+    protected function makeCategory(string $name = 'Gadgets', bool $active = true): Category
     {
         $category = new Category(['name' => $name, 'is_active' => $active]);
         $category->slug = Category::uniqueSlug($name);
@@ -34,7 +34,7 @@ trait BuildsCatalog
         return $category;
     }
 
-    protected function makeSub(Category $category, string $name = 'Composites', bool $active = true): SubCategory
+    protected function makeSub(Category $category, string $name = 'Chargers', bool $active = true): SubCategory
     {
         $sub = new SubCategory(['name' => $name, 'is_active' => $active]);
         $sub->category_id = $category->id;
@@ -56,7 +56,6 @@ trait BuildsCatalog
             'sku' => "SKU-$n",
             'mrp' => 1000,
             'selling_price' => 800,
-            'reward_points' => 10,
             'stock' => 20,
             'status' => 'active',
         ], $overrides);
@@ -70,13 +69,13 @@ trait BuildsCatalog
     {
         $payload = $this->simplePayload($category, $overrides);
         if (isset($payload['variants'])) {
-            unset($payload['mrp'], $payload['selling_price'], $payload['reward_points'], $payload['stock']);
+            unset($payload['mrp'], $payload['selling_price'], $payload['stock']);
         } else {
             $payload['variants'] = [[
                 'name' => $payload['name'], 'sku' => $payload['sku'], 'is_default' => true, 'mrp' => $payload['mrp'], 'selling_price' => $payload['selling_price'],
-                'reward_points' => $payload['reward_points'], 'stock' => $payload['stock'],
+                'stock' => $payload['stock'],
             ]];
-            unset($payload['mrp'], $payload['selling_price'], $payload['reward_points'], $payload['stock']);
+            unset($payload['mrp'], $payload['selling_price'], $payload['stock']);
         }
         if ($tagSlugs) {
             $payload['tag_ids'] = Tag::whereIn('slug', $tagSlugs)->pluck('id')->all();

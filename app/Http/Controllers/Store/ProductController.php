@@ -14,8 +14,8 @@ class ProductController extends Controller
 {
     /**
      * Product cards. Homepage sections are this endpoint with a tag, e.g. ?tag=best-seller&per_page=10.
-     * Query: ?tag ?category ?sub_category (slugs) ?q ?min_price ?max_price ?in_stock=1 ?rating=4
-     * ?sort=popularity|newest|price_asc|price_desc|discount|rating ?page ?per_page (max 100)
+     * Query: ?tag ?category ?sub_category (slugs) ?q ?min_price ?max_price ?in_stock=1
+     * ?sort=popularity|newest|price_asc|price_desc|discount ?page ?per_page (max 100)
      */
     public function index(Request $request, ProductListing $listing)
     {
@@ -27,7 +27,6 @@ class ProductController extends Controller
             'min_price' => ['nullable', 'numeric', 'min:0'],
             'max_price' => ['nullable', 'numeric', 'min:0'],
             'in_stock' => ['nullable', 'boolean'],
-            'rating' => ['nullable', 'integer', 'between:1,5'],
             'sort' => ['nullable', Rule::in(ProductListing::SORTS)],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);

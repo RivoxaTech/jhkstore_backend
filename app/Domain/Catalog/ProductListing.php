@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
  */
 class ProductListing
 {
-    public const SORTS = ['popularity', 'newest', 'price_asc', 'price_desc', 'discount', 'rating'];
+    public const SORTS = ['popularity', 'newest', 'price_asc', 'price_desc', 'discount'];
 
     /** Relations a product card needs. */
     public static function cardRelations(): array
@@ -33,7 +33,7 @@ class ProductListing
     }
 
     /**
-     * @param  array{tag?:string,category?:string,sub_category?:string,q?:string,min_price?:numeric,max_price?:numeric,in_stock?:bool,rating?:int,sort?:string}  $filters
+     * @param  array{tag?:string,category?:string,sub_category?:string,q?:string,min_price?:numeric,max_price?:numeric,in_stock?:bool,sort?:string}  $filters
      */
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
     {
@@ -99,9 +99,6 @@ class ProductListing
         if (! empty($f['in_stock'])) {
             $query->inStock();
         }
-        if (! empty($f['rating'])) {
-            $query->where('products.rating_avg', '>=', $f['rating']);
-        }
     }
 
     private function sort(Builder $query, string $sort): void
@@ -111,8 +108,7 @@ class ProductListing
             'price_asc' => $query->orderBy('products.min_price'),
             'price_desc' => $query->orderByDesc('products.min_price'),
             'discount' => $query->orderByDesc('products.max_discount_percent'),
-            'rating' => $query->orderByDesc('products.rating_avg')->orderByDesc('products.rating_count'),
-            default => $query->orderByDesc('products.popularity_score')->orderByDesc('products.rating_count'),
+            default => $query->orderByDesc('products.popularity_score'),
         };
         $query->orderByDesc('products.id'); // stable order for equal values
     }

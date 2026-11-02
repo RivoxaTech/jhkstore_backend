@@ -2,8 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Domain\Reward\Actions\RewardLedger;
-use App\Domain\Reward\Models\RewardTransaction;
 use App\Domain\Support\Models\Setting;
 use App\Domain\Support\Settings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -39,7 +37,6 @@ class SettingsTest extends TestCase
         $this->assertEquals(0, $s->get('tax_rate'));
         $this->assertTrue($s->get('tax_inclusive'));
         $this->assertSame('ORD', $s->get('order_number_prefix'));
-        $this->assertFalse($s->rewardsEnabled());          // reward points are off until the client switches them on
     }
 
     public function test_seeding_again_keeps_the_values_an_admin_changed(): void
@@ -55,25 +52,26 @@ class SettingsTest extends TestCase
         $this->asAdmin();
 
         $res = $this->getJson(self::ADMIN.'/settings')->assertOk();
-        $this->assertSame(['general', 'branding', 'footer', 'currency_tax', 'orders_delivery', 'features', 'seo'], array_column($res->json('tabs'), 'key'));
-        $this->assertSame(['General', 'Branding', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'Features', 'SEO'], array_column($res->json('tabs'), 'label'));
-        $this->assertSame(['currency', 'tax'], array_column($res->json('tabs.3.sections'), 'key'));
-        $res->assertJsonPath('values.delivery_fee', 300)->assertJsonPath('values.currency_symbol', 'Rs');
+        $this->assertSame(['general', 'branding', 'banners', 'footer', 'currency_tax', 'orders_delivery', 'seo'], array_column($res->json('tabs'), 'key'));
+        $this->assertSame(['General', 'Branding', 'Banners', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'SEO'], array_column($res->json('tabs'), 'label'));
+        $this->assertSame(['currency', 'tax'], array_column($res->json('tabs.4.sections'), 'key'));
+        $res->assertJsonPath('values.delivery_fee', 300)->assertJsonPath('values.currency_symbol', '$');
+        $this->assertSame([], $res->json('tabs.2.sections'));   // Banners: managed through the banner endpoints
 
         $this->putJson(self::ADMIN.'/settings', ['store_name' => 'Acme Shop', 'delivery_fee' => 250, 'tax_rate' => 12.5, 'tax_inclusive' => false])
             ->assertOk()->assertJsonPath('values.store_name', 'Acme Shop')->assertJsonPath('values.delivery_fee', 250);
         $this->assertDatabaseHas('audit_logs', ['action' => 'settings.updated', 'actor_type' => 'admin']);
 
         // the storefront reads the same values
-        $this->actAs(null);
+        $this->app['auth']->forgetGuards();
         $this->getJson(self::STORE.'/settings')->assertOk()
             ->assertJsonPath('store.name', 'Acme Shop')->assertJsonPath('delivery.fee', 250)
             ->assertJsonPath('tax.rate', 12.5)->assertJsonPath('tax.inclusive', false)
-            ->assertJsonPath('currency.symbol', 'Rs')->assertJsonMissingPath('features.brands');
+            ->assertJsonPath('currency.symbol', '$')->assertJsonMissingPath('features')->assertJsonMissingPath('rewards');
 
-        // and so does the cart
+        // and so does the quote
         $variant = $this->variantOf($this->shopProduct());
-        $this->assertEquals(250, $this->addToCart($variant, 5)->json('data.summary.delivery_fee'));
+        $this->assertEquals(250, $this->quote([$variant => 5])->json('data.summary.delivery_fee'));
     }
 
     public function test_values_are_validated(): void
@@ -82,8 +80,9 @@ class SettingsTest extends TestCase
 
         $this->putJson(self::ADMIN.'/settings', ['delivery_fee' => -1])->assertStatus(422)->assertJsonValidationErrors('delivery_fee');
         $this->putJson(self::ADMIN.'/settings', ['delivery_days' => 99])->assertStatus(422)->assertJsonPath('errors.delivery_days.0', 'The delivery time (days) field must not be greater than 60.');
-        $this->putJson(self::ADMIN.'/settings', ['redeem_cap_order_percent' => 101])->assertStatus(422)->assertJsonValidationErrors('redeem_cap_order_percent');
-        $this->putJson(self::ADMIN.'/settings', ['reward_redeem_rate' => 0])->assertStatus(422)->assertJsonValidationErrors('reward_redeem_rate');
+        $this->putJson(self::ADMIN.'/settings', ['tax_rate' => 101])->assertStatus(422)->assertJsonValidationErrors('tax_rate');
+        $this->putJson(self::ADMIN.'/settings', ['rewards_enabled' => true])->assertStatus(422)->assertJsonValidationErrors('rewards_enabled');   // the feature is gone
+        $this->putJson(self::ADMIN.'/settings', ['return_window_days' => 5])->assertStatus(422)->assertJsonValidationErrors('return_window_days');
         $this->putJson(self::ADMIN.'/settings', ['currency_decimals' => 3])->assertStatus(422)->assertJsonValidationErrors('currency_decimals');
         $this->putJson(self::ADMIN.'/settings', ['order_number_prefix' => 'A B!'])->assertStatus(422)->assertJsonValidationErrors('order_number_prefix');
         $this->putJson(self::ADMIN.'/settings', ['store_name' => ''])->assertStatus(422)->assertJsonValidationErrors('store_name');
@@ -93,7 +92,7 @@ class SettingsTest extends TestCase
 
     public function test_settings_need_an_admin(): void
     {
-        $this->actAs(null);
+        $this->app['auth']->forgetGuards();
         $this->getJson(self::ADMIN.'/settings')->assertUnauthorized();
         $this->putJson(self::ADMIN.'/settings', ['store_name' => 'X'])->assertUnauthorized();
     }
@@ -152,7 +151,7 @@ class SettingsTest extends TestCase
         $this->assertStringStartsWith('http', $share);
         $this->assertSame(2, Media::query()->where('model_type', Setting::class)->count());
 
-        $this->actAs(null);
+        $this->app['auth']->forgetGuards();
         $this->getJson(self::STORE.'/settings')->assertOk()
             ->assertJsonPath('store.favicon_url', $fav)->assertJsonPath('seo.share_image_url', $share)->assertJsonPath('store.logo_url', null);
 
@@ -205,7 +204,7 @@ class SettingsTest extends TestCase
             $this->link('pinterest', 'https://pinterest.com/acme', 'Pins'),
         ]])->assertOk()->assertJsonPath('values.social_links.1.active', false);
 
-        $this->actAs(null);
+        $this->app['auth']->forgetGuards();
         $res = $this->getJson(self::STORE.'/settings')->assertOk();
         $this->assertSame([
             ['platform' => 'youtube', 'label' => 'Youtube', 'url' => 'https://youtube.com/@acme'],
@@ -248,7 +247,7 @@ class SettingsTest extends TestCase
             'whatsapp_number' => '+49 170 1234567', 'seo_meta_title' => 'Acme Store', 'seo_meta_description' => 'Everything you need.',
         ])->assertOk();
 
-        $this->actAs(null);
+        $this->app['auth']->forgetGuards();
         $this->getJson(self::STORE.'/settings')->assertOk()
             ->assertJsonPath('footer', ['text' => 'Quality goods, fast delivery.', 'copyright' => '© 2026 Acme', 'support_hours' => 'Mon-Fri 9-18',
                 'whatsapp_number' => '+49 170 1234567', 'whatsapp_url' => 'https://wa.me/491701234567'])
@@ -262,7 +261,7 @@ class SettingsTest extends TestCase
 
     public function test_the_public_response_has_neutral_empty_values_on_a_fresh_install(): void
     {
-        $this->actAs(null);
+        $this->app['auth']->forgetGuards();
 
         $this->getJson(self::STORE.'/settings')->assertOk()
             ->assertJsonPath('social_links', [])
@@ -299,8 +298,7 @@ class SettingsTest extends TestCase
         $this->asAdmin();
         $this->putJson(self::ADMIN.'/settings', ['free_delivery_min_cart' => 0, 'cod_max_amount' => 0, 'min_order_amount' => 0, 'delivery_fee' => 0])->assertOk();
 
-        $user = $this->customer();
-        $order = $this->orderFor($user, 5);   // would be refused by any COD limit; delivery is free because the fee is 0
+        $order = $this->orderFor([], 5);   // would be refused by any COD limit; delivery is free because the fee is 0
 
         $this->assertEquals(0, $order->shipping_fee);
         $this->assertEquals(760, $order->grand_total);
@@ -310,24 +308,8 @@ class SettingsTest extends TestCase
     {
         $this->setSetting('order_number_prefix', 'JHK');
 
-        $order = $this->orderFor($this->customer(), 1);
+        $order = $this->orderFor([], 1);
 
         $this->assertMatchesRegularExpression('/^JHK-\d{4}-\d{6}$/', $order->order_number);
-    }
-
-    // ------------------------------------------------------------------ rewards
-
-    public function test_expired_coins_leave_the_wallet(): void
-    {
-        $user = $this->customer();
-        $this->giveCoins($user, 100);
-        $this->giveCoins($user, 40);
-        RewardTransaction::where('user_id', $user->id)->orderBy('id')->first()->update(['expires_at' => now()->subDay()]);
-
-        $this->artisan('rewards:expire')->assertSuccessful();
-
-        $this->assertSame('expired', RewardTransaction::where('user_id', $user->id)->orderBy('id')->first()->status);
-        $this->assertSame(40, DB::table('reward_wallets')->where('user_id', $user->id)->value('available'));
-        $this->assertSame(40, app(RewardLedger::class)->spendable($user->id));
     }
 }

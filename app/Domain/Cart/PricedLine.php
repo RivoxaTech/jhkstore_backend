@@ -6,7 +6,7 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductVariant;
 
 /**
- * One cart line after the server worked out its price (amounts in cents). Built by CartPricing, read by the cart resource and by PlaceOrder.
+ * One order line after the server worked out its price (amounts in cents). Built by CartPricing, read by the quote resource and by PlaceOrder.
  * `counted` = the line takes part in the totals. A line that cannot be sold at all (switched off, out of stock) stays visible with a
  * warning but is not counted; a line whose quantity is wrong (too many, too few, more than the stock) is counted but blocks the checkout.
  */
@@ -27,10 +27,8 @@ final class PricedLine
         public readonly ?array $bulk,
         public readonly ?array $nextOffer,
         public readonly int $available,
-        public readonly int $snapshotPrice,
         public readonly bool $counted,
         public readonly array $issues,
-        public readonly int $points = 0,
         public readonly float $taxRate = 0.0,
         public readonly int $tax = 0,
     ) {}
@@ -55,12 +53,6 @@ final class PricedLine
     public function bulkDiscount(): int
     {
         return ($this->basePrice - $this->unitPrice) * $this->qty;
-    }
-
-    /** Reward points this line earns (0 while the feature is off; see RewardLedger::pointsForLine). */
-    public function coinsToEarn(): int
-    {
-        return $this->points;
     }
 
     /** The tax of the line: already inside the total when prices include tax, added on top otherwise (see CartPricing). */

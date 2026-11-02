@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
  * Admin order search, answered by indexes only:
  *   "ORD-2026-0001" -> order_number starts with it (a prefix of letters/digits, then a dash; unique index)
  *   "ali@x.com"      -> customer_email starts with it (index)
- *   "0300 123" digits -> order id (primary key) or customer_phone starts with the digits (index)
+ *   "0300 123" digits -> order id (primary key) or customer_phone starts with the digits, with or without the leading + (index)
  *   anything else    -> customer name: FULLTEXT word starts ("ahm kha"), LIKE for words shorter than 3 letters
  */
 class OrderSearch
@@ -32,6 +32,7 @@ class OrderSearch
 
             return $query->where(fn ($q) => $q
                 ->where('orders.customer_phone', 'like', $digits.'%')
+                ->orWhere('orders.customer_phone', 'like', '+'.$digits.'%')
                 ->when(strlen($digits) <= 9, fn ($w) => $w->orWhere('orders.id', (int) $digits)));
         }
 

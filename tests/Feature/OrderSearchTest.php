@@ -31,8 +31,8 @@ class OrderSearchTest extends TestCase
 
     public function test_search_by_customer_name_matches_word_starts(): void
     {
-        $ahmed = $this->orderFor($this->customer('ahmed@example.test', 'Ahmed Raza Khan'));
-        $ayesha = $this->orderFor($this->customer('ayesha@example.test', 'Ayesha Bibi'));
+        $ahmed = $this->orderFor(['name' => 'Ahmed Raza Khan', 'phone' => '+1 555 010 1111']);
+        $ayesha = $this->orderFor(['name' => 'Ayesha Bibi', 'phone' => '+1 555 010 2222']);
         $this->asAdmin();
         $find = fn (string $q) => collect($this->getJson(self::ADMIN.'/orders?q='.urlencode($q))->assertOk()->json('data'))->pluck('order_number')->sort()->values()->all();
 

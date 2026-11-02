@@ -8,11 +8,9 @@ use Illuminate\Http\JsonResponse;
 
 class SettingController extends Controller
 {
-    /** Public store configuration: profile and branding, footer and social links, SEO defaults, currency, tax, delivery and which optional features are on. */
+    /** Public store configuration: profile and branding, footer and social links, SEO defaults, currency, tax, delivery and order rules. */
     public function show(Settings $settings): JsonResponse
     {
-        $rewards = $settings->rewardsEnabled();
-
         return response()->json([
             'store' => [
                 'name' => (string) $settings->get('store_name'),
@@ -56,14 +54,6 @@ class SettingController extends Controller
                 'min_order_amount' => $settings->get('min_order_amount'),               // 0 = no minimum
                 'cod_max_amount' => $settings->get('cod_max_amount'),                   // 0 = no limit
             ],
-            'features' => [
-                'rewards' => $rewards,
-            ],
-            // only present when reward points are switched on
-            'rewards' => $rewards ? [
-                'earn_rate' => $settings->get('reward_earn_rate'),
-                'redeem_rate' => $settings->get('reward_redeem_rate'),
-            ] : null,
         ]);
     }
 }
