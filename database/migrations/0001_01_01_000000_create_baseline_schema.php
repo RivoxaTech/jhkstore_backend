@@ -15,7 +15,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // ---- Framework, authentication and permissions
+        // ---- Framework, admin accounts and permissions
         Schema::create('sessions', function (Blueprint $table) {
             $table->string('id', 255);
             $table->unsignedBigInteger('user_id')->nullable();
@@ -194,7 +194,6 @@ return new class extends Migration
             $table->unique(['key'], 'site_settings_key_unique');
         });
 
-        // ---- Customers
         // ---- Customers: a contact record created or updated by every order. No password, no login.
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
@@ -390,10 +389,7 @@ return new class extends Migration
             $table->index(['variant_id', 'created_at'], 'inventory_movements_variant_created_index');
         });
 
-        // ---- Reviews
-        // ---- Wishlist
-        // ---- Promotions
-        // ---- Cart, orders, payments and shipping
+        // ---- Orders, payments and shipping
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
             $table->string('order_number', 30);
@@ -533,8 +529,7 @@ return new class extends Migration
             $table->unique(['shipment_number'], 'shipments_shipment_number_unique');
         });
 
-        // ---- Reward points
-        // ---- Content (CMS)
+        // ---- Content
         Schema::create('banners', function (Blueprint $table) {
             $table->id();
             $table->string('placement', 30);

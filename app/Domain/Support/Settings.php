@@ -59,7 +59,7 @@ class Settings
         'currency_decimals' => ['currency', 'int', 2, 'Decimals', 'Decimal places shown and calculated (0, 1 or 2).', 0, 2],
         'tax_rate' => ['tax', 'percent', 0, 'Default tax rate (%)', 'Used for products without their own rate. 0 = no tax.'],
         'tax_inclusive' => ['tax', 'bool', true, 'Prices include tax', 'On: tax is already inside the prices. Off: tax is added at the cart.'],
-        'tax_label' => ['tax', 'string', 'Tax', 'Tax label', 'Shown to customers, e.g. VAT, GST, Sales tax.'],
+        'tax_label' => ['tax', 'string', 'Tax', 'Tax label', 'Shown to customers, e.g. VAT, Sales tax.'],
 
         // --- orders and delivery
         'order_number_prefix' => ['orders', 'string', 'ORD', 'Order number prefix', 'Order numbers look like PREFIX-2026-000123.'],

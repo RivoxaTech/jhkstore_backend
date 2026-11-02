@@ -36,6 +36,15 @@ class SeedersTest extends TestCase
         $this->assertSame(5, DB::table('categories')->count());
         $this->assertSame(7, DB::table('tags')->where('is_system', true)->count());
 
+        // bulk prices are real offers: from 2 units up and cheaper than the option price
+        $tiers = DB::table('variant_price_tiers')->join('product_variants', 'product_variants.id', '=', 'variant_price_tiers.variant_id')
+            ->get(['variant_price_tiers.min_qty', 'variant_price_tiers.price', 'product_variants.selling_price']);
+        $this->assertGreaterThan(0, $tiers->count());
+        foreach ($tiers as $t) {
+            $this->assertGreaterThanOrEqual(2, $t->min_qty);
+            $this->assertLessThan($t->selling_price, $t->price);
+        }
+
         // the sample catalogue is visible on the storefront
         $this->getJson('/api/v1/store/products?per_page=50')->assertOk()->assertJsonCount(12, 'data');
         $this->getJson('/api/v1/store/categories')->assertOk()->assertJsonCount(5, 'data');

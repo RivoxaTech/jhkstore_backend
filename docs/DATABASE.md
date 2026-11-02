@@ -1,66 +1,72 @@
 # Database (MySQL 8, database `jhkstore_db`)
 
-Conventions: InnoDB, `utf8mb4`, `BIGINT UNSIGNED` ids, `created_at`/`updated_at` everywhere, soft deletes (`deleted_at`) on users, categories,
-sub-categories, products and reviews. Money `DECIMAL(12,2)` (cart maths use whole minor units). Statuses are `VARCHAR` mapped to PHP backed enums.
+The product is three things – **products, categories and orders** – plus the settings that control the website. The database holds exactly what those need: **36 tables** (35 created by the baseline migration plus Laravel's `migrations`).
+
+Conventions: InnoDB, `utf8mb4`, `BIGINT UNSIGNED` ids, `created_at`/`updated_at` everywhere, soft deletes (`deleted_at`) on categories, sub-categories and products. Money `DECIMAL(12,2)` (price maths use whole minor units). Statuses are `VARCHAR` mapped to PHP backed enums.
 Files use spatie medialibrary (`media` table). "Snapshot" = copied at the time of the event so history never changes.
 
 The database name comes from `DB_DATABASE` in `.env` (`jhkstore_db`; tests use `jhkstore_test` from `phpunit.xml`). It is not hard-coded anywhere else.
-The whole schema is ONE baseline migration, `database/migrations/0001_01_01_000000_create_baseline_schema.php` (squashed from the earlier history; tables first, foreign keys afterwards). A fresh install runs it with `php artisan migrate --seed`. Every later change is a new migration file after it. A database that ran the old, un-squashed migrations cannot be upgraded in place: rebuild it with `php artisan migrate:fresh --seed`.
+The whole schema is ONE baseline migration, `database/migrations/0001_01_01_000000_create_baseline_schema.php` (tables first, foreign keys afterwards). A fresh install runs it with `php artisan migrate --seed`. Every later change is a new migration file after it.
+No live database existed when the lean store was cut from the earlier project, so the baseline was edited directly: a database created from an earlier version of the file cannot be upgraded in place, rebuild it with `php artisan migrate:fresh --seed`.
 
-## Relationships (text ERD)
+## Relationships (ERD)
 
 ```
-admins ──* audit_logs                                  users 1─* user_addresses            users 1─1 reward_wallets
-users  1─* carts 1─* cart_items *─1 product_variants   users 1─* reward_transactions       users 1─* orders
-users  1─* product_reviews
+customers 1──* orders 1──* order_items *──1 product_variants          (customers never log in: a contact record, linked by phone)
+                  orders 1──* order_addresses (shipping, billing: snapshots)
+                  orders 1──* order_status_history          orders 1──* payments (polymorphic payable)       orders 1──* shipments
 
-categories 1─* sub_categories
-categories 1─* products                                sub_categories 1─* products (sub_category_id nullable)
-products 1─* product_variants 1─* variant_price_tiers  products 1─* product_images / product_content_tabs
-products *─* tags (product_tag)                        products *─* products (product_relations: related)
-products 1─* product_reviews, 1─1 product_rating_stats product_variants 1─* inventory_movements
+categories 1──* sub_categories                  categories 1──* products          sub_categories 1──* products (nullable)
+products 1──* product_variants 1──* variant_price_tiers        product_variants 1──* inventory_movements
+products 1──* product_images (remote rows)   products 1──* product_content_tabs   products *──* tags (product_tag)   products *──* products (product_relations)
 
-orders 1─* order_items (snapshots)  orders 1─* order_addresses (shipping, billing)  orders 1─* order_status_history
-orders 1─* payments (polymorphic payable)  orders 1─* shipments
-reward_transactions (append-only ledger) ─* reward_redemptions (FIFO links between redeem and earn batches)
-
-settings (key/value)        pincodes (optional serviceability / COD per postcode)
+admins *──* roles *──* permissions (spatie)     admins 1──* audit_logs (actor)     admins 1──* inventory_movements (who changed the stock)
+settings (key/value)      banners      media (pictures of products, categories, banners, settings)
 ```
 
-## Tables in use
+## Tables kept, and why
 
-| Table | Purpose / key columns |
+| Table | Why it is needed |
 |---|---|
-| `users` | customers: name, email, mobile, password, gender, date_of_birth, business_name, is_active |
-| `admins` | admin users: username, name, email, password; roles via spatie tables |
-| `user_addresses` | address book: name, phones, line1, area, landmark, city, state, postcode, country, tax_number, type `home|work|other`, lat/long, is_default |
-| `categories`, `sub_categories` | two-level tree: name, slug, description, color, sort_order, is_active, meta_*; `categories.is_top` (max 12, home screen); media icon + image |
-| `products` | category_id, sub_category_id?, name, slug, sku, descriptions, badge_text, **tax_rate?**, country_of_origin, warranty_text, min/max_order_qty, is_returnable/return_days, is_cod_available, status, published_at, meta_*; denormalised min_price, max_discount_percent, rating_avg/count, is_in_stock |
-| `product_variants` | options: name, sku, mrp, selling_price, discount_percent, reward_points, expiry_date, barcode, weight, **stock_qty, reserved_qty, low_stock_threshold**, is_active, is_default |
-| `variant_price_tiers` | bulk prices (min_qty, price) |
-| `product_images`, `product_content_tabs`, `product_relations`, `product_tag`, `tags` | remote-image rows, description tabs, related products, tag pivot, tags (`is_system` protects the home-page tags) |
-| `inventory_movements` | every stock change (`initial`, `adjustment`, `sale`, `cancel`) |
-| `product_reviews`, `product_rating_stats` | one review per customer and product, rating distribution |
-| `carts`, `cart_items` | one active cart per customer or guest token |
-| `orders`, `order_items`, `order_addresses`, `order_status_history` | orders (totals, tax_total, tax_inclusive, points, notes, idempotency key), line snapshots, address snapshots, timeline |
-| `payments`, `shipments` | payment rows (COD today), courier + tracking number |
-| `reward_wallets`, `reward_transactions`, `reward_redemptions` | points: cached balance, append-only ledger with expiring batches, FIFO links |
-| `banners` | placement (`home_hero`, `home_secondary`, `promo_strip`), title, subtitle, button_text, link_url, sort_order, is_active, starts_at, ends_at; media `desktop` + `mobile` pictures |
-| `settings` | key/value store settings (see [SETTINGS.md](SETTINGS.md)); the file settings own their picture through `media` |
-| `pincodes` | optional per-postcode serviceability and COD flag (no admin screen yet) |
-| `audit_logs` | who did what (admin actions, status changes, low-stock alerts) |
-| `media` | spatie medialibrary |
-| `roles`, `permissions`, `model_has_roles`, `model_has_permissions`, `role_has_permissions` | spatie permission tables (guard `admin`): roles `super_admin`, `manager`, `staff` and the permissions of `AdminAccess`, written by `RolesSeeder` |
-| framework | `migrations`, `cache`, `cache_locks`, `sessions`, `jobs`, `job_batches`, `failed_jobs`, `password_reset_tokens`, `personal_access_tokens`, spatie `roles`, `permissions`, `model_has_*`, `role_has_permissions` |
+| **Orders** | |
+| `customers` | Contact record created or updated by every order: `name`, `phone` (unique, normalised, the identity), `email` nullable, `city`, `first_order_at`, `last_order_at`, `orders_count`, `total_spent`. No password, no login. Feeds the admin Customers list and CSV export |
+| `orders` | The order: `customer_id`, contact snapshot (`customer_name/email/phone`), `status`, `payment_status`, totals (`items_subtotal`, `mrp_total`, `product_discount_total`, `bulk_discount_total`, `shipping_fee`, `tax_total`, `tax_inclusive`, `grand_total`), `customer_note`, `admin_note`, delivery estimate, timestamps per step, cancel reason, `idempotency_key` (unique per customer) |
+| `order_items` | The ordered options as they were: name, SKU, picture, MRP, unit price, bulk price used, tax rate and amount, line total, cancelled quantity |
+| `order_addresses` | Shipping and billing address snapshots (`name, phone, line1, area, landmark, city, state, postcode, country`) |
+| `order_status_history` | The timeline: who moved the order from which status to which, with a note |
+| `payments` | One row per order (cash on delivery today: `cod_pending` → `cod_collected`). Polymorphic and gateway-ready for later online payments |
+| `shipments` | The parcel: courier, AWB / tracking number and link, created when the admin ships the order |
+| **Catalogue** | |
+| `categories`, `sub_categories` | The two-level tree: name, slug, description, colour, sort order, active, SEO fields, `categories.is_top`; icon and image through `media` |
+| `products` | Category, optional sub-category, name, slug, SKU, descriptions, badge, `tax_rate` (null = store default), min / max order qty, COD flag, status workflow, SEO fields; denormalised `min_price`, `max_discount_percent`, `is_in_stock`, `popularity_score` for fast lists |
+| `product_variants` | The options: name, SKU, MRP, selling price, discount, weight, `stock_qty`, `reserved_qty`, `low_stock_threshold`, active, default |
+| `variant_price_tiers` | Bulk prices: "buy N or more for X each" |
+| `product_images` | Remote picture rows (only for imported data; uploaded pictures live in `media`) |
+| `product_content_tabs` | Description tabs (features, description, packaging, specifications, directions, additional info) |
+| `product_relations` | Hand-picked related products |
+| `tags`, `product_tag` | Labels such as `best-seller`; the storefront builds home page sections from them |
+| `inventory_movements` | Every stock change (`initial`, `adjustment`, `sale`, `cancel`) with the balance after |
+| **Settings and content** | |
+| `settings` | Key/value store settings ([SETTINGS.md](SETTINGS.md)); picture settings own their file through `media` |
+| `banners` | Admin-managed banners per placement (`home_hero`, `home_secondary`, `promo_strip`), schedule, order; pictures through `media` |
+| `media` | spatie medialibrary: product pictures and their conversions, category icons / images, banner pictures, logo / favicon / share image |
+| **Admin accounts** | |
+| `admins` | The two admin accounts (developer, admin): username, name, e-mail, password (bcrypt), active, last login |
+| `roles`, `permissions`, `model_has_roles`, `model_has_permissions`, `role_has_permissions` | spatie permission tables (guard `admin`): roles `developer` and `admin` and the permissions of `AdminAccess` ([ACCESS_CONTROL.md](ACCESS_CONTROL.md)) |
+| `personal_access_tokens` | Sanctum tokens, **admin** scripts only (customers have none) |
+| `audit_logs` | Who changed what in the admin (settings, catalogue, banners, orders, permission changes, customer exports) and low-stock alerts |
+| **Framework** | |
+| `migrations` | Laravel's migration log |
+| `sessions` | Admin panel session cookie storage |
+| `cache`, `cache_locks` | Database cache (settings, category tree) and its locks |
+| `jobs`, `job_batches`, `failed_jobs` | The queue tables (nothing is queued yet; `QUEUE_CONNECTION=database` works out of the box when something is) |
 
-## Schema kept for the next phase (no code yet, on purpose)
+## Removed
 
-`wishlists`, `wishlist_items`, `wishlist_shares` · `coupons`, `coupon_targets`, `coupon_usages` (carts/orders already have a nullable `coupon_id`) ·
-`homepage_sections`, `collections`, `collection_product`, `cms_pages`, `faqs` (content / CMS) · `notifications` ·
-`product_questions`, `product_feedback` (reviews family) · `refunds`, `invoices`, `webhook_events`, `shipment_items`, `shipment_events` (online payments, invoicing and courier tracking).
+Dropped from the baseline in the lean cut (data and code): `users` (became `customers`), `user_addresses`, `carts`, `cart_items`, `reward_wallets`, `reward_transactions`, `reward_redemptions`,
+`product_reviews`, `product_rating_stats`, `product_questions`, `product_feedback`, `wishlists`, `wishlist_items`, `wishlist_shares`, `coupons`, `coupon_targets`, `coupon_usages`, `notifications`, `faqs`, `cms_pages`,
+`homepage_sections`, `collections`, `collection_product`, `invoices`, `refunds`, `webhook_events`, `shipment_items`, `shipment_events`, `pincodes`, `password_reset_tokens`.
 
-## Removed tables
-
-Dropped because nothing used them and they are not part of the plan: `membership_plans`, `user_memberships`, `return_reasons`, `return_requests`,
-`return_request_items`, `return_status_history`, `otp_codes`, `referrals`, `events`, `event_registrations`, `shipping_rules`, `search_terms`, `enquiries`, `enquiry_notes`
-(and the columns `users.referral_code`, `users.referred_by_user_id` and `refunds.return_request_id`). The database has **65 tables**. Removed with the brands: `brands`, `brand_collections`, `products.brand_id`, `order_items.brand_id` and `order_items.brand_name`.
+Dropped columns: `products.is_returnable`, `return_days`, `country_of_origin`, `warranty_text`, `rating_avg`, `rating_count`; `product_variants.reward_points`, `expiry_date`, `barcode`; `categories.rating`, `sub_categories.rating`;
+`orders.coupon_id`, `coupon_code`, `coins_redeemed`, `coins_discount`, `coins_to_earn`, `cod_fee`, `discount_total`, `customer_tax_number`, `membership_applied`, `user_id` (now `customer_id`); `order_items.coins_earned`, `expiry_date`, `returned_qty`;
+`order_addresses.tax_number`, `alt_phone`, `address_type`, `latitude`, `longitude`; the refund bank / UPI fields went with `refunds`. Earlier cuts (memberships, returns, OTP, referrals, events, shipping rules, search terms, enquiries, brands, companies, sales channels, third category level) are in [CHANGELOG.md](../CHANGELOG.md).

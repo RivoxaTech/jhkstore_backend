@@ -31,8 +31,10 @@ Edit `.env`:
 | `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | the new database |
 | `FRONTEND_URLS` | the storefront origin(s) allowed by CORS (comma separated) |
 | `SANCTUM_STATEFUL_DOMAINS` | the admin panel host(s), e.g. `api.acme.example` |
-| `SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD` | the first admin, a **super admin** (the seeder refuses a weak password in production) |
-| `CUSTOMER_TOKEN_MINUTES`, `ADMIN_TOKEN_MINUTES` | how long a customer / admin API token lives (default 10080 = 7 days / 720 = 12 hours; 0 = never) |
+| `SEED_DEVELOPER_USERNAME`, `SEED_DEVELOPER_PASSWORD` | the **developer** account: builds and runs the site, never sees orders (12+ characters in production) |
+| `SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD` | the **admin** account: the client (12+ characters in production; the seeder refuses weak passwords and identical usernames) |
+| `ADMIN_TOKEN_MINUTES` | how long an admin API token (scripts) lives (default 720 = 12 hours; 0 = never) |
+| `SHOP_MAX_ITEMS_PER_ORDER`, `SHOP_MAX_QTY_PER_LINE`, `SHOP_HONEYPOT_FIELD`, `CHECKOUT_PER_MINUTE`, … | optional: the limits of the public checkout (defaults in `.env.example` and `config/shop.php`) |
 | `SESSION_LIFETIME` | minutes an admin panel session stays valid without activity (default 120) |
 | `MAIL_*`, `FILESYSTEM_DISK` | the client's mail / storage |
 | `SESSION_SECURE_COOKIE=true` | in production (HTTPS) |
@@ -42,47 +44,47 @@ Edit `.env`:
 ```bash
 # create the empty database (and the test database) in MySQL first
 composer install --no-dev --optimize-autoloader
-php artisan migrate --force --seed       # tables, default settings, the first admin
+php artisan migrate --force --seed       # tables, default settings, the two admin accounts
 php artisan storage:link
 cd admin-frontend && npm install && npm run build && cd ..     # admin panel -> public/admin-assets
 ```
 
-Add the cron entry `* * * * * php artisan schedule:run` (cart clean-up, points expiry and removal of expired API tokens).
+Add the cron entry `* * * * * php artisan schedule:run` (removal of expired admin API tokens).
 
 ## 4. Configure the store (admin panel → Settings)
 
-Log in at `/admin` and set, in this order (see [SETTINGS.md](SETTINGS.md) for every field):
+Log in at `/admin` as the **developer** and set, in this order (see [SETTINGS.md](SETTINGS.md) for every field):
 
-1. **Store profile** – name, tagline, logo, contact email / phone / address, country.
-2. **Currency** – code, symbol and decimals (e.g. `EUR`, `€`, 2).
-3. **Tax** – default rate, whether prices include tax, and the label ("VAT", "GST", …). A product can override the rate.
-4. **Orders and delivery** – order number prefix, delivery charge, free-delivery limit, delivery days, minimum order, cash-on-delivery limit.
-5. **Features** – *Enable reward points* (default off). With points on, also set the earn rate, redeem rate and limits.
+1. **General** – name, tagline, contact email / phone / address, country. **Branding** – logo and favicon.
+2. **Currency & Tax** – code, symbol and decimals (e.g. `EUR`, `€`, 2); default tax rate, whether prices include tax, and the label ("VAT", "Sales tax", …). A product can override the rate.
+3. **Orders & Delivery** – order number prefix, delivery charge, free-delivery limit, delivery days, minimum order, cash-on-delivery limit.
+4. **Footer & Social**, **SEO**, and the **Banners** tab (home hero, secondary banners, promo strip).
 
-Then open **Users & roles** (super admin only): create the real admins with the right role – *Manager* (catalogue, banners, orders; settings read-only) or *Staff* (orders; everything else read-only) – and replace or deactivate the seeded admin. Remove the demo data if you loaded it. What each role may do is in [ARCHITECTURE.md](ARCHITECTURE.md#security-and-limits).
+Then open **Access Control** (developer only) and switch on what the client's `admin` account may see: by default the admin has the dashboard, orders, the customers list and the General, Footer & Social and Orders & Delivery tabs; products, categories and the other tabs are off until you switch them on. Set a real password for both accounts (`SEED_*_PASSWORD` before the first seed). The developer never sees orders. See [ACCESS_CONTROL.md](ACCESS_CONTROL.md).
 
 ## 5. Add the catalogue
 
 Admin panel → **Categories** (two levels), **Tags**, **Products** (options, prices, bulk prices, stock, pictures).
-To try the shop first, load the neutral sample data: `php artisan db:seed --class=DemoSeeder` (never on a production site; it also creates a demo customer).
+To try the shop first, load the neutral sample data: `php artisan db:seed --class=DemoSeeder` (never on a production site).
 
 ## 6. Connect the storefront
 
-Give the storefront developer [STOREFRONT-API.md](STOREFRONT-API.md) and the Postman collection in `docs/postman/`. The first call a storefront should make is
-`GET /api/v1/store/settings` – it returns the store name, logo, currency, tax rules and which features are on, so one storefront build adapts to each client.
+Give the storefront developer [STOREFRONT-API.md](STOREFRONT-API.md), `docs/openapi.json` and the Postman collection in `docs/postman/`. The first call a storefront should make is
+`GET /api/v1/store/settings` – it returns the store name, logo, currency and tax rules, so one storefront build adapts to each client. There is no customer login: the storefront keeps the cart, calls `POST /checkout/quote` and `POST /orders`.
 
 ## 7. Go-live checklist
 
 - [ ] `APP_ENV=production`, `APP_DEBUG=false` (it is forced off in production anyway), HTTPS, `SESSION_SECURE_COOKIE=true` (the default in production)
-- [ ] token lifetimes (`CUSTOMER_TOKEN_MINUTES`, `ADMIN_TOKEN_MINUTES`) and rate limits reviewed; the storefront refreshes tokens or handles `401` by showing the login
-- [ ] strong `SEED_ADMIN_PASSWORD` used, default admin replaced
+- [ ] `ADMIN_TOKEN_MINUTES` and the checkout rate limits (`CHECKOUT_PER_*`, `QUOTE_PER_MINUTE`, `ORDER_LOOKUP_PER_*`) reviewed
+- [ ] strong `SEED_DEVELOPER_PASSWORD` and `SEED_ADMIN_PASSWORD` used (12+ characters)
+- [ ] the storefront has the hidden honeypot field (`website`) in its checkout form
 - [ ] `APP_URL`, `FRONTEND_URLS`, `SANCTUM_STATEFUL_DOMAINS` match the real domains
-- [ ] cron entry added; a queue worker is **not** required yet (nothing is queued)
+- [ ] cron entry added; a queue worker is **not** required (nothing is queued)
 - [ ] `php artisan config:cache route:cache` after the final `.env`
 - [ ] backups of the database and `storage/app/public`
 - [ ] demo data removed
 
 ## Keeping clients up to date
 
-Pull upstream changes into the client repository and run `php artisan migrate --force`. Migrations only ever add or alter; client-specific values live in `settings`, so an
+Pull upstream changes into the client repository and run `php artisan migrate --force`. After the lean cut migrations only add or alter (a database from before it must be rebuilt with `migrate:fresh --seed`); client-specific values live in `settings`, so an
 upgrade never overwrites them. Client-specific code (a custom module, a payment provider) should live in its own `app/Domain/<Module>` folder to keep merges simple.

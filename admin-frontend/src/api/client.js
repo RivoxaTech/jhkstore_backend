@@ -15,7 +15,7 @@ export class ApiError extends Error {
     this.errors = data?.errors || {}
     this.data = data
   }
-  /** First validation message of a field (works for nested keys like "brands.0.name"). */
+  /** First validation message of a field (works for nested keys like "variants.0.name"). */
   firstError(field) {
     return this.errors?.[field]?.[0] || ''
   }

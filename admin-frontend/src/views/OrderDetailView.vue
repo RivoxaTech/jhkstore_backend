@@ -45,7 +45,7 @@ watch(() => route.params.id, load)
 
 const o = computed(() => order.value)
 const totals = computed(() => o.value?.totals || {})
-// Reward-point rows only exist in the response when the feature is enabled: render them only if the key is there.
+// optional parts of the answer are rendered only when their key is there
 const has = (obj, key) => obj && obj[key] !== undefined && obj[key] !== null
 // tax: "Tax (incl.)" when the prices already contain it, plain "Tax" when it is added on top of the total
 const taxLabel = computed(() => {

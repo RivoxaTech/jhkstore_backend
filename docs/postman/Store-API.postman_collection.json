@@ -1,9 +1,35 @@
 {
   "info": {
-    "name": "Store API (customer side)",
-    "description": "Customer API of the e-commerce base. Run the requests top to bottom against a database seeded with `php artisan migrate:fresh --seed` and `php artisan db:seed --class=DemoSeeder`. The scripts save variant_id, cart_token, customer_token, address_id and order_number. See docs/STOREFRONT-API.md.",
+    "name": "Store API (public, no login)",
+    "description": "Storefront API of the lean store. Customers have no accounts: nothing here needs a token. Run the requests in order: settings, catalogue, product detail (saves variant_id), quote, place order (saves order_number), look the order up. Set base_url and product_slug.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1/store"
+    },
+    {
+      "key": "product_slug",
+      "value": ""
+    },
+    {
+      "key": "variant_id",
+      "value": ""
+    },
+    {
+      "key": "phone",
+      "value": "+1 555 010 0100"
+    },
+    {
+      "key": "idempotency_key",
+      "value": ""
+    },
+    {
+      "key": "order_number",
+      "value": ""
+    }
+  ],
   "item": [
     {
       "name": "1. Store settings (start here)",
@@ -15,7 +41,17 @@
             "value": "application/json"
           }
         ],
-        "url": "{{base_url}}/settings"
+        "url": {
+          "raw": "{{base_url}}/settings",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "settings"
+          ],
+          "query": []
+        },
+        "description": "Store profile, logo, footer and social links, SEO, currency, tax, delivery and order limits. Call once on start-up."
       }
     },
     {
@@ -28,7 +64,22 @@
             "value": "application/json"
           }
         ],
-        "url": "{{base_url}}/banners?placement=home_hero"
+        "url": {
+          "raw": "{{base_url}}/banners?placement=home_hero",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "banners"
+          ],
+          "query": [
+            {
+              "key": "placement",
+              "value": "home_hero"
+            }
+          ]
+        },
+        "description": ""
       }
     },
     {
@@ -41,7 +92,22 @@
             "value": "application/json"
           }
         ],
-        "url": "{{base_url}}/banners?placement=promo_strip"
+        "url": {
+          "raw": "{{base_url}}/banners?placement=promo_strip",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "banners"
+          ],
+          "query": [
+            {
+              "key": "placement",
+              "value": "promo_strip"
+            }
+          ]
+        },
+        "description": ""
       }
     },
     {
@@ -54,7 +120,17 @@
             "value": "application/json"
           }
         ],
-        "url": "{{base_url}}/categories"
+        "url": {
+          "raw": "{{base_url}}/categories",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "categories"
+          ],
+          "query": []
+        },
+        "description": ""
       }
     },
     {
@@ -67,7 +143,22 @@
             "value": "application/json"
           }
         ],
-        "url": "{{base_url}}/categories?top=1"
+        "url": {
+          "raw": "{{base_url}}/categories?top=1",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "categories"
+          ],
+          "query": [
+            {
+              "key": "top",
+              "value": "1"
+            }
+          ]
+        },
+        "description": ""
       }
     },
     {
@@ -80,7 +171,26 @@
             "value": "application/json"
           }
         ],
-        "url": "{{base_url}}/products?per_page=12&sort=popularity"
+        "url": {
+          "raw": "{{base_url}}/products?per_page=12&sort=popularity",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "products"
+          ],
+          "query": [
+            {
+              "key": "per_page",
+              "value": "12"
+            },
+            {
+              "key": "sort",
+              "value": "popularity"
+            }
+          ]
+        },
+        "description": ""
       }
     },
     {
@@ -93,7 +203,26 @@
             "value": "application/json"
           }
         ],
-        "url": "{{base_url}}/products?tag=best-seller&per_page=10"
+        "url": {
+          "raw": "{{base_url}}/products?tag=best-seller&per_page=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "products"
+          ],
+          "query": [
+            {
+              "key": "tag",
+              "value": "best-seller"
+            },
+            {
+              "key": "per_page",
+              "value": "10"
+            }
+          ]
+        },
+        "description": ""
       }
     },
     {
@@ -106,11 +235,51 @@
             "value": "application/json"
           }
         ],
-        "url": "{{base_url}}/products?q=headphones"
+        "url": {
+          "raw": "{{base_url}}/products?q=cable&in_stock=1",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "products"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "cable"
+            },
+            {
+              "key": "in_stock",
+              "value": "1"
+            }
+          ]
+        },
+        "description": ""
       }
     },
     {
       "name": "9. Product detail (saves variant_id)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/products/{{product_slug}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "products",
+            "{{product_slug}}"
+          ],
+          "query": []
+        },
+        "description": "Set the product_slug variable first (a slug from request 6). Saves the first option as variant_id."
+      },
       "event": [
         {
           "listen": "test",
@@ -122,32 +291,10 @@
             ]
           }
         }
-      ],
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          }
-        ],
-        "url": "{{base_url}}/products/wireless-headphones"
-      }
+      ]
     },
     {
-      "name": "10. Guest: add to cart (saves cart_token)",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const t = pm.response.json().data.token;",
-              "if (t) { pm.collectionVariables.set('cart_token', t); }"
-            ]
-          }
-        }
-      ],
+      "name": "10. Quote: price the cart on the server",
       "request": {
         "method": "POST",
         "header": [
@@ -162,196 +309,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"variant_id\": \"{{variant_id}}\",\n  \"qty\": 2\n}"
+          "raw": "{\n  \"items\": [\n    {\n      \"variant_id\": \"{{variant_id}}\",\n      \"qty\": 5\n    }\n  ]\n}"
         },
-        "url": "{{base_url}}/cart/items"
-      }
-    },
-    {
-      "name": "11. Guest: show cart",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          },
-          {
-            "key": "X-Cart-Token",
-            "value": "{{cart_token}}"
-          }
-        ],
-        "url": "{{base_url}}/cart"
-      }
-    },
-    {
-      "name": "12. Login (merges the guest cart, saves customer_token)",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.collectionVariables.set('customer_token', pm.response.json().token);"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "X-Cart-Token",
-            "value": "{{cart_token}}"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"login\": \"demo@example.com\",\n  \"password\": \"demo-password\"\n}"
+        "url": {
+          "raw": "{{base_url}}/checkout/quote",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "checkout",
+            "quote"
+          ],
+          "query": []
         },
-        "url": "{{base_url}}/auth/login"
-      }
+        "description": "The storefront keeps the cart; this prices it (bulk prices, tax, delivery fee, warnings). Nothing is stored or reserved. No login."
+      },
+      "event": []
     },
     {
-      "name": "13. Refresh the token (before expires_at; saves the new customer_token)",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const t = pm.response.json().token;",
-              "if (t) { pm.collectionVariables.set('customer_token', t); }"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "Bearer {{customer_token}}"
-          }
-        ],
-        "url": "{{base_url}}/auth/refresh"
-      }
-    },
-    {
-      "name": "14. Customer: show cart",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          }
-        ],
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{customer_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "url": "{{base_url}}/cart"
-      }
-    },
-    {
-      "name": "15. Customer: change quantity",
-      "request": {
-        "method": "PUT",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{customer_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"qty\": 3\n}"
-        },
-        "url": "{{base_url}}/cart/items/{{variant_id}}"
-      }
-    },
-    {
-      "name": "16. Addresses (saves address_id)",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const d = pm.response.json().data;",
-              "if (d && d.length) { pm.collectionVariables.set('address_id', d[0].id); }"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          }
-        ],
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{customer_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "url": "{{base_url}}/addresses"
-      }
-    },
-    {
-      "name": "17. Place order (cash on delivery)",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const d = pm.response.json().data;",
-              "if (d) { pm.collectionVariables.set('order_number', d.order_number); }"
-            ]
-          }
-        }
-      ],
+      "name": "11. Place a guest order (cash on delivery, saves order_number)",
       "request": {
         "method": "POST",
         "header": [
@@ -365,28 +341,48 @@
           },
           {
             "key": "Idempotency-Key",
-            "value": "{{$guid}}"
+            "value": "{{idempotency_key}}"
           }
         ],
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{customer_token}}",
-              "type": "string"
-            }
-          ]
-        },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"address_id\": \"{{address_id}}\",\n  \"customer_note\": \"Please call before delivery\"\n}"
+          "raw": "{\n  \"customer\": {\n    \"name\": \"Alex Morgan\",\n    \"phone\": \"{{phone}}\",\n    \"email\": \"alex@example.com\"\n  },\n  \"address\": {\n    \"line1\": \"12 Example Street\",\n    \"area\": \"Downtown\",\n    \"city\": \"Springfield\",\n    \"state\": \"Sample State\",\n    \"postcode\": \"12345\",\n    \"country\": \"Testland\"\n  },\n  \"items\": [\n    {\n      \"variant_id\": \"{{variant_id}}\",\n      \"qty\": 5\n    }\n  ],\n  \"customer_note\": \"Call before delivery\",\n  \"website\": \"\"\n}"
         },
-        "url": "{{base_url}}/orders"
-      }
+        "url": {
+          "raw": "{{base_url}}/orders",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "orders"
+          ],
+          "query": []
+        },
+        "description": "No login. phone is required, email optional. Idempotency-Key: a retry with the same key returns the same order (200 + Idempotency-Replayed). `website` is the honeypot field: leave it empty. 409 price_changed when expected_total no longer matches."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('idempotency_key', pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201 || pm.response.code === 200) { pm.collectionVariables.set('order_number', pm.response.json().data.order_number); }"
+            ]
+          }
+        }
+      ]
     },
     {
-      "name": "18. My orders",
+      "name": "12. Look the order up (order number + phone)",
       "request": {
         "method": "GET",
         "header": [
@@ -395,21 +391,27 @@
             "value": "application/json"
           }
         ],
-        "auth": {
-          "type": "bearer",
-          "bearer": [
+        "url": {
+          "raw": "{{base_url}}/orders/{{order_number}}?phone={{phone}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "orders",
+            "{{order_number}}"
+          ],
+          "query": [
             {
-              "key": "token",
-              "value": "{{customer_token}}",
-              "type": "string"
+              "key": "phone",
+              "value": "{{phone}}"
             }
           ]
         },
-        "url": "{{base_url}}/orders"
+        "description": "Status, items, totals, tracking and timeline. A wrong phone answers 404, exactly like an unknown order."
       }
     },
     {
-      "name": "19. Order detail",
+      "name": "13. Look up with a wrong phone (expect 404)",
       "request": {
         "method": "GET",
         "header": [
@@ -418,111 +420,24 @@
             "value": "application/json"
           }
         ],
-        "auth": {
-          "type": "bearer",
-          "bearer": [
+        "url": {
+          "raw": "{{base_url}}/orders/{{order_number}}?phone=+1 555 010 9999",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "orders",
+            "{{order_number}}"
+          ],
+          "query": [
             {
-              "key": "token",
-              "value": "{{customer_token}}",
-              "type": "string"
+              "key": "phone",
+              "value": "+1 555 010 9999"
             }
           ]
         },
-        "url": "{{base_url}}/orders/{{order_number}}"
+        "description": ""
       }
-    },
-    {
-      "name": "20. Cancel order (before it ships)",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{customer_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"reason\": \"Changed my mind\"\n}"
-        },
-        "url": "{{base_url}}/orders/{{order_number}}/cancel"
-      }
-    },
-    {
-      "name": "21. Reorder",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          }
-        ],
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{customer_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "url": "{{base_url}}/orders/{{order_number}}/reorder"
-      }
-    },
-    {
-      "name": "22. Reviews of a product",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Accept",
-            "value": "application/json"
-          }
-        ],
-        "url": "{{base_url}}/products/wireless-headphones/reviews"
-      }
-    }
-  ],
-  "variable": [
-    {
-      "key": "base_url",
-      "value": "http://localhost:8000/api/v1/store"
-    },
-    {
-      "key": "variant_id",
-      "value": ""
-    },
-    {
-      "key": "cart_token",
-      "value": ""
-    },
-    {
-      "key": "customer_token",
-      "value": ""
-    },
-    {
-      "key": "address_id",
-      "value": ""
-    },
-    {
-      "key": "order_number",
-      "value": ""
     }
   ]
 }

@@ -29,7 +29,7 @@ class Customer extends Model
         return $this->hasMany(Order::class);
     }
 
-    /** Admin search: a name (words start with the text), a phone (digits) or an e-mail address; answered by indexes where possible. */
+    /** Admin search: a name (words start with the text), a phone (any part of the number) or an e-mail address (starts with). */
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
         $t = trim((string) $term);
@@ -42,7 +42,7 @@ class Customer extends Model
         if (preg_match('/^[0-9+\s\-()]+$/', $t)) {
             $digits = preg_replace('/\D/', '', $t);
 
-            return $query->where(fn ($q) => $q->where('phone', 'like', $digits.'%')->orWhere('phone', 'like', '+'.$digits.'%'));
+            return $query->where('phone', 'like', '%'.$digits.'%');   // the list is small: any part of the number matches
         }
 
         return $query->where('name', 'like', '%'.FullTextSearch::like($t).'%');

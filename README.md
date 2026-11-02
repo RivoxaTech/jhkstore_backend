@@ -1,10 +1,12 @@
-# E-commerce base (Laravel API + Vue admin)
+# Lean store (Laravel API + Vue admin)
 
-A neutral, reusable e-commerce backend. **One deployment per client**: the code is the same for every client, and everything that is specific to a
-client (store name, logo, currency, tax, delivery, which optional features are on) lives in `.env` and the `settings` table.
+A neutral, reusable store backend: **products, categories and orders**, plus the admin settings that control the website. **One deployment per client**: the code is the same for every client, and everything that is specific to a
+client (store name, logo, currency, tax, delivery, banners, footer) lives in `.env` and the `settings` table.
 
-* **Backend** – Laravel 13 / PHP 8.3 / MySQL 8, JSON API, Sanctum auth (`/api/v1/store/*` for the storefront, `/api/v1/admin/*` for the admin).
-* **Admin panel** – Vue 3 single-page app in `admin-frontend/`, served by Laravel at `/admin` after a build. Admins have a role (super admin, manager, staff) that decides what they can open and change.
+* **Backend** – Laravel 13 / PHP 8.3 / MySQL 8, JSON API (`/api/v1/store/*` for the storefront, `/api/v1/admin/*` for the admin).
+* **No customer accounts.** Customers never register or log in: the storefront keeps the cart, asks the API to price it, and places a guest order with name, phone (required), optional e-mail and a delivery address. Every order finds or creates a *customer* record by phone (a contact record, no password).
+* **Admin panel** – Vue 3 single-page app in `admin-frontend/`, served by Laravel at `/admin` after a build. Exactly **two accounts**: the *developer* (everything except orders) and the *admin* (the client; the developer decides what they may see, see [docs/ACCESS_CONTROL.md](docs/ACCESS_CONTROL.md)).
+  Sidebar: Dashboard, Orders, Products, Categories, Customers, Settings (General, Branding, Banners, Footer & Social, Currency & Tax, Orders & Delivery, SEO) and, for the developer, Access Control.
 * **Storefront** – not part of this repo. The API is storefront-agnostic: build it in any framework (see [docs/STOREFRONT-API.md](docs/STOREFRONT-API.md)).
 
 ## Quick start
@@ -14,26 +16,27 @@ composer install
 cp .env.example .env              # set DB_USERNAME / DB_PASSWORD if needed
 php artisan key:generate
 # create two empty MySQL databases: jhkstore_db (the app) and jhkstore_test (the tests)
-php artisan migrate --seed        # tables + default settings + the first admin user
-php artisan db:seed --class=DemoSeeder   # optional: neutral sample categories, products and a demo customer
+php artisan migrate --seed        # tables + default settings + the two admin accounts
+php artisan db:seed --class=DemoSeeder   # optional: neutral sample categories and products
 php artisan storage:link
 php artisan serve                 # http://localhost:8000
 ```
+
+Admin accounts (from `.env`; defaults for local development only): developer `SEED_DEVELOPER_USERNAME` / `SEED_DEVELOPER_PASSWORD` (`developer` / `developer`), admin `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD` (`admin` / `admin`). In production the seeder refuses weak passwords.
 
 Admin panel:
 
 ```bash
 cd admin-frontend
 npm install
-npm run dev                       # http://localhost:5190  (login: the SEED_ADMIN_* values of .env, default admin / admin)
+npm run dev                       # http://localhost:5190
 npm run build                     # production build into public/admin-assets, served at /admin
+npm run e2e                       # browser smoke test (needs the API running on a seeded database and Chrome)
 ```
 
 Tests (need an empty MySQL database `jhkstore_test`): `php artisan test`
 
-Demo customer (after `DemoSeeder`): `DEMO_CUSTOMER_EMAIL` / `DEMO_CUSTOMER_PASSWORD` (default `demo@example.com` / `demo-password`).
-
-Scheduled jobs (add `* * * * * php artisan schedule:run` to the server cron): `carts:prune` (expired guest carts, old empty carts) and `rewards:expire` (points past their expiry).
+Scheduled job (add `* * * * * php artisan schedule:run` to the server cron): `sanctum:prune-expired` (expired admin API tokens).
 The shop time zone is `APP_TIMEZONE` in `.env`: "today", order dates and the admin date filters follow it.
 
 ## Documentation
@@ -41,11 +44,12 @@ The shop time zone is `APP_TIMEZONE` in `.env`: "today", order dates and the adm
 | Doc | What is in it |
 |---|---|
 | [docs/NEW_CLIENT.md](docs/NEW_CLIENT.md) | **How to create a new client project** |
-| [docs/SETTINGS.md](docs/SETTINGS.md) | Every setting, its default and what it does |
-| [docs/FEATURES.md](docs/FEATURES.md) | What is built, what is optional, what is planned |
+| [docs/ACCESS_CONTROL.md](docs/ACCESS_CONTROL.md) | The two accounts, the permission list, the hard rules |
+| [docs/SETTINGS.md](docs/SETTINGS.md) | Every setting, its default and what it does; how to add a tab |
+| [docs/FEATURES.md](docs/FEATURES.md) | What is built, what was removed |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the code is organised and the main design decisions |
-| [docs/DATABASE.md](docs/DATABASE.md) | Tables in use, tables kept for later, tables proposed for removal |
-| [docs/STOREFRONT-API.md](docs/STOREFRONT-API.md) | The customer API for whoever builds the storefront |
-| [docs/postman/](docs/postman/) | Postman collection of the customer API |
+| [docs/DATABASE.md](docs/DATABASE.md) | The ERD and every table with the reason it is kept |
+| [docs/STOREFRONT-API.md](docs/STOREFRONT-API.md) | The public API for whoever builds the storefront: quote, guest checkout, order lookup |
+| [docs/openapi.json](docs/openapi.json) | OpenAPI 3.1 reference (regenerate with `php artisan scramble:export --path=docs/openapi.json`); live at `/docs/api` |
+| [docs/postman/](docs/postman/) | Postman collection of the storefront API |
 | [CHANGELOG.md](CHANGELOG.md) | What changed |
-| `/docs/api` | Generated OpenAPI reference (Scramble) while the server runs locally |
