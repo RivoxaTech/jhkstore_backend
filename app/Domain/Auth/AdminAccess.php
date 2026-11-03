@@ -51,6 +51,7 @@ class AdminAccess
         'orders' => ['Orders', [
             'orders.view' => 'See orders',
             'orders.manage' => 'Change order status and write order notes',
+            'orders.export' => 'Download the orders list as CSV',
         ]],
         'customers' => ['Customers', [
             'customers.view' => 'See the customers list',
@@ -68,6 +69,7 @@ class AdminAccess
             'settings.store' => 'Settings: Store (open or closed, notices)',
             'settings.delivery' => 'Settings: Delivery (method, fees, zones)',
             'settings.payments' => 'Settings: Payments (methods, bank accounts)',
+            'settings.notifications' => 'Settings: Notifications (e-mails, admin push)',
         ]],
         'discounts' => ['Discounts', [
             'discounts.view' => 'See discounts',
@@ -76,6 +78,10 @@ class AdminAccess
         'coupons' => ['Coupons', [
             'coupons.view' => 'See coupons and where they were used',
             'coupons.manage' => 'Create, edit, activate and delete coupons',
+        ]],
+        'wholesale' => ['Wholesale', [
+            'wholesale.view' => 'See wholesale requests (personal data)',
+            'wholesale.manage' => 'Change the status of wholesale requests, write notes, download the CSV',
         ]],
         'developer' => ['Developer', [
             self::ACCESS_MANAGE => 'Access Control: decide what the admin may see',
@@ -89,9 +95,13 @@ class AdminAccess
     public const ADMIN_DEFAULTS = [
         'dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export',
         'settings.general', 'settings.footer', 'settings.orders_delivery',
-        'settings.store', 'settings.delivery', 'settings.payments',
+        'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications',
+        'orders.export', 'wholesale.view', 'wholesale.manage',
         'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage',
     ];
+
+    /** Personal data the developer does not get by default but can be given (the customers list and the wholesale requests). */
+    public const DEVELOPER_OPTIONAL = ['customers.view', 'customers.export', 'wholesale.view', 'wholesale.manage'];
 
     /** Permissions that are always on for the developer and cannot be switched off. */
     public const DEVELOPER_FIXED_ON = [self::ACCESS_MANAGE];
@@ -121,14 +131,14 @@ class AdminAccess
     {
         $allowed = array_values(array_diff(self::all(), self::forbidden($role), self::DEVELOPER_FIXED_ON));
 
-        // the developer's own access is fixed, except the customers list (personal data), which can be switched on
-        return $role === self::DEVELOPER ? ['customers.view', 'customers.export'] : $allowed;
+        // the developer's own access is fixed, except the personal data (customers list, wholesale requests), which can be switched on
+        return $role === self::DEVELOPER ? self::DEVELOPER_OPTIONAL : $allowed;
     }
 
-    /** What the developer starts with: everything except orders and customers. */
+    /** What the developer starts with: everything except orders and personal data (customers, wholesale requests). */
     public static function developerDefaults(): array
     {
-        return array_values(array_diff(self::all(), self::forbidden(self::DEVELOPER), ['customers.view', 'customers.export']));
+        return array_values(array_diff(self::all(), self::forbidden(self::DEVELOPER), self::DEVELOPER_OPTIONAL));
     }
 
     /** Creates the permissions and the two roles. A role that already exists keeps its permissions (the developer may have changed them). */

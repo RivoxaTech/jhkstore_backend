@@ -278,6 +278,9 @@ return new class extends Migration
             $table->decimal('min_price', 12, 2)->nullable();
             $table->decimal('max_discount_percent', 5, 2)->default(0.00);
             $table->boolean('is_in_stock')->default(false);
+            $table->boolean('is_sold_out')->default(false);                // shown as "Sold out", cannot be ordered, still visible
+            $table->boolean('is_featured')->default(false);
+            $table->string('video_url', 500)->nullable();                  // an https YouTube / Vimeo / direct video link (uploads are in the media collection `video`)
             $table->unsignedInteger('popularity_score')->default(0);
             $table->string('meta_title', 255)->nullable();
             $table->string('meta_description', 255)->nullable();
@@ -290,6 +293,7 @@ return new class extends Migration
             $table->unique(['slug'], 'products_slug_unique');
             $table->index(['status', 'popularity_score'], 'products_status_popularity_score_index');
             $table->index(['status', 'published_at'], 'products_status_published_at_index');
+            $table->index(['is_featured', 'status'], 'products_is_featured_status_index');
             $table->index(['sub_category_id', 'status', 'min_price'], 'products_sub_category_id_status_min_price_index');
         });
 
@@ -667,6 +671,44 @@ return new class extends Migration
             $table->unique(['cart_id', 'variant_id'], 'cart_items_cart_variant_unique');
         });
 
+        // ---- Wholesale requests: a customer asks for a bulk price (personal data: wholesale.view / wholesale.manage)
+        Schema::create('wholesale_requests', function (Blueprint $table) {
+            $table->id();
+            $table->string('reference', 24);                       // WS-2026-000001
+            $table->unsignedBigInteger('customer_id')->nullable();
+            $table->string('name', 120);
+            $table->string('phone', 20);                            // normalised, like customers.phone
+            $table->string('email', 190)->nullable();
+            $table->string('business_name', 150)->nullable();
+            $table->unsignedBigInteger('product_id')->nullable();
+            $table->unsignedBigInteger('variant_id')->nullable();
+            $table->string('product_name', 255);                    // snapshot (or free text for "other")
+            $table->unsignedInteger('quantity');
+            $table->string('message', 1000)->nullable();
+            $table->string('status', 12)->default('new');           // new | contacted | quoted | closed
+            $table->text('admin_note')->nullable();
+            $table->timestamp('handled_at')->nullable();
+            $table->unsignedBigInteger('handled_by')->nullable();
+            $table->timestamps();
+            $table->unique(['reference'], 'wholesale_requests_reference_unique');
+            $table->index(['status', 'created_at'], 'wholesale_requests_status_created_at_index');
+            $table->index(['phone'], 'wholesale_requests_phone_index');
+        });
+
+        // ---- Web push: one row per browser of an admin
+        Schema::create('push_subscriptions', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('admin_id');
+            $table->string('endpoint', 500);
+            $table->string('p256dh', 255);
+            $table->string('auth', 100);
+            $table->string('user_agent', 255)->nullable();
+            $table->timestamp('last_used_at')->nullable();
+            $table->timestamps();
+            $table->unique(['endpoint'], 'push_subscriptions_endpoint_unique');
+            $table->index(['admin_id'], 'push_subscriptions_admin_id_index');
+        });
+
         // ---- Foreign keys
         Schema::table('model_has_permissions', function (Blueprint $table) {
             $table->foreign('permission_id', 'model_has_permissions_permission_id_foreign')->references('id')->on('permissions')->onDelete('cascade');
@@ -768,6 +810,8 @@ return new class extends Migration
         Schema::disableForeignKeyConstraints();
 
         foreach ([
+            'push_subscriptions',
+            'wholesale_requests',
             'cart_items',
             'carts',
             'coupon_usages',

@@ -30,6 +30,7 @@ class SettingController extends Controller
         'delivery' => ['Delivery', ['delivery']],
         'payments' => ['Payments', ['payments']],
         'store' => ['Store', ['store']],
+        'notifications' => ['Notifications', ['notifications']],
         'theme' => ['Theme', ['theme']],
         'seo' => ['SEO', ['seo']],
     ];
@@ -44,6 +45,7 @@ class SettingController extends Controller
         'delivery' => 'Delivery',
         'payments' => 'Payment methods',
         'store' => 'Store status and notices',
+        'notifications' => 'E-mails and admin notifications',
         'theme' => 'Colours, fonts and corners of the storefront',
         'seo' => 'Search engines and sharing',
     ];

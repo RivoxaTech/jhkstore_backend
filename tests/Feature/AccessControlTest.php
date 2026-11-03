@@ -139,8 +139,8 @@ class AccessControlTest extends TestCase
             'dashboard.view', 'products.view', 'products.manage', 'categories.view', 'categories.manage', 'orders.view', 'orders.manage',
             'customers.view', 'customers.export', 'settings.general', 'settings.branding', 'settings.banners', 'settings.footer',
             'settings.currency_tax', 'settings.orders_delivery', 'settings.seo', 'access.manage',
-            'settings.theme', 'settings.store', 'settings.delivery', 'settings.payments',
-            'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage',
+            'settings.theme', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications',
+            'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'orders.export', 'wholesale.view', 'wholesale.manage',
         ], AdminAccess::all());
         $this->assertSame(['developer', 'admin'], AdminAccess::ROLES);
     }
@@ -162,13 +162,14 @@ class AccessControlTest extends TestCase
 
         // the client starts with the dashboard, orders, customers, discounts, coupons and the Settings tabs General, Footer, Orders & Delivery, Store, Delivery, Payments
         $this->assertEqualsCanonicalizing(
-            ['dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery',
-                'settings.store', 'settings.delivery', 'settings.payments', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage'],
+            ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery',
+                'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage',
+                'wholesale.view', 'wholesale.manage'],
             AdminAccess::effective($admin),
         );
-        // the developer has everything except orders and (by default) customers
+        // the developer has everything except orders and (by default) the personal data: customers, wholesale requests
         $this->assertEqualsCanonicalizing(
-            array_values(array_diff(AdminAccess::all(), ['orders.view', 'orders.manage', 'customers.view', 'customers.export'])),
+            array_values(array_diff(AdminAccess::all(), ['orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'wholesale.view', 'wholesale.manage'])),
             AdminAccess::effective($developer),
         );
     }
@@ -423,6 +424,8 @@ class AccessControlTest extends TestCase
         $devPermissions = collect($roles['developer']['groups'])->flatMap(fn ($g) => $g['permissions'])->keyBy('key');
         $this->assertFalse($devPermissions->has('orders.view'));
         $this->assertFalse($devPermissions['customers.view']['locked']);
+        $this->assertFalse($devPermissions['wholesale.view']['locked']);
+        $this->assertFalse($devPermissions->has('orders.export'));
         $this->assertTrue($devPermissions['products.manage']['locked']);
         $this->assertTrue($devPermissions['access.manage']['locked']);
         $this->assertTrue($devPermissions['access.manage']['enabled']);
@@ -498,8 +501,8 @@ class AccessControlTest extends TestCase
         }
         $this->assertFalse(AdminAccess::allows($admin, 'settings.theme'));
         $this->assertTrue(AdminAccess::allows($developer, 'settings.theme'));
-        // the developer's access is fixed: only the customers list can be switched
-        $this->assertSame(['customers.view', 'customers.export'], AdminAccess::togglable('developer'));
+        // the developer's access is fixed: only the personal data (customers list, wholesale requests) can be switched
+        $this->assertSame(['customers.view', 'customers.export', 'wholesale.view', 'wholesale.manage'], AdminAccess::togglable('developer'));
         $this->assertNotContains('settings.theme', AdminAccess::togglable('admin'));
     }
 

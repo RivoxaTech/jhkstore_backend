@@ -106,6 +106,20 @@ class Settings
         'pay_bank_instructions' => ['payments', 'text', '', 'Bank transfer instructions', 'Shown to the customer next to the accounts, e.g. Use your order number as the reference.'],
         'pay_bank_accounts' => ['payments', 'accounts', [], 'Bank accounts', 'Any number of accounts, shown in this order.'],
 
+        // --- notifications: e-mails to customers and the owner (queued, see App\Mail), and the admin push switch
+        'mail_enabled' => ['notifications', 'bool', false, 'Send e-mails', 'Master switch. Off: no e-mail is sent. The mail server (MAIL_* in .env) and the queue worker must be set up first, see docs/NEW_CLIENT.md.'],
+        'mail_from_name' => ['notifications', 'string', '', 'Sender name', 'The name customers see on the e-mail. Empty = the store name.'],
+        'mail_reply_to' => ['notifications', 'string', '', 'Reply-to address', 'Where a customer\'s reply goes. Empty = the store e-mail.'],
+        'notify_admin_email' => ['notifications', 'string', '', 'Owner e-mail for alerts', 'Gets an alert for every new order, payment proof and wholesale request. Empty = no alerts.'],
+        'mail_on_placed' => ['notifications', 'bool', true, 'E-mail: order received', 'Sent to the customer when the order is placed.'],
+        'mail_on_confirmed' => ['notifications', 'bool', true, 'E-mail: order confirmed'],
+        'mail_on_shipped' => ['notifications', 'bool', true, 'E-mail: order shipped', 'With the courier and tracking number.'],
+        'mail_on_delivered' => ['notifications', 'bool', true, 'E-mail: order delivered'],
+        'mail_on_cancelled' => ['notifications', 'bool', true, 'E-mail: order cancelled or rejected', 'With the reason.'],
+        'mail_on_payment_proof_rejected' => ['notifications', 'bool', true, 'E-mail: payment proof rejected', 'Asks the customer to upload a new screenshot.'],
+        'storefront_track_url' => ['notifications', 'string', '', 'Order tracking page', 'The storefront page that tracks an order, e.g. https://shop.example/track. E-mails link to it as ?order=NUMBER (the customer is asked for the phone number).'],
+        'push_enabled' => ['notifications', 'bool', false, 'Admin push notifications', 'Browser notifications for new orders, payment proofs and wholesale requests (needs the VAPID keys in .env: php artisan shop:vapid).'],
+
         // --- theme (developer only): the storefront reads these through GET /store/settings
         'theme_primary' => ['theme', 'color', '#2563EB', 'Primary colour', 'Buttons and links.'],
         'theme_primary_contrast' => ['theme', 'color', '#FFFFFF', 'Text on the primary colour'],
@@ -276,6 +290,9 @@ class Settings
             if (self::DEFINITIONS[$key][1] === 'color') {
                 $out["$key.regex"] = 'Enter a colour as #RRGGBB, for example #2563EB.';
             }
+            if ($key === 'storefront_track_url') {
+                $out["$key.url"] = 'Enter a full web address starting with https://.';
+            }
             if ($key === 'agency_url') {
                 $out["$key.url"] = 'Enter a full web address starting with https://.';
             }
@@ -345,6 +362,10 @@ class Settings
             'checkout_notice' => ['nullable', 'string', 'max:300'],
             'delivery_eta_text' => ['nullable', 'string', 'max:120'],
             'pay_bank_instructions' => ['nullable', 'string', 'max:1000'],
+            'mail_from_name' => ['nullable', 'string', 'max:80'],
+            'mail_reply_to' => ['nullable', 'email', 'max:190'],
+            'notify_admin_email' => ['nullable', 'email', 'max:190'],
+            'storefront_track_url' => ['nullable', 'url:http,https', 'max:255'],
         ];
 
         return array_intersect_key($overrides, $rules) + $rules;
