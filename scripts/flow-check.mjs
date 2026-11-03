@@ -1,7 +1,7 @@
 // End-to-end flow check of the REAL app over real HTTP (no test database, no mocks).
 //
 //   php artisan migrate:fresh --seed        (base seeder only; or pass --fresh to let this script do it)
-//   php artisan serve                       (port 8000)
+//   php artisan serve                       (port 8000; start both servers with CHECKOUT_PER_HOUR=1000: the run places far more than 60 orders)
 //   php artisan serve --port=8001           (a second server process: the "last unit" race needs two real PHP processes, because the
 //                                            PHP development server handles one request at a time)
 //   node scripts/flow-check.mjs [--fresh]
@@ -23,7 +23,8 @@ const BASE = process.env.FLOW_BASE || 'http://127.0.0.1:8000'
 const BASE2 = process.env.FLOW_BASE2 || 'http://127.0.0.1:8001'
 const DEV = [process.env.FLOW_DEV_USER || 'developer', process.env.FLOW_DEV_PASSWORD || 'developer']
 const ADM = [process.env.FLOW_ADMIN_USER || 'admin', process.env.FLOW_ADMIN_PASSWORD || 'admin']
-const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery']
+const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery',
+  'settings.store', 'settings.delivery', 'settings.payments', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage']
 
 if (process.argv.includes('--fresh')) {
   execFileSync('php', ['artisan', 'migrate:fresh', '--seed', '--force'], { cwd: ROOT, stdio: 'ignore' })
@@ -179,7 +180,7 @@ try {
   check((await post('admin/categories', { name: 'Nope' }, A)).status === 403, 'admin cannot create a category by default (403)')
   const admSettings = await get('admin/settings', A)
   const tabKeys = (r) => (r.json?.tabs || []).map((t) => t.key ?? t.id ?? t)
-  check(JSON.stringify(tabKeys(admSettings).sort()) === JSON.stringify(['footer', 'general', 'orders_delivery']), 'admin sees only the General, Footer and Orders & Delivery tabs', tabKeys(admSettings))
+  check(JSON.stringify(tabKeys(admSettings).sort()) === JSON.stringify(['delivery', 'footer', 'general', 'orders_delivery', 'payments', 'store']), 'admin sees only the General, Footer, Orders & Delivery, Delivery, Payments and Store tabs', tabKeys(admSettings))
   const meBefore = await get('admin/auth/me', A)
   check(!meBefore.json.admin.permissions.some((p) => p.startsWith('products.') || p.startsWith('categories.')), 'admin /me lists no products/categories permission', meBefore.json.admin.permissions)
 
@@ -783,7 +784,7 @@ try {
   // restricted admin
   const aTabs = tabKeys(await get('admin/settings', A))
   const tryPut = async (body) => (await put('admin/settings', body, A)).status
-  check(JSON.stringify(aTabs.sort()) === JSON.stringify(['footer', 'general', 'orders_delivery']), 'restricted admin: GET settings lists only the 3 open tabs', aTabs)
+  check(JSON.stringify(aTabs.sort()) === JSON.stringify(['delivery', 'footer', 'general', 'orders_delivery', 'payments', 'store']), 'restricted admin: GET settings lists only the 6 open tabs (no Theme: it is the developer\'s)', aTabs)
   check([await tryPut({ currency_code: 'EUR' }), await tryPut({ seo_meta_title: 'x' }), await tryPut({ store_name: 'Mixed', currency_code: 'EUR' })].every((s) => s === 403), 'restricted admin: Currency & Tax, SEO and a mixed request are all 403', 'currency_code, seo_meta_title, mixed')
   check((await call('POST', 'admin/settings/logo', { token: A, form: formOf({}, { logo: file('l.png', 200, 100, [1, 2, 3]) }) })).status === 403, 'restricted admin: the logo upload (Branding) is 403')
   check((await get('admin/banners', A)).status === 403 && (await post('admin/banners', {}, A)).status === 403, 'restricted admin: Banners are 403')
@@ -795,6 +796,320 @@ try {
   await put('admin/access-control/admin', { permissions: ADMIN_DEFAULTS }, D)
   check(!tabKeys(await get('admin/settings', A)).includes('banners') && (await get('admin/banners', A)).status === 403, 'and off again -> closed')
   check(db("SELECT id FROM audit_logs WHERE action LIKE 'settings.%' OR action LIKE 'banner%'").length >= 5, 'settings and banner changes are in the audit log', db("SELECT DISTINCT action FROM audit_logs WHERE action LIKE 'settings.%' OR action LIKE 'banner%'").map((r) => r.action))
+
+  { // ---- Phase A checks (own scope)
+  // ============================================================ F. Phase A: settings, delivery, payments, discounts, coupons, cart, order changes
+  const STORE_BASE = `${BASE}/api/v1/store`
+  const storePost = (route, body, extra = {}) => post(route, body, undefined, { base: STORE_BASE, ...extra })
+  const storeCall = (method, route, opts = {}) => call(method, route, { base: STORE_BASE, ...opts })
+  const mk = async (name, sku, price, extra = {}) => {
+    const r = await post('admin/products', { category_id: plainId, name, sku, status: 'active', variants: [{ name, sku: `${sku}-V`, mrp: price, selling_price: price, stock: 100, is_default: true }], ...extra }, D)
+    const full = await get(`admin/products/${idOf(r)}`, D)
+    return { id: idOf(r), variant: full.json?.data?.variants?.[0]?.id, status: r.status }
+  }
+  const setSettings = (body, token = A) => put('admin/settings', body, token)
+  const artisan = (code) => execFileSync('php', ['artisan', 'tinker', '--execute', code], { cwd: ROOT, encoding: 'utf8' })   // the app's own tinker: the flow script only SELECTs by itself
+  const variantAdjust = (id, qty) => artisan(`App\\Domain\\Catalog\\Models\\ProductVariant::whereKey(${id})->update(['stock_qty' => ${qty}]);`)
+  const money = (n) => Math.round(Number(n) * 100) / 100
+  const phoneN = (n) => `+92 347 ${String(1000000 + n).slice(1)}`
+  await setSettings({ currency_code: 'USD', currency_symbol: '$', currency_decimals: 2, tax_rate: 0, tax_inclusive: true, delivery_method: 'free_above', delivery_fee: 5, free_delivery_min_cart: 0, min_order_amount: 0, cod_max_amount: 0, delivery_unmatched: 'block', store_open: true }, D)
+
+  section('F17', 'Theme (developer only), Store tab, agency credit, Payments tab')
+  const tTabs = tabKeys(await get('admin/settings', D))
+  check(tTabs.includes('theme') && !tabKeys(await get('admin/settings', A)).includes('theme'), 'the Theme tab is the developer\'s: the admin does not get it', tTabs)
+  check((await put('admin/settings', { theme_primary: '#ABCDEF' }, A)).status === 403, 'admin PUT theme_primary -> 403')
+  check((await put('admin/access-control/admin', { permissions: [...ADMIN_DEFAULTS, 'settings.theme'] }, D)).status === 422, 'the developer cannot give settings.theme to the admin (422)')
+  const th = await put('admin/settings', { theme_primary: '#112233', theme_accent: '#FF8800', theme_font_heading: 'Playfair Display', theme_radius: '12px', theme_shadow: 'medium' }, D)
+  const pubTheme = (await pub()).theme
+  check(th.status === 200 && pubTheme.primary === '#112233' && pubTheme.accent === '#FF8800' && pubTheme.font_heading === 'Playfair Display' && pubTheme.radius === '12px' && pubTheme.shadow === 'medium', 'the developer\'s theme reaches GET /store/settings', pubTheme)
+  check([(await put('admin/settings', { theme_primary: 'red' }, D)).status, (await put('admin/settings', { theme_font_body: 'Comic Sans' }, D)).status, (await put('admin/settings', { theme_radius: '5px' }, D)).status].every((s) => s === 422), 'bad colour, font outside the list and bad radius -> 422')
+  await put('admin/settings', { theme_primary: '#2563EB', theme_accent: '#F59E0B', theme_font_heading: 'Inter', theme_radius: '8px', theme_shadow: 'soft' }, D)
+
+  await setSettings({ store_open: false, store_closed_message: 'We are closed until Monday.', checkout_notice: 'Orders before noon ship today.', delivery_eta_text: '2 to 4 days' })
+  const fp = await mk('Flow Phase A Item', 'FPA-1', 100)
+  const closedPub = await pub()
+  const closedQuote = await quote([[fp.variant, 1]])
+  const ordersBefore = dbOne('SELECT COUNT(*) n FROM orders').n
+  const closedOrder = await placeOrder(orderBody([[fp.variant, 1]], { name: 'Closed', phone: phoneN(1) }))
+  check(closedPub.store.open === false && closedPub.store.closed_message === 'We are closed until Monday.' && closedPub.checkout.notice === 'Orders before noon ship today.' && closedPub.checkout.eta_text === '2 to 4 days', 'Store tab -> public store.open, closed message, checkout notice and ETA text', { store: closedPub.store, checkout: closedPub.checkout })
+  check(closedQuote.status === 200 && closedQuote.json.data.can_checkout === true && closedOrder.status === 422 && closedOrder.json?.code === 'store_closed' && closedOrder.json?.message === 'We are closed until Monday.', 'a closed store still quotes, but POST /orders -> 422 store_closed with the message', status(closedOrder).slice(0, 160))
+  check(dbOne('SELECT COUNT(*) n FROM orders').n === ordersBefore && variantRow(fp.variant).stock_qty === 100, 'and nothing was stored or deducted')
+  await setSettings({ store_open: true })
+
+  const badAgency = await setSettings({ agency_name: 'Example Agency', agency_url: 'http://agency.example' })
+  const goodAgency = await setSettings({ agency_name: 'Example Agency', agency_url: 'https://agency.example' })
+  check(badAgency.status === 422 && goodAgency.status === 200 && JSON.stringify((await pub()).footer.agency) === JSON.stringify({ name: 'Example Agency', url: 'https://agency.example' }), 'agency credit: https only (422 for http), then public footer.agency', (await pub()).footer.agency)
+  await setSettings({ agency_name: '', agency_url: '' })
+
+  const noMethod = await setSettings({ pay_cod_enabled: false })
+  const bankNoAccount = await setSettings({ pay_bank_enabled: true })
+  const badAccount = await setSettings({ pay_bank_accounts: [{ bank: 'X', number: '', iban: '' }] })
+  check(noMethod.status === 422 && bankNoAccount.status === 422 && badAccount.status === 422, 'payments: at least one method stays on, bank needs an active account, an account needs a number or IBAN (all 422)', [noMethod.status, bankNoAccount.status, badAccount.status])
+  const bankOn = await setSettings({ pay_bank_enabled: true, pay_card_visible: true, pay_bank_instructions: 'Use your order number as the reference.', pay_bank_accounts: [{ bank: 'Flow Bank', title: 'Flow Shop', number: '0123456789', iban: 'PK36SCBL0000001123456702', active: true }, { bank: 'Hidden Bank', number: '999', active: false }] })
+  const payPub = (await pub()).payment
+  check(bankOn.status === 200 && payPub.cod.enabled === true && payPub.bank_transfer.enabled === true && payPub.bank_transfer.accounts.length === 1 && payPub.bank_transfer.accounts[0].bank === 'Flow Bank' && payPub.card.visible === true && payPub.card.coming_soon === true, 'bank transfer on: public payment block with the active account only; card only a "coming soon" label', payPub)
+
+  section('F18', 'Delivery methods, zones (matching, order, free-above, minimum), unmatched address, pending fee')
+  const dz = await mk('Flow Zone Item', 'FZ-1', 100)
+  const lahore = await post('admin/delivery-zones', { name: 'Lahore', match_type: 'city', match_values: ['lahore', ' Faisalabad '], fee: 6, free_above: 150, min_order: 10, eta_text: 'Tomorrow' }, A)
+  const karachi = await post('admin/delivery-zones', { name: 'Karachi', match_type: 'postcode', match_values: ['75*', '74000'], fee: 12 }, A)
+  check(lahore.status === 201 && karachi.status === 201 && JSON.stringify(lahore.json.data.match_values) === JSON.stringify(['lahore', 'Faisalabad']), 'admin creates a city zone and a postcode zone (values trimmed)', status(lahore).slice(0, 200))
+  check((await post('admin/delivery-zones', { name: '', match_type: 'country', match_values: [], fee: -1 }, A)).status === 422, 'a zone without a name / with a bad type / no values / negative fee -> 422')
+  await setSettings({ delivery_method: 'zones' })
+  const zq = (address) => post('checkout/quote', { items: [{ variant_id: dz.variant, qty: 1 }], ...(address ? { address } : {}) }, undefined, { base: STORE_BASE })
+  const noAddr = (await zq()).json.data.summary
+  const inLahore = (await zq({ city: '  LAHORE ' })).json.data
+  const inKarachi = (await zq({ city: 'Karachi', postcode: '75300' })).json.data.summary
+  const outside = (await zq({ city: 'Nowhere', postcode: '99999' })).json.data
+  check(noAddr.delivery_fee === null && noAddr.delivery_needs_address === true, 'zones: no address -> delivery_fee null, delivery_needs_address true', { fee: noAddr.delivery_fee, needs: noAddr.delivery_needs_address })
+  check(inLahore.summary.delivery_fee === 6 && inLahore.summary.delivery_zone?.name === 'Lahore' && inLahore.summary.delivery_eta_text === 'Tomorrow' && inLahore.summary.grand_total === 106, 'city zone matches case-insensitively: fee 6, zone and ETA, total 106', inLahore.summary.delivery_zone)
+  check(inKarachi.delivery_fee === 12 && inKarachi.delivery_zone?.name === 'Karachi', 'postcode prefix 75* matches 75300: fee 12', inKarachi.delivery_zone)
+  check(outside.can_checkout === false && outside.issues?.some((i) => i.code === 'delivery_not_available') && outside.summary.delivery_fee === null, 'an address outside every zone: delivery_not_available, no fee (default: block)', outside.issues)
+  const big = (await post('checkout/quote', { items: [{ variant_id: dz.variant, qty: 2 }], address: { city: 'Lahore' } }, undefined, { base: STORE_BASE })).json.data.summary
+  check(big.delivery_free === true && big.delivery_fee === 0 && big.grand_total === 200, 'the zone\'s own free-above amount (150): 200 ships free', { fee: big.delivery_fee, free: big.delivery_free })
+  const zoneOrder = await placeOrder(orderBody([[dz.variant, 1]], { name: 'Zone Buyer', phone: phoneN(2) }))
+  check(zoneOrder.status === 201 && zoneOrder.json.data.totals.delivery_fee === 6 && zoneOrder.json.data.grand_total === 106 && dbOne(`SELECT delivery_zone_id z FROM orders WHERE order_number = '${zoneOrder.json.data.order_number}'`).z === lahore.json.data.id, 'an order to Lahore takes the zone fee (6) and remembers the zone', status(zoneOrder).slice(0, 120))
+  const blocked = await placeOrder(orderBody([[dz.variant, 1]], { name: 'Nowhere', phone: phoneN(3) }, { address: { ...ADDRESS, city: 'Nowhere', postcode: '99999' } }))
+  check(blocked.status === 422 && blocked.json?.code === 'delivery_not_available' && variantRow(dz.variant).stock_qty === 99, 'an order outside every zone -> 422 delivery_not_available, stock untouched', status(blocked).slice(0, 140))
+  const minZone = await put(`admin/delivery-zones/${karachi.json.data.id}`, { name: 'Karachi', match_type: 'postcode', match_values: ['75*'], fee: 12, min_order: 300 }, A)
+  const karachiMin = (await zq({ postcode: '75300' })).json.data
+  check(minZone.status === 200 && karachiMin.can_checkout === false && karachiMin.issues?.some((i) => i.code === 'below_min_order'), 'a zone minimum order (300) replaces the store minimum: 100 is too little for Karachi', karachiMin.issues)
+  const order1 = await put('admin/delivery-zones/reorder', { ids: [karachi.json.data.id, lahore.json.data.id] }, A)
+  const listed = (await get('admin/delivery-zones', A)).json.data.map((z) => z.name)
+  check(order1.status === 200 && JSON.stringify(listed) === JSON.stringify(['Karachi', 'Lahore']), 'zones can be reordered', listed)
+  await patch(`admin/delivery-zones/${lahore.json.data.id}/active`, { is_active: false }, A)
+  check((await zq({ city: 'Lahore' })).json.data.summary.delivery_zone === null, 'a deactivated zone stops matching at once')
+  await patch(`admin/delivery-zones/${lahore.json.data.id}/active`, { is_active: true }, A)
+
+  await setSettings({ delivery_unmatched: 'owner_confirms' })
+  const pendQuote = (await zq({ city: 'Nowhere' })).json.data.summary
+  check(pendQuote.delivery_pending === true && pendQuote.delivery_fee === null, 'unmatched address with owner_confirms: delivery_pending true, fee null', pendQuote)
+  const pend = await placeOrder(orderBody([[dz.variant, 1]], { name: 'Pending Fee', phone: phoneN(4) }, { address: { ...ADDRESS, city: 'Nowhere' } }))
+  const pendNo = pend.json?.data?.order_number
+  const pendId = dbOne(`SELECT id FROM orders WHERE order_number = '${pendNo}'`)?.id
+  check(pend.status === 201 && pend.json.data.delivery_fee_pending === true && pend.json.data.totals.delivery_fee === null && pend.json.data.grand_total === 100, 'the order is placed with the fee unknown (delivery_fee_pending, total without delivery)', status(pend).slice(0, 140))
+  const cNo = await post(`admin/orders/${pendId}/status`, { status: 'confirmed' }, A)
+  check(cNo.status === 422 && cNo.json?.code === 'delivery_fee_pending', 'confirming is blocked: 422 delivery_fee_pending', status(cNo).slice(0, 140))
+  const feeSet = await put(`admin/orders/${pendId}/delivery-fee`, { fee: 20 }, A)
+  const feeRow = dbOne(`SELECT shipping_fee, grand_total, delivery_fee_pending p FROM orders WHERE id = ${pendId}`)
+  check(feeSet.status === 200 && money(feeRow.shipping_fee) === 20 && money(feeRow.grand_total) === 120 && feeRow.p === 0, 'the admin sets the fee: total recalculated (100 + 20), pending cleared', feeRow)
+  const trackAfter = await lookup(pendNo, phoneN(4))
+  check(trackAfter.json?.data?.delivery_fee_pending === false && trackAfter.json?.data?.grand_total === 120 && trackAfter.json?.data?.totals?.delivery_fee === 20, 'the customer now sees the final total', { pending: trackAfter.json?.data?.delivery_fee_pending, total: trackAfter.json?.data?.grand_total })
+  check((await post(`admin/orders/${pendId}/status`, { status: 'confirmed' }, A)).status === 200 && (await put(`admin/orders/${pendId}/delivery-fee`, { fee: 1 }, A)).status === 422, 'the order can be confirmed now; the fee cannot be set twice (422)')
+  check(db("SELECT id FROM audit_logs WHERE action IN ('order.delivery_fee_set', 'delivery_zone.created', 'delivery_zone.reordered')").length >= 3, 'zone and fee changes are in the audit log')
+
+  await setSettings({ delivery_method: 'owner_confirms' })
+  const ownerQuote = (await quote([[dz.variant, 1]])).json.data.summary
+  check(ownerQuote.delivery_pending === true && ownerQuote.delivery_fee === null, 'method owner_confirms: every quote is pending', ownerQuote.delivery_method)
+  await setSettings({ delivery_method: 'flat', delivery_fee: 7, free_delivery_min_cart: 50 })
+  const flatQ = (await quote([[dz.variant, 1]])).json.data.summary
+  await setSettings({ delivery_method: 'free' })
+  const freeQ = (await quote([[dz.variant, 1]])).json.data.summary
+  await setSettings({ delivery_method: 'free_above', delivery_fee: 5, free_delivery_min_cart: 100 })
+  const aboveQ = (await quote([[dz.variant, 1]])).json.data.summary
+  check(flatQ.delivery_fee === 7 && flatQ.delivery_free === false && freeQ.delivery_fee === 0 && freeQ.delivery_free === true && aboveQ.delivery_free === true, 'flat ignores the free-above amount, free is always free, free_above is free from 100', { flat: flatQ.delivery_fee, free: freeQ.delivery_fee, above: aboveQ.delivery_fee })
+  await setSettings({ delivery_method: 'free_above', delivery_fee: 5, free_delivery_min_cart: 0, delivery_unmatched: 'block' })
+
+  section('F19', 'Bank transfer: order, private proof upload, wrong-phone 404, reject / re-upload, verify, confirm')
+  const bp = await mk('Flow Bank Item', 'FBK-1', 50)
+  const bankBody = (n, name) => orderBody([[bp.variant, 1]], { name, phone: phoneN(n) }, { payment_method: 'bank_transfer' })
+  const bankOrder1 = await placeOrder(bankBody(10, 'Bank Buyer'))
+  const bNo = bankOrder1.json?.data?.order_number
+  const bId = dbOne(`SELECT id FROM orders WHERE order_number = '${bNo}'`)?.id
+  const bPay = dbOne(`SELECT method, status, proof_status FROM payments WHERE payable_id = ${bId}`)
+  check(bankOrder1.status === 201 && bankOrder1.json.data.payment_status === 'awaiting_payment' && bPay.status === 'awaiting_proof' && bPay.proof_status === 'none', 'a bank transfer order is awaiting_payment / awaiting_proof', { order: bankOrder1.json?.data?.payment_status, pay: bPay })
+  check(bankOrder1.json.data.payment.accounts?.[0]?.bank === 'Flow Bank' && bankOrder1.json.data.payment.can_upload_proof === true && bankOrder1.json.data.payment.instructions.startsWith('Use your order'), 'the answer carries the accounts and instructions for the customer', bankOrder1.json?.data?.payment)
+  const unknownProof = await storeCall('POST', 'orders/ORD-2099-999999/payment-proof?phone=%2B923470000010', { form: formOf({}, { proof: file('p.png', 300, 300, [10, 120, 200]) }) })
+  const wrongProof = await storeCall('POST', `orders/${bNo}/payment-proof?phone=${encodeURIComponent(phoneN(99))}`, { form: formOf({}, { proof: file('p.png', 300, 300, [10, 120, 200]) }) })
+  check(wrongProof.status === 404 && unknownProof.status === 404 && wrongProof.json?.message === unknownProof.json?.message, 'a wrong phone is the same 404 as an unknown order', [wrongProof.status, unknownProof.status])
+  const tiny = await storeCall('POST', `orders/${bNo}/payment-proof?phone=${encodeURIComponent(phoneN(10))}`, { form: formOf({}, { proof: file('t.png', 50, 50, [1, 2, 3]) }) })
+  const notPic = await storeCall('POST', `orders/${bNo}/payment-proof?phone=${encodeURIComponent(phoneN(10))}`, { form: formOf({}, { proof: new File(['hello'], 'p.txt', { type: 'text/plain' }) }) })
+  check(tiny.status === 422 && notPic.status === 422, 'a 50 px picture and a text file are refused (422)', [tiny.status, notPic.status])
+  const up = await storeCall('POST', `orders/${bNo}/payment-proof?phone=${encodeURIComponent(phoneN(10))}`, { form: formOf({ reference: 'TX-FLOW-1' }, { proof: file('p.png', 300, 300, [10, 120, 200]) }) })
+  const media = dbOne(`SELECT disk, file_name FROM media WHERE model_type LIKE '%Payment' AND model_id = (SELECT id FROM payments WHERE payable_id = ${bId})`)
+  check(up.status === 200 && up.json.data.payment.proof_status === 'submitted' && media?.disk === 'local' && !JSON.stringify(up.json).includes(media.file_name || 'x?x'), 'the proof is accepted and stored on the PRIVATE disk; the answer never names the file', { proof: up.json?.data?.payment?.proof_status, disk: media?.disk })
+  const second = await storeCall('POST', `orders/${bNo}/payment-proof?phone=${encodeURIComponent(phoneN(10))}`, { form: formOf({}, { proof: file('p2.png', 300, 300, [200, 10, 10]) }) })
+  check(second.status === 422 && second.json?.code === 'proof_already_submitted', 'a second proof while one is being checked -> 422 proof_already_submitted', status(second).slice(0, 120))
+  const proofAnon = await get(`admin/orders/${bId}/payment/proof`)
+  const proofDev = await get(`admin/orders/${bId}/payment/proof`, D)
+  const proofAdm = await get(`admin/orders/${bId}/payment/proof`, A)
+  check(proofAnon.status === 401 && proofDev.status === 403 && proofAdm.status === 200 && /image\//.test(proofAdm.headers.get('content-type') || '') && /no-store/.test(proofAdm.headers.get('cache-control') || ''), 'the proof opens only through the authenticated admin route (guest 401, developer 403, admin 200, no-store)', [proofAnon.status, proofDev.status, proofAdm.status])
+  check(proofAdm.headers.get('content-type') && !(await fetch(`${BASE}/storage/${media?.file_name}`).then((r) => r.ok)), 'and there is no public /storage URL for it')
+  const confirmEarly = await post(`admin/orders/${bId}/status`, { status: 'confirmed' }, A)
+  check(confirmEarly.status === 422 && confirmEarly.json?.code === 'payment_not_verified', 'confirming before verification -> 422 payment_not_verified', status(confirmEarly).slice(0, 120))
+  const noReason = await post(`admin/orders/${bId}/payment/reject-proof`, {}, A)
+  const rej = await post(`admin/orders/${bId}/payment/reject-proof`, { reason: 'The amount is not visible' }, A)
+  const trk = await lookup(bNo, phoneN(10))
+  check(noReason.status === 422 && rej.status === 200 && trk.json.data.payment.proof_status === 'rejected' && trk.json.data.payment.reject_reason === 'The amount is not visible' && trk.json.data.payment.can_upload_proof === true && trk.json.data.status === 'pending', 'reject-proof needs a reason; the customer sees it and may upload again; the order stays pending', trk.json?.data?.payment)
+  const again = await storeCall('POST', `orders/${bNo}/payment-proof?phone=${encodeURIComponent(phoneN(10))}`, { form: formOf({ reference: 'TX-FLOW-2' }, { proof: file('p3.png', 320, 320, [10, 200, 10]) }) })
+  check(again.status === 200 && dbOne(`SELECT COUNT(*) n FROM media WHERE model_type LIKE '%Payment' AND model_id = (SELECT id FROM payments WHERE payable_id = ${bId})`).n === 1, 'a new proof replaces the old picture (one file kept)', status(again).slice(0, 100))
+  const ver = await post(`admin/orders/${bId}/payment/verify`, {}, A)
+  const verRow = dbOne(`SELECT o.payment_status ps, p.status pst, p.proof_status pr, p.verified_by vb FROM orders o JOIN payments p ON p.payable_id = o.id WHERE o.id = ${bId}`)
+  check(ver.status === 200 && verRow.ps === 'paid' && verRow.pst === 'paid' && verRow.pr === 'verified' && verRow.vb, 'verify: payment and order are paid, who verified it is recorded', verRow)
+  check((await post(`admin/orders/${bId}/payment/verify`, {}, A)).status === 422, 'verifying twice -> 422')
+  check((await post(`admin/orders/${bId}/status`, { status: 'confirmed' }, A)).status === 200, 'now the order can be confirmed')
+  const noProofOrder = await placeOrder(bankBody(11, 'No Proof'))
+  const npId = dbOne(`SELECT id FROM orders WHERE order_number = '${noProofOrder.json?.data?.order_number}'`)?.id
+  check((await post(`admin/orders/${npId}/payment/verify`, {}, A)).status === 422, 'an order without a proof cannot be verified (422)')
+  const codB = await placeOrder(orderBody([[bp.variant, 1]], { name: 'Cod Again', phone: phoneN(12) }))
+  check(codB.status === 201 && codB.json.data.payment_method === 'cod' && codB.json.data.payment_status === 'cod_pending', 'cash on delivery is unchanged (default method)', codB.json?.data?.payment_status)
+  await setSettings({ pay_bank_enabled: false })
+  const offBank = await placeOrder(bankBody(13, 'Bank Off'))
+  check(offBank.status === 422 && offBank.json?.code === 'payment_method_unavailable', 'with bank transfer switched off -> 422 payment_method_unavailable', status(offBank).slice(0, 120))
+  await setSettings({ pay_bank_enabled: true })
+  const cardTry = await placeOrder(orderBody([[bp.variant, 1]], { name: 'Card', phone: phoneN(14) }, { payment_method: 'card' }))
+  check(cardTry.status === 422, 'card can never be chosen (422)', status(cardTry).slice(0, 100))
+  const devPay = await Promise.all([post(`admin/orders/${bId}/payment/verify`, {}, D), post(`admin/orders/${bId}/payment/reject-proof`, { reason: 'x' }, D), put(`admin/orders/${bId}/delivery-fee`, { fee: 1 }, D)])
+  check(devPay.every((r) => r.status === 403), 'the developer is blocked from every payment endpoint (403)', devPay.map((r) => r.status))
+
+  section('F20', 'Discounts and coupons: engine, best one wins, usage counter, the last use across two PHP processes, release on cancel')
+  const dp = await mk('Flow Promo Item', 'FPR-1', 100)
+  const disc = await post('admin/discounts', { name: 'Flow ten', type: 'percent', value: 10, scope: 'products', target_ids: [dp.id] }, A)
+  const q1 = (await quote([[dp.variant, 1]])).json.data
+  check(disc.status === 201 && q1.items[0].discount_amount === 10 && q1.items[0].discount_source === 'discount' && q1.summary.discount_total === 10 && q1.summary.grand_total === 95, 'a 10 % automatic discount on the product: 90 + 5 delivery', q1.summary)
+  const card = (await store('products?per_page=100')).json.data.find((c) => c.id === dp.id)
+  check(card.price === 90 && card.compare_price === 100 && card.discount_label === '10% off', 'the product card shows the discounted price, the old price and the label', { price: card.price, compare: card.compare_price, label: card.discount_label })
+  const cp = await post('admin/coupons', { code: 'flow20', name: 'Flow twenty', type: 'percent', value: 20, scope: 'store', usage_limit: 1 }, A)
+  const dupCp = await post('admin/coupons', { code: 'FLOW20', name: 'Dup', type: 'percent', value: 5, scope: 'store' }, A)
+  check(cp.status === 201 && cp.json.data.code === 'FLOW20' && dupCp.status === 422, 'coupon codes are stored in capitals and unique whatever the case', [cp.json?.data?.code, dupCp.status])
+  const q2 = (await post('checkout/quote', { items: [{ variant_id: dp.variant, qty: 1 }], coupon_code: 'flow20' }, undefined, { base: STORE_BASE })).json.data
+  check(q2.summary.coupon_code === 'FLOW20' && q2.summary.coupon_discount === 20 && q2.summary.discount_total === 0 && q2.items[0].discount_source === 'coupon', 'the 20 % coupon beats the 10 % discount on the line (never both)', q2.summary)
+  const q3 = (await post('checkout/quote', { items: [{ variant_id: dp.variant, qty: 1 }], coupon_code: 'NOPE' }, undefined, { base: STORE_BASE })).json.data
+  check(q3.summary.coupon_error?.code === 'not_found' && q3.can_checkout === true, 'a wrong code is explained in the quote and does not block it', q3.summary.coupon_error)
+  const val = await storePost('coupons/validate', { code: 'NOPE', items: [{ variant_id: dp.variant, qty: 1 }] })
+  check(val.status === 422 && val.json?.code === 'coupon_invalid' && val.json?.coupon_error?.code === 'not_found', 'POST /coupons/validate with a wrong code -> 422 coupon_invalid', status(val).slice(0, 140))
+  const badCoupon = await placeOrder(orderBody([[dp.variant, 1]], { name: 'Bad Code', phone: phoneN(20) }, { coupon_code: 'NOPE' }))
+  check(badCoupon.status === 422 && badCoupon.json?.code === 'coupon_invalid' && badCoupon.json?.reason === 'not_found', 'the ORDER is refused for a wrong code (422 coupon_invalid)', status(badCoupon).slice(0, 140))
+  const stockBefore = variantRow(dp.variant).stock_qty
+  const used1 = await placeOrder(orderBody([[dp.variant, 1]], { name: 'Coupon Buyer', phone: phoneN(21) }, { coupon_code: 'FLOW20' }))
+  const used1Id = dbOne(`SELECT id FROM orders WHERE order_number = '${used1.json?.data?.order_number}'`)?.id
+  const cRow = dbOne(`SELECT used_count FROM coupons WHERE code = 'FLOW20'`)
+  check(used1.status === 201 && used1.json.data.totals.coupon_discount === 20 && used1.json.data.grand_total === 85 && cRow.used_count === 1 && dbOne(`SELECT COUNT(*) n FROM coupon_usages WHERE order_id = ${used1Id}`).n === 1, 'the order uses the coupon: total 85, used_count 1, one usage row', { total: used1.json?.data?.grand_total, used: cRow.used_count })
+  const used2 = await placeOrder(orderBody([[dp.variant, 1]], { name: 'Too Late', phone: phoneN(22) }, { coupon_code: 'FLOW20' }))
+  check(used2.status === 422 && used2.json?.reason === 'usage_limit' && variantRow(dp.variant).stock_qty === stockBefore - 1, 'a second order on the used-up coupon -> 422 usage_limit, no stock taken', status(used2).slice(0, 140))
+  const delUsed = await del(`admin/coupons/${cp.json.data.id}`, A)
+  check(delUsed.status === 422 && delUsed.json?.code === 'coupon_has_usages', 'a coupon that was used cannot be deleted (422 coupon_has_usages)', status(delUsed).slice(0, 120))
+  const usagesA = await get(`admin/coupons/${cp.json.data.id}/usages`, A)
+  const usagesD = await get(`admin/coupons/${cp.json.data.id}/usages`, D)
+  check(usagesA.json?.data?.[0]?.order_number === used1.json?.data?.order_number && usagesD.status === 200 && !JSON.stringify(usagesD.json).includes(used1.json.data.order_number) && !('order_id' in (usagesD.json.data[0] || {})), 'the usage list shows the order number to the admin; the developer sees dates and amounts only', [usagesA.json?.data?.[0]?.order_number, Object.keys(usagesD.json?.data?.[0] || {})])
+  const relCancel = await post(`admin/orders/${used1Id}/status`, { status: 'cancelled', reason: 'Flow: give the coupon back' }, A)
+  const afterCancel = dbOne(`SELECT used_count FROM coupons WHERE code = 'FLOW20'`)
+  check(relCancel.status === 200 && afterCancel.used_count === 0 && dbOne(`SELECT released_at r FROM coupon_usages WHERE order_id = ${used1Id}`).r && variantRow(dp.variant).stock_qty === stockBefore, 'cancelling the order gives the coupon use and the stock back', { used: afterCancel.used_count, stock: variantRow(dp.variant).stock_qty })
+
+  // the last use of a coupon, 4 simultaneous orders over two PHP processes
+  const raceCp = await post('admin/coupons', { code: 'FLOWRACE', name: 'Race', type: 'percent', value: 30, scope: 'store', usage_limit: 1 }, A)
+  const rp = await mk('Flow Race Item', 'FRC-1', 100)
+  await reserve(4)
+  const raced = await Promise.all([0, 1, 2, 3].map((i) => placeOrder(orderBody([[rp.variant, 1]], { name: `Coupon Racer ${i}`, phone: phoneN(30 + i) }, { coupon_code: 'FLOWRACE' }), { base: i % 2 ? BASE2 : BASE, noThrottle: true })))
+  const wins = raced.filter((r) => r.status === 201)
+  const losses = raced.filter((r) => r.status === 422 && r.json?.code === 'coupon_invalid')
+  const raceRow = dbOne(`SELECT used_count FROM coupons WHERE code = 'FLOWRACE'`)
+  check(raceCp.status === 201 && wins.length === 1 && losses.length === 3 && raceRow.used_count === 1 && dbOne(`SELECT COUNT(*) n FROM coupon_usages WHERE coupon_id = ${raceCp.json.data.id}`).n === 1 && variantRow(rp.variant).stock_qty === 99, 'the last use across two PHP processes: exactly one 201, three 422 coupon_invalid, used_count 1, stock 99', raced.map((r) => `${r.status}:${r.json?.reason || ''}`))
+  const winner = wins[0]?.json?.data
+  check(winner && winner.totals.coupon_discount === 30 && winner.grand_total === 75, 'the winner got the discount (30 off 100, + 5 delivery)', winner?.totals)
+
+  section('F21', 'Persistent cart: token, lines, live re-check, quote and order by cart_token, expiry and prune, rate limit')
+  const cartCall = (method, route = '', { token, body } = {}) => storeCall(method, `cart${route}`, { headers: token ? { 'X-Cart-Token': token } : {}, body })
+  const cartA = await cartCall('GET')
+  const tok = cartA.json?.data?.token
+  check(cartA.status === 200 && tok?.length === 40 && cartA.headers.get('x-cart-token') === tok && cartA.json.data.items.length === 0, 'GET /cart without a token creates a cart: 40-character token in data.token and X-Cart-Token', { token: tok?.length })
+  const cp1 = await mk('Flow Cart Item', 'FCT-1', 100, { })
+  await cartCall('POST', '/items', { token: tok, body: { variant_id: cp1.variant, qty: 2 } })
+  const addOn = await cartCall('POST', '/items', { token: tok, body: { variant_id: cp1.variant, qty: 1 } })
+  check(addOn.json?.data?.items?.[0]?.qty === 3 && addOn.json.data.summary.subtotal === 300, 'POST /cart/items adds to the quantity (2 + 1 = 3); the cart is priced on the server', addOn.json?.data?.summary?.subtotal)
+  const setQ = await cartCall('PUT', `/items/${cp1.variant}`, { token: tok, body: { qty: 2 } })
+  check(setQ.json?.data?.items?.[0]?.qty === 2, 'PUT /cart/items/{id} sets the quantity')
+  const persisted = await cartCall('GET', '', { token: tok })
+  check(persisted.json?.data?.token === tok && persisted.json.data.items.length === 1, 'the cart is still there on the next request (the token is the only key)')
+  const contact = await cartCall('PUT', '/contact', { token: tok, body: { name: 'Cart Person', phone: '0300 1234500', email: 'Cart@Example.test' } })
+  check(contact.status === 200 && contact.json.data.contact.email === 'cart@example.test' && contact.json.data.contact.name === 'Cart Person', 'PUT /cart/contact saves the contact (e-mail lower-cased)', contact.json?.data?.contact)
+  const cartCoupon = await post('admin/coupons', { code: 'FLOWCART', name: 'Cart coupon', type: 'percent', value: 10, scope: 'store' }, A)
+  const badC = await cartCall('PUT', '/coupon', { token: tok, body: { code: 'NOPE' } })
+  const goodC = await cartCall('PUT', '/coupon', { token: tok, body: { code: 'flowcart' } })
+  check(cartCoupon.status === 201 && badC.status === 422 && goodC.json?.data?.summary?.coupon_discount === 20, 'PUT /cart/coupon: a wrong code is refused (422) and not saved, a good one is applied (20 off 200)', goodC.json?.data?.summary)
+  const qCart = await storePost('checkout/quote', { cart_token: tok })
+  check(qCart.status === 200 && qCart.json.data.summary.coupon_code === 'FLOWCART' && qCart.json.data.items[0].qty === 2, 'POST /checkout/quote accepts cart_token (the cart\'s coupon comes with it)', qCart.json?.data?.summary?.coupon_code)
+  variantAdjust(cp1.variant, 1)
+  const stale = await cartCall('GET', '', { token: tok })
+  check(stale.json?.data?.can_checkout === false && stale.json.data.items[0].warnings?.some((w) => w.code === 'insufficient_stock' && w.blocking) && stale.json.data.items.length === 1, 'stock changed under the cart: the line stays with a blocking insufficient_stock warning', stale.json?.data?.items?.[0]?.warnings)
+  variantAdjust(cp1.variant, 100)
+  const cartOrder = await placeOrder({ customer: { name: 'Cart Person', phone: phoneN(40) }, address: ADDRESS, cart_token: tok })
+  const cartLeft = dbOne(`SELECT (SELECT COUNT(*) FROM cart_items WHERE cart_id = (SELECT id FROM carts WHERE token = '${tok}')) items, (SELECT coupon_code FROM carts WHERE token = '${tok}') coupon`)
+  check(cartOrder.status === 201 && cartOrder.json.data.items_count === 2 && cartOrder.json.data.totals.coupon_discount === 20 && cartLeft.items === 0 && cartLeft.coupon === null, 'POST /orders with cart_token: order from the cart, the cart\'s coupon applied, the cart emptied in the same transaction', { items: cartLeft.items, coupon: cartLeft.coupon, total: cartOrder.json?.data?.grand_total })
+  const cartAgain = await placeOrder({ customer: { name: 'Cart Person', phone: phoneN(41) }, address: ADDRESS, cart_token: tok })
+  check(cartAgain.status === 422 && cartAgain.json?.code === 'cart_invalid', 'the empty cart cannot be ordered again (422 cart_invalid)', status(cartAgain).slice(0, 120))
+  const other = (await cartCall('GET')).json.data.token
+  const garbage = await cartCall('GET', '', { token: 'x'.repeat(40) })
+  check(other !== tok && garbage.json?.data?.token !== 'x'.repeat(40) && garbage.json.data.items.length === 0, 'another browser and an unknown token each get their own, new cart')
+  const old = (await cartCall('GET')).json.data.token
+  await cartCall('POST', '/items', { token: old, body: { variant_id: cp1.variant, qty: 1 } })
+  artisan(`App\\Domain\\Cart\\Models\\Cart::where('token', '${old}')->update(['expires_at' => now()->subDay()]);`)
+  const expired = await cartCall('GET', '', { token: old })
+  check(expired.json?.data?.token !== old && expired.json.data.items.length === 0, 'a cart past its 30 days is gone: the old token starts a new, empty cart', expired.json?.data?.token === old)
+  const before = dbOne('SELECT COUNT(*) n FROM carts').n
+  const pruned = execFileSync('php', ['artisan', 'shop:prune-carts'], { cwd: ROOT, encoding: 'utf8' })
+  const after = dbOne('SELECT COUNT(*) n FROM carts').n
+  check(/Deleted [1-9]\d* expired cart/.test(pruned) && after < before && dbOne(`SELECT COUNT(*) n FROM carts WHERE token = '${old}'`).n === 0, 'php artisan shop:prune-carts deletes expired carts (with their lines)', pruned.trim())
+  check(dbOne('SELECT COUNT(*) n FROM cart_items WHERE cart_id NOT IN (SELECT id FROM carts)').n === 0 && execFileSync('php', ['artisan', 'schedule:list'], { cwd: ROOT, encoding: 'utf8' }).includes('shop:prune-carts'), 'no orphan cart lines, and the command is on the schedule')
+  await sleep(61000)   // a fresh minute for the 60-a-minute cart limit
+  let last = 200
+  for (let i = 0; i < 62 && last !== 429; i++) last = (await cartCall('GET')).status
+  check(last === 429, 'the cart calls are limited to 60 a minute per IP (429)', last)
+
+  section('F22', 'Order changes: reject with a reason, the admin_note fix, list filters and counts, developer blocked from new order endpoints')
+  const rp1 = await mk('Flow Reject Item', 'FRJ-1', 40)
+  const rejOrder = await placeOrder(orderBody([[rp1.variant, 3]], { name: 'To Reject', phone: phoneN(50) }))
+  const rNo = rejOrder.json?.data?.order_number
+  const rId = dbOne(`SELECT id FROM orders WHERE order_number = '${rNo}'`)?.id
+  check(rejOrder.status === 201 && variantRow(rp1.variant).stock_qty === 97, 'an order for 3 units takes the stock (97 left)', variantRow(rp1.variant))
+  const rejNoReason = await post(`admin/orders/${rId}/status`, { status: 'rejected' }, A)
+  const rejOk = await post(`admin/orders/${rId}/status`, { status: 'rejected', reason: 'We cannot deliver to that area' }, A)
+  const rejCustomer = dbOne(`SELECT orders_count FROM customers WHERE phone = '${phoneN(50).replace(/ /g, '')}'`)
+  check(rejNoReason.status === 422 && rejOk.status === 200 && rejOk.json.data.status === 'rejected' && variantRow(rp1.variant).stock_qty === 100 && rejCustomer.orders_count === 0, 'reject needs a reason; the order is rejected, the stock is back (100), the customer totals are reversed', { stock: variantRow(rp1.variant).stock_qty, orders: rejCustomer.orders_count })
+  const rejTrack = await lookup(rNo, phoneN(50))
+  check(rejTrack.json?.data?.status === 'rejected' && rejTrack.json.data.reject_reason === 'We cannot deliver to that area' && rejTrack.json.data.timeline.at(-1).note.includes('We cannot deliver'), 'the customer sees "rejected" with the reason on the tracking answer', { status: rejTrack.json?.data?.status, reason: rejTrack.json?.data?.reject_reason })
+  const rejAgain = await post(`admin/orders/${rId}/status`, { status: 'cancelled', reason: 'x' }, A)
+  check(rejAgain.status === 422 && rejAgain.json?.code === 'invalid_status_change', 'a rejected order is final (422)', status(rejAgain).slice(0, 100))
+  const rej2 = await placeOrder(orderBody([[rp1.variant, 1]], { name: 'Confirmed One', phone: phoneN(51) }))
+  const r2Id = dbOne(`SELECT id FROM orders WHERE order_number = '${rej2.json?.data?.order_number}'`)?.id
+  await post(`admin/orders/${r2Id}/status`, { status: 'confirmed' }, A)
+  const lateReject = await post(`admin/orders/${r2Id}/status`, { status: 'rejected', reason: 'Too late' }, A)
+  check(lateReject.status === 422 && lateReject.json?.code === 'invalid_status_change', 'only a pending order can be rejected (422 on a confirmed one)', status(lateReject).slice(0, 100))
+  const listRej = await get('admin/orders?status=rejected&per_page=100', A)
+  const listCounts = await get('admin/orders?payment_method=cod', A)
+  check(listRej.json?.data?.some((o) => o.order_number === rNo) && listRej.json.data.every((o) => o.status === 'rejected') && typeof listCounts.json?.counts?.rejected === 'number', 'the order list filters by status=rejected and its counts include rejected', listCounts.json?.counts)
+  const bankFilter = await get('admin/orders?payment_method=bank_transfer&per_page=100', A)
+  const awaitFilter = await get('admin/orders?payment_status=awaiting_payment&per_page=100', A)
+  check(bankFilter.json.data.length >= 2 && bankFilter.json.data.every((o) => o.payment_method === 'bank_transfer') && awaitFilter.json.data.every((o) => o.payment_status === 'awaiting_payment') && awaitFilter.json.data.length >= 1, 'filters payment_method=bank_transfer and payment_status=awaiting_payment work', [bankFilter.json.data.length, awaitFilter.json.data.length])
+  const bySearch = await get(`admin/orders?search=${encodeURIComponent(rNo)}`, A)
+  check(bySearch.json?.data?.length === 1 && bySearch.json.data[0].order_number === rNo, 'search=<order number> finds the order', bySearch.json?.data?.length)
+  await patch(`admin/orders/${r2Id}/note`, { admin_note: 'Call before delivery' }, A)
+  const noteBad = await patch(`admin/orders/${r2Id}/note`, { note: 'typo in the field name' }, A)
+  const noteKept = dbOne(`SELECT admin_note FROM orders WHERE id = ${r2Id}`)
+  check(noteBad.status === 422 && noteKept.admin_note === 'Call before delivery', 'REGRESSION: PATCH note without admin_note -> 422 and the stored note is kept (it used to be cleared)', { status: noteBad.status, note: noteKept.admin_note })
+  check((await patch(`admin/orders/${r2Id}/note`, { admin_note: null }, A)).status === 200 && dbOne(`SELECT admin_note FROM orders WHERE id = ${r2Id}`).admin_note === null, 'clearing the note is explicit (admin_note: null)')
+  const devNew = await Promise.all([
+    get(`admin/orders/${r2Id}/payment/proof`, D), post(`admin/orders/${r2Id}/status`, { status: 'rejected', reason: 'x' }, D),
+    get('admin/orders?status=rejected&payment_method=bank_transfer&search=ORD', D), put(`admin/orders/${r2Id}/delivery-fee`, { fee: 1 }, D),
+  ])
+  check(devNew.every((r) => r.status === 403), 'the developer is blocked from every new order endpoint and filter (403)', devNew.map((r) => r.status))
+  const devDash = await get('admin/dashboard', D)
+  check(!('orders' in (devDash.json || {})) && !JSON.stringify(devDash.json).includes(rNo), 'the developer dashboard still has no order figures or order numbers', Object.keys(devDash.json || {}))
+
+  section('F23', 'Rate limits of the new public endpoints')
+  await sleep(61000)
+  let couponLast = 0
+  for (let i = 0; i < 32 && couponLast !== 429; i++) couponLast = (await storePost('coupons/validate', { code: 'NOPE', items: [{ variant_id: dp.variant, qty: 1 }] })).status
+  check(couponLast === 429, 'POST /coupons/validate is limited to 30 a minute per IP (429 with Retry-After)', couponLast)
+  await sleep(61000)
+  const proofLimit = []
+  for (let i = 0; i < 12; i++) proofLimit.push((await storeCall('POST', `orders/${bNo}/payment-proof?phone=0`, { form: formOf({}, { proof: file('x.png', 120, 120, [1, 1, 1]) }) })).status)
+  check(proofLimit[0] === 404 && proofLimit.includes(429), 'payment-proof uploads are limited to 10 a minute per IP (404 for a wrong phone, then 429)', proofLimit)
+  const hp = await storePost('coupons/validate', { code: 'X', website: 'bot', items: [{ variant_id: dp.variant, qty: 1 }] })
+  check(hp.status === 422 && hp.json?.code === 'rejected' || hp.status === 429, 'the honeypot field is refused on the new public POSTs', status(hp).slice(0, 100))
+  // leave the store as the scripts expect it
+  await setSettings({ pay_bank_enabled: false, pay_card_visible: false, pay_bank_accounts: [], pay_bank_instructions: '', delivery_method: 'free_above', store_open: true, checkout_notice: '', delivery_eta_text: '', store_closed_message: '' }, D)
+  }
 } catch (e) {
   failures++
   console.log(`\nSCRIPT ERROR: ${e.stack || e}`)

@@ -118,6 +118,7 @@ class SecurityTest extends TestCase
         $this->assertNotContains('*', $shipped['allowed_origins']);
         $this->assertTrue($shipped['supports_credentials']);
         $this->assertContains('Idempotency-Replayed', $shipped['exposed_headers']);
+        $this->assertContains('X-Cart-Token', $shipped['exposed_headers']);
     }
 
     // ------------------------------------------------------------------ rate limits

@@ -13,7 +13,7 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => ['Idempotency-Replayed'],
+    'exposed_headers' => ['Idempotency-Replayed', 'X-Cart-Token'],
 
     'max_age' => 0,
 

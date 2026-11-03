@@ -310,7 +310,7 @@ class PromotionAdminTest extends TestCase
     public function test_the_target_pickers_search_and_label_by_id(): void
     {
         $this->asAdmin();
-        $category = $this->makeCategory('Dental Gear');
+        $category = $this->makeCategory('Surgical Gear');
         $sub = $this->makeSub($category, 'Gloves');
         $gloves = $this->makeProduct($category, ['name' => 'Nitrile Gloves']);
         $this->makeProduct($category, ['name' => 'Mirror']);
@@ -318,7 +318,7 @@ class PromotionAdminTest extends TestCase
         $products = $this->getJson(self::ADMIN.'/promotion-targets?type=product&q=glov')->assertOk()->json('data');
         $this->assertSame([['id' => $gloves->id, 'name' => 'Nitrile Gloves']], $products);
         $this->assertCount(2, $this->getJson(self::ADMIN.'/promotion-targets?type=product')->json('data'));
-        $this->assertSame([['id' => $category->id, 'name' => 'Dental Gear']], array_values(array_filter($this->getJson(self::ADMIN.'/promotion-targets?type=category&q=dental')->json('data'))));
+        $this->assertSame([['id' => $category->id, 'name' => 'Surgical Gear']], array_values(array_filter($this->getJson(self::ADMIN.'/promotion-targets?type=category&q=surgical')->json('data'))));
         $this->assertSame([['id' => $sub->id, 'name' => 'Gloves']], $this->getJson(self::ADMIN.'/promotion-targets?type=sub_category&q=glo')->json('data'));
         $this->assertSame([['id' => $gloves->id, 'name' => 'Nitrile Gloves']], $this->getJson(self::ADMIN.'/promotion-targets?type=product&ids[]='.$gloves->id)->json('data'));
         $this->assertSame([], $this->getJson(self::ADMIN.'/promotion-targets?type=product&q=zzzz')->json('data'));
