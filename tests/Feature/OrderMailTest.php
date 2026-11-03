@@ -236,7 +236,7 @@ class OrderMailTest extends TestCase
         $this->assertSame('Corner Shop Team', $envelope->from->name);
         $this->assertSame('shop@example.test', $envelope->from->address);
         $this->assertSame('help@shop.test', $envelope->replyTo[0]->address);
-        $this->assertSame('We received your order · '.$order->order_number, $envelope->subject);
+        $this->assertSame('We received your order - '.$order->order_number, $envelope->subject);
     }
 
     // ------------------------------------------------------------------ a mail failure never fails an order

@@ -50,7 +50,7 @@ abstract class OrderMail extends Mailable implements ShouldQueue
         return new Envelope(
             from: new Address((string) config('mail.from.address'), $name),
             replyTo: $replyTo !== '' ? [new Address($replyTo, $name)] : [],
-            subject: $this->title().' · '.$this->order->order_number,
+            subject: $this->title().' - '.$this->order->order_number,
         );
     }
 

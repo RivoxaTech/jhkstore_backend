@@ -25,7 +25,7 @@ const DEV = [process.env.E2E_DEV_USER || 'developer', process.env.E2E_DEV_PASSWO
 const CHROME = process.env.CHROME_PATH || ['C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => fs.existsSync(p))
 if (!CHROME) { console.error('Chrome not found: set CHROME_PATH'); process.exit(2) }
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'flow-ui-'))
-const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery', 'settings.store', 'settings.delivery', 'settings.payments', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage']
+const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0

@@ -23,8 +23,7 @@ const BASE = process.env.FLOW_BASE || 'http://127.0.0.1:8000'
 const BASE2 = process.env.FLOW_BASE2 || 'http://127.0.0.1:8001'
 const DEV = [process.env.FLOW_DEV_USER || 'developer', process.env.FLOW_DEV_PASSWORD || 'developer']
 const ADM = [process.env.FLOW_ADMIN_USER || 'admin', process.env.FLOW_ADMIN_PASSWORD || 'admin']
-const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery',
-  'settings.store', 'settings.delivery', 'settings.payments', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage']
+const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
 
 if (process.argv.includes('--fresh')) {
   execFileSync('php', ['artisan', 'migrate:fresh', '--seed', '--force'], { cwd: ROOT, stdio: 'ignore' })
@@ -180,7 +179,7 @@ try {
   check((await post('admin/categories', { name: 'Nope' }, A)).status === 403, 'admin cannot create a category by default (403)')
   const admSettings = await get('admin/settings', A)
   const tabKeys = (r) => (r.json?.tabs || []).map((t) => t.key ?? t.id ?? t)
-  check(JSON.stringify(tabKeys(admSettings).sort()) === JSON.stringify(['delivery', 'footer', 'general', 'orders_delivery', 'payments', 'store']), 'admin sees only the General, Footer, Orders & Delivery, Delivery, Payments and Store tabs', tabKeys(admSettings))
+  check(JSON.stringify(tabKeys(admSettings).sort()) === JSON.stringify(['delivery', 'footer', 'general', 'notifications', 'orders_delivery', 'payments', 'store']), 'admin sees only the General, Footer, Orders & Delivery, Delivery, Payments, Store and Notifications tabs', tabKeys(admSettings))
   const meBefore = await get('admin/auth/me', A)
   check(!meBefore.json.admin.permissions.some((p) => p.startsWith('products.') || p.startsWith('categories.')), 'admin /me lists no products/categories permission', meBefore.json.admin.permissions)
 
@@ -784,7 +783,7 @@ try {
   // restricted admin
   const aTabs = tabKeys(await get('admin/settings', A))
   const tryPut = async (body) => (await put('admin/settings', body, A)).status
-  check(JSON.stringify(aTabs.sort()) === JSON.stringify(['delivery', 'footer', 'general', 'orders_delivery', 'payments', 'store']), 'restricted admin: GET settings lists only the 6 open tabs (no Theme: it is the developer\'s)', aTabs)
+  check(JSON.stringify(aTabs.sort()) === JSON.stringify(['delivery', 'footer', 'general', 'notifications', 'orders_delivery', 'payments', 'store']), 'restricted admin: GET settings lists only the 7 open tabs (no Theme: it is the developer\'s)', aTabs)
   check([await tryPut({ currency_code: 'EUR' }), await tryPut({ seo_meta_title: 'x' }), await tryPut({ store_name: 'Mixed', currency_code: 'EUR' })].every((s) => s === 403), 'restricted admin: Currency & Tax, SEO and a mixed request are all 403', 'currency_code, seo_meta_title, mixed')
   check((await call('POST', 'admin/settings/logo', { token: A, form: formOf({}, { logo: file('l.png', 200, 100, [1, 2, 3]) }) })).status === 403, 'restricted admin: the logo upload (Branding) is 403')
   check((await get('admin/banners', A)).status === 403 && (await post('admin/banners', {}, A)).status === 403, 'restricted admin: Banners are 403')

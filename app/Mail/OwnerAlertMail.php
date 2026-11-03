@@ -44,7 +44,7 @@ class OwnerAlertMail extends Mailable implements ShouldQueue
             default => 'New wholesale request',
         };
 
-        return new Envelope(from: new Address((string) config('mail.from.address'), (string) $settings->get('store_name')), subject: "$title · $ref");
+        return new Envelope(from: new Address((string) config('mail.from.address'), (string) $settings->get('store_name')), subject: "$title - $ref");
     }
 
     public function content(): Content

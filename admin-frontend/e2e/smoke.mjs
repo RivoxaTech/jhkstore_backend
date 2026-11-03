@@ -19,7 +19,7 @@ const DEV = [process.env.E2E_DEV_USER || 'developer', process.env.E2E_DEV_PASSWO
 const CHROME = process.env.CHROME_PATH || ['C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => fs.existsSync(p))
 if (!CHROME) { console.error('Chrome not found: set CHROME_PATH'); process.exit(2) }
 
-const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery', 'settings.store', 'settings.delivery', 'settings.payments', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage']
+const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0
@@ -71,17 +71,17 @@ try {
   // ================= the client admin, default access
   await login(a.page, ADMIN)
   check(a.page.url().endsWith('/admin/'), 'admin login lands on the dashboard')
-  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Customers', 'Discounts', 'Coupons', 'Settings']), `admin sidebar: Dashboard, Orders, Customers, Discounts, Coupons, Settings (${(await nav(a.page)).join(', ')})`)
+  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Customers', 'Wholesale', 'Discounts', 'Coupons', 'Settings']), `admin sidebar: Dashboard, Orders, Customers, Wholesale, Discounts, Coupons, Settings (${(await nav(a.page)).join(', ')})`)
   for (const [path, heading] of [['', 'Dashboard'], ['orders', 'Orders'], ['customers', 'Customers'], ['discounts', 'Discounts'], ['coupons', 'Coupons'], ['settings', 'Settings']]) {
     await goto(a.page, path)
     await a.page.waitForSelector('h1', { timeout: 15000 })
     check((await a.page.$eval('h1', (e) => e.innerText)).includes(heading), `admin opens /admin/${path} ("${heading}")`)
   }
   await goto(a.page, '')
-  check(await a.page.evaluate(() => document.body.innerText.includes('Orders today')), 'the admin dashboard shows the order figures')
+  check(await a.page.evaluate(() => document.body.innerText.includes('Revenue') && document.body.innerText.includes('Average order')), 'the admin dashboard shows the order figures (revenue, orders, average order)')
 
   await goto(a.page, 'settings')
-  check(JSON.stringify(await tabsOf(a.page)) === JSON.stringify(['General', 'Footer & Social', 'Orders & Delivery', 'Delivery', 'Payments', 'Store']), `admin sees General, Footer, Orders & Delivery, Delivery, Payments and Store, and no Theme (${(await tabsOf(a.page)).join(', ')})`)
+  check(JSON.stringify(await tabsOf(a.page)) === JSON.stringify(['General', 'Footer & Social', 'Orders & Delivery', 'Delivery', 'Payments', 'Store', 'Notifications']), `admin sees General, Footer, Orders & Delivery, Delivery, Payments, Store and Notifications, and no Theme (${(await tabsOf(a.page)).join(', ')})`)
   // the new tabs render their fields from the API (colour / choice / accounts are the new field types)
   await goto(a.page, 'settings?tab=delivery')
   await a.page.waitForSelector('#s-delivery_method', { timeout: 15000 })
@@ -133,7 +133,7 @@ try {
   // ---- settings: seven tabs, Banners inside, links editor
   await goto(d.page, 'settings')
   const tabs = await tabsOf(d.page)
-  check(JSON.stringify(tabs) === JSON.stringify(['General', 'Branding', 'Banners', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'Delivery', 'Payments', 'Store', 'Theme', 'SEO']), `the developer sees all eleven tabs, Theme included (${tabs.join(', ')})`)
+  check(JSON.stringify(tabs) === JSON.stringify(['General', 'Branding', 'Banners', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'Delivery', 'Payments', 'Store', 'Notifications', 'Theme', 'SEO']), `the developer sees all twelve tabs, Theme included (${tabs.join(', ')})`)
 
   // ---- Theme tab (developer only): colour inputs stay in sync and the live preview follows the form; the admin panel's own look does not change
   await tap(d.page, '#tab-theme')
