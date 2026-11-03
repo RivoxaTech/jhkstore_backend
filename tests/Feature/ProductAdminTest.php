@@ -429,7 +429,7 @@ class ProductAdminTest extends TestCase
         $res->assertJsonCount(3, 'data')->assertJsonPath('counts.active', 1)->assertJsonPath('counts.draft', 1)->assertJsonPath('counts.inactive', 1);
         $row = collect($res->json('data'))->firstWhere('id', $a->id);
         $this->assertSame(['id', 'name', 'slug', 'sku', 'status', 'thumb_url', 'category', 'sub_category', 'min_price', 'mrp', 'discount_percent',
-            'variants_count', 'is_in_stock', 'stock', 'tags', 'updated_at'], array_keys($row));
+            'variants_count', 'is_in_stock', 'is_sold_out', 'is_featured', 'stock', 'low_stock', 'tags', 'updated_at'], array_keys($row));
         $this->assertEquals(750, $row['min_price']);
         $this->assertEquals(1000, $row['mrp']);
         $this->assertEquals(25, $row['discount_percent']);

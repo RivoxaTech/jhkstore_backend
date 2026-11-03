@@ -41,7 +41,7 @@ class ProductStoreTest extends TestCase
         $card = $res->json('data.0');
 
         $this->assertSame(['id', 'name', 'slug', 'short_description', 'image_url', 'thumb_url', 'category', 'options_count', 'has_single_option', 'offers_count', 'show_starting_at', 'badge_label', 'price', 'compare_price', 'discount_label', 'mrp', 'discount_percent',
-            'badge_text', 'tags', 'in_stock'], array_keys($card));
+            'badge_text', 'tags', 'in_stock', 'is_sold_out', 'is_featured'], array_keys($card));
         $this->assertSame('Prime Pack', $card['name']);
         $this->assertSame('prime-pack', $card['slug']);
         $this->assertEquals(2495, $card['price']);

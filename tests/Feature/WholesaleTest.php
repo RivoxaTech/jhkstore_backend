@@ -53,15 +53,15 @@ class WholesaleTest extends TestCase
     {
         $res = $this->submit(['email' => 'Buyer@Example.test', 'business_name' => 'ACME Retail', 'message' => 'Weekly delivery please'])->assertCreated();
 
-        $this->assertSame(['data' => ['reference' => 'WS-'.now()->format('Y').'-000001']], $res->json());
         $row = WholesaleRequest::firstOrFail();
+        $this->assertSame(['data' => ['reference' => sprintf('WS-%s-%06d', now()->format('Y'), $row->id)]], $res->json());   // WS-2026-000001: the year and the id
         $this->assertSame('new', $row->status);
         $this->assertSame('buyer@example.test', $row->email);
         $this->assertSame('ACME Retail', $row->business_name);
         $this->assertSame(500, $row->quantity);
         $this->assertNull($row->product_id);
         $this->assertSame('Cardboard boxes', $row->product_name);
-        $this->assertSame('WS-'.now()->format('Y').'-000002', $this->submit()->json('data.reference'));
+        $this->assertSame(sprintf('WS-%s-%06d', now()->format('Y'), $row->id + 1), $this->submit()->json('data.reference'));
     }
 
     public function test_a_product_and_option_are_kept_with_a_snapshot_of_their_name(): void
