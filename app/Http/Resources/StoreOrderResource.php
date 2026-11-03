@@ -40,7 +40,7 @@ class StoreOrderResource extends JsonResource
                 'proof_status' => $payment?->proof_status ?? 'none',       // none | submitted | verified | rejected (bank transfer)
                 'reject_reason' => $payment?->proof_reject_reason,          // why the last proof was rejected: upload a new one
                 'can_upload_proof' => $bank && $o->status->value === 'pending' && in_array($payment?->proof_status ?? 'none', ['none', 'rejected'], true),
-            ] + ($bank && $o->payment_status->value !== 'paid' && ! $o->status->isVoid() ? ['instructions' => (string) $settings->get('pay_bank_instructions'), 'accounts' => $settings->publicAccounts()] : []),
+            ] + ($bank && $o->payment_status->value !== 'paid' && ! $o->status->isVoid() ? ['instructions' => (string) ($payment?->bank_snapshot['instructions'] ?? ''), 'accounts' => $payment?->bank_snapshot['accounts'] ?? []] : []),   // the snapshot taken when the order was placed
             'delivery_fee_pending' => (bool) $o->delivery_fee_pending,       // "delivery fee to be confirmed"
             'reject_reason' => $o->reject_reason,
             'store_phone' => (string) $settings->get('store_phone'),

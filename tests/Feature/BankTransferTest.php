@@ -62,6 +62,28 @@ class BankTransferTest extends TestCase
             ->assertJsonPath('data.payment.accounts.0.bank', 'Test Bank');
     }
 
+    public function test_the_order_keeps_a_snapshot_of_the_accounts_and_instructions_shown_when_it_was_placed(): void
+    {
+        $order = $this->bankOrder();
+        $this->assertSame('Test Bank', $this->payment($order)->bank_snapshot['accounts'][0]['bank']);
+        $this->assertSame('Use the order number as the reference.', $this->payment($order)->bank_snapshot['instructions']);
+
+        // the shop changes its bank details after the order was placed
+        $this->setSetting('pay_bank_accounts', [['bank' => 'New Bank', 'title' => 'New Shop', 'number' => '999', 'iban' => '', 'active' => true]]);
+        $this->setSetting('pay_bank_instructions', 'Send it to the new account.');
+
+        $this->lookup($order->order_number, $order->customer_phone)->assertOk()
+            ->assertJsonPath('data.payment.accounts.0.bank', 'Test Bank')->assertJsonCount(1, 'data.payment.accounts')
+            ->assertJsonPath('data.payment.instructions', 'Use the order number as the reference.');
+        $this->actingAsAdmin();
+        $this->getJson(self::ADMIN."/orders/{$order->id}")->assertOk()
+            ->assertJsonPath('data.payment.bank_accounts.0.bank', 'Test Bank')->assertJsonCount(1, 'data.payment.bank_accounts')
+            ->assertJsonPath('data.payment.bank_instructions', 'Use the order number as the reference.');
+
+        // a cash order has no snapshot
+        $this->assertNull($this->payment($this->orderFor())->bank_snapshot);
+    }
+
     public function test_a_method_the_store_switched_off_is_refused(): void
     {
         $variant = $this->variantOf($this->shopProduct());

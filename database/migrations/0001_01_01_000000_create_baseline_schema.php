@@ -516,6 +516,7 @@ return new class extends Migration
             $table->string('status', 20)->default('initiated');
             $table->string('failure_reason', 255)->nullable();
             $table->json('response')->nullable();
+            $table->json('bank_snapshot')->nullable();                     // the accounts and instructions shown to the customer when the order was placed
             $table->timestamp('paid_at')->nullable();
             $table->string('proof_status', 12)->default('none');          // none | submitted | verified | rejected (bank transfer)
             $table->string('proof_reference', 120)->nullable();

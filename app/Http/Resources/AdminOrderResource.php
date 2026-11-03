@@ -5,7 +5,6 @@ namespace App\Http\Resources;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Enums\PaymentMethod;
 use App\Domain\Order\Enums\PaymentStatus;
-use App\Domain\Support\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -28,7 +27,6 @@ class AdminOrderResource extends JsonResource
         $next = $o->status->forwardStep();
         $bank = $o->payment_method === PaymentMethod::BankTransfer->value;
         $proofStatus = $payment?->proof_status ?? 'none';
-        $settings = app(Settings::class);
 
         return [
             'id' => $o->id,
@@ -68,8 +66,8 @@ class AdminOrderResource extends JsonResource
                 'has_proof' => $bank && $payment && $payment->getFirstMedia('proof') !== null,
                 'proof_url' => $bank && $payment && $payment->getFirstMedia('proof') ? url("/api/v1/admin/orders/{$o->id}/payment/proof") : null,   // needs the admin login: the file is private
                 'verified_at' => $payment?->verified_at,
-                'bank_accounts' => $bank ? $settings->publicAccounts() : [],      // what the customer was shown
-                'bank_instructions' => $bank ? (string) $settings->get('pay_bank_instructions') : null,
+                'bank_accounts' => $bank ? ($payment?->bank_snapshot['accounts'] ?? []) : [],      // what the customer was shown when ordering (a snapshot)
+                'bank_instructions' => $bank ? (string) ($payment?->bank_snapshot['instructions'] ?? '') : null,
             ],
             'delivery' => ['fee_pending' => (bool) $o->delivery_fee_pending, 'zone_id' => $o->delivery_zone_id],
             'coupon' => $o->coupon_code ? ['code' => $o->coupon_code, 'id' => $o->coupon_id, 'discount' => (float) $o->coupon_discount] : null,

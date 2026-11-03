@@ -35,7 +35,7 @@ class Payment extends Model implements HasMedia
 
     protected function casts(): array
     {
-        return ['amount' => 'decimal:2', 'paid_at' => 'datetime', 'verified_at' => 'datetime', 'response' => 'array'];
+        return ['amount' => 'decimal:2', 'paid_at' => 'datetime', 'verified_at' => 'datetime', 'response' => 'array', 'bank_snapshot' => 'array'];
     }
 
     public function registerMediaCollections(): void

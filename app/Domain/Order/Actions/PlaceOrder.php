@@ -271,6 +271,8 @@ class PlaceOrder
             'payable_type' => Payment::ORDER, 'payable_id' => $order->id, 'method' => $method->value,
             'amount' => $money($priced->grandTotal), 'currency' => $this->settings->currencyCode(),
             'status' => $bank ? Payment::AWAITING_PROOF : Payment::COD_PENDING, 'proof_status' => Payment::PROOF_NONE,
+            // what the customer was told to pay into: later edits of the settings must not change this order
+            'bank_snapshot' => $bank ? ['accounts' => $this->settings->publicAccounts(), 'instructions' => (string) $this->settings->get('pay_bank_instructions')] : null,
         ]);
 
         return $order;
