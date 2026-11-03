@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-11-03 – Phase A (branch `lean-store`)
+
+Settings foundation, delivery, payments, discounts and coupons, a persistent cart and order changes ([docs/FEATURE_SPEC.md](docs/FEATURE_SPEC.md), sections 2 to 9). The baseline migration was edited directly (no live database exists): **a database created from an earlier version must be rebuilt with `php artisan migrate:fresh --seed`**. 44 tables (was 36).
+
+### Added
+- **Settings**: tabs **Delivery**, **Payments**, **Store** and **Theme** (developer only); new setting types `color`, `choice` and `accounts`; theme tokens (colours, fonts from a fixed list, radius, shadow) public as `theme` in `GET /store/settings`; store open / closed with a closed message, a checkout notice and a delivery estimate text (a closed store still quotes, `POST /orders` answers `422 store_closed`); agency credit (`agency_name`, `agency_url`, https only) as `footer.agency`; public `payment` and `delivery.method`.
+- **Delivery**: setting `delivery_method` (`flat`, `free`, `free_above`, `zones`, `owner_confirms`) and `delivery_unmatched` (`block`, `owner_confirms`, `flat`); table `delivery_zones` with the zone manager inside Settings → Delivery (city / area / postcode with `*` prefix, fee, free-above, minimum order, ETA, order, active); the quote takes an `address` and answers `delivery_fee` (null when unknown), `delivery_pending`, `delivery_needs_address`, `delivery_zone`; `delivery_fee_pending` orders with `PUT /admin/orders/{id}/delivery-fee`.
+- **Payments**: `payment_method` `cod` or `bank_transfer` (`payment_method_unavailable` when switched off; the cash on delivery limit applies to cod only; bank accounts in Settings; card is only a "coming soon" label); the customer uploads a proof (`POST /store/orders/{number}/payment-proof?phone=`, private disk, wrong phone = the same 404); the admin sees it only through `GET /admin/orders/{id}/payment/proof`, verifies it (`payment/verify`) or rejects it (`payment/reject-proof`); an order cannot be confirmed before (`payment_not_verified`).
+- **Discounts and coupons**: automatic discounts and coupons (tables `discounts`, `discount_targets`, `coupons`, `coupon_targets`, `coupon_usages`) calculated in `CartPricing`, admin screens and API (`/admin/discounts`, `/admin/coupons`, `/admin/coupons/{id}/usages`, `/admin/promotion-targets`), `POST /store/coupons/validate`, discounted prices and `discount_label` on product cards and the product page, order snapshots (`coupon_id`, `coupon_code`, `discount_total`, `coupon_discount`, line `discount_amount` / `discount_source`), usage written under a row lock (two orders cannot take the last use) and given back when the order is cancelled or rejected.
+- **Persistent cart**: `GET/POST/PUT/DELETE /store/cart…` bound to a random token (`X-Cart-Token`), contact and coupon on the cart, `cart_token` accepted by the quote, the coupon check and `POST /store/orders` (the cart is emptied inside the order transaction), 30 days sliding expiry, `php artisan shop:prune-carts` scheduled daily.
+- **Orders**: status `rejected` (only from pending, reason required, gives back stock, customer totals and the coupon use); order list filters `search`, `status`, `payment_method`, `payment_status` and per-status `counts`; the customer tracking answer has `payment {method, status, proof_status, reject_reason, …}`, `delivery_fee_pending`, `reject_reason`, `store_phone` and `whatsapp_url`.
+- **Access control**: permissions `settings.theme` (developer only, never the admin), `settings.store`, `settings.delivery`, `settings.payments`, `discounts.view` / `discounts.manage`, `coupons.view` / `coupons.manage`. The admin starts with all of them except `settings.theme`; the developer with all. A permission added by an update is given to the roles whose defaults include it and never overrides what the developer switched.
+- Rate limits for the cart (60/min), the coupon check (30/min) and the proof upload (10/min per IP, 10/hour per order number); config `PAYMENT_PROOF_MAX_KB`.
+- Tests, `scripts/flow-check.mjs` (section F: Phase A over real HTTP, including the last coupon use across two PHP processes), the browser scripts and the docs, OpenAPI and Postman for all of it.
+
+### Changed
+- `delivery_fee`, `free_delivery_min_cart` and `delivery_days` moved from the Orders & Delivery tab to the new Delivery tab (permission `settings.delivery`); the keys are unchanged. The default `delivery_method` is `free_above`, which is the behaviour of earlier versions.
+- `orders.shipping_fee` can be null (fee still to be confirmed); the product `price` on cards and detail pages is the price after a live percent discount (`option_price` has the option's own price, `compare_price` and `discount_label` are new).
+- The dashboard's revenue and order count leave out rejected orders as well as cancelled ones.
+- Settings → Orders & Delivery keeps the order number prefix, the minimum order and the cash on delivery limit.
+
+### Fixed
+- `PATCH /admin/orders/{id}/note` without the field `admin_note` answered `200` and **cleared the stored note**; the field is now required (`present`, null or "" clears on purpose) and a missing field is a `422`. Regression test: `OrderChangesTest::test_a_note_request_without_the_field_is_refused_and_does_not_clear_the_note`.
+
+### Notes (where the spec left a choice)
+- A **fixed** discount or coupon amount is taken off the eligible lines once, split by line total (remainder to the last lines); product cards and detail only apply **percent** discounts to the shown price, a fixed one only gives `discount_label`.
+- `discount_total` is the automatic discounts only, `coupon_discount` is separate; per line the better of discount and coupon applies, never both; `discount_source` is `discount`, `coupon`, `bulk` or null.
+- The store's minimum order and a coupon's `min_order` are checked after bulk prices and automatic discounts, before the coupon; free delivery above an amount uses the final subtotal.
+- A coupon that is beaten everywhere by an automatic discount answers `no_eligible_items` and is not counted as used; a coupon that takes nothing off and is not free-delivery is not recorded as used.
+- `PUT /store/cart/coupon` with a bad code is `422 coupon_invalid` and is not saved; `items` win over `cart_token` when both are sent; an unknown or expired token prices an empty cart in a quote and is `422 cart_invalid` in an order.
+- `coupon_usages.released_at` marks a use that was given back; a coupon with any usage row cannot be deleted (deactivate it). The usage list only shows order numbers and phones to an admin who holds `orders.view`.
+- Bank transfer: only a pending order takes a proof, one at a time, a new one only after a rejection; enabling bank transfer needs an active account; a verified bank order that is cancelled stays `paid` (refund by hand).
+- The quote and the coupon check accept an optional `phone` so the per-customer and first-order rules can be checked; without it those two rules are skipped in the quote (the order always checks them).
+- Only the Phase A permissions exist; `orders.export`, `settings.notifications` and `wholesale.*` arrive with Phase B (the developer can never hold `orders.export`).
 ## Unreleased – lean store (branch `lean-store`)
 
 The product is now three things – **products, categories and orders** – plus the admin settings that control the website. Everything else is removed for now. The baseline migration was edited directly (no live database exists): rebuild a development database with `php artisan migrate:fresh --seed`.

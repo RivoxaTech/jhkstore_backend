@@ -147,6 +147,14 @@
                                                 "settings.currency_tax",
                                                 "settings.orders_delivery",
                                                 "settings.seo",
+                                                "settings.theme",
+                                                "settings.store",
+                                                "settings.delivery",
+                                                "settings.payments",
+                                                "discounts.view",
+                                                "discounts.manage",
+                                                "coupons.view",
+                                                "coupons.manage",
                                                 "access.manage"
                                             ]
                                         }
@@ -963,6 +971,341 @@
                 }
             }
         },
+        "/v1/store/cart": {
+            "get": {
+                "operationId": "cart.show",
+                "summary": "GET cart (optional ?city=&area=&postcode= to get the delivery fee of a zone)",
+                "tags": [
+                    "Cart"
+                ],
+                "parameters": [
+                    {
+                        "name": "city",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 100
+                        }
+                    },
+                    {
+                        "name": "area",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 255
+                        }
+                    },
+                    {
+                        "name": "postcode",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`QuoteResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/QuoteResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "cart.clear",
+                "summary": "DELETE cart: empties the cart (items and coupon)",
+                "tags": [
+                    "Cart"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`QuoteResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/QuoteResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/store/cart/items": {
+            "post": {
+                "operationId": "cart.add",
+                "summary": "POST cart/items { variant_id, qty }: adds the quantity to the option",
+                "tags": [
+                    "Cart"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CartItemRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`QuoteResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/QuoteResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/store/cart/items/{variantId}": {
+            "put": {
+                "operationId": "cart.update",
+                "summary": "PUT cart/items/{variantId} { qty }: sets the quantity of a line",
+                "tags": [
+                    "Cart"
+                ],
+                "parameters": [
+                    {
+                        "name": "variantId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CartItemRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`QuoteResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/QuoteResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "cart.remove",
+                "summary": "DELETE cart/items/{variantId}",
+                "tags": [
+                    "Cart"
+                ],
+                "parameters": [
+                    {
+                        "name": "variantId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`QuoteResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/QuoteResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/store/cart/contact": {
+            "put": {
+                "operationId": "cart.contact",
+                "summary": "PUT cart/contact { name?, phone?, email? }: kept so the shop can follow up an abandoned cart",
+                "tags": [
+                    "Cart"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CartContactRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`QuoteResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/QuoteResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/store/cart/coupon": {
+            "put": {
+                "operationId": "cart.setCoupon",
+                "summary": "PUT cart/coupon { code }: a code that does not work answers 422 `coupon_invalid` and is not saved",
+                "tags": [
+                    "Cart"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CartCouponRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`QuoteResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/QuoteResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "cart.removeCoupon",
+                "summary": "DELETE cart/coupon",
+                "tags": [
+                    "Cart"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`QuoteResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/QuoteResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/store/categories": {
             "get": {
                 "operationId": "store.category.index",
@@ -1543,12 +1886,11 @@
         "/v1/store/checkout/quote": {
             "post": {
                 "operationId": "checkout.quote",
-                "summary": "Price a cart: body { items: [{variant_id, qty}] }. Answers the server-priced lines (bulk prices applied), the totals (tax, delivery fee,\nsavings), the next bulk offer per line and the warnings (out of stock, quantity limits, minimum order). Nothing is stored or reserved",
+                "summary": "Price a cart: body { items: [{variant_id, qty}] | cart_token, coupon_code?, address?: {city, area, postcode}, phone? }. Answers the\nserver-priced lines (bulk prices and discounts applied), the totals (tax, delivery fee, savings, coupon), the next bulk offer per line and the\nwarnings (out of stock, quantity limits, minimum order). Nothing is stored or reserved. A refused coupon is reported in\n`summary.coupon_error`; it does not block the quote",
                 "tags": [
                     "Checkout"
                 ],
                 "requestBody": {
-                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
@@ -1578,6 +1920,575 @@
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/store/coupons/validate": {
+            "post": {
+                "operationId": "checkout.validateCoupon",
+                "summary": "POST coupons/validate { code, items | cart_token, address?, phone? }: the quote with the coupon applied (the same engine as the quote and\nthe order). A coupon that does not work answers 422 `coupon_invalid` with `coupon_error { code, message }`",
+                "tags": [
+                    "Checkout"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CouponValidateRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`QuoteResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/QuoteResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/coupons": {
+            "get": {
+                "operationId": "coupon.index",
+                "summary": "Paginated list. Filters: ?q (code or name) ?status=live|scheduled|expired|inactive ?per_page",
+                "tags": [
+                    "Coupon"
+                ],
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 100
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "live",
+                                "scheduled",
+                                "expired",
+                                "inactive",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated set of `DiscountResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/DiscountResource"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "properties": {
+                                                "first": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "prev": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "next": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "first",
+                                                "last",
+                                                "prev",
+                                                "next"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "from",
+                                                "last_page",
+                                                "links",
+                                                "path",
+                                                "per_page",
+                                                "to",
+                                                "total"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "links",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "coupon.store",
+                "tags": [
+                    "Coupon"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SaveCouponRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "`CouponResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/CouponResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/coupons/{coupon}": {
+            "get": {
+                "operationId": "coupon.show",
+                "tags": [
+                    "Coupon"
+                ],
+                "parameters": [
+                    {
+                        "name": "coupon",
+                        "in": "path",
+                        "required": true,
+                        "description": "The coupon ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`CouponResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/CouponResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "coupon.update",
+                "tags": [
+                    "Coupon"
+                ],
+                "parameters": [
+                    {
+                        "name": "coupon",
+                        "in": "path",
+                        "required": true,
+                        "description": "The coupon ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SaveCouponRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`CouponResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/CouponResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "coupon.destroy",
+                "summary": "A coupon that was used on an order cannot be deleted (422 `coupon_has_usages`): deactivate it",
+                "tags": [
+                    "Coupon"
+                ],
+                "parameters": [
+                    {
+                        "name": "coupon",
+                        "in": "path",
+                        "required": true,
+                        "description": "The coupon ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Deleted."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/coupons/{coupon}/usages": {
+            "get": {
+                "operationId": "coupon.usages",
+                "summary": "GET coupons/{id}/usages: when and for how much the coupon was used. The order number and the customer's phone are order data: they are only\nsent to an admin who holds `orders.view` (the developer gets the dates and amounts, never the orders)",
+                "tags": [
+                    "Coupon"
+                ],
+                "parameters": [
+                    {
+                        "name": "coupon",
+                        "in": "path",
+                        "required": true,
+                        "description": "The coupon ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "array",
+                                                "items": {}
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer"
+                                                },
+                                                "last_page": {
+                                                    "type": "integer"
+                                                },
+                                                "per_page": {
+                                                    "type": "integer"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "last_page",
+                                                "per_page",
+                                                "total"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/coupons/{coupon}/active": {
+            "patch": {
+                "operationId": "coupon.active",
+                "summary": "PATCH coupons/{id}/active { is_active }",
+                "tags": [
+                    "Coupon"
+                ],
+                "parameters": [
+                    {
+                        "name": "coupon",
+                        "in": "path",
+                        "required": true,
+                        "description": "The coupon ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "is_active": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "required": [
+                                    "is_active"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`CouponResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/CouponResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
                     }
                 }
             }
@@ -1761,10 +2672,1093 @@
                 }
             }
         },
+        "/v1/admin/delivery-zones": {
+            "get": {
+                "operationId": "deliveryZone.index",
+                "tags": [
+                    "DeliveryZone"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "deliveryZone.store",
+                "tags": [
+                    "DeliveryZone"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SaveDeliveryZoneRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "match_type": {
+                                                    "type": "string"
+                                                },
+                                                "match_values": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "fee": {
+                                                    "type": "number"
+                                                },
+                                                "free_above": {
+                                                    "type": [
+                                                        "number",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "min_order": {
+                                                    "type": [
+                                                        "number",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "eta_text": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "sort_order": {
+                                                    "type": "integer"
+                                                },
+                                                "is_active": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "match_type",
+                                                "match_values",
+                                                "fee",
+                                                "free_above",
+                                                "min_order",
+                                                "eta_text",
+                                                "sort_order",
+                                                "is_active"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/delivery-zones/reorder": {
+            "put": {
+                "operationId": "deliveryZone.reorder",
+                "summary": "PUT delivery-zones/reorder { ids: [3, 1, 2] }: the new order of ALL zones",
+                "tags": [
+                    "DeliveryZone"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        },
+                                        "minItems": 1,
+                                        "uniqueItems": true
+                                    }
+                                },
+                                "required": [
+                                    "ids"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/delivery-zones/{zone}": {
+            "get": {
+                "operationId": "deliveryZone.show",
+                "tags": [
+                    "DeliveryZone"
+                ],
+                "parameters": [
+                    {
+                        "name": "zone",
+                        "in": "path",
+                        "required": true,
+                        "description": "The zone ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "match_type": {
+                                                    "type": "string"
+                                                },
+                                                "match_values": {
+                                                    "type": "string"
+                                                },
+                                                "fee": {
+                                                    "type": "number"
+                                                },
+                                                "free_above": {
+                                                    "type": [
+                                                        "number",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "min_order": {
+                                                    "type": [
+                                                        "number",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "eta_text": {
+                                                    "type": "string"
+                                                },
+                                                "sort_order": {
+                                                    "type": "string"
+                                                },
+                                                "is_active": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "match_type",
+                                                "match_values",
+                                                "fee",
+                                                "free_above",
+                                                "min_order",
+                                                "eta_text",
+                                                "sort_order",
+                                                "is_active"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "deliveryZone.update",
+                "tags": [
+                    "DeliveryZone"
+                ],
+                "parameters": [
+                    {
+                        "name": "zone",
+                        "in": "path",
+                        "required": true,
+                        "description": "The zone ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SaveDeliveryZoneRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "match_type": {
+                                                    "type": "string"
+                                                },
+                                                "match_values": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "fee": {
+                                                    "type": "number"
+                                                },
+                                                "free_above": {
+                                                    "type": [
+                                                        "number",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "min_order": {
+                                                    "type": [
+                                                        "number",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "eta_text": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "sort_order": {
+                                                    "type": "integer"
+                                                },
+                                                "is_active": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "match_type",
+                                                "match_values",
+                                                "fee",
+                                                "free_above",
+                                                "min_order",
+                                                "eta_text",
+                                                "sort_order",
+                                                "is_active"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "deliveryZone.destroy",
+                "tags": [
+                    "DeliveryZone"
+                ],
+                "parameters": [
+                    {
+                        "name": "zone",
+                        "in": "path",
+                        "required": true,
+                        "description": "The zone ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Deleted."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/delivery-zones/{zone}/active": {
+            "patch": {
+                "operationId": "deliveryZone.active",
+                "summary": "PATCH delivery-zones/{id}/active { is_active }",
+                "tags": [
+                    "DeliveryZone"
+                ],
+                "parameters": [
+                    {
+                        "name": "zone",
+                        "in": "path",
+                        "required": true,
+                        "description": "The zone ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "is_active": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "required": [
+                                    "is_active"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "match_type": {
+                                                    "type": "string"
+                                                },
+                                                "match_values": {
+                                                    "type": "string"
+                                                },
+                                                "fee": {
+                                                    "type": "number"
+                                                },
+                                                "free_above": {
+                                                    "type": [
+                                                        "number",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "min_order": {
+                                                    "type": [
+                                                        "number",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "eta_text": {
+                                                    "type": "string"
+                                                },
+                                                "sort_order": {
+                                                    "type": "string"
+                                                },
+                                                "is_active": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "match_type",
+                                                "match_values",
+                                                "fee",
+                                                "free_above",
+                                                "min_order",
+                                                "eta_text",
+                                                "sort_order",
+                                                "is_active"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/promotion-targets": {
+            "get": {
+                "operationId": "discount.targets",
+                "summary": "GET promotion-targets?type=product|category|sub_category&q=&ids[]=: the searchable lists of the discount and coupon forms (up to 20 matches,\nor the given ids). Needs the discounts or the coupons screen, not the products or categories screens",
+                "tags": [
+                    "Discount"
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "product",
+                                "category",
+                                "sub_category"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 100
+                        }
+                    },
+                    {
+                        "name": "ids[]",
+                        "in": "query",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/discounts": {
+            "get": {
+                "operationId": "discount.index",
+                "summary": "Paginated list. Filters: ?q (name) ?status=live|scheduled|expired|inactive ?per_page",
+                "tags": [
+                    "Discount"
+                ],
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 100
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "live",
+                                "scheduled",
+                                "expired",
+                                "inactive",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated set of `DiscountResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/DiscountResource"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "properties": {
+                                                "first": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "prev": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "next": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "first",
+                                                "last",
+                                                "prev",
+                                                "next"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "from",
+                                                "last_page",
+                                                "links",
+                                                "path",
+                                                "per_page",
+                                                "to",
+                                                "total"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "links",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "discount.store",
+                "tags": [
+                    "Discount"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SaveDiscountRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "`DiscountResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/DiscountResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/discounts/{discount}": {
+            "get": {
+                "operationId": "discount.show",
+                "tags": [
+                    "Discount"
+                ],
+                "parameters": [
+                    {
+                        "name": "discount",
+                        "in": "path",
+                        "required": true,
+                        "description": "The discount ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`DiscountResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/DiscountResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "discount.update",
+                "tags": [
+                    "Discount"
+                ],
+                "parameters": [
+                    {
+                        "name": "discount",
+                        "in": "path",
+                        "required": true,
+                        "description": "The discount ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SaveDiscountRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`DiscountResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/DiscountResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "discount.destroy",
+                "tags": [
+                    "Discount"
+                ],
+                "parameters": [
+                    {
+                        "name": "discount",
+                        "in": "path",
+                        "required": true,
+                        "description": "The discount ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Deleted."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/discounts/{discount}/active": {
+            "patch": {
+                "operationId": "discount.active",
+                "summary": "PATCH discounts/{id}/active { is_active }",
+                "tags": [
+                    "Discount"
+                ],
+                "parameters": [
+                    {
+                        "name": "discount",
+                        "in": "path",
+                        "required": true,
+                        "description": "The discount ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "is_active": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "required": [
+                                    "is_active"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`DiscountResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/DiscountResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/store/orders": {
             "post": {
                 "operationId": "order.store",
-                "summary": "Place an order. Body: customer { name, phone, email? }, address { line1, city, area?, landmark?, state?, postcode?, country?, name?, phone? },\nitems [{ variant_id, qty }], customer_note?, expected_total?. Send an `Idempotency-Key` header (any unique string, max 64) so a double tap or\na retry returns the same order (200 + `Idempotency-Replayed: true`) instead of a second one. 201 = new order; 409 `price_changed` = the\ntotal the customer saw is no longer right",
+                "summary": "Place an order. Body: customer { name, phone, email? }, address { line1, city, area?, landmark?, state?, postcode?, country?, name?, phone? },\nitems [{ variant_id, qty }] or cart_token, payment_method? (cod | bank_transfer), coupon_code?, customer_note?, expected_total?. Send an `Idempotency-Key` header (any unique string, max 64) so a double tap or\na retry returns the same order (200 + `Idempotency-Replayed: true`) instead of a second one. 201 = new order; 409 `price_changed` = the\ntotal the customer saw is no longer right",
                 "tags": [
                     "Order"
                 ],
@@ -1849,6 +3843,58 @@
                 }
             }
         },
+        "/v1/store/orders/{orderNumber}/payment-proof": {
+            "post": {
+                "operationId": "order.paymentProof",
+                "summary": "Bank transfer: upload the screenshot of the payment. POST orders/{orderNumber}/payment-proof?phone=... (multipart `proof`, optional `reference`).\nA wrong phone answers the same 404 as an unknown order. Allowed while the order is pending, and again after the shop rejected a proof",
+                "tags": [
+                    "Order"
+                ],
+                "parameters": [
+                    {
+                        "name": "orderNumber",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PaymentProofRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`StoreOrderResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/StoreOrderResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
         "/v1/admin/orders/options": {
             "get": {
                 "operationId": "order.options",
@@ -1895,13 +3941,24 @@
         "/v1/admin/orders": {
             "get": {
                 "operationId": "order.index",
-                "summary": "Paginated orders, newest first. Filters: ?q (order number, customer name, phone, email) ?status ?payment_status ?payment_method\n?from ?to (dates, placed) ?customer_id ?page ?per_page (max 100). `counts` = orders per status for the same filters (without the status filter)",
+                "summary": "Paginated orders, newest first. Filters: ?search (or ?q: order number, customer name, phone, email) ?status ?payment_status ?payment_method\n?from ?to (dates, placed) ?customer_id ?page ?per_page (max 100). `counts` = orders per status for the same filters (without the status\nfilter), for the status tabs",
                 "tags": [
                     "Order"
                 ],
                 "parameters": [
                     {
                         "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 100
+                        }
+                    },
+                    {
+                        "name": "search",
                         "in": "query",
                         "schema": {
                             "type": [
@@ -1926,6 +3983,7 @@
                                 "shipped",
                                 "delivered",
                                 "cancelled",
+                                "rejected",
                                 null
                             ]
                         }
@@ -1941,6 +3999,7 @@
                             "enum": [
                                 "pending",
                                 "cod_pending",
+                                "awaiting_payment",
                                 "paid",
                                 "failed",
                                 "cancelled",
@@ -1958,6 +4017,7 @@
                             ],
                             "enum": [
                                 "cod",
+                                "bank_transfer",
                                 null
                             ]
                         }
@@ -2206,10 +4266,49 @@
                 }
             }
         },
+        "/v1/admin/orders/{order}/payment/proof": {
+            "get": {
+                "operationId": "order.proof",
+                "summary": "GET orders/{id}/payment/proof: the customer's screenshot. It is on the private disk, so only this authenticated route can show it",
+                "tags": [
+                    "Order"
+                ],
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "description": "The order ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/admin/orders/{order}/status": {
             "post": {
                 "operationId": "order.status",
-                "summary": "Move the order one step: { status: confirmed|packed|shipped|delivered|cancelled, note?, reason? (cancel), courier + awb_number (ship), tracking_url? }.\nAllowed moves: pending -> confirmed -> packed -> shipped -> delivered; cancel while pending / confirmed / packed",
+                "summary": "Move the order one step: { status: confirmed|packed|shipped|delivered|cancelled|rejected, note?, reason? (cancel, reject), courier + awb_number (ship),\ntracking_url? }. Allowed moves: pending -> confirmed -> packed -> shipped -> delivered; cancel while pending / confirmed / packed; reject\n(with a reason the customer sees) only while pending. Confirming needs the delivery fee set and a bank transfer verified",
                 "tags": [
                     "Order"
                 ],
@@ -2268,7 +4367,7 @@
         "/v1/admin/orders/{order}/note": {
             "patch": {
                 "operationId": "order.note",
-                "summary": "Internal note (never shown to the customer)",
+                "summary": "Internal note (never shown to the customer). The field `admin_note` must be present (null or \"\" clears the note)",
                 "tags": [
                     "Order"
                 ],
@@ -2284,10 +4383,175 @@
                     }
                 ],
                 "requestBody": {
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/UpdateOrderNoteRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`AdminOrderResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AdminOrderResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/orders/{order}/payment/verify": {
+            "post": {
+                "operationId": "order.verifyPayment",
+                "summary": "POST orders/{id}/payment/verify: the bank transfer arrived (needs an uploaded proof). The payment and the order become paid",
+                "tags": [
+                    "Order"
+                ],
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "description": "The order ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`AdminOrderResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AdminOrderResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/orders/{order}/payment/reject-proof": {
+            "post": {
+                "operationId": "order.rejectProof",
+                "summary": "POST orders/{id}/payment/reject-proof { reason }: the proof is not good, the customer uploads a new one",
+                "tags": [
+                    "Order"
+                ],
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "description": "The order ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RejectPaymentProofRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`AdminOrderResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AdminOrderResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/orders/{order}/delivery-fee": {
+            "put": {
+                "operationId": "order.deliveryFee",
+                "summary": "PUT orders/{id}/delivery-fee { fee }: confirms the fee of an order placed without one; the total is recalculated",
+                "tags": [
+                    "Order"
+                ],
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "description": "The order ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetDeliveryFeeRequest"
                             }
                         }
                     }
@@ -3653,7 +5917,7 @@
         "/v1/store/settings": {
             "get": {
                 "operationId": "store.setting.show",
-                "summary": "Public store configuration: profile and branding, footer and social links, SEO defaults, currency, tax, delivery and order rules",
+                "summary": "Public store configuration: profile and branding, open / closed, footer, social links and the agency credit, SEO defaults, currency, tax,\ndelivery, payment methods, order rules and the theme (colours, fonts, corners) the storefront paints itself with",
                 "tags": [
                     "Setting"
                 ],
@@ -3697,6 +5961,13 @@
                                                 },
                                                 "country": {
                                                     "type": "string"
+                                                },
+                                                "open": {
+                                                    "type": "boolean"
+                                                },
+                                                "closed_message": {
+                                                    "type": "string",
+                                                    "description": "false: browsing works, POST /orders answers 422 store_closed"
                                                 }
                                             },
                                             "required": [
@@ -3707,7 +5978,24 @@
                                                 "email",
                                                 "phone",
                                                 "address",
-                                                "country"
+                                                "country",
+                                                "open",
+                                                "closed_message"
+                                            ]
+                                        },
+                                        "checkout": {
+                                            "type": "object",
+                                            "properties": {
+                                                "notice": {
+                                                    "type": "string"
+                                                },
+                                                "eta_text": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "notice",
+                                                "eta_text"
                                             ]
                                         },
                                         "social_links": {
@@ -3753,6 +6041,21 @@
                                                         "string",
                                                         "null"
                                                     ]
+                                                },
+                                                "agency": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "url": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "name",
+                                                        "url"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -3760,7 +6063,8 @@
                                                 "copyright",
                                                 "support_hours",
                                                 "whatsapp_number",
-                                                "whatsapp_url"
+                                                "whatsapp_url",
+                                                "agency"
                                             ]
                                         },
                                         "seo": {
@@ -3826,13 +6130,19 @@
                                         "delivery": {
                                             "type": "object",
                                             "properties": {
-                                                "fee": {},
+                                                "method": {
+                                                    "type": "string"
+                                                },
+                                                "fee": {
+                                                    "description": "flat | free | free_above | zones | owner_confirms"
+                                                },
                                                 "free_delivery_min_cart": {},
                                                 "days": {
                                                     "description": "0 = never free"
                                                 }
                                             },
                                             "required": [
+                                                "method",
                                                 "fee",
                                                 "free_delivery_min_cart",
                                                 "days"
@@ -3850,17 +6160,153 @@
                                                 "min_order_amount",
                                                 "cod_max_amount"
                                             ]
+                                        },
+                                        "payment": {
+                                            "type": "object",
+                                            "properties": {
+                                                "cod": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "enabled": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "enabled"
+                                                    ]
+                                                },
+                                                "bank_transfer": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "instructions": {
+                                                            "type": "string"
+                                                        },
+                                                        "accounts": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "bank": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "title": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "number": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "iban": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "bank",
+                                                                    "title",
+                                                                    "number",
+                                                                    "iban"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "enabled",
+                                                        "instructions",
+                                                        "accounts"
+                                                    ]
+                                                },
+                                                "card": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "visible": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "coming_soon": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "visible",
+                                                        "coming_soon"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "cod",
+                                                "bank_transfer",
+                                                "card"
+                                            ]
+                                        },
+                                        "theme": {
+                                            "type": "object",
+                                            "properties": {
+                                                "primary": {
+                                                    "type": "string"
+                                                },
+                                                "primary_contrast": {
+                                                    "type": "string"
+                                                },
+                                                "accent": {
+                                                    "type": "string"
+                                                },
+                                                "bg": {
+                                                    "type": "string"
+                                                },
+                                                "surface": {
+                                                    "type": "string"
+                                                },
+                                                "text": {
+                                                    "type": "string"
+                                                },
+                                                "muted": {
+                                                    "type": "string"
+                                                },
+                                                "border": {
+                                                    "type": "string"
+                                                },
+                                                "font_heading": {
+                                                    "type": "string"
+                                                },
+                                                "font_body": {
+                                                    "type": "string"
+                                                },
+                                                "radius": {
+                                                    "type": "string"
+                                                },
+                                                "shadow": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "primary",
+                                                "primary_contrast",
+                                                "accent",
+                                                "bg",
+                                                "surface",
+                                                "text",
+                                                "muted",
+                                                "border",
+                                                "font_heading",
+                                                "font_body",
+                                                "radius",
+                                                "shadow"
+                                            ]
                                         }
                                     },
                                     "required": [
                                         "store",
+                                        "checkout",
                                         "social_links",
                                         "footer",
                                         "seo",
                                         "currency",
                                         "tax",
                                         "delivery",
-                                        "orders"
+                                        "orders",
+                                        "payment",
+                                        "theme"
                                     ]
                                 }
                             }
@@ -5061,6 +7507,9 @@
                     "payment_status": {
                         "type": "string"
                     },
+                    "delivery_fee_pending": {
+                        "type": "boolean"
+                    },
                     "status": {
                         "type": "string"
                     },
@@ -5078,6 +7527,7 @@
                     "payment_method",
                     "payment_method_label",
                     "payment_status",
+                    "delivery_fee_pending",
                     "status",
                     "status_label"
                 ],
@@ -5111,6 +7561,9 @@
                         "type": "string"
                     },
                     "cancelled_at": {
+                        "type": "string"
+                    },
+                    "rejected_at": {
                         "type": "string"
                     },
                     "estimated_delivery_date": {
@@ -5290,11 +7743,29 @@
                             "bulk_discount": {
                                 "type": "number"
                             },
+                            "discount_total": {
+                                "type": "number"
+                            },
+                            "coupon_code": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "coupon_discount": {
+                                "type": "number"
+                            },
                             "subtotal": {
                                 "type": "number"
                             },
                             "delivery_fee": {
-                                "type": "number"
+                                "type": [
+                                    "number",
+                                    "null"
+                                ]
+                            },
+                            "delivery_fee_pending": {
+                                "type": "boolean"
                             },
                             "grand_total": {
                                 "type": "number"
@@ -5323,8 +7794,12 @@
                             "items_total",
                             "product_discount",
                             "bulk_discount",
+                            "discount_total",
+                            "coupon_code",
+                            "coupon_discount",
                             "subtotal",
                             "delivery_fee",
+                            "delivery_fee_pending",
                             "grand_total",
                             "tax_total",
                             "tax_inclusive",
@@ -5362,6 +7837,69 @@
                                     "number",
                                     "null"
                                 ]
+                            },
+                            "proof_status": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "string",
+                                        "enum": [
+                                            "none"
+                                        ]
+                                    }
+                                ]
+                            },
+                            "proof_reference": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "proof_reject_reason": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "has_proof": {
+                                "type": "boolean"
+                            },
+                            "proof_url": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "verified_at": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "needs the admin login: the file is private"
+                            },
+                            "bank_accounts": {
+                                "anyOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "minItems": 0,
+                                        "maxItems": 0
+                                    }
+                                ]
+                            },
+                            "bank_instructions": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "what the customer was shown"
                             }
                         },
                         "required": [
@@ -5370,7 +7908,52 @@
                             "status",
                             "amount",
                             "paid_at",
-                            "collect_on_delivery"
+                            "collect_on_delivery",
+                            "proof_status",
+                            "proof_reference",
+                            "proof_reject_reason",
+                            "has_proof",
+                            "proof_url",
+                            "verified_at",
+                            "bank_accounts",
+                            "bank_instructions"
+                        ]
+                    },
+                    "delivery": {
+                        "type": "object",
+                        "properties": {
+                            "fee_pending": {
+                                "type": "boolean"
+                            },
+                            "zone_id": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "fee_pending",
+                            "zone_id"
+                        ]
+                    },
+                    "coupon": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string"
+                            },
+                            "id": {
+                                "type": "string"
+                            },
+                            "discount": {
+                                "type": "number"
+                            }
+                        },
+                        "required": [
+                            "code",
+                            "id",
+                            "discount"
                         ]
                     },
                     "shipment": {
@@ -5424,6 +8007,9 @@
                     "cancelled_by": {
                         "type": "string"
                     },
+                    "reject_reason": {
+                        "type": "string"
+                    },
                     "timeline": {
                         "type": "string"
                     },
@@ -5449,8 +8035,30 @@
                             "can_cancel": {
                                 "type": "string"
                             },
+                            "can_reject": {
+                                "type": "string"
+                            },
+                            "can_verify_payment": {
+                                "type": "boolean"
+                            },
+                            "needs_delivery_fee": {
+                                "type": "boolean",
+                                "description": "verify or reject the proof"
+                            },
+                            "blocked_reason": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "enum": [
+                                    "delivery_fee_pending",
+                                    "payment_not_verified",
+                                    null
+                                ]
+                            },
                             "allowed": {
                                 "type": "array",
+                                "description": "why the order cannot be confirmed yet",
                                 "items": {}
                             }
                         },
@@ -5459,6 +8067,10 @@
                             "next_label",
                             "needs_shipping_details",
                             "can_cancel",
+                            "can_reject",
+                            "can_verify_payment",
+                            "needs_delivery_fee",
+                            "blocked_reason",
                             "allowed"
                         ]
                     }
@@ -5473,6 +8085,7 @@
                     "shipped_at",
                     "delivered_at",
                     "cancelled_at",
+                    "rejected_at",
                     "estimated_delivery_date",
                     "source",
                     "customer",
@@ -5481,11 +8094,14 @@
                     "items",
                     "totals",
                     "payment",
+                    "delivery",
+                    "coupon",
                     "shipment",
                     "customer_note",
                     "admin_note",
                     "cancel_reason",
                     "cancelled_by",
+                    "reject_reason",
                     "timeline",
                     "actions"
                 ],
@@ -5595,6 +8211,69 @@
                 ],
                 "title": "BannerResource"
             },
+            "CartContactRequest": {
+                "type": "object",
+                "description": "PUT /store/cart/contact { name?, phone?, email? }: saved so the shop can follow up an abandoned cart. Only the keys that are sent change.",
+                "properties": {
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 120
+                    },
+                    "phone": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 25
+                    },
+                    "email": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "email",
+                        "maxLength": 190
+                    }
+                },
+                "title": "CartContactRequest"
+            },
+            "CartCouponRequest": {
+                "type": "object",
+                "description": "PUT /store/cart/coupon { code }",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "maxLength": 32
+                    }
+                },
+                "required": [
+                    "code"
+                ],
+                "title": "CartCouponRequest"
+            },
+            "CartItemRequest": {
+                "type": "object",
+                "description": "POST /store/cart/items { variant_id, qty } (add) and PUT /store/cart/items/{variantId} { qty } (set).",
+                "properties": {
+                    "variant_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "qty": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 500
+                    }
+                },
+                "required": [
+                    "variant_id",
+                    "qty"
+                ],
+                "title": "CartItemRequest"
+            },
             "CategoryResource": {
                 "type": "object",
                 "properties": {
@@ -5684,7 +8363,7 @@
             },
             "ChangeOrderStatusRequest": {
                 "type": "object",
-                "description": "Moves an order one step: confirmed | packed | shipped (courier + AWB) | delivered | cancelled (reason).",
+                "description": "Moves an order one step: confirmed | packed | shipped (courier + AWB) | delivered | cancelled (reason) | rejected (reason, only from pending).",
                 "properties": {
                     "status": {
                         "type": "string",
@@ -5693,7 +8372,8 @@
                             "packed",
                             "shipped",
                             "delivered",
-                            "cancelled"
+                            "cancelled",
+                            "rejected"
                         ]
                     },
                     "note": {
@@ -5708,7 +8388,7 @@
                             "string",
                             "null"
                         ],
-                        "maxLength": 255
+                        "maxLength": 300
                     },
                     "courier": {
                         "type": [
@@ -5738,6 +8418,108 @@
                 ],
                 "title": "ChangeOrderStatusRequest"
             },
+            "CouponResource": {
+                "type": "array",
+                "items": {},
+                "title": "CouponResource"
+            },
+            "CouponValidateRequest": {
+                "type": "object",
+                "description": "POST /store/coupons/validate { code, items | cart_token, address?, phone? }: the quote with the coupon applied.",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "maxLength": 32
+                    },
+                    "items": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "variant_id": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                },
+                                "qty": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 500
+                                }
+                            },
+                            "required": [
+                                "variant_id",
+                                "qty"
+                            ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 30,
+                        "uniqueItems": true
+                    },
+                    "cart_token": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "minLength": 40,
+                        "maxLength": 40
+                    },
+                    "coupon_code": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 32
+                    },
+                    "address": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "city": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 100
+                            },
+                            "area": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 255
+                            },
+                            "postcode": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 20
+                            }
+                        }
+                    },
+                    "phone": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 25
+                    }
+                },
+                "required": [
+                    "code"
+                ],
+                "title": "CouponValidateRequest"
+            },
+            "DiscountResource": {
+                "type": "array",
+                "items": {},
+                "title": "DiscountResource"
+            },
             "LoginRequest": {
                 "type": "object",
                 "properties": {
@@ -5756,9 +8538,32 @@
                 ],
                 "title": "LoginRequest"
             },
+            "PaymentProofRequest": {
+                "type": "object",
+                "description": "POST /store/orders/{number}/payment-proof?phone= (multipart): `proof` (jpg, png or webp, up to 4 MB, 100 to 6000 px) and an optional `reference`.\nThe order is looked up BEFORE the file is validated, so a wrong phone is the same 404 as an unknown order whatever the file is.",
+                "properties": {
+                    "proof": {
+                        "type": "string",
+                        "format": "binary",
+                        "contentMediaType": "application/octet-stream",
+                        "description": "Maximum file size: 4096 kilobytes."
+                    },
+                    "reference": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 120
+                    }
+                },
+                "required": [
+                    "proof"
+                ],
+                "title": "PaymentProofRequest"
+            },
             "PlaceOrderRequest": {
                 "type": "object",
-                "description": "POST /store/orders: a guest order. Contact (name, phone, optional e-mail), a delivery address and the items. Nobody logs in, so the\ninput is validated strictly: phone shape, field lengths, the number of items and quantities (config/shop.php).",
+                "description": "POST /store/orders: a guest order. Contact (name, phone, optional e-mail), a delivery address and the items. Nobody logs in, so the\ninput is validated strictly: phone shape, field lengths, the number of items and quantities (config/shop.php).\nThe items come in the body or from the persistent cart (`cart_token`); `payment_method` is cod (default) or bank_transfer; `coupon_code` is optional.",
                 "properties": {
                     "customer": {
                         "type": "object",
@@ -5932,8 +8737,22 @@
                         "minimum": 0,
                         "maximum": 1000000000
                     },
+                    "payment_method": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "cod",
+                            "bank_transfer",
+                            null
+                        ]
+                    },
                     "items": {
-                        "type": "array",
+                        "type": [
+                            "array",
+                            "null"
+                        ],
                         "items": {
                             "type": "object",
                             "properties": {
@@ -5955,12 +8774,26 @@
                         "minItems": 1,
                         "maxItems": 30,
                         "uniqueItems": true
+                    },
+                    "cart_token": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "minLength": 40,
+                        "maxLength": 40
+                    },
+                    "coupon_code": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 32
                     }
                 },
                 "required": [
                     "customer",
-                    "address",
-                    "items"
+                    "address"
                 ],
                 "title": "PlaceOrderRequest"
             },
@@ -6279,10 +9112,13 @@
             },
             "QuoteRequest": {
                 "type": "object",
-                "description": "POST /store/checkout/quote { items: [{variant_id, qty}] }",
+                "description": "POST /store/checkout/quote { items: [{variant_id, qty}] | cart_token, coupon_code?, address?: {city, area, postcode}, phone? }\nStateless: nothing is stored. `items` or `cart_token` (the persistent cart).",
                 "properties": {
                     "items": {
-                        "type": "array",
+                        "type": [
+                            "array",
+                            "null"
+                        ],
                         "items": {
                             "type": "object",
                             "properties": {
@@ -6304,193 +9140,79 @@
                         "minItems": 1,
                         "maxItems": 30,
                         "uniqueItems": true
-                    }
-                },
-                "required": [
-                    "items"
-                ],
-                "title": "QuoteRequest"
-            },
-            "QuoteResource": {
-                "type": "object",
-                "properties": {
-                    "currency": {
-                        "type": "string"
                     },
-                    "currency_symbol": {
-                        "type": "string"
+                    "cart_token": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "minLength": 40,
+                        "maxLength": 40
                     },
-                    "items_count": {
-                        "type": "string"
+                    "coupon_code": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 32
                     },
-                    "lines_count": {
-                        "type": "integer"
-                    },
-                    "items": {
-                        "type": "array",
-                        "items": {}
-                    },
-                    "summary": {
-                        "type": "object",
+                    "address": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
                         "properties": {
-                            "items_total": {
-                                "type": "string"
-                            },
-                            "product_discount": {
-                                "type": "string",
-                                "description": "everything at MRP"
-                            },
-                            "bulk_discount": {
-                                "type": "string",
-                                "description": "MRP -> option price"
-                            },
-                            "subtotal": {
-                                "type": "string",
-                                "description": "option price -> bulk price (\"Buy 5+ for ...\")"
-                            },
-                            "delivery_fee": {
-                                "type": "string"
-                            },
-                            "delivery_free": {
-                                "type": "string"
-                            },
-                            "free_delivery_min_cart": {
-                                "type": "string"
-                            },
-                            "amount_for_free_delivery": {
+                            "city": {
                                 "type": [
                                     "string",
                                     "null"
                                 ],
-                                "description": "0 = no free delivery"
+                                "maxLength": 100
                             },
-                            "grand_total": {
-                                "type": "string"
+                            "area": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 255
                             },
-                            "total_savings": {
-                                "type": "string"
-                            },
-                            "tax_total": {
-                                "type": "string",
-                                "description": "product + bulk discounts"
-                            },
-                            "tax_inclusive": {
-                                "type": "string"
-                            },
-                            "tax_label": {
-                                "type": "string"
-                            },
-                            "tax_note": {
-                                "type": "string",
-                                "enum": [
-                                    "Inclusive of all taxes",
-                                    "Tax is added to the total"
-                                ]
-                            },
-                            "min_order_amount": {
-                                "type": "string"
+                            "postcode": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 20
                             }
-                        },
-                        "required": [
-                            "items_total",
-                            "product_discount",
-                            "bulk_discount",
-                            "subtotal",
-                            "delivery_fee",
-                            "delivery_free",
-                            "free_delivery_min_cart",
-                            "amount_for_free_delivery",
-                            "grand_total",
-                            "total_savings",
-                            "tax_total",
-                            "tax_inclusive",
-                            "tax_label",
-                            "tax_note",
-                            "min_order_amount"
-                        ]
-                    },
-                    "can_checkout": {
-                        "type": "string"
-                    },
-                    "issues": {
-                        "type": "array",
-                        "items": {
-                            "anyOf": [
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "variant_id": {
-                                            "type": "string"
-                                        },
-                                        "code": {
-                                            "type": "string",
-                                            "const": "unavailable"
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "const": "One of the items is no longer available."
-                                        }
-                                    },
-                                    "required": [
-                                        "variant_id",
-                                        "code",
-                                        "message"
-                                    ]
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "variant_id": {
-                                            "type": "string"
-                                        },
-                                        "code": {
-                                            "type": "string"
-                                        },
-                                        "message": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "variant_id",
-                                        "code",
-                                        "message"
-                                    ]
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "variant_id": {
-                                            "type": "null"
-                                        },
-                                        "code": {
-                                            "type": "string",
-                                            "const": "below_min_order"
-                                        },
-                                        "message": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "variant_id",
-                                        "code",
-                                        "message"
-                                    ]
-                                }
-                            ]
                         }
+                    },
+                    "phone": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 25
+                    }
+                },
+                "title": "QuoteRequest"
+            },
+            "QuoteResource": {
+                "type": "array",
+                "items": {},
+                "title": "QuoteResource"
+            },
+            "RejectPaymentProofRequest": {
+                "type": "object",
+                "description": "POST /admin/orders/{id}/payment/reject-proof { reason }: the customer must upload a new proof.",
+                "properties": {
+                    "reason": {
+                        "type": "string",
+                        "maxLength": 300
                     }
                 },
                 "required": [
-                    "currency",
-                    "currency_symbol",
-                    "items_count",
-                    "lines_count",
-                    "items",
-                    "summary",
-                    "can_checkout",
-                    "issues"
+                    "reason"
                 ],
-                "title": "QuoteResource"
+                "title": "RejectPaymentProofRequest"
             },
             "ReorderProductImagesRequest": {
                 "type": "object",
@@ -6679,6 +9401,272 @@
                     "name"
                 ],
                 "title": "SaveCategoryRequest"
+            },
+            "SaveCouponRequest": {
+                "type": "object",
+                "description": "A coupon: the code (3 to 32 of A-Z 0-9 - _, stored in capitals, unique whatever the case), the discount (percentage, fixed amount, or free delivery)\nwith its scope, the date window and the limits (minimum order, maximum discount, total uses, uses per customer, first order only).",
+                "properties": {
+                    "type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "percent",
+                            "fixed",
+                            null
+                        ]
+                    },
+                    "value": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "maximum": 1000000000
+                    },
+                    "scope": {
+                        "type": "string",
+                        "enum": [
+                            "store",
+                            "products",
+                            "categories",
+                            "sub_categories"
+                        ]
+                    },
+                    "target_ids": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "integer"
+                        },
+                        "maxItems": 500
+                    },
+                    "starts_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "ends_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "is_active": {
+                        "type": "boolean"
+                    },
+                    "code": {
+                        "type": "string",
+                        "pattern": "^[A-Z0-9_-]{3,32}$"
+                    },
+                    "name": {
+                        "type": "string",
+                        "maxLength": 120
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 255
+                    },
+                    "min_order": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1000000000
+                    },
+                    "max_discount": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "maximum": 1000000000
+                    },
+                    "usage_limit": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 100000000
+                    },
+                    "per_customer_limit": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 100000
+                    },
+                    "first_order_only": {
+                        "type": "boolean"
+                    },
+                    "free_delivery": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "scope",
+                    "code",
+                    "name"
+                ],
+                "title": "SaveCouponRequest"
+            },
+            "SaveDeliveryZoneRequest": {
+                "type": "object",
+                "description": "A delivery zone: where it applies (city, area or postcode values), the fee and the optional free-above amount, minimum order and ETA text.",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 120
+                    },
+                    "match_type": {
+                        "type": "string",
+                        "enum": [
+                            "city",
+                            "area",
+                            "postcode"
+                        ]
+                    },
+                    "match_values": {
+                        "type": "array",
+                        "items": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 60
+                        },
+                        "minItems": 1,
+                        "maxItems": 200
+                    },
+                    "fee": {
+                        "type": "number",
+                        "description": "blank entries are dropped when saving",
+                        "minimum": 0,
+                        "maximum": 1000000
+                    },
+                    "free_above": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1000000000
+                    },
+                    "min_order": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1000000000
+                    },
+                    "eta_text": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 120
+                    },
+                    "is_active": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "name",
+                    "match_type",
+                    "match_values",
+                    "fee"
+                ],
+                "title": "SaveDeliveryZoneRequest"
+            },
+            "SaveDiscountRequest": {
+                "type": "object",
+                "description": "An automatic discount. `value`: a percentage (0.01 to 100) or a fixed amount (more than 0). `scope`: store | products | categories | sub_categories;\n`target_ids` are the ids of the products / categories / sub-categories of the scope (required unless the scope is the whole store).",
+                "properties": {
+                    "type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "percent",
+                            "fixed",
+                            null
+                        ]
+                    },
+                    "value": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "maximum": 1000000000
+                    },
+                    "scope": {
+                        "type": "string",
+                        "enum": [
+                            "store",
+                            "products",
+                            "categories",
+                            "sub_categories"
+                        ]
+                    },
+                    "target_ids": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "integer"
+                        },
+                        "maxItems": 500
+                    },
+                    "starts_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "ends_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "is_active": {
+                        "type": "boolean"
+                    },
+                    "name": {
+                        "type": "string",
+                        "maxLength": 120
+                    },
+                    "priority": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": -1000,
+                        "maximum": 1000
+                    }
+                },
+                "required": [
+                    "type",
+                    "value",
+                    "scope",
+                    "name"
+                ],
+                "title": "SaveDiscountRequest"
             },
             "SaveProductRequest": {
                 "type": "object",
@@ -6994,6 +9982,21 @@
                 ],
                 "title": "SaveTagRequest"
             },
+            "SetDeliveryFeeRequest": {
+                "type": "object",
+                "description": "PUT /admin/orders/{id}/delivery-fee { fee }: confirms the delivery fee of an order that was placed without one.",
+                "properties": {
+                    "fee": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000000
+                    }
+                },
+                "required": [
+                    "fee"
+                ],
+                "title": "SetDeliveryFeeRequest"
+            },
             "SetProductStatusRequest": {
                 "type": "object",
                 "properties": {
@@ -7030,7 +10033,7 @@
             },
             "Settings": {
                 "type": "object",
-                "description": "The one place that reads and writes store settings (table `settings`, key/value, cached).\n\nEvery setting is declared in DEFINITIONS with its group, type, default and label, so a missing row falls back to the default,\nthe admin Settings page can be built from the list, and writes are validated by type. Client values (store name, currency, tax, \u2026)\nlive here, not in code. *\nTypes: string | text | bool | int | money | percent | file | links\n - `file`  a picture owned by the setting's row (medialibrary); the value is the media id, uploaded through the admin endpoints\n - `links` a JSON list of {platform, label, url, active}; the order of the list is the display order",
+                "description": "The one place that reads and writes store settings (table `settings`, key/value, cached).\n\nEvery setting is declared in DEFINITIONS with its group, type, default and label, so a missing row falls back to the default,\nthe admin Settings page can be built from the list, and writes are validated by type. Client values (store name, currency, tax, \u2026)\nlive here, not in code. *\nTypes: string | text | bool | int | money | percent | file | links | accounts | color | choice\n - `file`  a picture owned by the setting's row (medialibrary); the value is the media id, uploaded through the admin endpoints\n - `links` a JSON list of {platform, label, url, active}; the order of the list is the display order\n - `accounts` a JSON list of {bank, title, number, iban, active} (bank transfer accounts); the order of the list is the display order\n - `color` a #RRGGBB colour       `choice` one value of a fixed list (CHOICES)",
                 "title": "Settings"
             },
             "StoreBannerResource": {
@@ -7120,6 +10123,26 @@
                     },
                     "payment_status": {
                         "type": "string"
+                    },
+                    "payment": {
+                        "type": "array",
+                        "items": {}
+                    },
+                    "delivery_fee_pending": {
+                        "type": "boolean"
+                    },
+                    "reject_reason": {
+                        "type": "string",
+                        "description": "\"delivery fee to be confirmed\""
+                    },
+                    "store_phone": {
+                        "type": "string"
+                    },
+                    "whatsapp_url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "customer": {
                         "type": "object",
@@ -7277,11 +10300,29 @@
                             "bulk_discount": {
                                 "type": "number"
                             },
+                            "discount_total": {
+                                "type": "number"
+                            },
+                            "coupon_code": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "coupon_discount": {
+                                "type": "number"
+                            },
                             "subtotal": {
                                 "type": "number"
                             },
                             "delivery_fee": {
-                                "type": "number"
+                                "type": [
+                                    "number",
+                                    "null"
+                                ]
+                            },
+                            "delivery_fee_pending": {
+                                "type": "boolean"
                             },
                             "grand_total": {
                                 "type": "number"
@@ -7310,8 +10351,12 @@
                             "items_total",
                             "product_discount",
                             "bulk_discount",
+                            "discount_total",
+                            "coupon_code",
+                            "coupon_discount",
                             "subtotal",
                             "delivery_fee",
+                            "delivery_fee_pending",
                             "grand_total",
                             "tax_total",
                             "tax_inclusive",
@@ -7375,6 +10420,11 @@
                     "payment_method",
                     "payment_method_label",
                     "payment_status",
+                    "payment",
+                    "delivery_fee_pending",
+                    "reject_reason",
+                    "store_phone",
+                    "whatsapp_url",
                     "customer",
                     "customer_note",
                     "cancel_reason",
@@ -7467,7 +10517,20 @@
                     },
                     "price": {
                         "type": [
-                            "number",
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "compare_price": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the starting price: the cheapest option, after a live discount"
+                    },
+                    "discount_label": {
+                        "type": [
+                            "string",
                             "null"
                         ]
                     },
@@ -7475,8 +10538,7 @@
                         "type": [
                             "number",
                             "null"
-                        ],
-                        "description": "the starting price: the cheapest option"
+                        ]
                     },
                     "discount_percent": {
                         "type": "number"
@@ -7505,6 +10567,8 @@
                     "show_starting_at",
                     "badge_label",
                     "price",
+                    "compare_price",
+                    "discount_label",
                     "mrp",
                     "discount_percent",
                     "badge_text",
@@ -7726,6 +10790,9 @@
                         "maxLength": 2000
                     }
                 },
+                "required": [
+                    "admin_note"
+                ],
                 "title": "UpdateOrderNoteRequest"
             },
             "UploadProductImagesRequest": {

@@ -35,6 +35,7 @@ Edit `.env`:
 | `SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD` | the **admin** account: the client (12+ characters in production; the seeder refuses weak passwords and identical usernames) |
 | `ADMIN_TOKEN_MINUTES` | how long an admin API token (scripts) lives (default 720 = 12 hours; 0 = never) |
 | `SHOP_MAX_ITEMS_PER_ORDER`, `SHOP_MAX_QTY_PER_LINE`, `SHOP_HONEYPOT_FIELD`, `CHECKOUT_PER_MINUTE`, … | optional: the limits of the public checkout (defaults in `.env.example` and `config/shop.php`) |
+| `CART_PER_MINUTE`, `COUPON_PER_MINUTE`, `PAYMENT_PROOF_PER_MINUTE`, `PAYMENT_PROOF_PER_ORDER_HOUR`, `PAYMENT_PROOF_MAX_KB` | optional: limits of the cart, the coupon check and the bank transfer proof upload (defaults 60, 30, 10, 10, 4096; see `config/shop.php`) |
 | `SESSION_LIFETIME` | minutes an admin panel session stays valid without activity (default 120) |
 | `MAIL_*`, `FILESYSTEM_DISK` | the client's mail / storage |
 | `SESSION_SECURE_COOKIE=true` | in production (HTTPS) |
@@ -49,7 +50,9 @@ php artisan storage:link
 cd admin-frontend && npm install && npm run build && cd ..     # admin panel -> public/admin-assets
 ```
 
-Add the cron entry `* * * * * php artisan schedule:run` (removal of expired admin API tokens).
+Add the cron entry `* * * * * php artisan schedule:run`. It runs the daily jobs: removal of expired admin API tokens and `shop:prune-carts` (deletes carts that were not touched for 30 days). Without it the carts table only grows.
+
+**Payment proofs are private.** Bank transfer screenshots are stored on the `local` disk (`storage/app/private`). That folder must be writable by the web server and **must not be served by the web server** (only `public/` and `storage/app/public` via `storage:link` are public). Set PHP `upload_max_filesize` and `post_max_size` to at least 4 MB (the proof limit is 4 MB, `PAYMENT_PROOF_MAX_KB`). Back the folder up with the database.
 
 ## 4. Configure the store (admin panel → Settings)
 
@@ -57,10 +60,15 @@ Log in at `/admin` as the **developer** and set, in this order (see [SETTINGS.md
 
 1. **General** – name, tagline, contact email / phone / address, country, and the **default phone country code** (e.g. `+92`: customers who type `0300…` and `+92 300…` become one customer; set it **before the first order**). **Branding** – logo and favicon.
 2. **Currency & Tax** – code, symbol and decimals (e.g. `EUR`, `€`, 2); default tax rate, whether prices include tax, and the label ("VAT", "Sales tax", …). A product can override the rate.
-3. **Orders & Delivery** – order number prefix, delivery charge, free-delivery limit, delivery days, minimum order, cash-on-delivery limit.
-4. **Footer & Social**, **SEO**, and the **Banners** tab (home hero, secondary banners, promo strip).
+3. **Orders & Delivery** – order number prefix, minimum order, cash-on-delivery limit.
+4. **Delivery** – the method (`flat`, `free`, `free_above` (default), `zones`, `owner_confirms`), delivery charge, free-delivery limit, delivery days, and for `zones` the **zone manager** (city / area / postcode zones with fee, free-above, minimum order, ETA; put the most specific zone first) and what happens to an address outside every zone.
+5. **Payments** – cash on delivery on / off, **bank transfer** (add at least one active account first; instructions such as "use the order number as the reference"), and whether to show the "card, coming soon" label.
+6. **Store** – open / closed (a closed store takes no orders), the closed message, a checkout notice and the delivery estimate text.
+7. **Theme** (developer only) – colours, fonts, corner radius and shadow of the storefront; the storefront reads them from `GET /store/settings`.
+8. **Footer & Social** (including the agency credit), **SEO**, and the **Banners** tab (home hero, secondary banners, promo strip).
+9. Optional: **Discounts** and **Coupons** (sidebar) once the catalogue exists.
 
-Then open **Access Control** (developer only) and switch on what the client's `admin` account may see: by default the admin has the dashboard, orders, the customers list and the General, Footer & Social and Orders & Delivery tabs; products, categories and the other tabs are off until you switch them on. Set a real password for both accounts (`SEED_*_PASSWORD` before the first seed). The developer never sees orders. See [ACCESS_CONTROL.md](ACCESS_CONTROL.md).
+Then open **Access Control** (developer only) and switch on what the client's `admin` account may see: by default the admin has the dashboard, orders, the customers list, discounts, coupons and the General, Footer & Social, Orders & Delivery, Store, Delivery and Payments tabs; products, categories and the other tabs are off until you switch them on (the Theme tab stays with the developer). Set a real password for both accounts (`SEED_*_PASSWORD` before the first seed). The developer never sees orders. See [ACCESS_CONTROL.md](ACCESS_CONTROL.md).
 
 ## 5. Add the catalogue
 
@@ -70,7 +78,7 @@ To try the shop first, load the neutral sample data: `php artisan db:seed --clas
 ## 6. Connect the storefront
 
 Give the storefront developer [STOREFRONT-API.md](STOREFRONT-API.md), `docs/openapi.json` and the Postman collection in `docs/postman/`. The first call a storefront should make is
-`GET /api/v1/store/settings` – it returns the store name, logo, currency and tax rules, so one storefront build adapts to each client. There is no customer login: the storefront keeps the cart, calls `POST /checkout/quote` and `POST /orders`.
+`GET /api/v1/store/settings` – it returns the store name, logo, currency and tax rules, so one storefront build adapts to each client. There is no customer login: the storefront keeps the cart itself or uses the token-based server cart (`/cart`), calls `POST /checkout/quote` and `POST /orders`, and for bank transfer uploads the payment proof. It paints itself with the `theme` object of the settings.
 
 ## 7. Go-live checklist
 
@@ -79,9 +87,11 @@ Give the storefront developer [STOREFRONT-API.md](STOREFRONT-API.md), `docs/open
 - [ ] strong `SEED_DEVELOPER_PASSWORD` and `SEED_ADMIN_PASSWORD` used (12+ characters)
 - [ ] the storefront has the hidden honeypot field (`website`) in its checkout form
 - [ ] `APP_URL`, `FRONTEND_URLS`, `SANCTUM_STATEFUL_DOMAINS` match the real domains
-- [ ] cron entry added; a queue worker is **not** required (nothing is queued)
+- [ ] cron entry added (tokens and carts are pruned by it); a queue worker is **not** required (nothing is queued)
+- [ ] `storage/app/private` writable and not web-served; PHP upload limit ≥ 4 MB (payment proofs)
+- [ ] delivery method and zones, payment methods and bank accounts, store open, theme reviewed
 - [ ] `php artisan config:cache route:cache` after the final `.env`
-- [ ] backups of the database and `storage/app/public`
+- [ ] backups of the database, `storage/app/public` and `storage/app/private`
 - [ ] demo data removed
 
 ## Keeping clients up to date

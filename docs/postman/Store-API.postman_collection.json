@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Store API (public, no login)",
-    "description": "Storefront API of the lean store. Customers have no accounts: nothing here needs a token. Run the requests in order: settings, catalogue, product detail (saves variant_id), quote, place order (saves order_number), look the order up. Set base_url and product_slug.",
+    "description": "Storefront API of the lean store. Customers have no accounts: nothing here needs a token. Run the requests in order: settings, catalogue, product detail (saves variant_id), quote, place order (saves order_number), look the order up; then the coupon, cart (saves cart_token) and bank transfer requests (14 to 28). Set base_url and product_slug.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -28,6 +28,14 @@
     {
       "key": "order_number",
       "value": ""
+    },
+    {
+      "key": "cart_token",
+      "value": ""
+    },
+    {
+      "key": "coupon_code",
+      "value": "SAVE10"
     }
   ],
   "item": [
@@ -51,7 +59,7 @@
           ],
           "query": []
         },
-        "description": "Store profile, logo, footer and social links, SEO, currency, tax, delivery and order limits. Call once on start-up."
+        "description": "Store profile, open / closed, logo, footer, social links and agency credit, SEO, currency, tax, delivery method, payment methods and bank accounts, order limits and the theme (colours, fonts, radius, shadow). Call once on start-up."
       }
     },
     {
@@ -437,6 +445,566 @@
           ]
         },
         "description": ""
+      }
+    },
+    {
+      "name": "14. Quote with a coupon and a delivery address",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/checkout/quote",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "checkout",
+            "quote"
+          ],
+          "query": []
+        },
+        "description": "Items or cart_token, an optional coupon_code, the address fields delivery zones match on (city, area, postcode) and an optional phone (so the per-customer and first-order coupon rules can be checked). A refused coupon is explained in summary.coupon_error and does not block the quote. delivery_fee is null while it is not known (zones without an address, owner_confirms).",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    {\n      \"variant_id\": \"{{variant_id}}\",\n      \"qty\": 5\n    }\n  ],\n  \"coupon_code\": \"{{coupon_code}}\",\n  \"address\": {\n    \"city\": \"Springfield\",\n    \"area\": \"Downtown\",\n    \"postcode\": \"12345\"\n  },\n  \"phone\": \"{{phone}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "15. Coupon: validate a code (the quote with the coupon applied)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/coupons/validate",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "coupons",
+            "validate"
+          ],
+          "query": []
+        },
+        "description": "200 = the quote with the coupon applied. A coupon that does not work answers 422 { code: \"coupon_invalid\", coupon_error: { code, message } }. 30 a minute per IP.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{coupon_code}}\",\n  \"items\": [\n    {\n      \"variant_id\": \"{{variant_id}}\",\n      \"qty\": 1\n    }\n  ],\n  \"address\": {\n    \"city\": \"Springfield\"\n  }\n}"
+        }
+      }
+    },
+    {
+      "name": "16. Cart: get (creates a cart and saves cart_token)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Cart-Token",
+            "value": "{{cart_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/cart",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "cart"
+          ],
+          "query": []
+        },
+        "description": "Customers have no login: the cart belongs to a random token. Without the X-Cart-Token header (or with an unknown / expired one) a new empty cart is created; data.token is saved to the cart_token variable. Optional ?city=&area=&postcode= gives the delivery fee of a zone. Prices and stock are checked on every read."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) { pm.collectionVariables.set('cart_token', pm.response.json().data.token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17. Cart: add an item",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Cart-Token",
+            "value": "{{cart_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/cart/items",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "cart",
+            "items"
+          ],
+          "query": []
+        },
+        "description": "Adds qty to the option (on top of the existing quantity). Answers the priced cart (same shape as the quote plus token, contact, expires_at).",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"variant_id\": \"{{variant_id}}\",\n  \"qty\": 2\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) { pm.collectionVariables.set('cart_token', pm.response.json().data.token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18. Cart: set the quantity of a line",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Cart-Token",
+            "value": "{{cart_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/cart/items/{{variant_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "cart",
+            "items",
+            "{{variant_id}}"
+          ],
+          "query": []
+        },
+        "description": "Sets the quantity (404 not_in_cart when the option is not in the cart).",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"qty\": 3\n}"
+        }
+      }
+    },
+    {
+      "name": "19. Cart: remove a line",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Cart-Token",
+            "value": "{{cart_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/cart/items/{{variant_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "cart",
+            "items",
+            "{{variant_id}}"
+          ],
+          "query": []
+        },
+        "description": "Removes the line."
+      }
+    },
+    {
+      "name": "20. Cart: save the contact",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Cart-Token",
+            "value": "{{cart_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/cart/contact",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "cart",
+            "contact"
+          ],
+          "query": []
+        },
+        "description": "Kept so the shop can follow up. Only the keys that are sent change.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Alex Morgan\",\n  \"phone\": \"{{phone}}\",\n  \"email\": \"alex@example.com\"\n}"
+        }
+      }
+    },
+    {
+      "name": "21. Cart: apply a coupon",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Cart-Token",
+            "value": "{{cart_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/cart/coupon",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "cart",
+            "coupon"
+          ],
+          "query": []
+        },
+        "description": "A code that does not work answers 422 coupon_invalid and is not saved.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{coupon_code}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "22. Cart: remove the coupon",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Cart-Token",
+            "value": "{{cart_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/cart/coupon",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "cart",
+            "coupon"
+          ],
+          "query": []
+        },
+        "description": ""
+      }
+    },
+    {
+      "name": "23. Cart: empty it",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Cart-Token",
+            "value": "{{cart_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/cart",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "cart"
+          ],
+          "query": []
+        },
+        "description": "Empties items and coupon; the contact stays."
+      }
+    },
+    {
+      "name": "24. Quote the cart (cart_token instead of items)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/checkout/quote",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "checkout",
+            "quote"
+          ],
+          "query": []
+        },
+        "description": "Uses the cart items, the cart coupon and the saved phone. items win when both are sent. An unknown or expired token prices an empty cart.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cart_token\": \"{{cart_token}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "25. Place an order from the cart (cart_token)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/orders",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "orders"
+          ],
+          "query": []
+        },
+        "description": "The items and the coupon come from the cart; on success the cart is emptied in the same transaction, a failed order leaves it as it was. 422 cart_invalid for an empty, unknown or expired cart.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer\": {\n    \"name\": \"Alex Morgan\",\n    \"phone\": \"{{phone}}\",\n    \"email\": \"alex@example.com\"\n  },\n  \"address\": {\n    \"line1\": \"12 Example Street\",\n    \"area\": \"Downtown\",\n    \"city\": \"Springfield\",\n    \"state\": \"Sample State\",\n    \"postcode\": \"12345\",\n    \"country\": \"Testland\"\n  },\n  \"cart_token\": \"{{cart_token}}\",\n  \"customer_note\": \"Call before delivery\",\n  \"website\": \"\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('idempotency_key', pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201 || pm.response.code === 200) { pm.collectionVariables.set('order_number', pm.response.json().data.order_number); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "26. Place a bank transfer order (saves order_number)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/orders",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "orders"
+          ],
+          "query": []
+        },
+        "description": "payment_method is \"cod\" (default) or \"bank_transfer\"; 422 payment_method_unavailable when the store switched it off. The answer has payment.accounts and payment.instructions to show the customer. Other errors: store_closed, coupon_invalid, delivery_not_available, cart_invalid, price_changed.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer\": {\n    \"name\": \"Alex Morgan\",\n    \"phone\": \"{{phone}}\",\n    \"email\": \"alex@example.com\"\n  },\n  \"address\": {\n    \"line1\": \"12 Example Street\",\n    \"area\": \"Downtown\",\n    \"city\": \"Springfield\",\n    \"state\": \"Sample State\",\n    \"postcode\": \"12345\",\n    \"country\": \"Testland\"\n  },\n  \"items\": [\n    {\n      \"variant_id\": \"{{variant_id}}\",\n      \"qty\": 1\n    }\n  ],\n  \"payment_method\": \"bank_transfer\",\n  \"coupon_code\": \"\",\n  \"website\": \"\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('idempotency_key', pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201 || pm.response.code === 200) { pm.collectionVariables.set('order_number', pm.response.json().data.order_number); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "27. Bank transfer: upload the payment proof",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/orders/{{order_number}}/payment-proof?phone={{phone}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "orders",
+            "{{order_number}}",
+            "payment-proof"
+          ],
+          "query": [
+            {
+              "key": "phone",
+              "value": "{{phone}}"
+            }
+          ]
+        },
+        "description": "Choose a picture for the proof field. Stored on a private disk. A wrong phone answers the same 404 as an unknown order. Only a pending bank transfer order takes a proof, one at a time (422 proof_already_submitted); after the shop rejects it the customer uploads again. 10 a minute per IP.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "proof",
+              "type": "file",
+              "src": [],
+              "description": "JPG, PNG or WEBP, at most 4 MB, 100 to 6000 px wide and high"
+            },
+            {
+              "key": "reference",
+              "value": "TX-12345",
+              "type": "text",
+              "description": "optional, 120 characters"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "28. Track the order (payment, rejection reason, delivery fee)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/orders/{{order_number}}?phone={{phone}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "orders",
+            "{{order_number}}"
+          ],
+          "query": [
+            {
+              "key": "phone",
+              "value": "{{phone}}"
+            }
+          ]
+        },
+        "description": "Besides status, items, totals and the timeline: payment { method, status, proof_status, reject_reason, can_upload_proof, instructions, accounts }, delivery_fee_pending, reject_reason, store_phone, whatsapp_url."
       }
     }
   ]
