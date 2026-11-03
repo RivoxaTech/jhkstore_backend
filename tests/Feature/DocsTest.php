@@ -13,6 +13,7 @@ class DocsTest extends TestCase
     {
         config(['app.name' => 'Acme Shop', 'app.url' => 'https://acme.test']);
         URL::forceRootUrl('https://acme.test');   // what the boot does with APP_URL
+        URL::forceScheme('https');
         $path = sys_get_temp_dir().'/openapi-'.uniqid().'.json';
 
         Artisan::call('scramble:export', ['--path' => $path]);
