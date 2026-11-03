@@ -8,28 +8,38 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\Tag;
 use App\Domain\Content\Models\Banner;
 use App\Domain\Order\Models\Order;
+use App\Domain\Support\Dashboard;
 use App\Domain\Support\Models\AuditLog;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use App\Support\ShopTime;
+use Illuminate\Validation\Rule;
 
 class DashboardController extends Controller
 {
     /**
-     * Numbers and lists for the admin dashboard. A few small aggregate queries + one short list,
-     * so it stays fast however many products and orders exist.
-     *
-     * Order figures (orders today, revenue, pending) and every activity line about an order are sent ONLY to an admin who holds
-     * `orders.view`: the developer gets none of them, not even as an order number in the activity list.
+     * `GET /admin/dashboard?range=today|7d|30d|month|all` (default 30d). Every section is sent only to an admin who holds its permission:
+     *   orders.view     KPI cards, the chart series, the top sellers, the newest orders (order figures, revenue, order numbers)
+     *   products.view   the low-stock options and the product counts
+     *   wholesale.view  the number of new wholesale requests      customers.view  new customers in the range
+     * A section the admin may not see is not even queried; the activity list leaves out order, customer and wholesale lines for them. The
+     * developer account therefore gets the catalogue widgets only. Small aggregate queries, fast however many orders exist (see Dashboard).
      */
-    public function __invoke(Request $request): JsonResponse
+    public function __invoke(Request $request, Dashboard $dashboard): JsonResponse
     {
-        $withOrders = AdminAccess::allows($request->user(), 'orders.view');
+        $request->validate(['range' => ['nullable', Rule::in(array_keys(Dashboard::RANGES))]]);
+        $range = $dashboard->range((string) $request->query('range', '30d'));
+        $can = fn (string $permission) => AdminAccess::allows($request->user(), $permission);
+        $withOrders = $can('orders.view');
+        $withCustomers = $can('customers.view');
+        $withWholesale = $can('wholesale.view');
 
         $activity = AuditLog::query()
             ->when(! $withOrders, fn ($q) => $q->where(fn ($w) => $w->whereNull('subject_type')->orWhere('subject_type', '!=', 'Order'))
-                ->where('action', 'not like', 'order.%')->where('action', 'not like', 'customers.%'))
+                ->where('action', 'not like', 'order.%')->where('action', 'not like', 'orders.%'))
+            ->when(! $withCustomers, fn ($q) => $q->where('action', 'not like', 'customers.%'))
+            ->when(! $withWholesale, fn ($q) => $q->where('action', 'not like', 'wholesale.%')->where(fn ($w) => $w->whereNull('subject_type')->orWhere('subject_type', '!=', 'WholesaleRequest')))
             ->latest('id')->limit(8)->get();
         $adminNames = Admin::whereIn('id', $activity->where('actor_type', 'admin')->pluck('actor_id')->filter()->unique())->pluck('name', 'id');
         $productNames = Product::withTrashed()->whereIn('id', $activity->where('subject_type', 'Product')->pluck('subject_id')->filter()->unique())->pluck('name', 'id');
@@ -38,10 +48,7 @@ class DashboardController extends Controller
         $tagNames = Tag::whereIn('id', $activity->where('subject_type', 'Tag')->pluck('subject_id')->filter()->unique())->pluck('name', 'id');
 
         $out = [
-            'catalog' => [
-                'low_stock' => DB::table('product_variants')->where('is_active', true)->whereRaw('stock_qty - reserved_qty <= low_stock_threshold')->count(),
-                'products' => Product::query()->count(),
-            ],
+            'range' => ['key' => $range['key'], 'label' => $range['label'], 'from' => $range['from']?->toDateString(), 'to' => $range['to']->toDateString(), 'timezone' => ShopTime::zone(), 'options' => Dashboard::RANGES],
             'recent_activity' => $activity->map(fn ($log) => [
                 'id' => $log->id,
                 'action' => $log->action,
@@ -59,15 +66,17 @@ class DashboardController extends Controller
             ])->values(),
         ];
 
+        if ($can('products.view')) {
+            $out['catalog'] = $dashboard->stock();
+        }
         if ($withOrders) {
-            // today's orders and revenue, orders waiting for a decision: small indexed aggregates
-            $today = Order::query()->toBase()->where('created_at', '>=', today())->whereNotIn('status', ['cancelled', 'rejected'])
-                ->selectRaw('COUNT(*) as total, COALESCE(SUM(grand_total), 0) as revenue')->first();
-            $out['orders'] = [
-                'today' => (int) $today->total,
-                'revenue_today' => (float) $today->revenue,
-                'pending' => Order::query()->where('status', 'pending')->count(),
-            ];
+            $out['orders'] = $dashboard->orders($range);
+        }
+        if ($withWholesale) {
+            $out['wholesale'] = $dashboard->wholesale($range);
+        }
+        if ($withCustomers) {
+            $out['customers'] = $dashboard->customers($range);
         }
 
         return response()->json($out);
