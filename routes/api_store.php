@@ -8,6 +8,7 @@ use App\Http\Controllers\Store\OrderController;
 use App\Http\Controllers\Store\ProductController;
 use App\Http\Controllers\Store\SettingController;
 use App\Http\Controllers\Store\TagController;
+use App\Http\Controllers\Store\WholesaleController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -44,6 +45,9 @@ Route::post('coupons/validate', [CheckoutController::class, 'validateCoupon'])->
 
 // Bank transfer: the customer uploads the screenshot of the payment (a wrong phone is the same 404 as an unknown order)
 Route::post('orders/{orderNumber}/payment-proof', [OrderController::class, 'paymentProof'])->middleware(['throttle:payment-proof', 'honeypot']);
+
+// Wholesale request: a guest asks for a bulk price (5 an hour per IP and per phone number, honeypot)
+Route::post('wholesale-requests', [WholesaleController::class, 'store'])->middleware(['throttle:wholesale', 'honeypot']);
 
 // Persistent cart: bound to the random token in the X-Cart-Token header (no header = a new cart). 60 calls a minute per IP.
 Route::middleware('throttle:cart')->prefix('cart')->group(function () {

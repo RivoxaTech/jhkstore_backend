@@ -9,6 +9,7 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductVariant;
 use App\Domain\Customer\Actions\UpsertCustomer;
 use App\Domain\Customer\Models\Customer;
+use App\Domain\Notification\Notifier;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Enums\PaymentMethod;
 use App\Domain\Order\Enums\PaymentStatus;
@@ -37,12 +38,12 @@ use Illuminate\Support\Facades\DB;
  */
 class ChangeOrderStatus
 {
-    public function __construct(private readonly UpsertCustomer $customers, private readonly RefreshProductSummary $refreshProduct) {}
+    public function __construct(private readonly UpsertCustomer $customers, private readonly RefreshProductSummary $refreshProduct, private readonly Notifier $notifier) {}
 
     /** @param  array{note?:?string, reason?:?string, courier?:?string, awb_number?:?string, tracking_url?:?string}  $data */
     public function handle(Order $order, OrderStatus $to, Admin $actor, array $data = []): Order
     {
-        return DB::transaction(function () use ($order, $to, $actor, $data) {
+        $changed = DB::transaction(function () use ($order, $to, $actor, $data) {
             $order = Order::query()->lockForUpdate()->findOrFail($order->id);
             $from = $order->status;
 
@@ -84,6 +85,10 @@ class ChangeOrderStatus
 
             return $order->load(['items', 'addresses', 'history', 'payment', 'shipments']);
         });
+
+        $this->notifier->orderStatusChanged($changed);   // after the commit; never fails the change
+
+        return $changed;
     }
 
     /** A fee the owner still has to confirm must be set, and a bank transfer must be verified, before the order is confirmed. */

@@ -4,6 +4,7 @@ namespace App\Domain\Order\Actions;
 
 use App\Domain\Auth\Models\Admin;
 use App\Domain\Customer\Models\Customer;
+use App\Domain\Notification\Notifier;
 use App\Domain\Order\Exceptions\CommerceException;
 use App\Domain\Order\Models\Order;
 use App\Domain\Order\Models\OrderStatusHistory;
@@ -19,11 +20,11 @@ use Illuminate\Support\Facades\DB;
  */
 class ConfirmDeliveryFee
 {
-    public function __construct(private readonly Settings $settings) {}
+    public function __construct(private readonly Settings $settings, private readonly Notifier $notifier) {}
 
     public function handle(Order $order, float|int|string $fee, Admin $actor): Order
     {
-        return DB::transaction(function () use ($order, $fee, $actor) {
+        $confirmed = DB::transaction(function () use ($order, $fee, $actor) {
             $order = Order::query()->lockForUpdate()->findOrFail($order->id);
 
             if (! $order->delivery_fee_pending) {
@@ -55,5 +56,9 @@ class ConfirmDeliveryFee
 
             return $order->load(['items', 'addresses', 'history', 'payment', 'shipments']);
         });
+
+        $this->notifier->deliveryFeeConfirmed($confirmed);   // the customer gets the final total by e-mail (if e-mails are on)
+
+        return $confirmed;
     }
 }

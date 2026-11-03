@@ -9,11 +9,14 @@ use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DeliveryZoneController;
 use App\Http\Controllers\Admin\DiscountController;
+use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\PushController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\SubCategoryController;
 use App\Http\Controllers\Admin\TagController;
+use App\Http\Controllers\Admin\WholesaleController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -94,10 +97,13 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
     // Orders (never reachable by the developer)
     Route::middleware('admin.can:orders.view')->group(function () {
         Route::get('orders/options', [OrderController::class, 'options']);
+        Route::get('orders/pending-count', [OrderController::class, 'pendingCount']);   // the sidebar badge, polled every 30 seconds
         Route::get('orders', [OrderController::class, 'index']);
         Route::get('orders/{order}', [OrderController::class, 'show'])->whereNumber('order');
         Route::get('orders/{order}/payment/proof', [OrderController::class, 'proof'])->whereNumber('order');   // the private screenshot
     });
+    // the orders CSV is its own permission (never the developer's)
+    Route::get('orders/export', [OrderController::class, 'export'])->middleware('admin.can:orders.export');
     Route::middleware('admin.can:orders.manage')->group(function () {
         Route::post('orders/{order}/status', [OrderController::class, 'status'])->whereNumber('order');
         Route::patch('orders/{order}/note', [OrderController::class, 'note'])->whereNumber('order');
@@ -142,9 +148,35 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
         Route::delete('delivery-zones/{zone}', [DeliveryZoneController::class, 'destroy'])->whereNumber('zone');
     });
 
-    // Customers (read-only list and CSV export; contains personal data)
+    // Customers (read-only list and CSV export; contains personal data) and their abandoned carts
     Route::get('customers', [CustomerController::class, 'index'])->middleware('admin.can:customers.view');
     Route::get('customers/export', [CustomerController::class, 'export'])->middleware('admin.can:customers.export');
+    Route::get('customers/abandoned-carts', [CustomerController::class, 'abandonedCarts'])->middleware('admin.can:customers.view');
+    Route::get('customers/abandoned-carts/export', [CustomerController::class, 'exportAbandonedCarts'])->middleware('admin.can:customers.export');
+
+    // Wholesale requests (personal data: off for the developer unless switched on)
+    Route::middleware('admin.can:wholesale.view')->group(function () {
+        Route::get('wholesale', [WholesaleController::class, 'index']);
+        Route::get('wholesale/new-count', [WholesaleController::class, 'newCount']);   // the sidebar badge
+        Route::get('wholesale/{wholesale}', [WholesaleController::class, 'show'])->whereNumber('wholesale');
+    });
+    Route::middleware('admin.can:wholesale.manage')->group(function () {
+        Route::get('wholesale/export', [WholesaleController::class, 'export']);
+        Route::match(['put', 'patch'], 'wholesale/{wholesale}', [WholesaleController::class, 'update'])->whereNumber('wholesale');
+    });
+
+    // The Notifications tab: queue and mail status, a test e-mail
+    Route::middleware('admin.can:settings.notifications')->group(function () {
+        Route::get('notifications/status', [NotificationController::class, 'status']);
+        Route::post('notifications/test-email', [NotificationController::class, 'testEmail'])->middleware('throttle:test-email');
+    });
+
+    // Admin push (this browser): for admins who may get order or wholesale notifications; what is sent to whom is decided at send time
+    Route::middleware('admin.can:orders.view,wholesale.view')->prefix('push')->group(function () {
+        Route::get('status', [PushController::class, 'status']);
+        Route::post('subscribe', [PushController::class, 'subscribe']);
+        Route::post('unsubscribe', [PushController::class, 'unsubscribe']);
+    });
 
     // Settings: each tab has its own permission (settings.<tab>); the controller checks it per key, here any tab opens the page
     Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.general,settings.branding,settings.banners,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications');

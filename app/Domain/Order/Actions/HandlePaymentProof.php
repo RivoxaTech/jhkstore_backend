@@ -3,6 +3,7 @@
 namespace App\Domain\Order\Actions;
 
 use App\Domain\Auth\Models\Admin;
+use App\Domain\Notification\Notifier;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Enums\PaymentMethod;
 use App\Domain\Order\Enums\PaymentStatus;
@@ -26,9 +27,11 @@ use Illuminate\Support\Facades\DB;
  */
 class HandlePaymentProof
 {
+    public function __construct(private readonly Notifier $notifier) {}
+
     public function submit(Order $order, UploadedFile $proof, ?string $reference): Order
     {
-        return DB::transaction(function () use ($order, $proof, $reference) {
+        $submitted = DB::transaction(function () use ($order, $proof, $reference) {
             [$order, $payment] = $this->lock($order);
 
             if ($order->status->isVoid() || $order->status !== OrderStatus::Pending) {
@@ -53,6 +56,10 @@ class HandlePaymentProof
 
             return $order->load(['items', 'addresses', 'history', 'payment', 'shipments']);
         });
+
+        $this->notifier->proofSubmitted($submitted);   // the owner is told; after the commit, never fails the upload
+
+        return $submitted;
     }
 
     public function verify(Order $order, Admin $actor): Order
@@ -84,7 +91,7 @@ class HandlePaymentProof
 
     public function reject(Order $order, Admin $actor, string $reason): Order
     {
-        return DB::transaction(function () use ($order, $actor, $reason) {
+        $rejected = DB::transaction(function () use ($order, $actor, $reason) {
             [$order, $payment] = $this->lock($order);
 
             if ($payment->proof_status !== Payment::PROOF_SUBMITTED_STATUS) {
@@ -99,6 +106,10 @@ class HandlePaymentProof
 
             return $order->load(['items', 'addresses', 'history', 'payment', 'shipments']);
         });
+
+        $this->notifier->proofRejected($rejected);   // the customer is asked for a new screenshot
+
+        return $rejected;
     }
 
     /** @return array{0: Order, 1: Payment} the order and its bank transfer payment, both locked */

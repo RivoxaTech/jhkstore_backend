@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Domain\Customer\Phone;
+use App\Domain\Notification\PushSender;
+use App\Domain\Notification\WebPushSender;
 use App\Domain\Promotion\Promotions;
 use App\Domain\Support\Settings;
 use Carbon\Carbon;
@@ -21,6 +23,7 @@ class AppServiceProvider extends ServiceProvider
         // One copy per request: the settings are read many times while pricing a cart.
         $this->app->singleton(Settings::class);
         $this->app->singleton(Promotions::class);   // the live discounts, loaded once per request
+        $this->app->bind(PushSender::class, WebPushSender::class);   // tests swap it for a recorder
     }
 
     public function boot(): void
@@ -77,6 +80,20 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute((int) config('shop.rate.proof_per_minute'))->by('proof-min|'.$request->ip()),
             Limit::perHour((int) config('shop.rate.proof_per_order_hour'))->by('proof-order|'.strtoupper((string) $request->route('orderNumber'))),
         ]);
+
+        // Wholesale request: per IP per hour and per phone number per hour (a form that anyone can send must not flood the admin).
+        RateLimiter::for('wholesale', function (Request $request) {
+            $limits = [Limit::perHour((int) config('shop.rate.wholesale_per_hour'))->by('wholesale-ip|'.$request->ip())];
+            $phone = Phone::normalise((string) $request->input('phone', ''));
+            if ($phone !== '') {
+                $limits[] = Limit::perHour((int) config('shop.rate.wholesale_per_phone_hour'))->by('wholesale-phone|'.$phone);
+            }
+
+            return $limits;
+        });
+
+        // The test e-mail button: a handful a minute.
+        RateLimiter::for('test-email', fn (Request $request) => Limit::perMinute(5)->by('test-email|'.$request->user()?->getAuthIdentifier()));
 
         // Order lookup (order number + phone): guessing is slow. Per IP per minute, and per order number per hour.
         RateLimiter::for('order-lookup', fn (Request $request) => [

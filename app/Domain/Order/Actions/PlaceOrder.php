@@ -15,6 +15,7 @@ use App\Domain\Catalog\ProductImages;
 use App\Domain\Customer\Actions\UpsertCustomer;
 use App\Domain\Customer\Models\Customer;
 use App\Domain\Customer\Phone;
+use App\Domain\Notification\Notifier;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Enums\PaymentMethod;
 use App\Domain\Order\Enums\PaymentStatus;
@@ -59,6 +60,7 @@ class PlaceOrder
         private readonly UpsertCustomer $customers,
         private readonly RefreshProductSummary $refreshProduct,
         private readonly ManageCart $carts,
+        private readonly Notifier $notifier,
     ) {}
 
     /**
@@ -80,6 +82,10 @@ class PlaceOrder
                 return [$existing, true];   // two requests with the same key raced: the loser gets the winner's order
             }
             throw $e;
+        }
+
+        if ($order->wasRecentlyCreated) {
+            $this->notifier->orderPlaced($order);   // after the commit; never fails the order
         }
 
         return [$order, ! $order->wasRecentlyCreated];

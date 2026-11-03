@@ -19,12 +19,15 @@ use App\Http\Requests\Admin\SetDeliveryFeeRequest;
 use App\Http\Requests\Admin\UpdateOrderNoteRequest;
 use App\Http\Resources\AdminOrderListResource;
 use App\Http\Resources\AdminOrderResource;
+use App\Http\Resources\OrderPresenter;
 use App\Support\Audit;
+use App\Support\Csv;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OrderController extends Controller
 {
@@ -47,6 +50,26 @@ class OrderController extends Controller
      */
     public function index(Request $request)
     {
+        $filtered = $this->filters($request);
+
+        $counts = $filtered()->toBase()->selectRaw('orders.status, COUNT(*) as total')->groupBy('orders.status')->pluck('total', 'status');
+
+        $orders = $filtered()
+            ->when($request->query('status'), fn ($q, $v) => $q->where('orders.status', $v))
+            ->orderByDesc('orders.created_at')->orderByDesc('orders.id')
+            ->paginate((int) $request->query('per_page', 25))->withQueryString();
+
+        return AdminOrderListResource::collection($orders)->additional(['counts' => $counts]);
+    }
+
+    /**
+     * The orders screen's filters as a query factory (the list, its status counts and the CSV export all use it). Dates are shop dates: orders are
+     * stored in shop time (see ShopTime), so `from` and `to` are whole shop days.
+     *
+     * @return \Closure(): Builder
+     */
+    private function filters(Request $request): \Closure
+    {
         $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
             'search' => ['nullable', 'string', 'max:100'],
@@ -60,22 +83,46 @@ class OrderController extends Controller
         ]);
         $term = $request->query('search') ?: $request->query('q');
 
-        $filtered = fn (): Builder => Order::query()
+        return fn (): Builder => Order::query()
             ->when($term, fn ($q, $t) => OrderSearch::apply($q, $t))
             ->when($request->query('payment_status'), fn ($q, $v) => $q->where('orders.payment_status', $v))
             ->when($request->query('payment_method'), fn ($q, $v) => $q->where('orders.payment_method', $v))
             ->when($request->query('customer_id'), fn ($q, $v) => $q->where('orders.customer_id', $v))
             ->when($request->query('from'), fn ($q, $d) => $q->where('orders.created_at', '>=', $d.' 00:00:00'))
             ->when($request->query('to'), fn ($q, $d) => $q->where('orders.created_at', '<', date('Y-m-d', strtotime($d.' +1 day')).' 00:00:00'));
+    }
 
-        $counts = $filtered()->toBase()->selectRaw('orders.status, COUNT(*) as total')->groupBy('orders.status')->pluck('total', 'status');
+    /** The number behind the sidebar badge: pending orders plus bank transfer payment proofs waiting to be checked. */
+    public function pendingCount(): JsonResponse
+    {
+        $pending = Order::query()->where('status', 'pending')->count();
+        $proofs = Payment::query()->where('payable_type', Payment::ORDER)->where('proof_status', Payment::PROOF_SUBMITTED_STATUS)
+            ->whereIn('payable_id', Order::query()->where('status', 'pending')->select('id'))->count();
 
-        $orders = $filtered()
-            ->when($request->query('status'), fn ($q, $v) => $q->where('orders.status', $v))
-            ->orderByDesc('orders.created_at')->orderByDesc('orders.id')
-            ->paginate((int) $request->query('per_page', 25))->withQueryString();
+        return response()->json(['count' => $pending + $proofs, 'pending' => $pending, 'proofs' => $proofs]);
+    }
 
-        return AdminOrderListResource::collection($orders)->additional(['counts' => $counts]);
+    /**
+     * GET orders/export: the CSV of the orders the filters of the list select (same query string), `orders.export`, audited. Columns: order number,
+     * date, customer, phone, status, payment method and status, items, totals, city.
+     */
+    public function export(Request $request): StreamedResponse
+    {
+        $query = ($this->filters($request))()->with('addresses')->when($request->query('status'), fn ($q, $v) => $q->where('orders.status', $v))->orderByDesc('orders.id');
+        Audit::log($request->user(), 'orders.exported', null, $request->query());
+
+        return Csv::download('orders-'.now()->format('Y-m-d').'.csv',
+            ['Order number', 'Date', 'Customer', 'Phone', 'Status', 'Payment method', 'Payment status', 'Items', 'Items subtotal', 'Discounts', 'Delivery fee', 'Tax', 'Total', 'City'],
+            (function () use ($query) {
+                foreach ($query->lazyById(500, 'orders.id', 'id') as $o) {
+                    yield [
+                        $o->order_number, $o->created_at?->format('Y-m-d H:i'), $o->customer_name, $o->customer_phone, $o->status->value,
+                        OrderPresenter::paymentMethodLabel($o->payment_method), $o->payment_status->value, $o->items_count,
+                        $o->items_subtotal, round((float) $o->discount_total + (float) $o->coupon_discount, 2), $o->shipping_fee ?? '', $o->tax_total, $o->grand_total,
+                        $o->shippingAddress()?->city,
+                    ];
+                }
+            })());
     }
 
     public function show(Order $order): AdminOrderResource
