@@ -48,6 +48,50 @@ class CustomerTest extends TestCase
         $this->assertFalse(Phone::isValid('555+0100100'));
     }
 
+    public function test_a_default_country_code_turns_a_local_number_into_the_international_one(): void
+    {
+        // no code set: a local number is kept as typed
+        $this->assertSame('03001234567', Phone::normalise('0300 1234567'));
+
+        $this->setSetting('default_phone_country_code', '+92');
+        $this->assertSame('+923001234567', Phone::normalise('0300 1234567'));
+        $this->assertSame('+923001234567', Phone::normalise('0300-1234567'));
+        $this->assertSame('+923001234567', Phone::normalise('+92 300 1234567'));
+        $this->assertSame('+923001234567', Phone::normalise('0092 300 1234567'));
+        $this->assertSame('+491701234567', Phone::normalise('+49 170 1234567'));   // another country code is left alone
+        $this->assertSame('3001234567', Phone::normalise('300 1234567'));           // no leading 0: untouched
+        $this->assertTrue(Phone::isValid('0300 1234567'));
+
+        $this->assertSame('+443001234567', Phone::normalise('0300 1234567', '+44'));   // explicit code wins over the setting
+    }
+
+    public function test_local_and_international_numbers_are_one_customer_with_a_default_country_code(): void
+    {
+        $this->setSetting('default_phone_country_code', '+92');
+        $this->buy(['name' => 'Ali', 'phone' => '0300 1234567'])->assertCreated();
+        $this->buy(['name' => 'Ali', 'phone' => '+92 300 1234567'])->assertCreated();
+        $this->buy(['name' => 'Ali', 'phone' => '0092 300 1234567'])->assertCreated();
+
+        $this->assertSame(1, Customer::count());
+        $c = Customer::first();
+        $this->assertSame('+923001234567', $c->phone);
+        $this->assertSame(3, $c->orders_count);
+
+        // the order lookup and the admin search accept the local form as well
+        $number = Order::first()->order_number;
+        $this->lookup($number, '0300 1234567')->assertOk();
+        $this->asAdmin();
+        $this->getJson(self::ADMIN.'/customers?q=0300123')->assertOk()->assertJsonCount(1, 'data');
+    }
+
+    public function test_without_a_default_country_code_local_and_international_numbers_stay_apart(): void
+    {
+        $this->buy(['name' => 'Ali', 'phone' => '0300 1234567'])->assertCreated();
+        $this->buy(['name' => 'Ali', 'phone' => '+92 300 1234567'])->assertCreated();
+
+        $this->assertSame(2, Customer::count());
+    }
+
     // ------------------------------------------------------------------ one customer per phone
 
     public function test_the_same_phone_twice_gives_one_customer(): void

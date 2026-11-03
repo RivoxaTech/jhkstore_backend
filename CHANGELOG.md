@@ -21,6 +21,9 @@ The product is now three things – **products, categories and orders** – plus
 - `docs/openapi.json`, a rewritten Postman collection and docs; the browser e2e covers both accounts.
 - Tests: 270 → 227 (the removed modules' tests are gone; guest checkout, quote, customers, lookup, rate limits, access control added).
 
+### Added (later)
+- Setting `default_phone_country_code` (General tab, e.g. `+92`, empty by default): a phone with a single leading 0 and no country code gets this prefix, so `0300…` and `+92300…` are one customer (orders, order lookup, customer search). Empty = unchanged behaviour.
+
 ### Fixed
 - The demo seeder's bulk prices after the points column was removed were wrong; a test now checks them.
 

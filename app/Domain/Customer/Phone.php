@@ -2,23 +2,35 @@
 
 namespace App\Domain\Customer;
 
+use App\Domain\Support\Settings;
+
 /**
  * Phone numbers are the identity of a customer, so they are stored in one normalised form: digits only, with a leading "+" when the
  * customer typed one (or "00"). "+49 170 1234567", "+49-170-1234567" and "0049 170 1234567" are the same customer.
- * A number typed without the country code ("0170 1234567") is a different number from "+49 170 1234567": the shop cannot know the country.
+ * A number typed without the country code ("0170 1234567") is a different number from "+49 170 1234567": the shop cannot know the country,
+ * unless the store sets `default_phone_country_code` (e.g. "+49"): then a number starting with a single 0 gets that prefix instead (the 0 is
+ * dropped), so "0170 1234567" and "+49 170 1234567" are the same customer. Empty setting = the behaviour above.
  */
 class Phone
 {
     /** Shape accepted from a form: optional +, then digits with spaces, dashes and brackets ("(555) 010-1234"); 7 to 15 digits in total (E.164 allows 15). */
     public const PATTERN = '/^\+?[0-9(][0-9 ()\-]{5,22}$/';
 
-    public static function normalise(string $phone): string
+    /** @param  string|null  $defaultCode  the store's default country code; null = read the setting */
+    public static function normalise(string $phone, ?string $defaultCode = null): string
     {
         $phone = trim($phone);
         $plus = str_starts_with($phone, '+') || str_starts_with($phone, '00');
         $digits = preg_replace('/\D+/', '', $phone);
         if (str_starts_with($phone, '00')) {
             $digits = substr($digits, 2);
+        }
+
+        if (! $plus && str_starts_with($digits, '0') && ! str_starts_with($digits, '00')) {
+            $code = $defaultCode ?? (string) app(Settings::class)->get('default_phone_country_code');
+            if (preg_match('/^\+[1-9][0-9]{0,3}$/', $code)) {
+                return $code.substr($digits, 1);
+            }
         }
 
         return ($plus ? '+' : '').$digits;

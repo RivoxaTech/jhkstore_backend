@@ -2,6 +2,7 @@
 
 namespace App\Domain\Customer\Models;
 
+use App\Domain\Customer\Phone;
 use App\Domain\Order\Models\Order;
 use App\Support\FullTextSearch;
 use Illuminate\Database\Eloquent\Builder;
@@ -42,7 +43,10 @@ class Customer extends Model
         if (preg_match('/^[0-9+\s\-()]+$/', $t)) {
             $digits = preg_replace('/\D/', '', $t);
 
-            return $query->where('phone', 'like', '%'.$digits.'%');   // the list is small: any part of the number matches
+            // the list is small: any part of the number matches; a local number (0300…) also matches its stored +country form
+            $normalised = ltrim(Phone::normalise($t), '+');
+
+            return $query->where(fn ($q) => $q->where('phone', 'like', '%'.$digits.'%')->orWhere('phone', 'like', '%'.$normalised.'%'));
         }
 
         return $query->where('name', 'like', '%'.FullTextSearch::like($t).'%');

@@ -36,6 +36,7 @@ class Settings
         'store_phone' => ['general', 'string', '', 'Contact phone'],
         'store_address' => ['general', 'text', '', 'Address'],
         'store_country' => ['general', 'string', '', 'Country', 'Used as the default country of addresses.'],
+        'default_phone_country_code' => ['general', 'string', '', 'Default phone country code', 'e.g. +92. A phone typed with a single leading 0 and no country code gets it (0300… and +92300… are one customer). Empty = numbers are kept as typed.'],
 
         // --- branding (pictures are uploaded, not typed)
         'store_logo' => ['branding', 'file', '', 'Logo', 'PNG, JPG or WEBP, up to 2 MB.'],
@@ -254,6 +255,7 @@ class Settings
             'currency_symbol' => ['required', 'string', 'max:8'],
             'order_number_prefix' => ['required', 'string', 'max:12', 'regex:/^[A-Za-z0-9]+$/'],
             'tax_label' => ['required', 'string', 'max:30'],
+            'default_phone_country_code' => ['nullable', 'string', 'regex:/^\+[1-9][0-9]{0,3}$/'],
             'whatsapp_number' => ['nullable', 'string', 'max:25', 'regex:/^\+?[0-9][0-9 ()-]{4,23}$/'],
             'seo_meta_title' => ['nullable', 'string', 'max:70'],
             'seo_meta_description' => ['nullable', 'string', 'max:300'],

@@ -85,6 +85,11 @@ class SettingsTest extends TestCase
         $this->putJson(self::ADMIN.'/settings', ['return_window_days' => 5])->assertStatus(422)->assertJsonValidationErrors('return_window_days');
         $this->putJson(self::ADMIN.'/settings', ['currency_decimals' => 3])->assertStatus(422)->assertJsonValidationErrors('currency_decimals');
         $this->putJson(self::ADMIN.'/settings', ['order_number_prefix' => 'A B!'])->assertStatus(422)->assertJsonValidationErrors('order_number_prefix');
+        foreach (['92', '+0', '+92 3', '0300', '+12345', 'abc'] as $bad) {
+            $this->putJson(self::ADMIN.'/settings', ['default_phone_country_code' => $bad])->assertStatus(422)->assertJsonValidationErrors('default_phone_country_code');
+        }
+        $this->putJson(self::ADMIN.'/settings', ['default_phone_country_code' => '+92'])->assertOk();
+        $this->putJson(self::ADMIN.'/settings', ['default_phone_country_code' => ''])->assertOk();   // empty = off
         $this->putJson(self::ADMIN.'/settings', ['store_name' => ''])->assertStatus(422)->assertJsonValidationErrors('store_name');
         $this->putJson(self::ADMIN.'/settings', ['no_such_setting' => 1])->assertStatus(422)->assertJsonValidationErrors('no_such_setting');
         $this->putJson(self::ADMIN.'/settings', ['store_logo' => 'x'])->assertStatus(422)->assertJsonValidationErrors('store_logo');   // only via the upload

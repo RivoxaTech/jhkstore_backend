@@ -39,6 +39,7 @@ information); off, it is added to the cart total.
 | `store_phone` | string | `(empty)` | Contact phone |
 | `store_address` | text | `(empty)` | Address |
 | `store_country` | string | `(empty)` | Country. Used as the default country of addresses |
+| `default_phone_country_code` | string | `(empty)` | Default phone country code, e.g. `+92` (`+` and 1–4 digits). A customer phone starting with a single `0` and no country code gets this prefix (the `0` is dropped), so `0300 1234567`, `+92 300 1234567` and `0092 300 1234567` are one customer. Empty = numbers are kept as typed. Applies to orders placed after the change; customers already stored keep their number |
 
 ### Branding
 
