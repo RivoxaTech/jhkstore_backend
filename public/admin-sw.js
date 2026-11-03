@@ -13,7 +13,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(data.title || 'New notification', {
     body: data.body || '',
     tag: data.tag || undefined,          // a newer message with the same tag replaces the older one
-    data: { url: typeof data.url === 'string' && data.url.startsWith('/') ? data.url : '/admin/' },
+    // a path on this site only, never //other-site
+    data: { url: typeof data.url === 'string' && /^\/(?!\/)/.test(data.url) ? data.url : '/admin/' },
   }))
 })
 

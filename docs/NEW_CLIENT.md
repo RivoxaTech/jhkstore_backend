@@ -62,6 +62,8 @@ cd admin-frontend && npm install && npm run build && cd ..     # admin panel -> 
 1. **A worker** (VPS, recommended): `php artisan queue:work --tries=3` kept alive by supervisor or systemd, restarted after each deployment (`php artisan queue:restart`).
 2. **Cron** (shared hosting, no long-running process): `* * * * * php artisan queue:work --stop-when-empty --max-time=55` (a mail can be up to a minute late).
 
+The worker reads the same `.env` as the site, and a long-running worker keeps the settings it started with: after changing `MAIL_*`, `VAPID_*` or `APP_TIMEZONE` run `php artisan queue:restart`. A mail already in the queue remembers the mailer it was queued for.
+
 Failed jobs are listed with `php artisan queue:failed`, retried with `php artisan queue:retry all` and cleared with `php artisan queue:flush`; Settings → Notifications shows how many failed (a count only). The sidebar badges for pending orders and new wholesale requests refresh every 30 seconds and work without a worker. The e-mails stay off until Settings → Notifications → *Send e-mails* is on.
 
 **Time zone.** `APP_TIMEZONE` decides what "today" is, the dates of orders, the dashboard ranges and the start and end of discounts, coupons and banners. Set it before the first order; the admin panel shows and accepts every date in that zone.

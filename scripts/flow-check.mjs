@@ -1,21 +1,29 @@
 // End-to-end flow check of the REAL app over real HTTP (no test database, no mocks).
 //
 //   php artisan migrate:fresh --seed        (base seeder only; or pass --fresh to let this script do it)
-//   php artisan serve                       (port 8000; start both servers with CHECKOUT_PER_HOUR=1000: the run places far more than 60 orders)
-//   php artisan serve --port=8001           (a second server process: the "last unit" race needs two real PHP processes, because the
+//   php artisan serve --port=8002           (the real server; use a port other than 8000 if another project uses it)
+//   php artisan serve --port=8003           (a SECOND server process: the "last unit" race needs two real PHP processes, because the
 //                                            PHP development server handles one request at a time)
 //   node scripts/flow-check.mjs [--fresh]
+//
+// Start both servers (and this script) with the same environment:
+//   CHECKOUT_PER_HOUR=1000 WHOLESALE_PER_HOUR=30     the run places far more than 60 orders, and floods the wholesale form on purpose (G32)
+//   APP_URL=http://127.0.0.1:<port>                  picture and video URLs are built from it
+//   VAPID_SUBJECT / VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY   from `php artisan shop:vapid` (push checks G29, G31); on Windows set OPENSSL_CONF too
+//   the SECOND server also with MAIL_MAILER=smtp MAIL_HOST=127.0.0.1 MAIL_PORT=1: a mail server that does not exist (G28: an order is still placed)
+// The queue worker is started by the script itself (php artisan queue:work --stop-when-empty) with the log mailer; QUEUE_CONNECTION=database.
 //
 // Environment: FLOW_BASE (default http://127.0.0.1:8000), FLOW_BASE2 (default http://127.0.0.1:8001),
 // FLOW_DEV_USER / FLOW_DEV_PASSWORD (developer / developer), FLOW_ADMIN_USER / FLOW_ADMIN_PASSWORD (admin / admin).
 //
-// It covers checks A1 to E16 (see docs/QA_REPORT.md), prints PASS / FAIL with the actual answer for every assertion and exits with 1 when
-// something fails. Database reads (stock, inventory movements, audit log, payments) go through scripts/flow-db.php (SELECT only).
+// It covers checks A1 to G32 (see docs/QA_REPORT.md), prints PASS / FAIL with the actual answer for every assertion and exits with 1 when
+// something fails. Database reads (stock, inventory movements, audit log, payments, jobs) go through scripts/flow-db.php (SELECT only), e-mails are
+// read from storage/logs/laravel.log (the log mailer). Phase B: G24 dashboard, G25 product switches, G26 product video, G27 wholesale, G28 e-mails and
+// the queue, G29 admin push, G30 exports and abandoned carts, G31 a FULL RUN of the whole shop, G32 the wholesale per-IP limit (last on purpose).
 // The browser side of the same checks (sidebar, buttons, print pages) is admin-frontend/e2e/flow-ui.mjs.
-// It leaves test data behind: reseed afterwards with `php artisan migrate:fresh --seed`.
 import { execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
-import fs from 'node:fs'
+import nodeFs from 'node:fs'
 import zlib from 'node:zlib'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -1114,8 +1122,8 @@ try {
   // ============================================================ G. Phase B: dashboard, products, video, wholesale, e-mail, push, exports
   // (the servers and this script need the same VAPID_* variables for the push checks: see the header of this file)
   const LOG = path.join(ROOT, 'storage', 'logs', 'laravel.log')
-  const logPos = () => (fs.existsSync(LOG) ? fs.statSync(LOG).size : 0)
-  const logSince = (pos) => { const b = fs.readFileSync(LOG); return b.subarray(Math.min(pos, b.length)).toString('latin1') }
+  const logPos = () => (nodeFs.existsSync(LOG) ? nodeFs.statSync(LOG).size : 0)
+  const logSince = (pos) => { const b = nodeFs.readFileSync(LOG); return b.subarray(Math.min(pos, b.length)).toString('latin1') }
   // the log mailer writes the raw message: undo quoted-printable (soft line breaks and =XX) so a link or a subject can be searched
   const qp = (s) => s.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/g, (m, h) => String.fromCharCode(parseInt(h, 16)))
   const jobsLike = (needle) => dbOne(`SELECT COUNT(*) n FROM jobs WHERE payload LIKE '%${needle}%'`).n
@@ -1319,8 +1327,9 @@ try {
   worker()
   // a broken mail server never fails the order; the failure shows as a count in the Notifications tab
   const failBefore = failedJobs()
-  const m5 = await mailOrder(5)
-  check(m5.status === 201, 'the order is placed even though the mail server is about to fail', status(m5).slice(0, 80))
+  // a queued mail remembers the mailer of the process that queued it: the second server (port 8003) is started with an SMTP server that does not exist
+  const m5 = await placeOrder(orderBody([[mailItem.variant, 1]], { name: 'Mail Buyer 5', phone: phoneN(405), email: 'buyer5@example.test' }), { base: BASE2 })
+  check(m5.status === 201, 'with a mail server that does not exist (second server, MAIL_HOST unreachable) the order is still placed', status(m5).slice(0, 80))
   const wk = worker({ MAIL_MAILER: 'smtp', MAIL_HOST: '127.0.0.1', MAIL_PORT: '1' })
   const stFailed = await get('admin/notifications/status', D)
   check(failedJobs() - failBefore >= 1 && stFailed.status === 200 && stFailed.json.failed_jobs === failedJobs() && !JSON.stringify(stFailed.json).includes(m5.json.data.order_number), 'the mails failed in the queue (a count, never the content, in Settings > Notifications) while the order stayed placed', { failed: failedJobs(), shown: stFailed.json?.failed_jobs })
@@ -1373,7 +1382,7 @@ try {
   await post('admin/push/unsubscribe', { endpoint: 'https://push.invalid/flow-dev' }, D)
   await put('admin/access-control/developer', { permissions: [] }, D)
   await put('admin/settings', { push_enabled: false }, A)
-  check(fs.existsSync(path.join(ROOT, 'public', 'admin-sw.js')) && (await fetch(`${BASE}/admin-sw.js`)).status === 200, 'the service worker public/admin-sw.js is served at /admin-sw.js')
+  check(nodeFs.existsSync(path.join(ROOT, 'public', 'admin-sw.js')) && (await fetch(`${BASE}/admin-sw.js`)).status === 200, 'the service worker public/admin-sw.js is served at /admin-sw.js')
 
   section('G30', 'Exports and abandoned carts: orders CSV (filters, permission, injection), abandoned carts list and CSV')
   const exp = await call('GET', 'admin/orders/export?status=delivered', { token: A })
@@ -1423,7 +1432,7 @@ try {
   check([pRake, pSpade, pPan].every((p) => p.status === 201 && p.variant), 'create three products with stock and a bulk price', [pRake.status, pSpade.status, pPan.status])
   check((await store(`products/${pRake.slug}`)).json?.data?.sub_category?.name === `Tools ${RUN}`, 'the public product page shows the sub-category')
   // 2. delivery zones, 3. bank transfer
-  await setSettings({ delivery_method: 'zones', delivery_unmatched: 'block', min_order_amount: 0, cod_max_amount: 0, tax_rate: 0 })
+  await setSettings({ delivery_method: 'zones', delivery_unmatched: 'block', min_order_amount: 0, cod_max_amount: 0 })
   const zLahore = await post('admin/delivery-zones', { name: `FR Lahore ${RUN}`, match_type: 'city', match_values: ['Lahore'], fee: 8, free_above: 500, eta_text: 'Tomorrow' }, A)
   const zKhi = await post('admin/delivery-zones', { name: `FR Karachi ${RUN}`, match_type: 'city', match_values: ['Karachi'], fee: 15 }, A)
   check(zLahore.status === 201 && zKhi.status === 201, 'set two delivery zones (Lahore 8, Karachi 15)', [zLahore.status, zKhi.status])
@@ -1455,7 +1464,7 @@ try {
   const bankNo = bank.json?.data?.order_number
   check(bank.status === 201 && bank.json.data.payment.status === 'awaiting_payment' && bank.json.data.payment.accounts[0].bank === 'Full Run Bank' && bank.json.data.totals.delivery_fee === 15, 'place a bank transfer order to Karachi: awaiting payment, the account and the Karachi fee 15', { fee: bank.json?.data?.totals?.delivery_fee, pay: bank.json?.data?.payment?.status })
   const frOutside = await placeOrder({ ...orderBody([[pPan.variant, 1]], { name: 'Nowhere', phone: phoneN(502) }), address: { ...ADDRESS, city: 'Atlantis' } })
-  check(frOutside.status === 422 && frOutside.json?.code === 'delivery_not_available', 'an address frOutside every zone is refused (422 delivery_not_available)')
+  check(frOutside.status === 422 && frOutside.json?.code === 'delivery_not_available', 'an address outside every zone is refused (422 delivery_not_available)')
   const codId = idOfNo(codNo)
   const bankId = idOfNo(bankNo)
   const frBlocked = await post(`admin/orders/${bankId}/status`, { status: 'confirmed' }, A)
@@ -1463,7 +1472,7 @@ try {
   const proof = await storeCall('POST', `orders/${bankNo}/payment-proof?phone=${encodeURIComponent(phoneN(501))}`, { form: formOf({ reference: 'TX-FULLRUN' }, { proof: file('proof.png', 320, 320, [20, 120, 60]) }) })
   check(proof.status === 200 && proof.json.data.payment.proof_status === 'submitted', 'the customer uploads the payment screenshot (private file, status submitted)', status(proof).slice(0, 100))
   const proofFetch = await call('GET', `admin/orders/${bankId}/payment/proof`, { token: A })
-  check(proofFetch.status === 200 && (await get(`admin/orders/${bankId}/payment/proof`, D)).status === 403 && (await fetch(`${BASE}/storage/${dbOne("SELECT file_name FROM media WHERE model_type LIKE '%Payment' LIMIT 1").file_name}`)).status === 404, 'only the admin can see the proof: the developer gets 403 and there is no public URL')
+  check(proofFetch.status === 200 && (await get(`admin/orders/${bankId}/payment/proof`, D)).status === 403 && [403, 404].includes((await fetch(`${BASE}/storage/${dbOne("SELECT file_name FROM media WHERE model_type LIKE '%Payment' LIMIT 1").file_name}`)).status), 'only the admin can see the proof: the developer gets 403 and the file has no public URL (refused)')
   const verify = await post(`admin/orders/${bankId}/payment/verify`, {}, A)
   check(verify.status === 200 && verify.json.data.payment.status === 'paid', 'the admin verifies the payment: the order is paid', verify.json?.data?.payment?.status)
   // 7. confirm, pack, ship, deliver both
@@ -1518,7 +1527,7 @@ try {
   const customerRow = dbOne(`SELECT orders_count FROM customers WHERE phone = '${phoneN(504).replace(/ /g, '')}'`)
   check(couponRow.used_count === 1 && customerRow.orders_count === 0, 'the coupon is still counted once and the cancelled customer\'s totals are back to 0', { coupon: couponRow, cancelled: customerRow })
   // clean up what this run changed
-  await setSettings({ delivery_method: 'free_above', delivery_unmatched: 'block', pay_bank_enabled: false, pay_bank_accounts: [], pay_bank_instructions: '', tax_rate: 0 })
+  await setSettings({ delivery_method: 'free_above', delivery_unmatched: 'block', pay_bank_enabled: false, pay_bank_accounts: [], pay_bank_instructions: '' })
 
   section('G32', 'Wholesale per-IP limit (run last: it uses up this IP\'s hourly allowance)')
   let ipStop = 0
