@@ -1,12 +1,12 @@
 {
     "openapi": "3.1.2",
     "info": {
-        "title": "JHK Store",
+        "title": "Store API",
         "version": "0.0.1"
     },
     "servers": [
         {
-            "url": "http://localhost:8000/api"
+            "url": "https://shop.example.com/api"
         }
     ],
     "paths": {
@@ -336,6 +336,10 @@
                                                         "permissions": {
                                                             "type": "array",
                                                             "items": {}
+                                                        },
+                                                        "timezone": {
+                                                            "type": "string",
+                                                            "description": "what the panel uses to hide screens, tabs and buttons"
                                                         }
                                                     },
                                                     "required": [
@@ -344,7 +348,8 @@
                                                         "name",
                                                         "email",
                                                         "roles",
-                                                        "permissions"
+                                                        "permissions",
+                                                        "timezone"
                                                     ]
                                                 }
                                             },
@@ -400,6 +405,10 @@
                                                         "permissions": {
                                                             "type": "array",
                                                             "items": {}
+                                                        },
+                                                        "timezone": {
+                                                            "type": "string",
+                                                            "description": "what the panel uses to hide screens, tabs and buttons"
                                                         }
                                                     },
                                                     "required": [
@@ -408,7 +417,8 @@
                                                         "name",
                                                         "email",
                                                         "roles",
-                                                        "permissions"
+                                                        "permissions",
+                                                        "timezone"
                                                     ]
                                                 }
                                             },
@@ -516,6 +526,10 @@
                                                 "permissions": {
                                                     "type": "array",
                                                     "items": {}
+                                                },
+                                                "timezone": {
+                                                    "type": "string",
+                                                    "description": "what the panel uses to hide screens, tabs and buttons"
                                                 }
                                             },
                                             "required": [
@@ -524,7 +538,8 @@
                                                 "name",
                                                 "email",
                                                 "roles",
-                                                "permissions"
+                                                "permissions",
+                                                "timezone"
                                             ]
                                         }
                                     },
@@ -7899,7 +7914,7 @@
                                     "string",
                                     "null"
                                 ],
-                                "description": "what the customer was shown"
+                                "description": "what the customer was shown when ordering (a snapshot)"
                             }
                         },
                         "required": [
@@ -10129,7 +10144,8 @@
                         "items": {}
                     },
                     "delivery_fee_pending": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "description": "the snapshot taken when the order was placed"
                     },
                     "reject_reason": {
                         "type": "string",

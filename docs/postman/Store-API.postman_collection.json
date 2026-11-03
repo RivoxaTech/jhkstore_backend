@@ -1,13 +1,17 @@
 {
   "info": {
     "name": "Store API (public, no login)",
-    "description": "Storefront API of the lean store. Customers have no accounts: nothing here needs a token. Run the requests in order: settings, catalogue, product detail (saves variant_id), quote, place order (saves order_number), look the order up; then the coupon, cart (saves cart_token) and bank transfer requests (14 to 28). Set base_url and product_slug.",
+    "description": "Storefront API of the lean store. Customers have no accounts: nothing here needs a token. Run the requests in order: settings, catalogue, product detail (saves variant_id), quote, place order (saves order_number), look the order up; then the coupon, cart (saves cart_token) and bank transfer requests (14 to 28). Set origin (the store URL, e.g. https://shop.example.com) and product_slug.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
+      "key": "origin",
+      "value": "https://shop.example.com"
+    },
+    {
       "key": "base_url",
-      "value": "http://localhost:8000/api/v1/store"
+      "value": "{{origin}}/api/v1/store"
     },
     {
       "key": "product_slug",
