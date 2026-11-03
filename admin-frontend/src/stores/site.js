@@ -13,7 +13,7 @@ function applyFavicon(url) {
 
 /**
  * Public store settings (name, logo, contact details, currency, tax). The endpoint needs no login,
- * so it is loaded once at app start and used to brand the panel (sidebar, login page, document title, invoices).
+ * so it is loaded once at app start and used to label the panel (sidebar, login page, document title, invoices).
  * `reload()` after the settings were saved.
  */
 export const useSiteStore = defineStore('site', () => {

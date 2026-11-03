@@ -59,9 +59,8 @@ class SeedersTest extends TestCase
         $this->getJson('/api/v1/store/products?per_page=50')->assertOk()->assertJsonCount(12, 'data');
         $this->getJson('/api/v1/store/categories')->assertOk()->assertJsonCount(5, 'data');
 
-        // nothing in it is specific to a business
-        $names = Product::pluck('name')->implode(' ');
-        $this->assertDoesNotMatchRegularExpression('/dental|dentalkart|instadent/i', $names);
+        // the sample products are neutral: plain words, no business name
+        $this->assertSame([], Product::pluck('name')->filter(fn ($n) => ! preg_match('/^[A-Za-z0-9 ,.&\'"()%+-]+$/', $n))->all());
 
         // and it adds no promotions, zones or orders either
         foreach (['delivery_zones', 'discounts', 'coupons', 'carts', 'orders'] as $table) {

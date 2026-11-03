@@ -46,10 +46,10 @@ img { max-width: 100%; display: block; }
   border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 40;
   transition: width .2s ease, transform .25s ease;
 }
-.sidebar__brand { height: var(--topbar-h); display: flex; align-items: center; gap: 9px; padding: 0 14px; border-bottom: 1px solid var(--border-light); }
-.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--primary); color: #fff; display: grid; place-items: center; flex: none; }
-.brand-text { font-weight: 700; font-size: 15px; line-height: 1.1; white-space: nowrap; }
-.brand-text small { display: block; font-weight: 500; font-size: 11px; color: var(--text-3); letter-spacing: .06em; text-transform: uppercase; }
+.sidebar__head { height: var(--topbar-h); display: flex; align-items: center; gap: 9px; padding: 0 14px; border-bottom: 1px solid var(--border-light); }
+.store-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--primary); color: #fff; display: grid; place-items: center; flex: none; }
+.store-text { font-weight: 700; font-size: 15px; line-height: 1.1; white-space: nowrap; }
+.store-text small { display: block; font-weight: 500; font-size: 11px; color: var(--text-3); letter-spacing: .06em; text-transform: uppercase; }
 .sidebar__nav { padding: 12px 8px; overflow-y: auto; flex: 1; }
 .nav-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-3); text-transform: uppercase; padding: 0 10px 6px; white-space: nowrap; }
 .nav-item {
@@ -68,10 +68,10 @@ img { max-width: 100%; display: block; }
 .main { margin-left: var(--sidebar-w); min-height: 100vh; display: flex; flex-direction: column; transition: margin .2s ease; }
 .is-collapsed .sidebar { width: var(--sidebar-w-collapsed); }
 .is-collapsed .main { margin-left: var(--sidebar-w-collapsed); }
-.is-collapsed .brand-text, .is-collapsed .nav-label, .is-collapsed .nav-item span, .is-collapsed .nav-badge, .is-collapsed .collapse-btn span { display: none; }
+.is-collapsed .store-text, .is-collapsed .nav-label, .is-collapsed .nav-item span, .is-collapsed .nav-badge, .is-collapsed .collapse-btn span { display: none; }
 .is-collapsed .collapse-btn { justify-content: center; padding: 9px; }
 .is-collapsed .nav-item { justify-content: center; padding: 10px; }
-.is-collapsed .sidebar__brand { padding: 0; justify-content: center; }
+.is-collapsed .sidebar__head { padding: 0; justify-content: center; }
 
 .topbar { position: sticky; top: 0; z-index: 30; height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; padding: 0 16px; }
 .icon-btn { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--text-2); border: 1px solid var(--border); background: var(--surface); position: relative; flex: none; transition: .15s; }
@@ -107,7 +107,7 @@ img { max-width: 100%; display: block; }
   .mobile-open .sidebar { transform: none; }
   .mobile-open .backdrop { display: block; }
   .main, .is-collapsed .main { margin-left: 0; }
-  .is-collapsed .brand-text, .is-collapsed .nav-label, .is-collapsed .nav-item span, .is-collapsed .nav-badge, .is-collapsed .collapse-btn span { display: revert; }
+  .is-collapsed .store-text, .is-collapsed .nav-label, .is-collapsed .nav-item span, .is-collapsed .nav-badge, .is-collapsed .collapse-btn span { display: revert; }
   .collapse-btn { display: none; }
   .is-collapsed .nav-item { justify-content: flex-start; padding: 9px 12px; }
   .topbar { padding: 0 10px; }
@@ -529,10 +529,10 @@ label.dropzone { display: block; }
 }
 
 /* ---------- store mark (logo or generic icon) ---------- */
-.brand-mark--logo { background: #fff; border: 1px solid var(--border-light); overflow: hidden; }
-.brand-mark img { width: 100%; height: 100%; object-fit: contain; }
-.brand-mark.on-dark { background: rgba(255, 255, 255, .18); border: 0; }
-.brand-mark.on-dark.brand-mark--logo { background: #fff; }
+.store-mark--logo { background: #fff; border: 1px solid var(--border-light); overflow: hidden; }
+.store-mark img { width: 100%; height: 100%; object-fit: contain; }
+.store-mark.on-dark { background: rgba(255, 255, 255, .18); border: 0; }
+.store-mark.on-dark.store-mark--logo { background: #fff; }
 
 /* ---------- Phase A: payment badges, dense tables (discounts, coupons, zones), chips with a remove button ---------- */
 .badge--awaiting_payment, .badge--awaiting_proof { background: var(--warning-soft); color: var(--warning); }

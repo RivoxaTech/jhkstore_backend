@@ -64,24 +64,24 @@ const immediate = (r) => props.productId !== null && r.id !== null
             <tr :class="{ 'is-bad': rowHasError(i), 'is-off': !r.is_active }" :data-option="i">
               <td class="c"><input type="radio" name="default-option" :checked="r.is_default" :disabled="!r.is_active" :aria-label="`Make option ${i + 1} the default`" @change="emit('default', i)" /></td>
               <td>
-                <input v-model="r.name" class="input input--sm" maxlength="255" :aria-label="`Option ${i + 1} name`" placeholder="e.g. Blue, 500 ml" :class="{ 'has-error': err(i, 'name') }" @input="clear(i, 'name')" />
+                <input :id="`variants-${i}-name`" v-model="r.name" class="input input--sm" maxlength="255" :aria-label="`Option ${i + 1} name`" placeholder="e.g. Blue, 500 ml" :class="{ 'has-error': err(i, 'name') }" @input="clear(i, 'name')" />
                 <p v-if="err(i, 'name')" class="err">{{ err(i, 'name') }}</p>
               </td>
               <td>
-                <input v-model="r.sku" class="input input--sm" maxlength="80" :aria-label="`Option ${i + 1} SKU`" :class="{ 'has-error': err(i, 'sku') }" @input="clear(i, 'sku')" />
+                <input :id="`variants-${i}-sku`" v-model="r.sku" class="input input--sm" maxlength="80" :aria-label="`Option ${i + 1} SKU`" :class="{ 'has-error': err(i, 'sku') }" @input="clear(i, 'sku')" />
                 <p v-if="err(i, 'sku')" class="err">{{ err(i, 'sku') }}</p>
               </td>
               <td>
-                <input v-model="r.mrp" class="input input--sm input--num" type="number" min="0" step="0.01" :aria-label="`Option ${i + 1} regular price`" :class="{ 'has-error': err(i, 'mrp') }" @input="clear(i, 'mrp', 'selling_price')" />
+                <input :id="`variants-${i}-mrp`" v-model="r.mrp" class="input input--sm input--num" type="number" min="0" step="0.01" :aria-label="`Option ${i + 1} regular price`" :class="{ 'has-error': err(i, 'mrp') }" @input="clear(i, 'mrp', 'selling_price')" />
                 <p v-if="err(i, 'mrp')" class="err">{{ err(i, 'mrp') }}</p>
               </td>
               <td>
-                <input v-model="r.selling_price" class="input input--sm input--num" type="number" min="0" step="0.01" :aria-label="`Option ${i + 1} price`" :class="{ 'has-error': err(i, 'selling_price') }" @input="clear(i, 'selling_price')" />
+                <input :id="`variants-${i}-price`" v-model="r.selling_price" class="input input--sm input--num" type="number" min="0" step="0.01" :aria-label="`Option ${i + 1} price`" :class="{ 'has-error': err(i, 'selling_price') }" @input="clear(i, 'selling_price')" />
                 <small v-if="off(r)" class="off-tag" data-testid="off-label">{{ off(r) }}</small>
                 <p v-if="err(i, 'selling_price')" class="err">{{ err(i, 'selling_price') }}</p>
               </td>
               <td>
-                <input v-model="r.stock" class="input input--sm input--num" type="number" min="0" step="1" :aria-label="`Stock of option ${i + 1}`" :class="{ 'has-error': err(i, 'stock') }" @input="clear(i, 'stock')" />
+                <input :id="`variants-${i}-stock`" v-model="r.stock" class="input input--sm input--num" type="number" min="0" step="1" :aria-label="`Stock of option ${i + 1}`" :class="{ 'has-error': err(i, 'stock') }" @input="clear(i, 'stock')" />
                 <small v-if="r.reserved" class="muted" :title="`${r.reserved} reserved by open orders`">{{ r.reserved }} reserved</small>
                 <p v-if="err(i, 'stock')" class="err">{{ err(i, 'stock') }}</p>
               </td>

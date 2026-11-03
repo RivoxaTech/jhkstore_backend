@@ -14,6 +14,8 @@
 // The browser side of the same checks (sidebar, buttons, print pages) is admin-frontend/e2e/flow-ui.mjs.
 // It leaves test data behind: reseed afterwards with `php artisan migrate:fresh --seed`.
 import { execFileSync } from 'node:child_process'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
 import zlib from 'node:zlib'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -756,11 +758,11 @@ try {
   check(badUrl.status === 422, 'a javascript: link is refused (422)', status(badUrl))
 
   // currency & tax, orders & delivery, SEO
-  await put('admin/settings', { currency_code: 'PKR', currency_symbol: 'Rs', currency_decimals: 0, tax_rate: 17, tax_inclusive: false, tax_label: 'GST' }, D)
+  await put('admin/settings', { currency_code: 'PKR', currency_symbol: 'Rs', currency_decimals: 0, tax_rate: 17, tax_inclusive: false, tax_label: 'Sales tax' }, D)
   p = await pub()
-  check(p.currency.code === 'PKR' && p.currency.symbol === 'Rs' && p.currency.decimals === 0 && p.tax.rate === 17 && p.tax.inclusive === false && p.tax.label === 'GST', 'Currency & Tax tab -> public currency and tax', { currency: p.currency, tax: p.tax })
+  check(p.currency.code === 'PKR' && p.currency.symbol === 'Rs' && p.currency.decimals === 0 && p.tax.rate === 17 && p.tax.inclusive === false && p.tax.label === 'Sales tax', 'Currency & Tax tab -> public currency and tax', { currency: p.currency, tax: p.tax })
   const qCur = (await quote([[mugB, 1]])).json.data.summary
-  check(qCur.tax_label === 'GST' && qCur.tax_inclusive === false && Number.isInteger(qCur.grand_total), 'the quote follows (GST, exclusive, 0 decimals)', qCur)
+  check(qCur.tax_label === 'Sales tax' && qCur.tax_inclusive === false && Number.isInteger(qCur.grand_total), 'the quote follows (Sales tax, exclusive, 0 decimals)', qCur)
   await put('admin/settings', { currency_code: 'USD', currency_symbol: '$', currency_decimals: 2, tax_rate: 10, tax_inclusive: true, tax_label: 'VAT' }, D)
   await put('admin/settings', { order_number_prefix: 'ZED', delivery_fee: 7.5, free_delivery_min_cart: 150, delivery_days: 3, min_order_amount: 15, cod_max_amount: 100 }, D)
   p = await pub()
@@ -1108,6 +1110,423 @@ try {
   check(hp.status === 422 && hp.json?.code === 'rejected' || hp.status === 429, 'the honeypot field is refused on the new public POSTs', status(hp).slice(0, 100))
   // leave the store as the scripts expect it
   await setSettings({ pay_bank_enabled: false, pay_card_visible: false, pay_bank_accounts: [], pay_bank_instructions: '', delivery_method: 'free_above', store_open: true, checkout_notice: '', delivery_eta_text: '', store_closed_message: '' }, D)
+
+  // ============================================================ G. Phase B: dashboard, products, video, wholesale, e-mail, push, exports
+  // (the servers and this script need the same VAPID_* variables for the push checks: see the header of this file)
+  const LOG = path.join(ROOT, 'storage', 'logs', 'laravel.log')
+  const logPos = () => (fs.existsSync(LOG) ? fs.statSync(LOG).size : 0)
+  const logSince = (pos) => { const b = fs.readFileSync(LOG); return b.subarray(Math.min(pos, b.length)).toString('latin1') }
+  // the log mailer writes the raw message: undo quoted-printable (soft line breaks and =XX) so a link or a subject can be searched
+  const qp = (s) => s.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/g, (m, h) => String.fromCharCode(parseInt(h, 16)))
+  const jobsLike = (needle) => dbOne(`SELECT COUNT(*) n FROM jobs WHERE payload LIKE '%${needle}%'`).n
+  const failedJobs = () => dbOne('SELECT COUNT(*) n FROM failed_jobs').n
+  // the queue worker the shared-hosting cron would run: it takes every waiting job, then stops
+  const worker = (env = {}) => {
+    try {
+      execFileSync('php', ['artisan', 'queue:work', '--stop-when-empty', '--tries=1', '--sleep=0', '--max-time=60'], { cwd: ROOT, env: { ...process.env, MAIL_MAILER: 'log', ...env }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+    } catch (e) { return String(e.stdout || '') + String(e.stderr || '') }
+    return ''
+  }
+  const VAPID_READY = Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT)
+  const adminSubs = async (perms) => put('admin/access-control/admin', { permissions: perms }, D)
+
+  section('G24', 'Dashboard: date ranges in shop time, KPI cards, chart series, top sellers, recent orders, one section per permission, sidebar count')
+  const dash = (range, token = A) => get(`admin/dashboard${range ? `?range=${range}` : ''}`, token)
+  const [dAll, d30, d7, dToday, dMonth] = [await dash('all'), await dash(''), await dash('7d'), await dash('today'), await dash('month')]
+  const kp = (r) => r.json?.orders?.kpis
+  check(dAll.status === 200 && d30.json?.range?.key === '30d' && ['today', '7d', '30d', 'month', 'all'].every((k) => k in (d30.json?.range?.options || {})), 'GET /admin/dashboard defaults to the last 30 days and lists the five ranges', d30.json?.range)
+  const nonVoid = dbOne("SELECT COALESCE(SUM(grand_total), 0) AS revenue, COUNT(*) AS n FROM orders WHERE status NOT IN ('cancelled', 'rejected')")
+  const allOrders = dbOne('SELECT COUNT(*) n FROM orders').n
+  check(money(kp(dAll).revenue) === money(nonVoid.revenue) && kp(dAll).total_orders === allOrders, 'all time: revenue = the orders that were not cancelled or rejected, total orders = every order (the database agrees)', { revenue: kp(dAll).revenue, db: nonVoid.revenue, orders: kp(dAll).total_orders })
+  check(kp(dToday).total_orders <= kp(d7).total_orders && kp(d7).total_orders <= kp(d30).total_orders && kp(dMonth).total_orders <= kp(dAll).total_orders && kp(d30).total_orders <= kp(dAll).total_orders, 'the ranges nest: today <= 7 days <= 30 days <= all time', [kp(dToday).total_orders, kp(d7).total_orders, kp(d30).total_orders, kp(dAll).total_orders])
+  const kpiKeys = ['revenue', 'pending_amount', 'total_orders', 'average_order_value', 'pending_count', 'cancelled_rejected_count', 'awaiting_proof_count']
+  check(kpiKeys.every((k) => typeof kp(dAll)[k] === 'number'), 'the KPI cards: revenue, pending amount, orders, average order value, pending, cancelled + rejected, awaiting proof', kp(dAll))
+  const points = dAll.json.orders.series.points
+  check(points.length >= 1 && points.every((p) => 'date' in p && 'orders' in p && 'revenue' in p) && money(points.reduce((a, p) => a + p.revenue, 0)) === money(kp(dAll).revenue), 'the chart series has a point per day and adds up to the revenue card', { points: points.length, granularity: dAll.json.orders.series.granularity })
+  check(dAll.json.orders.top_products.length <= 5 && dAll.json.orders.recent.length <= 8 && dAll.json.orders.recent.length > 0 && 'qty' in dAll.json.orders.top_products[0], 'top sellers (5 at most) and recent orders (8 at most) are there', { top: dAll.json.orders.top_products.length, recent: dAll.json.orders.recent.length })
+  check((await dash('forever')).status === 422, 'an unknown range is refused (422)')
+  const me = await get('admin/auth/me', A)
+  check(typeof me.json?.admin?.timezone === 'string' && me.json.admin.timezone === d30.json.range.timezone, 'the store time zone reaches the panel through /admin/auth/me and the dashboard range', me.json?.admin?.timezone)
+  const devDash2 = await dash('all', D)
+  const lastNo = dbOne('SELECT order_number n FROM orders ORDER BY id DESC LIMIT 1').n
+  check(devDash2.status === 200 && devDash2.json.catalog && !('orders' in devDash2.json) && !('customers' in devDash2.json) && !('wholesale' in devDash2.json) && !JSON.stringify(devDash2.json).includes(lastNo), 'the developer dashboard: catalogue widgets only, no order, customer or wholesale figure and no order number', Object.keys(devDash2.json))
+  const pc = await get('admin/orders/pending-count', A)
+  const dbPending = dbOne("SELECT COUNT(*) n FROM orders WHERE status = 'pending'").n
+  const dbProofs = dbOne("SELECT COUNT(*) n FROM payments p JOIN orders o ON o.id = p.payable_id WHERE p.payable_type = 'order' AND p.proof_status = 'submitted' AND o.status = 'pending'").n
+  check(pc.status === 200 && pc.json.pending === dbPending && pc.json.proofs === dbProofs && pc.json.count === dbPending + dbProofs && (await get('admin/orders/pending-count', D)).status === 403, 'GET /admin/orders/pending-count = pending orders + payment proofs to check (the database agrees); the developer gets 403', pc.json)
+  await adminSubs(['dashboard.view', 'products.view'])
+  const restricted = await dash('', A)
+  check(restricted.status === 200 && restricted.json.catalog && !('orders' in restricted.json) && !('wholesale' in restricted.json) && !('customers' in restricted.json), 'an admin with only products.view gets only the catalogue section', Object.keys(restricted.json))
+  await adminSubs(['dashboard.view', 'wholesale.view'])
+  const wOnly = await dash('', A)
+  check(wOnly.status === 200 && wOnly.json.wholesale && !('orders' in wOnly.json) && !('catalog' in wOnly.json), 'wholesale.view alone: only the wholesale section', Object.keys(wOnly.json))
+  await adminSubs(ADMIN_DEFAULTS)
+
+  section('G25', 'Products: sold-out and featured switches, public flags, new list filters, alert level')
+  const sw = await mk('Flow Switch Item', 'FSW-1', 40)
+  check((await patch(`admin/products/${sw.id}/sold-out`, { value: true }, A)).status === 403 && (await patch(`admin/products/${sw.id}/featured`, { value: true }, A)).status === 403, 'the admin (no products.manage by default) cannot use the switches (403)')
+  check((await patch(`admin/products/${sw.id}/sold-out`, {}, D)).status === 422, 'a switch needs a value (422)')
+  const soldOut = await patch(`admin/products/${sw.id}/sold-out`, { value: true }, D)
+  const soldCard = (await store('products?per_page=100')).json.data.find((p) => p.id === sw.id)
+  check(soldOut.status === 200 && soldOut.json.data.is_sold_out === true && soldCard?.is_sold_out === true && soldCard.in_stock === false, 'sold out: the product stays listed, flagged is_sold_out, not in stock', { listed: Boolean(soldCard), flag: soldCard?.is_sold_out, in_stock: soldCard?.in_stock })
+  const soldDetail = await store(`products/${soldOut.json.data.slug}`)
+  check(soldDetail.json?.data?.is_sold_out === true && soldDetail.json.data.variants[0].in_stock === false, 'the product page says sold out too', soldDetail.json?.data?.variants?.[0]?.in_stock)
+  const soldQuote = await quote([[sw.variant, 1]])
+  check(soldQuote.json?.data?.can_checkout === false && soldQuote.json.data.issues.some((i) => i.code === 'sold_out'), 'a sold-out product cannot be quoted for checkout (issue sold_out)', soldQuote.json?.data?.issues)
+  const soldOrder = await placeOrder(orderBody([[sw.variant, 1]], { name: 'Sold Out Try', phone: phoneN(201) }))
+  check(soldOrder.status === 422 && soldOrder.json?.code === 'cart_invalid' && dbOne("SELECT COUNT(*) n FROM customers WHERE name = 'Sold Out Try'").n === 0 && variantRow(sw.variant).stock_qty === 100, 'and cannot be ordered (422), nothing is taken and no customer is created', status(soldOrder).slice(0, 120))
+  await patch(`admin/products/${sw.id}/sold-out`, { value: false }, D)
+  check((await quote([[sw.variant, 1]])).json?.data?.can_checkout === true, 'switched back: it can be ordered again')
+  await patch(`admin/products/${sw.id}/featured`, { value: true }, D)
+  const featured = await store('products?featured=1&per_page=100')
+  check(featured.json?.data?.length >= 1 && featured.json.data.every((p) => p.is_featured === true) && featured.json.data.some((p) => p.id === sw.id), 'GET /store/products?featured=1 lists only the featured products', featured.json?.data?.map((p) => p.id))
+  await patch(`admin/products/${sw.id}/featured`, { value: false }, D)
+  check(!(await store('products?featured=1&per_page=100')).json.data.some((p) => p.id === sw.id), 'switched off: it leaves the featured list')
+  await variantAdjust(sw.variant, 2)
+  const lowList = await get(`admin/products?stock=low&per_page=100`, D)
+  const outList = await get('admin/products?stock=out&per_page=100', D)
+  check(lowList.json?.data?.some((p) => p.id === sw.id && p.low_stock === true) && !outList.json?.data?.some((p) => p.id === sw.id), 'admin list: filter stock=low finds an option at or under its alert level', lowList.json?.data?.length)
+  const lowDash = await dash('', D)
+  check(lowDash.json?.catalog?.low_stock_items?.some((i) => i.product_id === sw.id && i.available === 2), 'the dashboard low-stock widget lists it (2 left)', lowDash.json?.catalog?.low_stock_items?.length)
+  await variantAdjust(sw.variant, 100)
+  check((await get('admin/products?stock=nonsense', D)).status === 422, 'an unknown stock filter is refused (422)')
+
+  section('G26', 'Product video: upload with poster, validation, public API, link, order, limit, permission')
+  const mp4 = (name, kb = 4) => new File([Buffer.concat([Buffer.from('000000186674797069736f6d0000020069736f6d69736f32', 'hex'), Buffer.alloc(kb * 1024)])], name, { type: 'video/mp4' })
+  const webm = (name) => new File([Buffer.concat([Buffer.from('1a45dfa3934282847765626d42878104', 'hex'), Buffer.alloc(4096)])], name, { type: 'video/webm' })
+  const vp = await mk('Flow Video Item', 'FVD-1', 25)
+  const upVideo = (token, files) => call('POST', `admin/products/${vp.id}/videos`, { token, form: formOf({}, files) })
+  check((await upVideo(A, { video: mp4('a.mp4') })).status === 403, 'the admin without products.manage cannot upload a video (403)')
+  const v1 = await upVideo(D, { video: mp4('clip-one.mp4'), poster: file('poster.png', 320, 180, [9, 40, 90]) })
+  check(v1.status === 201 && v1.json.data[0].mime === 'video/mp4' && v1.json.data[0].poster_url, 'POST /admin/products/{id}/videos: an mp4 with a poster picture is accepted', status(v1).slice(0, 160))
+  const fakeVideo = await upVideo(D, { video: new File([Buffer.from('MZ this is not a video at all')], 'virus.mp4', { type: 'video/mp4' }) })
+  const pdfVideo = await upVideo(D, { video: new File([Buffer.from('%PDF-1.4 fake')], 'notes.pdf', { type: 'application/pdf' }) })
+  const noVideo = await upVideo(D, {})
+  check(fakeVideo.status === 422 && pdfVideo.status === 422 && noVideo.status === 422, 'a program renamed to .mp4, a pdf and an empty upload are refused (422): the content is checked', [fakeVideo.status, pdfVideo.status, noVideo.status])
+  const v2 = await upVideo(D, { video: webm('clip-two.webm') })
+  const v3 = await upVideo(D, { video: mp4('clip-three.mp4') })
+  check(v2.status === 201 && v2.json.data[1].mime === 'video/webm' && v3.status === 422, 'a webm is accepted as the second video; a third is refused (at most 2)', [v2.status, v3.status])
+  const pubVid = await store(`products/${(await get(`admin/products/${vp.id}`, D)).json.data.slug}`)
+  const vids = pubVid.json?.data?.videos || []
+  const fileResp = vids[0] ? await fetch(vids[0].url) : { status: 0 }
+  check(vids.length === 2 && vids[0].source === 'upload' && vids[0].poster_url && vids[1].mime === 'video/webm' && fileResp.status === 200, 'the public product page lists videos [{ url, poster_url, mime, source }] and the file is served', { count: vids.length, first: vids[0] && { source: vids[0].source, mime: vids[0].mime }, http: fileResp.status })
+  const order2 = await put(`admin/products/${vp.id}/videos/order`, { ids: [v2.json.data[1].id, v1.json.data[0].id] }, D)
+  check(order2.status === 200 && order2.json.data[0].mime === 'video/webm', 'videos are reordered', order2.json?.data?.map((v) => v.mime))
+  const del1 = await del(`admin/products/${vp.id}/videos/${v2.json.data[1].id}`, D)
+  check(del1.status === 200 && del1.json.data.length === 1 && dbOne("SELECT COUNT(*) n FROM media WHERE model_type LIKE '%Product' AND collection_name = 'video'").n === 1, 'a video is deleted (the file row goes too)', del1.json?.data?.length)
+  const link = await put(`admin/products/${vp.id}`, { video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }, D)
+  const embedded = (await store(`products/${link.json?.data?.slug}`)).json?.data?.videos || []
+  check(link.status === 200 && embedded.length === 2 && embedded[1].source === 'embed' && embedded[1].url === 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', 'a YouTube link becomes an embed entry after the uploads', embedded.map((v) => v.source))
+  check([await put(`admin/products/${vp.id}`, { video_url: 'http://insecure.test/v.mp4' }, D), await put(`admin/products/${vp.id}`, { video_url: 'https://example.com/page' }, D), await put(`admin/products/${vp.id}`, { video_url: 'javascript:alert(1)' }, D)].every((r) => r.status === 422), 'a link that is not https YouTube / Vimeo / .mp4 / .webm is refused (422)')
+  await put(`admin/products/${vp.id}`, { video_url: null }, D)
+
+  section('G27', 'Wholesale requests: public form (validation, honeypot, customer by phone, rate limits), admin screen, CSV, permissions')
+  const wsBody = (n, extra = {}) => ({ name: `Bulk Buyer ${n}`, phone: phoneN(300 + n), product_name: 'Cardboard boxes', quantity: 500, ...extra })
+  const ws = (body) => storePost('wholesale-requests', body)
+  const ws1 = await ws(wsBody(1, { email: 'Bulk1@Example.test', business_name: 'ACME Retail', message: 'Weekly delivery please', product_id: sw.id, variant_id: sw.variant, product_name: undefined }))
+  check(ws1.status === 201 && /^WS-\d{4}-\d{6}$/.test(ws1.json?.data?.reference || '') && Object.keys(ws1.json.data).length === 1, 'POST /store/wholesale-requests answers only the reference (WS-YYYY-000001)', ws1.json)
+  const wsRow = dbOne(`SELECT product_name, status, email, customer_id FROM wholesale_requests WHERE reference = '${ws1.json.data.reference}'`)
+  check(wsRow.status === 'new' && wsRow.product_name.includes('Flow Switch Item') && wsRow.email === 'bulk1@example.test' && wsRow.customer_id > 0, 'the request keeps a snapshot of the product name, a lower-cased e-mail and the customer link', wsRow)
+  const ws1b = await ws(wsBody(1, { name: 'Bulk Buyer One Again' }))
+  check(ws1b.status === 201 && dbOne(`SELECT COUNT(*) n FROM customers WHERE phone = '${phoneN(301).replace(/ /g, '')}'`).n === 1, 'a second request with the same phone finds the same customer record (no duplicate)')
+  const badWs = await Promise.all([ws(wsBody(2, { name: '' })), ws(wsBody(2, { phone: 'abc' })), ws(wsBody(2, { quantity: 0 })), ws(wsBody(2, { product_name: undefined })), ws(wsBody(2, { email: 'nope' }))])
+  check(badWs.every((r) => r.status === 422), 'missing name, bad phone, quantity 0, no product and a bad e-mail are all refused (422)', badWs.map((r) => r.status))
+  const wsHoney = await ws(wsBody(3, { website: 'http://spam.test' }))
+  check(wsHoney.status === 422 && wsHoney.json?.code === 'rejected' && dbOne("SELECT COUNT(*) n FROM wholesale_requests WHERE name = 'Bulk Buyer 3'").n === 0, 'the honeypot field refuses a bot and saves nothing', status(wsHoney).slice(0, 100))
+  const samePhone = []
+  for (let i = 0; i < 6; i++) samePhone.push((await ws(wsBody(4, { name: 'Same Phone' }))).status)
+  check(samePhone.slice(0, 5).every((s) => s === 201) && samePhone[5] === 429, 'five requests an hour per phone number: the sixth is 429', samePhone)
+  // admin screen
+  const wl = await get('admin/wholesale?per_page=100', A)
+  check(wl.status === 200 && wl.json.data.length >= 5 && wl.json.counts.new >= 5 && wl.json.data[0].id > wl.json.data.at(-1).id, 'admin: the list is newest first and has per-status counts for the tabs', wl.json?.counts)
+  const wsId = wl.json.data.find((r) => r.reference === ws1.json.data.reference).id
+  const wsUp = await patch(`admin/wholesale/${wsId}`, { status: 'quoted', admin_note: 'Quoted 4.20 each' }, A)
+  check(wsUp.status === 200 && wsUp.json.data.status === 'quoted' && dbOne(`SELECT handled_by, handled_at FROM wholesale_requests WHERE id = ${wsId}`).handled_by > 0, 'admin: status and a note are saved with who and when', wsUp.json?.data)
+  check((await patch(`admin/wholesale/${wsId}`, { status: 'weird' }, A)).status === 422, 'an unknown status is refused (422)')
+  const filtered = await get('admin/wholesale?status=quoted&search=ACME', A)
+  check(filtered.json?.data?.length === 1 && filtered.json.data[0].id === wsId, 'tabs and search: status=quoted + search=ACME finds it', filtered.json?.data?.length)
+  const wsCsv = await call('GET', 'admin/wholesale/export?status=quoted', { token: A })
+  check(wsCsv.status === 200 && wsCsv.headers.get('content-type').includes('text/csv') && wsCsv.text.includes(ws1.json.data.reference) && wsCsv.text.split(/\r?\n/).filter(Boolean).length === 2, 'CSV export follows the filters', wsCsv.text.split(/\r?\n/)[0].slice(0, 80))
+  check(dbOne("SELECT COUNT(*) n FROM audit_logs WHERE action IN ('wholesale.updated', 'wholesale.exported')").n >= 2, 'status changes and the export are in the audit log')
+  const devWs = await Promise.all([get('admin/wholesale', D), get('admin/wholesale/new-count', D), get(`admin/wholesale/${wsId}`, D), patch(`admin/wholesale/${wsId}`, { status: 'closed' }, D), get('admin/wholesale/export', D)])
+  check(devWs.every((r) => r.status === 403), 'the developer is blocked from wholesale by default (403 on list, count, detail, update, export)', devWs.map((r) => r.status))
+  await put('admin/access-control/developer', { permissions: ['wholesale.view'] }, D)
+  const devWs2 = await Promise.all([get('admin/wholesale', D), patch(`admin/wholesale/${wsId}`, { status: 'closed' }, D)])
+  check(devWs2[0].status === 200 && devWs2[1].status === 403, 'switched on for the developer: wholesale.view lists, but changing needs wholesale.manage (403)', devWs2.map((r) => r.status))
+  await put('admin/access-control/developer', { permissions: [] }, D)
+  check((await get('admin/wholesale', D)).status === 403 && (await put('admin/access-control/developer', { permissions: ['orders.export'] }, D)).status === 422, 'switched off again; orders.export can never be given to the developer (422)')
+
+  section('G28', 'Order e-mails: queued, sent by the queue worker (log mailer), switches, owner alert, test e-mail, a broken mail server never fails an order')
+  const mailItem = await mk('Flow Mail Item', 'FML-1', 30)
+  const mailOrder = (n, extra = {}) => placeOrder(orderBody([[mailItem.variant, 1]], { name: `Mail Buyer ${n}`, phone: phoneN(400 + n), email: `buyer${n}@example.test` }, extra))
+  const idOfNo = (no) => dbOne(`SELECT id FROM orders WHERE order_number = '${no}'`).id
+  worker()                                                                    // start from an empty queue
+  const baseJobs = jobsLike('SendQueuedMailable')
+  const off = await mailOrder(0)
+  check(off.status === 201 && jobsLike('SendQueuedMailable') === baseJobs, 'e-mails are off by default (mail_enabled): placing an order queues no mail', status(off).slice(0, 80))
+  const setMail = await put('admin/settings', { mail_enabled: true, mail_from_name: 'Flow Shop', notify_admin_email: 'owner@flow.test', storefront_track_url: 'https://shop.flow.test/track', mail_on_placed: true, mail_on_confirmed: true, mail_on_shipped: true, mail_on_delivered: true, mail_on_cancelled: true, mail_on_payment_proof_rejected: true }, A)
+  check(setMail.status === 200, 'the admin (settings.notifications is a default) switches e-mails on in the Notifications tab', status(setMail).slice(0, 100))
+  check((await put('admin/settings', { notify_admin_email: 'not-an-address' }, A)).status === 422 && (await put('admin/settings', { storefront_track_url: 'javascript:alert(1)' }, A)).status === 422, 'a bad owner address and a bad tracking link are refused (422)')
+  let pos = logPos()
+  const m1 = await mailOrder(1)
+  const no1 = m1.json?.data?.order_number
+  const queuedAfter = jobsLike('SendQueuedMailable') - baseJobs
+  check(m1.status === 201 && queuedAfter === 2 && !logSince(pos).includes('buyer1@example.test'), 'placing an order only QUEUES two mails (the customer\'s and the owner alert): nothing is sent while the customer waits', { queued: queuedAfter })
+  check(failedJobs() === 0, 'the queue starts without failed jobs', failedJobs())
+  worker()
+  let mail = qp(logSince(pos))
+  check(jobsLike('SendQueuedMailable') === 0 && mail.includes(`Subject: We received your order - ${no1}`) && mail.includes('To: buyer1@example.test') && mail.includes('From: Flow Shop'), 'the queue worker sends them: the customer e-mail has the subject, the receiver and the sender name from the settings', { jobs: jobsLike('SendQueuedMailable') })
+  check(mail.includes(`Subject: New order - ${no1}`) && mail.includes('To: owner@flow.test'), 'the store owner address gets the "new order" alert')
+  check(mail.includes(`https://shop.flow.test/track?order=${no1}`) && mail.includes('Flow Mail Item') && mail.includes('Cash on delivery') && !/<img|<script|tracking pixel/i.test(mail), 'the e-mail has the order number, the item, the payment method and the tracking link, and no image or script', { link: mail.includes('shop.flow.test/track') })
+  const id1 = idOfNo(no1)
+  pos = logPos()
+  for (const [st, body] of [['confirmed', {}], ['packed', {}], ['shipped', { courier: 'Flow Courier', awb_number: 'AWB-FLOW-9', tracking_url: 'https://courier.flow.test/AWB-FLOW-9' }], ['delivered', {}]]) await post(`admin/orders/${id1}/status`, { status: st, ...body }, A)
+  worker()
+  mail = qp(logSince(pos))
+  check(mail.includes(`Subject: Your order is confirmed - ${no1}`) && mail.includes(`Subject: Your order has shipped - ${no1}`) && mail.includes(`Subject: Your order was delivered - ${no1}`) && !mail.includes('Subject: Your order is packed'), 'confirmed, shipped and delivered each send their own e-mail (packed sends none)')
+  check(mail.includes('AWB-FLOW-9') && mail.includes('Flow Courier') && mail.includes('https://courier.flow.test/AWB-FLOW-9'), 'the shipped e-mail carries the courier and the tracking number')
+  const m2 = await mailOrder(2)
+  const m3 = await mailOrder(3)
+  pos = logPos()
+  await post(`admin/orders/${idOfNo(m2.json.data.order_number)}/status`, { status: 'cancelled', reason: 'Flow cancel reason' }, A)
+  await post(`admin/orders/${idOfNo(m3.json.data.order_number)}/status`, { status: 'rejected', reason: 'Flow reject reason' }, A)
+  worker()
+  mail = qp(logSince(pos))
+  check(mail.includes('Flow cancel reason') && mail.includes('Flow reject reason') && mail.includes('Your order was cancelled') && mail.includes('Your order could not be accepted'), 'cancelled and rejected orders send their e-mail with the reason')
+  // switches
+  await put('admin/settings', { mail_on_delivered: false }, A)
+  const m4 = await mailOrder(4)
+  const id4 = idOfNo(m4.json.data.order_number)
+  worker()
+  pos = logPos()
+  for (const st of ['confirmed', 'packed']) await post(`admin/orders/${id4}/status`, { status: st }, A)
+  await post(`admin/orders/${id4}/status`, { status: 'shipped', courier: 'C', awb_number: 'A1' }, A)
+  await post(`admin/orders/${id4}/status`, { status: 'delivered' }, A)
+  worker()
+  mail = qp(logSince(pos))
+  check(mail.includes('Your order has shipped') && !mail.includes('Your order was delivered'), 'an event switched off in the Notifications tab sends nothing (mail_on_delivered)')
+  await put('admin/settings', { mail_on_delivered: true }, A)
+  const noEmail = await placeOrder(orderBody([[mailItem.variant, 1]], { name: 'No Email', phone: phoneN(410) }))
+  const queuedNoEmail = jobsLike('SendQueuedMailable')
+  check(noEmail.status === 201 && queuedNoEmail === 1, 'an order without an e-mail address queues only the owner alert (1 job)', queuedNoEmail)
+  worker()
+  // test e-mail
+  pos = logPos()
+  const testMail = await post('admin/notifications/test-email', { to: 'tester@example.test' }, A)
+  mail = qp(logSince(pos))
+  check(testMail.status === 200 && mail.includes('To: tester@example.test') && mail.includes('Subject: Test e-mail from'), 'the "send test e-mail" button sends at once (not queued) and says where', testMail.json?.message)
+  check((await post('admin/notifications/test-email', { to: 'nope' }, A)).status === 422 && (await post('admin/notifications/test-email', {}, A)).status === 200, 'a bad address is refused (422); no address = the owner address')
+  worker()
+  // a broken mail server never fails the order; the failure shows as a count in the Notifications tab
+  const failBefore = failedJobs()
+  const m5 = await mailOrder(5)
+  check(m5.status === 201, 'the order is placed even though the mail server is about to fail', status(m5).slice(0, 80))
+  const wk = worker({ MAIL_MAILER: 'smtp', MAIL_HOST: '127.0.0.1', MAIL_PORT: '1' })
+  const stFailed = await get('admin/notifications/status', D)
+  check(failedJobs() - failBefore >= 1 && stFailed.status === 200 && stFailed.json.failed_jobs === failedJobs() && !JSON.stringify(stFailed.json).includes(m5.json.data.order_number), 'the mails failed in the queue (a count, never the content, in Settings > Notifications) while the order stayed placed', { failed: failedJobs(), shown: stFailed.json?.failed_jobs })
+  check(dbOne(`SELECT status FROM orders WHERE order_number = '${m5.json.data.order_number}'`).status === 'pending', 'the order is untouched (pending)')
+  execFileSync('php', ['artisan', 'queue:flush'], { cwd: ROOT, stdio: 'ignore' })
+  check(failedJobs() === 0 && wk !== null, 'failed jobs are cleared with php artisan queue:flush')
+  check((await get('admin/notifications/status', D)).status === 200 && (await get('admin/notifications/status', A)).status === 200, 'both accounts see the queue status (Notifications is a settings tab for both)')
+  await put('admin/settings', { mail_enabled: false }, A)
+
+  section('G29', 'Admin push: VAPID keys, subscriptions, queued push jobs with the right permission, the developer is never an order recipient')
+  const ecdh = crypto.createECDH('prime256v1')
+  ecdh.generateKeys()
+  const subscription = (endpoint) => ({ endpoint, keys: { p256dh: ecdh.getPublicKey().toString('base64url'), auth: crypto.randomBytes(16).toString('base64url') } })
+  const vapidOut = execFileSync('php', ['artisan', 'shop:vapid'], { cwd: ROOT, encoding: 'utf8' })
+  check(/VAPID_PUBLIC_KEY=[\w-]{80,}/.test(vapidOut) && /VAPID_PRIVATE_KEY=[\w-]{40,}/.test(vapidOut) && vapidOut.includes('VAPID_SUBJECT='), 'php artisan shop:vapid prints a key pair for .env')
+  check(VAPID_READY, 'the servers and this script were started with VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT (same values)', VAPID_READY)
+  const pst0 = await get('admin/push/status', A)
+  check(pst0.status === 200 && pst0.json.configured === true && pst0.json.enabled === false && typeof pst0.json.public_key === 'string' && !JSON.stringify(pst0.json).includes(process.env.VAPID_PRIVATE_KEY || 'x-none'), 'push status: configured on the server, switched off in the settings, the private key is never sent', { ...pst0.json, public_key: '…' })
+  check((await get('admin/push/status', D)).status === 403 && (await post('admin/push/subscribe', subscription('https://push.invalid/dev'), D)).status === 403, 'the developer cannot subscribe: no orders.view and no wholesale.view (403)')
+  check((await post('admin/push/subscribe', { endpoint: 'http://insecure.test/x', keys: { p256dh: 'a', auth: 'b' } }, A)).status === 422, 'an http endpoint is refused (422)')
+  const pushNo = (await mk('Flow Push Item', 'FPU-1', 20))
+  worker()
+  const jobsBefore = jobsLike('SendPushNotification')
+  await placeOrder(orderBody([[pushNo.variant, 1]], { name: 'Push Off', phone: phoneN(420) }))
+  check(jobsLike('SendPushNotification') === jobsBefore, 'push_enabled is off by default: no push job is queued')
+  await put('admin/settings', { push_enabled: true }, A)
+  const subA = await post('admin/push/subscribe', subscription('https://push.invalid/flow-admin'), A)
+  check(subA.status === 201 && dbOne('SELECT COUNT(*) n FROM push_subscriptions').n === 1, 'the admin subscribes this browser (POST /admin/push/subscribe)', status(subA).slice(0, 80))
+  check((await get(`admin/push/status?endpoint=${encodeURIComponent('https://push.invalid/flow-admin')}`, A)).json?.subscribed === true, 'status says this browser is subscribed')
+  const pushOrder = await placeOrder(orderBody([[pushNo.variant, 1]], { name: 'Push On', phone: phoneN(421) }))
+  const orderJobs = jobsLike('SendPushNotification')
+  const orderJobPayload = db("SELECT payload FROM jobs WHERE payload LIKE '%SendPushNotification%' ORDER BY id DESC LIMIT 1")[0]?.payload || ''
+  check(pushOrder.status === 201 && orderJobs === 1 && orderJobPayload.includes('orders.view') && orderJobPayload.includes(pushOrder.json.data.order_number), 'a new order queues ONE push job for admins with orders.view (title, order number)', { jobs: orderJobs })
+  const pushFailBefore = failedJobs()
+  worker()
+  check(jobsLike('SendPushNotification') === 0 && failedJobs() === pushFailBefore && dbOne('SELECT COUNT(*) n FROM push_subscriptions').n === 1, 'the worker handles it: an unreachable push service does not fail the job and does not delete the subscription (only 404 / 410 does)', { failed: failedJobs() })
+  await put('admin/access-control/developer', { permissions: ['wholesale.view'] }, D)
+  const subDev = await post('admin/push/subscribe', subscription('https://push.invalid/flow-dev'), D)
+  check(subDev.status === 201, 'the developer can subscribe once wholesale.view is switched on for them', status(subDev).slice(0, 80))
+  await placeOrder(orderBody([[pushNo.variant, 1]], { name: 'Push Two', phone: phoneN(422) }))
+  check(jobsLike('orders.view') >= 1 && jobsLike('wholesale.view') === 0, 'an order push job is addressed to orders.view only: the developer account can never receive it')
+  worker()
+  await ws(wsBody(60))
+  const wsJob = db("SELECT payload FROM jobs WHERE payload LIKE '%SendPushNotification%' ORDER BY id DESC LIMIT 1")[0]?.payload || ''
+  check(wsJob.includes('wholesale.view') && wsJob.includes('New wholesale request'), 'a wholesale request queues a push job for wholesale.view (the developer with that switch, and the admin)')
+  worker()
+  const unsub = await post('admin/push/unsubscribe', { endpoint: 'https://push.invalid/flow-admin' }, A)
+  const unsubOther = await post('admin/push/unsubscribe', { endpoint: 'https://push.invalid/flow-dev' }, A)
+  check(unsub.status === 200 && unsubOther.status === 200 && dbOne("SELECT COUNT(*) n FROM push_subscriptions WHERE endpoint = 'https://push.invalid/flow-dev'").n === 1 && dbOne("SELECT COUNT(*) n FROM push_subscriptions WHERE endpoint = 'https://push.invalid/flow-admin'").n === 0, 'unsubscribe removes only the caller\'s own browser')
+  await post('admin/push/unsubscribe', { endpoint: 'https://push.invalid/flow-dev' }, D)
+  await put('admin/access-control/developer', { permissions: [] }, D)
+  await put('admin/settings', { push_enabled: false }, A)
+  check(fs.existsSync(path.join(ROOT, 'public', 'admin-sw.js')) && (await fetch(`${BASE}/admin-sw.js`)).status === 200, 'the service worker public/admin-sw.js is served at /admin-sw.js')
+
+  section('G30', 'Exports and abandoned carts: orders CSV (filters, permission, injection), abandoned carts list and CSV')
+  const exp = await call('GET', 'admin/orders/export?status=delivered', { token: A })
+  const expRows = exp.text.replace(/^﻿/, '').split(/\r?\n/).filter(Boolean)
+  check(exp.status === 200 && exp.headers.get('content-type').includes('text/csv') && expRows[0].startsWith('"Order number",Date,Customer,Phone,Status') && expRows.length - 1 === dbOne("SELECT COUNT(*) n FROM orders WHERE status = 'delivered'").n, 'GET /admin/orders/export respects the status filter (one row per delivered order, the database agrees)', { rows: expRows.length - 1 })
+  const expAll = await call('GET', 'admin/orders/export', { token: A })
+  check(expAll.text.split(/\r?\n/).filter(Boolean).length - 1 === dbOne('SELECT COUNT(*) n FROM orders').n && dbOne("SELECT COUNT(*) n FROM audit_logs WHERE action = 'orders.exported'").n >= 2, 'without filters it has every order, and each download is in the audit log')
+  const injected = await placeOrder(orderBody([[mailItem.variant, 1]], { name: '=HYPERLINK("http://evil.test","x")', phone: phoneN(430) }))
+  const expInj = await call('GET', 'admin/orders/export?search=' + encodeURIComponent(injected.json.data.order_number), { token: A })
+  check(expInj.text.includes("\"'=HYPERLINK") && !/,=HYPERLINK|"=HYPERLINK/.test(expInj.text), 'a customer name starting with = is made harmless in the CSV (no spreadsheet formula)')
+  check((await call('GET', 'admin/orders/export', { token: D })).status === 403, 'the developer cannot export orders (403)')
+  await adminSubs(ADMIN_DEFAULTS.filter((p) => p !== 'orders.export'))
+  check((await call('GET', 'admin/orders/export', { token: A })).status === 403 && (await get('admin/orders', A)).status === 200, 'an admin without orders.export sees the list but cannot download it (403)')
+  await adminSubs(ADMIN_DEFAULTS)
+  // abandoned carts
+  const cartTok = (await storeCall('GET', 'cart')).json.data.token
+  const cartHdr = { 'X-Cart-Token': cartTok }
+  await storeCall('POST', 'cart/items', { headers: cartHdr, body: { variant_id: mailItem.variant, qty: 3 } })
+  await storeCall('PUT', 'cart/contact', { headers: cartHdr, body: { name: 'Left Behind', phone: phoneN(440), email: 'left@example.test' } })
+  const fresh = await get('admin/customers/abandoned-carts', A)
+  check(fresh.status === 200 && !fresh.json.data.some((c) => c.name === 'Left Behind'), 'a cart touched a moment ago is not abandoned yet (2 hours without activity)')
+  artisan(`App\\Domain\\Cart\\Models\\Cart::where('token', '${cartTok}')->update(['last_activity_at' => now()->subHours(3)]);`)
+  const aband = await get('admin/customers/abandoned-carts', A)
+  const row = aband.json?.data?.find((c) => c.name === 'Left Behind')
+  check(row && row.items === 3 && row.phone === phoneN(440).replace(/ /g, '') && row.email === 'left@example.test' && row.value > 0 && !JSON.stringify(aband.json).includes(cartTok), 'after 2 hours it is listed: name, phone, e-mail, items, value, last activity - and never the cart token', row)
+  const abCsv = await call('GET', 'admin/customers/abandoned-carts/export', { token: A })
+  check(abCsv.status === 200 && abCsv.text.includes('Left Behind') && !abCsv.text.includes(cartTok) && dbOne("SELECT COUNT(*) n FROM audit_logs WHERE action = 'customers.abandoned_carts_exported'").n === 1, 'the abandoned carts CSV has the row, no token, and is audited')
+  check((await get('admin/customers/abandoned-carts', D)).status === 403 && (await get('admin/customers/abandoned-carts/export', D)).status === 403, 'the developer is blocked from abandoned carts (customers.view is off by default)')
+  const placed = await placeOrder({ customer: { name: 'Left Behind', phone: phoneN(440), email: 'left@example.test' }, address: ADDRESS, cart_token: cartTok })
+  check(placed.status === 201 && !(await get('admin/customers/abandoned-carts', A)).json.data.some((c) => c.name === 'Left Behind'), 'once the cart becomes an order it is no longer abandoned')
+
+  section('G31', 'FULL RUN: categories and products, delivery zones, bank transfer, discount and coupon, persistent cart, COD and bank orders with proof, verify, confirm, pack, ship, deliver, reject, cancel, tracking, wholesale, e-mail, queued push')
+  const RUN = Date.now().toString().slice(-6)
+  // 1. catalogue made by the developer
+  const gCat = await post('admin/categories', { name: `Full Run Garden ${RUN}`, is_top: true }, D)
+  const gSub = await post(`admin/categories/${idOf(gCat)}/sub-categories`, { name: `Tools ${RUN}` }, D)
+  const gCat2 = await post('admin/categories', { name: `Full Run Kitchen ${RUN}` }, D)
+  check(gCat.status === 201 && gSub.status === 201 && gCat2.status === 201, 'create two categories and a sub-category', [gCat.status, gSub.status, gCat2.status])
+  const mkIn = async (name, sku, price, category, extra = {}) => {
+    const r = await post('admin/products', { category_id: category, name, sku, status: 'active', variants: [{ name, sku: `${sku}-V`, mrp: price + 10, selling_price: price, stock: 20, low_stock_threshold: 3, is_default: true, price_tiers: [{ min_qty: 5, price: price - 2 }] }], ...extra }, D)
+    const full = await get(`admin/products/${idOf(r)}`, D)
+    return { id: idOf(r), variant: full.json?.data?.variants?.[0]?.id, slug: full.json?.data?.slug, status: r.status }
+  }
+  const pRake = await mkIn(`Full Run Rake ${RUN}`, `FR-RAKE-${RUN}`, 40, idOf(gCat), { sub_category_id: idOf(gSub) })
+  const pSpade = await mkIn(`Full Run Spade ${RUN}`, `FR-SPADE-${RUN}`, 60, idOf(gCat))
+  const pPan = await mkIn(`Full Run Pan ${RUN}`, `FR-PAN-${RUN}`, 25, idOf(gCat2))
+  check([pRake, pSpade, pPan].every((p) => p.status === 201 && p.variant), 'create three products with stock and a bulk price', [pRake.status, pSpade.status, pPan.status])
+  check((await store(`products/${pRake.slug}`)).json?.data?.sub_category?.name === `Tools ${RUN}`, 'the public product page shows the sub-category')
+  // 2. delivery zones, 3. bank transfer
+  await setSettings({ delivery_method: 'zones', delivery_unmatched: 'block', min_order_amount: 0, cod_max_amount: 0, tax_rate: 0 })
+  const zLahore = await post('admin/delivery-zones', { name: `FR Lahore ${RUN}`, match_type: 'city', match_values: ['Lahore'], fee: 8, free_above: 500, eta_text: 'Tomorrow' }, A)
+  const zKhi = await post('admin/delivery-zones', { name: `FR Karachi ${RUN}`, match_type: 'city', match_values: ['Karachi'], fee: 15 }, A)
+  check(zLahore.status === 201 && zKhi.status === 201, 'set two delivery zones (Lahore 8, Karachi 15)', [zLahore.status, zKhi.status])
+  const frBankOn = await setSettings({ pay_bank_enabled: true, pay_bank_instructions: 'Full run: pay and upload the screenshot.', pay_bank_accounts: [{ bank: 'Full Run Bank', title: 'Full Run Shop', number: '1234567890', iban: 'PK00FULL000000001234', active: true }] })
+  check(frBankOn.status === 200, 'enable bank transfer with one account', status(frBankOn).slice(0, 100))
+  // 4. discount and coupon
+  const gDisc = await post('admin/discounts', { name: `FR Garden ${RUN}`, type: 'percent', value: 10, scope: 'categories', target_ids: [idOf(gCat)] }, A)
+  const gCoupon = await post('admin/coupons', { code: `FULL${RUN}`, name: 'Full run coupon', type: 'fixed', value: 5, scope: 'store', usage_limit: 5 }, A)
+  check(gDisc.status === 201 && gCoupon.status === 201, 'create a 10% discount on the garden category and a coupon FULL' + RUN + ' (5 off)', [gDisc.status, gCoupon.status])
+  // 5. a persistent cart
+  const tokenCart = (await storeCall('GET', 'cart')).json.data.token
+  const ch = { 'X-Cart-Token': tokenCart }
+  await storeCall('POST', 'cart/items', { headers: ch, body: { variant_id: pRake.variant, qty: 2 } })
+  await storeCall('POST', 'cart/items', { headers: ch, body: { variant_id: pPan.variant, qty: 1 } })
+  await storeCall('PUT', 'cart/contact', { headers: ch, body: { name: 'Full Run Cart', phone: phoneN(500), email: 'fullrun@example.test' } })
+  const withCoupon = await storeCall('PUT', 'cart/coupon', { headers: ch, body: { code: `full${RUN}` } })
+  const cartQuote = await storePost('checkout/quote', { cart_token: tokenCart, address: { city: 'Lahore' } })
+  const cs = cartQuote.json?.data?.summary
+  check(withCoupon.status === 200 && cartQuote.status === 200 && cs.coupon_code === `FULL${RUN}` && cs.delivery_fee === 8 && cs.discount_total > 0, 'fill a persistent cart: contact, items, coupon; the quote has the garden discount, the coupon and the Lahore fee 8', { discount: cs?.discount_total, coupon: cs?.coupon_discount, fee: cs?.delivery_fee, total: cs?.grand_total })
+  const cartTotal = cs.grand_total
+  const needAddress = await storePost('checkout/quote', { cart_token: tokenCart })
+  check(needAddress.json?.data?.summary?.delivery_needs_address === true, 'without an address a zone store cannot say the delivery fee (delivery_needs_address)')
+  // 6. COD order from the cart; bank transfer order with proof
+  const cod = await placeOrder({ customer: { name: 'Full Run Cart', phone: phoneN(500), email: 'fullrun@example.test' }, address: { ...ADDRESS, city: 'Lahore' }, cart_token: tokenCart, expected_total: cartTotal })
+  const codNo = cod.json?.data?.order_number
+  check(cod.status === 201 && codNo && cod.json.data.payment_method === 'cod' && cod.json.data.totals.grand_total === cartTotal && cod.json.data.totals.coupon_code === `FULL${RUN}`, 'place a COD order from the cart: the total is the quoted one, the coupon is in the order', { no: codNo, total: cod.json?.data?.totals?.grand_total })
+  check((await storeCall('GET', 'cart', { headers: ch })).json.data.items.length === 0 && dbOne(`SELECT used_count FROM coupons WHERE code = 'FULL${RUN}'`).used_count === 1, 'the cart is emptied by the order and the coupon use is counted (1)')
+  const bank = await placeOrder(orderBody([[pSpade.variant, 2]], { name: 'Full Run Bank', phone: phoneN(501), email: 'bank@example.test' }, { payment_method: 'bank_transfer', address: { ...ADDRESS, city: 'Karachi' } }))
+  const bankNo = bank.json?.data?.order_number
+  check(bank.status === 201 && bank.json.data.payment.status === 'awaiting_payment' && bank.json.data.payment.accounts[0].bank === 'Full Run Bank' && bank.json.data.totals.delivery_fee === 15, 'place a bank transfer order to Karachi: awaiting payment, the account and the Karachi fee 15', { fee: bank.json?.data?.totals?.delivery_fee, pay: bank.json?.data?.payment?.status })
+  const frOutside = await placeOrder({ ...orderBody([[pPan.variant, 1]], { name: 'Nowhere', phone: phoneN(502) }), address: { ...ADDRESS, city: 'Atlantis' } })
+  check(frOutside.status === 422 && frOutside.json?.code === 'delivery_not_available', 'an address frOutside every zone is refused (422 delivery_not_available)')
+  const codId = idOfNo(codNo)
+  const bankId = idOfNo(bankNo)
+  const frBlocked = await post(`admin/orders/${bankId}/status`, { status: 'confirmed' }, A)
+  check(frBlocked.status === 422 && frBlocked.json?.code === 'payment_not_verified', 'the bank order cannot be confirmed before the payment is verified (422)')
+  const proof = await storeCall('POST', `orders/${bankNo}/payment-proof?phone=${encodeURIComponent(phoneN(501))}`, { form: formOf({ reference: 'TX-FULLRUN' }, { proof: file('proof.png', 320, 320, [20, 120, 60]) }) })
+  check(proof.status === 200 && proof.json.data.payment.proof_status === 'submitted', 'the customer uploads the payment screenshot (private file, status submitted)', status(proof).slice(0, 100))
+  const proofFetch = await call('GET', `admin/orders/${bankId}/payment/proof`, { token: A })
+  check(proofFetch.status === 200 && (await get(`admin/orders/${bankId}/payment/proof`, D)).status === 403 && (await fetch(`${BASE}/storage/${dbOne("SELECT file_name FROM media WHERE model_type LIKE '%Payment' LIMIT 1").file_name}`)).status === 404, 'only the admin can see the proof: the developer gets 403 and there is no public URL')
+  const verify = await post(`admin/orders/${bankId}/payment/verify`, {}, A)
+  check(verify.status === 200 && verify.json.data.payment.status === 'paid', 'the admin verifies the payment: the order is paid', verify.json?.data?.payment?.status)
+  // 7. confirm, pack, ship, deliver both
+  const ship = async (id, label) => {
+    const steps = []
+    for (const [st, body] of [['confirmed', {}], ['packed', {}], ['shipped', { courier: 'Full Run Express', awb_number: `FR-${label}-${RUN}` }], ['delivered', {}]]) steps.push((await post(`admin/orders/${id}/status`, { status: st, ...body }, A)).status)
+    return steps
+  }
+  check((await ship(codId, 'COD')).every((s) => s === 200) && (await ship(bankId, 'BANK')).every((s) => s === 200), 'confirm, pack, ship and deliver both orders (every step 200)')
+  const codDone = dbOne(`SELECT status, payment_status FROM orders WHERE id = ${codId}`)
+  check(codDone.status === 'delivered' && codDone.payment_status === 'paid', 'the delivered COD order is marked paid', codDone)
+  // 8. reject one, cancel one
+  const rejO = await placeOrder(orderBody([[pPan.variant, 3]], { name: 'Full Run Reject', phone: phoneN(503), email: 'reject@example.test' }, { address: { ...ADDRESS, city: 'Lahore' } }))
+  const canO = await placeOrder(orderBody([[pRake.variant, 4]], { name: 'Full Run Cancel', phone: phoneN(504), email: 'cancel@example.test' }, { address: { ...ADDRESS, city: 'Lahore' } }))
+  const frStock = { pan: variantRow(pPan.variant).stock_qty, rake: variantRow(pRake.variant).stock_qty }
+  const rejR = await post(`admin/orders/${idOfNo(rejO.json.data.order_number)}/status`, { status: 'rejected', reason: 'Full run: out of delivery hours' }, A)
+  const canR = await post(`admin/orders/${idOfNo(canO.json.data.order_number)}/status`, { status: 'cancelled', reason: 'Full run: customer asked' }, A)
+  check(rejR.status === 200 && canR.status === 200 && variantRow(pPan.variant).stock_qty === frStock.pan + 3 && variantRow(pRake.variant).stock_qty === frStock.rake + 4, 'reject one and cancel one: both return their stock', { pan: [frStock.pan, variantRow(pPan.variant).stock_qty], rake: [frStock.rake, variantRow(pRake.variant).stock_qty] })
+  // 9. track by order number
+  const trackCod = await lookup(codNo, phoneN(500))
+  const trackRej = await lookup(rejO.json.data.order_number, phoneN(503))
+  const trackWrong = await lookup(codNo, phoneN(999))
+  check(trackCod.json?.data?.status === 'delivered' && trackCod.json.data.tracking?.awb_number === `FR-COD-${RUN}` && trackCod.json.data.timeline.length >= 5, 'track the COD order by number + phone: delivered, the courier tracking number, the full timeline', { status: trackCod.json?.data?.status, steps: trackCod.json?.data?.timeline?.length })
+  check(trackRej.json?.data?.status === 'rejected' && trackRej.json.data.reject_reason === 'Full run: out of delivery hours' && trackWrong.status === 404, 'tracking shows the rejection reason; a wrong phone gets the same 404 as an unknown order', { reason: trackRej.json?.data?.reject_reason, wrong: trackWrong.status })
+  // 10. wholesale
+  const fullWs = await ws({ name: 'Full Run Wholesale', phone: phoneN(505), email: 'wholesale@example.test', business_name: 'Full Run Retail', product_id: pRake.id, variant_id: pRake.variant, quantity: 250, message: 'Full run wholesale request' })
+  const fullWsRow = (await get(`admin/wholesale?search=${encodeURIComponent('Full Run Retail')}`, A)).json?.data?.[0]
+  check(fullWs.status === 201 && fullWsRow?.status === 'new' && fullWsRow.quantity === 250 && fullWsRow.product_name.includes('Full Run Rake'), 'submit a wholesale request: the admin sees it as new with the product snapshot', fullWsRow && { ref: fullWsRow.reference, product: fullWsRow.product_name })
+  check((await patch(`admin/wholesale/${fullWsRow.id}`, { status: 'contacted', admin_note: 'Full run: called back' }, A)).status === 200, 'the admin marks it contacted with a note')
+  // 11. e-mail through the log mailer, 12. queued push
+  await put('admin/settings', { mail_enabled: true, notify_admin_email: 'owner@fullrun.test', storefront_track_url: 'https://shop.fullrun.test/track', push_enabled: true }, A)
+  const fullPos = logPos()
+  const subKey = (() => { const e = crypto.createECDH('prime256v1'); e.generateKeys(); return { p256dh: e.getPublicKey().toString('base64url'), auth: crypto.randomBytes(16).toString('base64url') } })()
+  await post('admin/push/subscribe', { endpoint: 'https://push.invalid/full-run', keys: subKey }, A)
+  const mailOrderFull = await placeOrder(orderBody([[pPan.variant, 1]], { name: 'Full Run Mail', phone: phoneN(506), email: 'mail@fullrun.test' }, { address: { ...ADDRESS, city: 'Lahore' } }))
+  const mailNo = mailOrderFull.json?.data?.order_number
+  await post(`admin/orders/${idOfNo(mailNo)}/status`, { status: 'confirmed' }, A)
+  const pushQueued = jobsLike('SendPushNotification')
+  const mailQueued = jobsLike('SendQueuedMailable')
+  check(mailOrderFull.status === 201 && mailQueued === 3 && pushQueued === 1, 'with e-mail and push on, a new order and its confirmation queue 3 mails (customer, owner alert, confirmed) and 1 push job', { mails: mailQueued, push: pushQueued })
+  worker()
+  const fullLog = qp(logSince(fullPos))
+  check(fullLog.includes(`Subject: We received your order - ${mailNo}`) && fullLog.includes(`Subject: New order - ${mailNo}`) && fullLog.includes(`Subject: Your order is confirmed - ${mailNo}`) && fullLog.includes(`https://shop.fullrun.test/track?order=${mailNo}`), 'the log mailer shows: order received, the owner alert, order confirmed, with the tracking link', { jobsLeft: jobsLike('SendQueuedMailable') })
+  check(jobsLike('SendQueuedMailable') + jobsLike('SendPushNotification') === 0 && failedJobs() === 0, 'the worker left an empty queue and no failed job')
+  await post('admin/push/unsubscribe', { endpoint: 'https://push.invalid/full-run' }, A)
+  await put('admin/settings', { mail_enabled: false, push_enabled: false }, A)
+  // consistency of everything above
+  const dFull = await dash('all')
+  const dbRev = dbOne("SELECT COALESCE(SUM(grand_total), 0) r FROM orders WHERE status NOT IN ('cancelled', 'rejected')").r
+  check(money(dFull.json.orders.kpis.revenue) === money(dbRev) && dFull.json.orders.kpis.cancelled_rejected_count >= 2, 'at the end the dashboard revenue still equals the database, and counts the cancelled and rejected orders', { revenue: dFull.json.orders.kpis.revenue, db: dbRev })
+  const couponRow = dbOne(`SELECT used_count FROM coupons WHERE code = 'FULL${RUN}'`)
+  const customerRow = dbOne(`SELECT orders_count FROM customers WHERE phone = '${phoneN(504).replace(/ /g, '')}'`)
+  check(couponRow.used_count === 1 && customerRow.orders_count === 0, 'the coupon is still counted once and the cancelled customer\'s totals are back to 0', { coupon: couponRow, cancelled: customerRow })
+  // clean up what this run changed
+  await setSettings({ delivery_method: 'free_above', delivery_unmatched: 'block', pay_bank_enabled: false, pay_bank_accounts: [], pay_bank_instructions: '', tax_rate: 0 })
+
+  section('G32', 'Wholesale per-IP limit (run last: it uses up this IP\'s hourly allowance)')
+  let ipStop = 0
+  let ipOk = 0
+  for (let i = 0; i < 40 && !ipStop; i++) { const r = await ws(wsBody(100 + i)); if (r.status === 429) ipStop = i + 1; else if (r.status === 201) ipOk++ }
+  check(ipStop > 0 && ipStop <= 31 && ipOk >= 1, 'the per-IP limit (30 an hour on these servers) stops a flood with 429 and a Retry-After', { createdBeforeStop: ipOk, stoppedAtRequest: ipStop })
+  const ipRetry = await ws(wsBody(150))
+  check(ipRetry.status === 429 && Number(ipRetry.headers.get('retry-after')) > 0, 'the refusal says when to try again (Retry-After)', ipRetry.headers.get('retry-after'))
   }
 } catch (e) {
   failures++

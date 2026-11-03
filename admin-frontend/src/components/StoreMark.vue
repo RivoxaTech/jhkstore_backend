@@ -11,7 +11,7 @@ watch(() => site.logoUrl, () => { broken.value = false })
 </script>
 
 <template>
-  <div class="brand-mark" :class="{ 'brand-mark--logo': site.logoUrl && !broken, 'on-dark': onDark }">
+  <div class="store-mark" :class="{ 'store-mark--logo': site.logoUrl && !broken, 'on-dark': onDark }">
     <img v-if="site.logoUrl && !broken" :src="site.logoUrl" :alt="site.name" @error="broken = true" />
     <Store v-else :size="20" />
   </div>

@@ -6,6 +6,8 @@
 //   npm run flow-ui
 //
 // Environment: E2E_BASE (default http://127.0.0.1:8000), E2E_ADMIN_USER / E2E_ADMIN_PASSWORD, E2E_DEV_USER / E2E_DEV_PASSWORD, CHROME_PATH.
+// Phase B screens (UI-G1 to UI-G7): dashboard, badges, wholesale, products and the compact form, exports, Notifications and the push bell, time zone.
+// For UI-G7 start a second server with APP_TIMEZONE=Pacific/Auckland (php artisan serve --port=8004) and set E2E_BASE_TZ=http://127.0.0.1:8004.
 // Checks (ids as in docs/QA_REPORT.md): UI-A2 developer sees no orders, UI-A3 Access Control switches change the admin's screens, UI-B4/B5 a category,
 // a sub-category and a product made in the forms, UI-D12..D14 order screens (note, every status step, shipping validation, cancel with stock return,
 // invoice and packing slip in print view), UI-D15 customers search and CSV export, UI-E16 Settings General and a banner made in the panel.
@@ -110,7 +112,7 @@ try {
 
   // ============================================================ A3: switches change the admin's screens
   await login(a.page, ADMIN)
-  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Customers', 'Discounts', 'Coupons', 'Settings']), 'UI-A3 admin starts with Dashboard, Orders, Customers, Discounts, Coupons, Settings', await nav(a.page))
+  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Customers', 'Wholesale', 'Discounts', 'Coupons', 'Settings']), 'UI-A3 admin starts with Dashboard, Orders, Customers, Wholesale, Discounts, Coupons, Settings', await nav(a.page))
   await goto(a.page, 'products')
   check(a.page.url().endsWith('/forbidden'), 'UI-A3 admin cannot open Products by default')
   await goto(d.page, 'access-control')
@@ -119,7 +121,7 @@ try {
   await tap(d.page, '[data-role="admin"] .card__head button')
   await toast(d.page, /saved|updated/)
   await a.page.reload({ waitUntil: 'networkidle0' })
-  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Products', 'Categories', 'Customers', 'Discounts', 'Coupons', 'Settings']), 'UI-A3 after the developer switches them on: Products and Categories appear in the admin sidebar', await nav(a.page))
+  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Products', 'Categories', 'Customers', 'Wholesale', 'Discounts', 'Coupons', 'Settings']), 'UI-A3 after the developer switches them on: Products and Categories appear in the admin sidebar', await nav(a.page))
   await goto(a.page, 'categories')
   check(await a.page.evaluate(() => [...document.querySelectorAll('button')].some((b) => b.textContent.includes('Add category'))), 'UI-A3 the admin can use the Categories screen (Add category button)')
   await goto(d.page, 'access-control')
@@ -128,7 +130,7 @@ try {
   await tap(d.page, '[data-role="admin"] .card__head button')
   await toast(d.page, /saved|updated/)
   await a.page.reload({ waitUntil: 'networkidle0' })
-  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Customers', 'Discounts', 'Coupons', 'Settings']), 'UI-A3 switched off again: they disappear from the sidebar', await nav(a.page))
+  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Customers', 'Wholesale', 'Discounts', 'Coupons', 'Settings']), 'UI-A3 switched off again: they disappear from the sidebar', await nav(a.page))
   const audits = db("SELECT changes FROM audit_logs WHERE action = 'access.updated' ORDER BY id DESC LIMIT 2")
   check(audits.length === 2 && /products\.manage/.test(audits[0].changes) && /products\.manage/.test(audits[1].changes), 'UI-A3 both switch changes are in the audit log', audits.map((x) => x.changes.slice(0, 90)))
 
@@ -717,6 +719,260 @@ try {
   await goto(a.page, `orders/${couponOrder.id}`)
   await a.page.waitForSelector('[data-coupon-row]', { timeout: 15000 })
   check(await a.page.$eval('[data-coupon-row]', (e, c) => e.innerText.includes(c), CODE) && couponTotals.totals.coupon_discount > 0, 'UI-D1 the totals show the coupon code and its discount', couponTotals.totals.coupon_discount)
+
+
+  // ============================================================ G. Phase B screens
+  const PNG = writePng(path.join(OUT, 'g-poster.png'), 320, 180, [30, 90, 160])
+  const MP4 = path.join(OUT, 'g-clip.mp4')
+  fs.writeFileSync(MP4, Buffer.concat([Buffer.from('000000186674797069736f6d0000020069736f6d69736f32', 'hex'), Buffer.alloc(8192)]))
+  const waitVal = (page, selector, timeout = 15000) => page.waitForSelector(selector, { timeout })
+  const textOf = (page, selector) => page.$eval(selector, (e) => e.innerText.replace(/\s+/g, ' ').trim())
+  const uiPhone = (n) => `+92 348 ${String(2000000 + n).slice(1)}`
+  const gToken = admToken
+
+  // ---- UI-G1 the dashboard: date tabs, coloured KPI cards, SVG chart, top sellers, recent orders; the developer sees catalogue widgets only
+  await goto(a.page, '')
+  await waitVal(a.page, '[data-kpi="revenue"]')
+  const kpiCards = await a.page.$$eval('[data-kpi]', (els) => els.map((e) => e.dataset.kpi))
+  check(['revenue', 'pending-amount', 'orders', 'aov', 'pending', 'void', 'proof'].every((k) => kpiCards.includes(k)), 'UI-G1 the admin dashboard shows the KPI cards (revenue, pending amount, orders, average order, pending, cancelled / rejected, awaiting proof)', kpiCards)
+  const tabsDash = await a.page.$$eval('.dash-tabs [role="tab"]', (els) => els.map((e) => e.innerText.trim()))
+  check(JSON.stringify(tabsDash) === JSON.stringify(['Today', 'Last 7 days', 'Last 30 days', 'This month', 'All time']), 'UI-G1 the date tabs: Today, Last 7 days, Last 30 days, This month, All time', tabsDash)
+  await tap(a.page, '[data-range="all"]')
+  await a.page.waitForFunction(() => location.search.includes('range=all'), { timeout: 10000 })
+  await sleep(700)
+  const apiAll = (await api('GET', 'admin/dashboard?range=all', null, admToken)).json
+  const uiRevenue = await textOf(a.page, '[data-kpi="revenue"] .stat__value')
+  check(uiRevenue.replace(/[^\d.]/g, '') === Number(apiAll.orders.kpis.revenue).toFixed(2).replace(/\.00$/, '').replace(/[^\d.]/g, '') || uiRevenue.replace(/[^\d]/g, '') === String(apiAll.orders.kpis.revenue.toFixed(2)).replace(/[^\d]/g, ''), 'UI-G1 "All time" shows the API revenue on the card', { card: uiRevenue, api: apiAll.orders.kpis.revenue })
+  const bars = await a.page.$$eval('[data-testid="revenue-chart"] rect.bar', (els) => els.length)
+  check(bars === apiAll.orders.series.points.length && bars >= 1 && (await a.page.$('[data-testid="revenue-chart"] polyline') !== null || bars === 1), 'UI-G1 the chart is plain SVG: one bar per day (and an orders line)', { bars, points: apiAll.orders.series.points.length })
+  await a.page.hover('[data-testid="revenue-chart"] rect.bar')
+  check(/from \d+ order/.test(await textOf(a.page, '.chart__readout')), 'UI-G1 hovering a bar shows its revenue and orders', await textOf(a.page, '.chart__readout'))
+  check((await a.page.$('[data-testid="top-sellers"] li')) !== null && (await a.page.$('[data-testid="recent-orders"] tr')) !== null, 'UI-G1 top sellers and recent orders are listed')
+  await tap(a.page, '[data-range="today"]')
+  await a.page.waitForFunction(() => location.search.includes('range=today'), { timeout: 10000 })
+  await sleep(600)
+  check((await api('GET', 'admin/dashboard?range=today', null, admToken)).json.orders.kpis.total_orders === Number(await textOf(a.page, '[data-kpi="orders"] .stat__value')), 'UI-G1 "Today" shows the number of orders placed today (shop time)')
+  await goto(d.page, '')
+  await d.page.waitForSelector('[data-testid="low-stock-widget"], .stats', { timeout: 15000 })
+  check(!(await d.page.$('[data-kpi="revenue"]')) && !(await d.page.$('[data-testid="recent-orders"]')) && !(await d.page.$('[data-testid="revenue-chart"]')) && !(await bodyHas(d.page, /Revenue|Average order|Awaiting payment proof/)), 'UI-G1 the developer dashboard has no revenue, chart or order list: catalogue widgets only')
+  check(!!(await d.page.$('[data-testid="low-stock-widget"]')) && !!(await d.page.$('[data-kpi="low-stock"]')), 'UI-G1 the developer still gets the low-stock widget and card')
+
+  // ---- UI-G2 sidebar badges follow the server every 30 seconds
+  const wsBefore = await api('GET', 'admin/wholesale/new-count', null, admToken)
+  const pcBefore = await api('GET', 'admin/orders/pending-count', null, admToken)
+  await goto(a.page, '')
+  await a.page.waitForFunction((n) => Number(document.querySelector('[data-testid="orders-badge"]')?.textContent || 0) === n, { timeout: 20000 }, pcBefore.json.count)
+  check(true, 'UI-G2 the Orders badge shows pending orders + payment proofs to check', pcBefore.json)
+  const wsPost = await fetch(`${BASE}/api/v1/store/wholesale-requests`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ name: `UI Wholesale ${RUN}`, phone: uiPhone(1), product_name: 'UI cartons', quantity: 40, message: 'From the UI flow' }) })
+  const wsRef = (await wsPost.json()).data?.reference
+  check(wsPost.status === 201 && wsRef, 'UI-G2 a wholesale request arrives through the public form', wsRef)
+  await a.page.waitForFunction((n) => Number(document.querySelector('[data-testid="wholesale-badge"]')?.textContent || 0) === n, { timeout: 50000 }, wsBefore.json.count + 1)
+  check(true, 'UI-G2 within the 30-second poll the Wholesale badge goes up by one (no reload)', { before: wsBefore.json.count })
+
+  // ---- UI-G3 the wholesale screen
+  await tapText(a.page, '.sidebar__nav a', 'Wholesale')
+  await waitVal(a.page, `tr[data-ref="${wsRef}"]`)
+  check(await bodyHas(a.page, new RegExp(`UI Wholesale ${RUN}`)), 'UI-G3 the request is in the list with its name', wsRef)
+  const tabCounts = await a.page.$$eval('[role="tab"]', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()))
+  check(tabCounts[0].startsWith('All') && tabCounts.some((t) => t.startsWith('New')), 'UI-G3 status tabs with counts', tabCounts)
+  await tap(a.page, `tr[data-ref="${wsRef}"]`)
+  await waitVal(a.page, '#wstatus')
+  const wa = await a.page.$eval('[data-testid="whatsapp"]', (el) => el.getAttribute('href'))
+  check(wa.startsWith('https://wa.me/92348') && decodeURIComponent(wa).includes(wsRef), 'UI-G3 the WhatsApp button opens wa.me/<digits> with a message that names the request', wa.slice(0, 90))
+  await a.page.select('#wstatus', 'contacted')
+  await setValue(a.page, '#wnote', 'Called, will send a quote')
+  await tap(a.page, '[data-testid="save-request"]')
+  await toast(a.page, new RegExp(`${wsRef} saved`))
+  const wsDb = db(`SELECT status, admin_note, handled_by FROM wholesale_requests WHERE reference = '${wsRef}'`)[0]
+  check(wsDb.status === 'contacted' && wsDb.admin_note === 'Called, will send a quote' && wsDb.handled_by > 0, 'UI-G3 status and note are saved with who handled it', wsDb)
+  await a.page.waitForFunction((n) => Number(document.querySelector('[data-testid="wholesale-badge"]')?.textContent || 0) === n, { timeout: 50000 }, wsBefore.json.count)
+  check(true, 'UI-G3 and the sidebar badge goes back down after the poll')
+  const exportWs = a.page.waitForResponse((r) => r.url().includes('/admin/wholesale/export') && r.status() === 200, { timeout: 15000 })
+  await tap(a.page, '[data-testid="export-wholesale"]')
+  check(/text\/csv/.test((await exportWs).headers()['content-type']), 'UI-G3 Export CSV downloads the list')
+  await goto(d.page, 'wholesale')
+  check(d.page.url().endsWith('/forbidden'), 'UI-G3 the developer cannot open /admin/wholesale by default')
+
+  // ---- UI-G4 products: dense list, switches, stock filter; the compact form with sections, options table, bulk popover, validation, video
+  const gp = await api('POST', 'admin/products', { category_id: db('SELECT id FROM categories ORDER BY id LIMIT 1')[0].id, name: `UI Switch Item ${RUN}`, sku: `UISW-${RUN}`, status: 'active', variants: [{ name: `UI Switch Item ${RUN}`, sku: `UISW-${RUN}-V`, mrp: 50, selling_price: 40, stock: 2, low_stock_threshold: 5, is_default: true }] }, devToken)
+  const gpId = gp.json?.data?.id
+  await goto(d.page, 'products')
+  await waitVal(d.page, `tr[data-product="${gpId}"]`)
+  const heads = await d.page.$$eval('.prod-table th', (els) => els.map((e) => e.innerText.trim()).filter(Boolean))
+  check(['Product', 'Category', 'Price', 'Stock', 'Status', 'Sold out', 'Featured'].every((h) => heads.some((x) => x.toLowerCase() === h.toLowerCase())), 'UI-G4 the product list is a dense table: image + name, category, price, stock, status, sold-out and featured switches', heads)
+  await tap(d.page, `tr[data-product="${gpId}"] input[data-flag="sold-out"]`)
+  await toast(d.page, /shown as sold out/i)
+  await tap(d.page, `tr[data-product="${gpId}"] input[data-flag="featured"]`)
+  await toast(d.page, /is featured/i)
+  const gpRow = db(`SELECT is_sold_out, is_featured FROM products WHERE id = ${gpId}`)[0]
+  check(gpRow.is_sold_out === 1 && gpRow.is_featured === 1 && (await fetch(`${BASE}/api/v1/store/products?featured=1`).then((r) => r.json())).data.some((p) => p.id === gpId), 'UI-G4 both switches are saved (database and public ?featured=1)', gpRow)
+  await d.page.select('[data-filter="stock"]', 'sold_out')
+  await d.page.waitForFunction((id) => document.querySelectorAll('tr[data-product]').length >= 1 && [...document.querySelectorAll('tr[data-product]')].every((r) => r.querySelector('input[data-flag="sold-out"]').checked) && !!document.querySelector(`tr[data-product="${id}"]`), { timeout: 15000 }, gpId)
+  check(true, 'UI-G4 the stock filter "Marked sold out" shows only sold-out products')
+  await d.page.select('[data-filter="stock"]', 'low')
+  await d.page.waitForFunction((id) => !!document.querySelector(`tr[data-product="${id}"] .stock-pill.is-low`), { timeout: 15000 }, gpId)
+  check(true, 'UI-G4 the stock filter "Running low" shows it with an amber stock pill (2 left, alert at 5)')
+  await api('PATCH', `admin/products/${gpId}/sold-out`, { value: false }, devToken)
+
+  await goto(d.page, `products/${gpId}/edit`)
+  await waitVal(d.page, '[data-testid="options-table"]')
+  const secIds = await d.page.$$eval('.pf-card', (els) => els.map((e) => e.dataset.section))
+  check(JSON.stringify(secIds) === JSON.stringify(['basics', 'options', 'stock', 'images', 'video', 'content', 'seo', 'related']), 'UI-G4 the form has the sections Basics, Options and pricing, Stock, Images, Video, Content, SEO, Related', secIds)
+  check(await d.page.evaluate(() => [...document.querySelectorAll('.pf-card')].every((s) => s.dataset.open === 'true')), 'UI-G4 on a first visit every section is open')
+  await tap(d.page, '[data-section="seo"] .pf-toggle')
+  await tap(d.page, '[data-section="related"] .pf-toggle')
+  await d.page.reload({ waitUntil: 'networkidle0' })
+  await waitVal(d.page, '[data-testid="options-table"]')
+  const openState = await d.page.$$eval('.pf-card', (els) => Object.fromEntries(els.map((e) => [e.dataset.section, e.dataset.open])))
+  check(openState.seo === 'false' && openState.related === 'false' && openState.basics === 'true' && openState.options === 'true', 'UI-G4 a section stays collapsed after a reload (remembered per section)', openState)
+  await tap(d.page, '[data-section="seo"] .pf-toggle')
+  await tap(d.page, '[data-section="related"] .pf-toggle')
+  check(await d.page.evaluate(() => !!document.querySelector('.save-bar') && getComputedStyle(document.querySelector('.save-bar')).position === 'sticky'), 'UI-G4 the save bar is sticky')
+  // the options table: price above MRP shows the message under the cell; a bulk price through the popover
+  await setValue(d.page, '#variants-0-price', '60')
+  await tap(d.page, '[data-testid="save-product"]')
+  await d.page.waitForFunction(() => /cannot be higher than the regular price/i.test(document.querySelector('.opt-table')?.innerText || ''), { timeout: 10000 })
+  check(true, 'UI-G4 an invalid price shows its message in the table cell (inline validation) and nothing is sent')
+  await setValue(d.page, '#variants-0-price', '40')
+  await tap(d.page, '[data-testid="bulk-button"]')
+  await tap(d.page, '[data-testid="add-tier"]')
+  await d.page.waitForSelector('.tier-pop input[placeholder="Qty (2+)"]', { timeout: 5000 })
+  await setValue(d.page, '.tier-pop input[placeholder="Qty (2+)"]', '5')
+  await setValue(d.page, '.tier-pop input[placeholder^="Each"]', '35')
+  await tapText(d.page, '.tier-pop button', 'Done')
+  await setValue(d.page, '#variants-0-stock', '30')
+  await tap(d.page, '[data-testid="save-product"]')
+  await toast(d.page, /product saved/i)
+  const gTier = db(`SELECT t.min_qty, t.price FROM variant_price_tiers t JOIN product_variants v ON v.id = t.variant_id WHERE v.product_id = ${gpId}`)[0]
+  check(gTier && gTier.min_qty === 5 && Number(gTier.price) === 35 && db(`SELECT stock_qty FROM product_variants WHERE product_id = ${gpId}`)[0].stock_qty === 30, 'UI-G4 a bulk price set in the popover (5+ for 35) and the stock (30) are saved', gTier)
+  // video: upload with a poster, progress, listed, deleted; a link
+  await setValue(d.page, '#video_url', 'https://youtu.be/dQw4w9WgXcQ')
+  const videoInput = await d.page.$('[data-testid="video-input"]')
+  await videoInput.uploadFile(MP4)
+  await tap(d.page, '[data-testid="video-upload"]')
+  await toast(d.page, /video added/i)
+  check(db("SELECT COUNT(*) n FROM media WHERE collection_name = 'video'")[0].n >= 1 && await d.page.$eval('[data-testid="video-manager"]', (e) => e.innerText.includes('g-clip.mp4')), 'UI-G4 a video file is uploaded from the form and listed')
+  await tap(d.page, '[data-testid="save-product"]')
+  await toast(d.page, /product saved/i)
+  const pubVideos = (await fetch(`${BASE}/api/v1/store/products/${gp.json.data.slug}`).then((r) => r.json())).data.videos
+  check(pubVideos.length === 2 && pubVideos[0].source === 'upload' && pubVideos[1].url.includes('youtube-nocookie.com/embed/dQw4w9WgXcQ'), 'UI-G4 the public product page has the uploaded video and the YouTube embed', pubVideos.map((v) => v.source))
+  await d.page.$eval('[data-testid="video-manager"] button[aria-label^="Delete"]', (el) => el.click())
+  await d.page.waitForFunction(() => !document.querySelector('[data-testid="video-manager"]')?.innerText.includes('g-clip.mp4'), { timeout: 10000 })
+  check(db("SELECT COUNT(*) n FROM media WHERE collection_name = 'video' AND model_id = " + gpId)[0].n === 0, 'UI-G4 the video is deleted from the form')
+  // create form: nothing saved yet, so the video section asks to save first; sub-category follows the data
+  await goto(d.page, 'products/new')
+  await waitVal(d.page, '[data-section="video"]')
+  check(await bodyHas(d.page, /Save the product first, then add video files/), 'UI-G4 a new product says "save the product first" in the Video section')
+  const subsExist = (await api('GET', 'admin/categories/options', null, devToken)).json.data.some((c) => c.sub_categories.length > 0)
+  check(!!(await d.page.$('[data-field="sub_category"]')) === subsExist, 'UI-G4 the sub-category field shows only when a sub-category exists', { subsExist })
+
+  // ---- UI-G5 orders and customers: CSV export, WhatsApp, abandoned carts
+  await goto(a.page, 'orders')
+  await waitVal(a.page, 'tbody tr')
+  const exportOrders = a.page.waitForResponse((r) => r.url().includes('/admin/orders/export') && r.status() === 200, { timeout: 15000 })
+  await tap(a.page, '[data-testid="export-orders"]')
+  check(/text\/csv/.test((await exportOrders).headers()['content-type']), 'UI-G5 the orders list has Export CSV (orders.export)')
+  const firstOrder = db('SELECT id, customer_phone FROM orders ORDER BY id DESC LIMIT 1')[0]
+  await goto(a.page, `orders/${firstOrder.id}`)
+  await waitVal(a.page, '[data-testid="whatsapp"]')
+  const waOrder = await a.page.$eval('[data-testid="whatsapp"]', (el) => el.getAttribute('href'))
+  check(waOrder.startsWith(`https://wa.me/${firstOrder.customer_phone.replace(/\D/g, '')}`) && /ORD|JHK|ZED/.test(decodeURIComponent(waOrder)), 'UI-G5 the order page has a WhatsApp button with the customer number and the order number in the message', waOrder.slice(0, 100))
+  // an abandoned cart: a cart with a contact, aged by three hours
+  const cartRes = await fetch(`${BASE}/api/v1/store/cart`, { headers: { Accept: 'application/json' } })
+  const cartTok = (await cartRes.json()).data.token
+  const cartVariant = db('SELECT id FROM product_variants WHERE is_active = 1 AND stock_qty > 5 ORDER BY id LIMIT 1')[0].id
+  await fetch(`${BASE}/api/v1/store/cart/items`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Cart-Token': cartTok }, body: JSON.stringify({ variant_id: cartVariant, qty: 2 }) })
+  await fetch(`${BASE}/api/v1/store/cart/contact`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Cart-Token': cartTok }, body: JSON.stringify({ name: `UI Abandoned ${RUN}`, phone: uiPhone(2), email: 'abandoned@example.test' }) })
+  execFileSync('php', ['artisan', 'tinker', '--execute', `App\\Domain\\Cart\\Models\\Cart::where('token', '${cartTok}')->update(['last_activity_at' => now()->subHours(3)]);`], { cwd: ROOT, stdio: 'ignore' })
+  await goto(a.page, 'customers')
+  await waitVal(a.page, '[data-tab="abandoned"]')
+  await tap(a.page, '[data-tab="abandoned"]')
+  await waitVal(a.page, '[data-testid="abandoned-table"]')
+  check(await bodyHas(a.page, new RegExp(`UI Abandoned ${RUN}`)) && !(await bodyHas(a.page, new RegExp(cartTok))), 'UI-G5 the Abandoned carts tab lists the cart (name, phone, items, value) and never shows the token')
+  const waCart = await a.page.$eval('[data-testid="abandoned-table"] [data-testid="whatsapp"]', (el) => el.getAttribute('href'))
+  check(waCart.startsWith('https://wa.me/') && decodeURIComponent(waCart).includes('left 2 items'), 'UI-G5 each row has a WhatsApp button with a message about the cart', waCart.slice(0, 90))
+  const exportCarts = a.page.waitForResponse((r) => r.url().includes('/abandoned-carts/export') && r.status() === 200, { timeout: 15000 })
+  await tap(a.page, '[data-testid="export-customers"]')
+  check(/text\/csv/.test((await exportCarts).headers()['content-type']), 'UI-G5 the abandoned carts tab has its own CSV')
+
+  // ---- UI-G6 Settings > Notifications: the mail setup, the test e-mail, the push bell
+  await goto(a.page, 'settings?tab=notifications')
+  await waitVal(a.page, '#s-mail_enabled')
+  const notiFields = await a.page.$$eval('[data-field]', (els) => els.map((e) => e.dataset.field))
+  check(['mail_enabled', 'mail_from_name', 'mail_reply_to', 'notify_admin_email', 'mail_on_placed', 'mail_on_confirmed', 'mail_on_shipped', 'mail_on_delivered', 'mail_on_cancelled', 'mail_on_payment_proof_rejected', 'storefront_track_url', 'push_enabled'].every((k) => notiFields.includes(k)), 'UI-G6 the Notifications tab has the e-mail switches, the owner address, the tracking page and the push switch', notiFields)
+  await waitVal(a.page, '[data-testid="mail-status"]')
+  check(/^\d+$/.test(await textOf(a.page, '[data-testid="failed-jobs"]').then((t) => t.split(' ')[0])), 'UI-G6 the failed e-mail count is shown (a number, never the content)', await textOf(a.page, '[data-testid="failed-jobs"]'))
+  await setValue(a.page, '#test-email', 'ui-test@example.test')
+  await tap(a.page, '[data-testid="send-test-email"]')
+  await a.page.waitForFunction(() => /Test e-mail sent to ui-test@example.test/.test(document.querySelector('[data-testid="test-email-result"]')?.innerText || ''), { timeout: 15000 })
+  check(true, 'UI-G6 "Send test" reports where the test e-mail went')
+  await setValue(a.page, '#test-email', 'not-an-address')
+  await tap(a.page, '[data-testid="send-test-email"]')
+  await a.page.waitForFunction(() => /valid|email/i.test(document.querySelector('[data-testid="test-email-result"]')?.innerText || '') && !/sent to/.test(document.querySelector('[data-testid="test-email-result"]').innerText), { timeout: 15000 })
+  check(true, 'UI-G6 a bad address shows the server message')
+  // the bell: a fake PushManager lets this headless browser walk through subscribe and unsubscribe
+  await api('PUT', 'admin/settings', { push_enabled: false }, admToken)
+  await goto(a.page, '')
+  await waitVal(a.page, '[data-testid="push-toggle"]')
+  await sleep(500)
+  check(/switched off in Settings/i.test(await a.page.$eval('[data-testid="push-toggle"]', (el) => el.title)), 'UI-G6 the bell explains that push is switched off in Settings while it is')
+  await api('PUT', 'admin/settings', { push_enabled: true }, admToken)
+  await a.page.evaluateOnNewDocument(() => {
+    let current = null
+    const fake = (opts) => ({ endpoint: `https://push.invalid/ui-${Math.random().toString(36).slice(2)}`, toJSON() { return { endpoint: this.endpoint, keys: { p256dh: 'BPFAKEKEYFORTHETEST', auth: 'FAKEAUTHKEY' } } }, async unsubscribe() { current = null; return true }, opts })
+    PushManager.prototype.subscribe = async function (opts) { current = fake(opts); return current }
+    PushManager.prototype.getSubscription = async function () { return current }
+    Object.defineProperty(Notification, 'permission', { get: () => 'granted', configurable: true })
+    Notification.requestPermission = async () => 'granted'
+  })
+  await goto(a.page, '')
+  await waitVal(a.page, '[data-testid="push-toggle"]')
+  await sleep(800)
+  check(/Get a notification on this device/i.test(await a.page.$eval('[data-testid="push-toggle"]', (el) => el.title)), 'UI-G6 push on: the bell offers to turn notifications on for this device')
+  await tap(a.page, '[data-testid="push-toggle"]')
+  await toast(a.page, /Push notifications are on/i)
+  check(db('SELECT COUNT(*) n FROM push_subscriptions')[0].n === 1 && (await a.page.$eval('[data-testid="push-toggle"]', (el) => el.getAttribute('aria-pressed'))) === 'true', 'UI-G6 pressing the bell subscribes this browser (a row in push_subscriptions) and the bell turns green')
+  await tap(a.page, '[data-testid="push-toggle"]')
+  await toast(a.page, /off on this device/i)
+  check(db('SELECT COUNT(*) n FROM push_subscriptions')[0].n === 0, 'UI-G6 pressing it again unsubscribes')
+  await api('PUT', 'admin/settings', { push_enabled: false }, admToken)
+  await goto(d.page, '')
+  check(!(await d.page.$('[data-testid="push-toggle"]')), 'UI-G6 the developer account has no bell (no orders.view, no wholesale.view)')
+
+  // ---- UI-G7 time zone: a discount ending 23:59 shop time is typed, saved, shown and ended in the SHOP zone (a server in Pacific/Auckland)
+  if (process.env.E2E_BASE_TZ) {
+    const TZ = process.env.E2E_BASE_TZ
+    const tzp = await open()
+    try {
+      const tzLogin = async () => { await tzp.page.goto(`${TZ}/admin/login`, { waitUntil: 'networkidle0' }); await setValue(tzp.page, '#username', ADMIN[0]); await setValue(tzp.page, '#password', ADMIN[1]); await Promise.all([tzp.page.waitForSelector('.sidebar__nav', { timeout: 30000 }), tzp.page.click('button[type="submit"]')]) }
+      await tzLogin()
+      const tzMe = await tzp.page.evaluate(async () => (await (await fetch('/api/v1/admin/auth/me', { credentials: 'include' })).json()).admin.timezone)
+      check(tzMe === 'Pacific/Auckland', 'UI-G7 /admin/auth/me tells the panel the store zone (Pacific/Auckland)', tzMe)
+      await tzp.page.goto(`${TZ}/admin/discounts`, { waitUntil: 'networkidle0' })
+      await tzp.page.waitForSelector('[data-add]', { timeout: 15000 })
+      await tap(tzp.page, '[data-add]')
+      await tzp.page.waitForSelector('#pend', { timeout: 10000 })
+      check(/Store time \(Pacific\/Auckland\)/.test(await tzp.page.$eval('#pend', (e) => e.closest('.field').innerText)), 'UI-G7 the date inputs say which zone they are in')
+      const dName = `UI Zone Sale ${RUN}`
+      await setValue(tzp.page, '#pname', dName)
+      await setValue(tzp.page, '#pvalue', '10')
+      await setValue(tzp.page, '#pend', '2030-06-30T23:59')
+      await tap(tzp.page, 'button[form="promo-form"]')
+      await toast(tzp.page, /discount added/i)
+      const zoned = db(`SELECT id, ends_at FROM discounts WHERE name = '${dName}'`)[0]
+      check(zoned && String(zoned.ends_at).includes('2030-06-30 23:59'), 'UI-G7 typed as 23:59 shop time: stored as 23:59 (not shifted by the browser or UTC)', zoned)
+      if (zoned) created.discounts.push(zoned.id)
+      const viaApi = (await (await fetch(`${TZ}/api/v1/admin/discounts/${zoned?.id}`, { headers: { Accept: 'application/json', Authorization: `Bearer ${(await (await fetch(`${TZ}/api/v1/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ login: ADMIN[0], password: ADMIN[1] }) })).json()).token}` } })).json()).data
+      check(/^2030-06-30T23:59:00\+1[23]:00$/.test(viaApi?.ends_at || ''), 'UI-G7 the API answers with the shop offset (+12:00 / +13:00), not UTC', viaApi?.ends_at)
+      await tzp.page.reload({ waitUntil: 'networkidle0' })
+      await tzp.page.waitForFunction((n) => document.body.innerText.includes(n), { timeout: 15000 }, dName)
+      check(/11:59\s?PM|23:59/.test(await tzp.page.evaluate((n) => [...document.querySelectorAll('tr')].find((r) => r.innerText.includes(n))?.innerText || '', dName)), 'UI-G7 the list shows the end as 11:59 PM / 23:59 (shop time)')
+    } finally {
+      await tzp.browser.close()
+    }
+  } else {
+    console.log('SKIP  UI-G7 time zone check: start a server with APP_TIMEZONE=Pacific/Auckland and set E2E_BASE_TZ (see the header)')
+  }
 
   check(a.problems.length === 0 && d.problems.length === 0, `no script errors in either browser (${[...a.problems, ...d.problems].join('; ') || 'none'})`)
 } catch (e) {

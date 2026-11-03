@@ -41,9 +41,9 @@ async function submit() {
 <template>
   <div class="login">
     <section class="login__art" aria-hidden="true">
-      <div class="sidebar__brand" style="border: 0; padding: 0; position: relative">
+      <div class="sidebar__head" style="border: 0; padding: 0; position: relative">
         <StoreMark on-dark />
-        <div class="brand-text" style="color: #fff">{{ site.name }}<small style="color: rgba(255, 255, 255, .7)">Admin</small></div>
+        <div class="store-text" style="color: #fff">{{ site.name }}<small style="color: rgba(255, 255, 255, .7)">Admin</small></div>
       </div>
       <div>
         <h2>Manage your whole store in one place.</h2>

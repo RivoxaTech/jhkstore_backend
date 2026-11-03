@@ -67,7 +67,7 @@ class SettingsTest extends TestCase
         $this->getJson(self::STORE.'/settings')->assertOk()
             ->assertJsonPath('store.name', 'Acme Shop')->assertJsonPath('delivery.fee', 250)
             ->assertJsonPath('tax.rate', 12.5)->assertJsonPath('tax.inclusive', false)
-            ->assertJsonPath('currency.symbol', '$')->assertJsonMissingPath('features')->assertJsonMissingPath('rewards');
+            ->assertJsonPath('currency.symbol', '$')->assertJsonMissingPath('features');
 
         // and so does the quote
         $variant = $this->variantOf($this->shopProduct());
@@ -81,7 +81,7 @@ class SettingsTest extends TestCase
         $this->putJson(self::ADMIN.'/settings', ['delivery_fee' => -1])->assertStatus(422)->assertJsonValidationErrors('delivery_fee');
         $this->putJson(self::ADMIN.'/settings', ['delivery_days' => 99])->assertStatus(422)->assertJsonPath('errors.delivery_days.0', 'The delivery time (days) field must not be greater than 60.');
         $this->putJson(self::ADMIN.'/settings', ['tax_rate' => 101])->assertStatus(422)->assertJsonValidationErrors('tax_rate');
-        $this->putJson(self::ADMIN.'/settings', ['rewards_enabled' => true])->assertStatus(422)->assertJsonValidationErrors('rewards_enabled');   // the feature is gone
+        $this->putJson(self::ADMIN.'/settings', ['loyalty_enabled' => true])->assertStatus(422)->assertJsonValidationErrors('loyalty_enabled');   // an unknown setting is refused
         $this->putJson(self::ADMIN.'/settings', ['return_window_days' => 5])->assertStatus(422)->assertJsonValidationErrors('return_window_days');
         $this->putJson(self::ADMIN.'/settings', ['currency_decimals' => 3])->assertStatus(422)->assertJsonValidationErrors('currency_decimals');
         $this->putJson(self::ADMIN.'/settings', ['order_number_prefix' => 'A B!'])->assertStatus(422)->assertJsonValidationErrors('order_number_prefix');

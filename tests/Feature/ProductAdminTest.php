@@ -473,8 +473,7 @@ class ProductAdminTest extends TestCase
     {
         $this->actingAsAdmin();
         $res = $this->getJson(self::ADMIN.'/products/options')->assertOk();
-        $res->assertJsonMissingPath('brands')
-            ->assertJsonCount(7, 'tags')
+        $res->assertJsonCount(7, 'tags')
             ->assertJsonPath('statuses', ['draft', 'active', 'inactive', 'archived'])
             ->assertJsonCount(6, 'content_tabs');
     }

@@ -62,9 +62,9 @@ async function logout() {
 <template>
   <div class="app-shell" :class="{ 'is-collapsed': ui.sidebarCollapsed, 'mobile-open': ui.mobileSidebarOpen }">
     <aside class="sidebar" aria-label="Main navigation">
-      <div class="sidebar__brand">
+      <div class="sidebar__head">
         <StoreMark />
-        <div class="brand-text">{{ site.name }}<small>Admin</small></div>
+        <div class="store-text">{{ site.name }}<small>Admin</small></div>
       </div>
       <nav class="sidebar__nav">
         <RouterLink v-if="auth.can('dashboard.view')" :to="{ name: 'dashboard' }" class="nav-item" :class="{ 'is-active': route.name === 'dashboard' }" exact-active-class="" active-class="">

@@ -21,7 +21,7 @@ onUnauthorized((path) => {
   router.replace({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
 })
 
-// Public store settings (name, logo, currency): loaded once before login to brand the panel.
+// Public store settings (name, logo, currency): loaded once before login to label the panel.
 const site = useSiteStore()
 site.load()
 watch(() => site.name, () => updateDocumentTitle())
