@@ -126,6 +126,19 @@ class AdminOrderTest extends TestCase
         $this->assertSame([$a->order_number], $find('Al'));        // short words fall back to LIKE
     }
 
+    public function test_search_by_a_local_phone_finds_orders_stored_with_the_default_country_code(): void
+    {
+        $this->setSetting('default_phone_country_code', '+92');
+        $a = $this->orderFor(['name' => 'Ali Khan', 'phone' => '0300 1234567']);   // stored as +923001234567
+        $this->orderFor(['name' => 'Other', 'phone' => '+92 321 7654321']);
+        $this->asAdmin();
+        $find = fn (string $q) => collect($this->getJson(self::ADMIN.'/orders?q='.urlencode($q))->assertOk()->json('data'))->pluck('order_number')->all();
+
+        $this->assertSame([$a->order_number], $find('0300 1234567'));   // the form the shop's staff and customers type
+        $this->assertSame([$a->order_number], $find('0300'));
+        $this->assertSame([$a->order_number], $find('+92 300 1234567'));
+        $this->assertSame([$a->order_number], $find('923001234'));
+    }
     public function test_the_list_costs_a_fixed_number_of_queries(): void
     {
         $contact = ['phone' => '+1 555 010 3003'];

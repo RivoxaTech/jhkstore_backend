@@ -2,6 +2,7 @@
 
 namespace App\Domain\Order;
 
+use App\Domain\Customer\Phone;
 use App\Support\FullTextSearch;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -29,10 +30,12 @@ class OrderSearch
         }
         if (preg_match('/^[0-9+\s\-]+$/', $t)) {
             $digits = preg_replace('/\D/', '', $t);
+            $international = ltrim(Phone::normalise($t), '+');   // 0300… -> 92300… when the store has a default phone country code
 
             return $query->where(fn ($q) => $q
                 ->where('orders.customer_phone', 'like', $digits.'%')
                 ->orWhere('orders.customer_phone', 'like', '+'.$digits.'%')
+                ->when($international !== $digits, fn ($w) => $w->orWhere('orders.customer_phone', 'like', '+'.$international.'%'))
                 ->when(strlen($digits) <= 9, fn ($w) => $w->orWhere('orders.id', (int) $digits)));
         }
 
