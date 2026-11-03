@@ -6,6 +6,7 @@ use App\Domain\Auth\AdminAccess;
 use App\Domain\Auth\Models\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
+use App\Support\ShopTime;
 use App\Support\TokenLifetime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -81,7 +82,10 @@ class AuthController extends Controller
             'name' => $admin->name,
             'email' => $admin->email,
             'roles' => $admin->getRoleNames(),
-            'permissions' => AdminAccess::effective($admin),   // what the panel uses to hide screens, tabs and buttons
+            // what the panel uses to hide screens, tabs and buttons
+            'permissions' => AdminAccess::effective($admin),
+            // the store's time zone (IANA name): every date input and display in the panel uses it
+            'timezone' => ShopTime::zone(),
         ];
     }
 }

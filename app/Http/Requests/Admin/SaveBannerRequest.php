@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Domain\Content\Models\Banner;
+use App\Support\ShopTime;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -20,6 +21,18 @@ class SaveBannerRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+
+    /** Dates are typed in shop time (an offset is converted to it), see ShopTime. */
+    protected function prepareForValidation(): void
+    {
+        $data = [];
+        foreach (['starts_at', 'ends_at'] as $key) {
+            if ($this->filled($key)) {
+                $data[$key] = ShopTime::normalise($this->input($key));
+            }
+        }
+        $this->merge($data);
     }
 
     public function rules(): array

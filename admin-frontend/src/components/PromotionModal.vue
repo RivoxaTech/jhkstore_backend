@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '@/api/client.js'
-import { currencySymbol } from '@/utils/format.js'
+import { currencySymbol, timezone, toInputValue } from '@/utils/format.js'
 import AppModal from '@/components/AppModal.vue'
 import TargetPicker from '@/components/TargetPicker.vue'
 
@@ -22,8 +22,8 @@ const SCOPES = [['store', 'Whole store'], ['products', 'Chosen products'], ['cat
 const TARGET_TYPE = { products: 'product', categories: 'category', sub_categories: 'sub_category' }
 const TARGET_LABEL = { products: 'Products', categories: 'Categories', sub_categories: 'Sub-categories' }
 
-// the API sends dates in the shop's time zone; a datetime-local input wants "YYYY-MM-DDTHH:mm"
-const local = (iso) => (iso ? String(iso).slice(0, 16) : '')
+// the API sends dates with an offset; a datetime-local input wants "YYYY-MM-DDTHH:mm" in the STORE's time zone (what is typed is store time too)
+const local = toInputValue
 const text = (v) => (v === null || v === undefined ? '' : String(v))
 
 const form = reactive({
@@ -185,13 +185,13 @@ async function save() {
           <label for="pstart">Starts</label>
           <input id="pstart" v-model="form.starts_at" class="input" type="datetime-local" :class="{ 'has-error': err('starts_at') }" @input="clear('starts_at', 'ends_at')" />
           <p v-if="err('starts_at')" class="err">{{ err('starts_at') }}</p>
-          <p v-else class="hint">Empty = right away.</p>
+          <p v-else class="hint">Empty = right away. Store time ({{ timezone() }}).</p>
         </div>
         <div class="field">
           <label for="pend">Ends</label>
           <input id="pend" v-model="form.ends_at" class="input" type="datetime-local" :class="{ 'has-error': err('ends_at') }" @input="clear('ends_at')" />
           <p v-if="err('ends_at')" class="err">{{ err('ends_at') }}</p>
-          <p v-else class="hint">Empty = no end. Times are in the store's time zone.</p>
+          <p v-else class="hint">Empty = no end. Store time ({{ timezone() }}).</p>
         </div>
 
         <template v-if="isCoupon">

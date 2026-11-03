@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { api } from '@/api/client.js'
+import { timezone, toInputValue } from '@/utils/format.js'
 import AppModal from '@/components/AppModal.vue'
 
 // Create / edit a banner. The pictures are sent with the form (multipart); on edit only the fields that changed matter to the API.
@@ -16,8 +17,8 @@ const DESKTOP_MB = 5
 const MOBILE_MB = 3
 
 const isEdit = computed(() => Boolean(props.item))
-// the API answers in the shop's time zone; a datetime-local input wants "YYYY-MM-DDTHH:mm"
-const local = (iso) => (iso ? iso.slice(0, 16) : '')
+// the API answers with an offset; a datetime-local input wants "YYYY-MM-DDTHH:mm" in the STORE's time zone
+const local = toInputValue
 
 const form = reactive({
   placement: props.item?.placement || props.defaultPlacement || props.placements[0]?.key || '',
@@ -193,7 +194,7 @@ async function save() {
           <label for="bend">Show until</label>
           <input id="bend" v-model="form.ends_at" class="input" type="datetime-local" :class="{ 'has-error': err('ends_at') }" @input="clear('ends_at')" />
           <p v-if="err('ends_at')" class="err">{{ err('ends_at') }}</p>
-          <p v-else class="hint">Empty = no end. Times are in the store's time zone.</p>
+          <p v-else class="hint">Empty = no end. Store time ({{ timezone() }}).</p>
         </div>
         <div class="field full">
           <div style="display: flex; align-items: center; gap: 10px">

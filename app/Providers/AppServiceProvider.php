@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Domain\Customer\Phone;
 use App\Domain\Promotion\Promotions;
 use App\Domain\Support\Settings;
+use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -23,6 +25,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Every date in an API answer carries its offset, in the shop's time zone (APP_TIMEZONE): 2026-11-03T23:59:00+05:00, not UTC.
+        $withOffset = fn ($date) => $date->toIso8601String();
+        Carbon::serializeUsing($withOffset);
+        CarbonImmutable::serializeUsing($withOffset);
+
         // Catch N+1 queries while developing.
         Model::preventLazyLoading(! $this->app->isProduction());
 

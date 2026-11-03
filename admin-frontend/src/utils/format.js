@@ -1,19 +1,59 @@
 // Locale: everything uses the browser default (undefined) for number grouping and dates.
+// Time zone: every date is shown, typed and compared in the STORE's time zone (APP_TIMEZONE, sent by GET /admin/auth/me), never the browser's,
+// so "ends 23:59" means the same moment for everyone. Until it is known the browser's zone is used.
+let zone
+export function setTimezone(name) {
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: name })
+    zone = name || undefined
+  } catch {
+    zone = undefined
+  }
+}
+export const timezone = () => zone || Intl.DateTimeFormat().resolvedOptions().timeZone
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+
 export function formatDate(value, withTime = false) {
   if (!value) return '-'
+  const dateOnly = typeof value === 'string' && DATE_ONLY.test(value)   // a calendar day (e.g. the estimated delivery): no zone shift
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return '-'
   return d.toLocaleString(undefined, {
     day: '2-digit', month: 'short', year: 'numeric',
-    ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
+    ...(withTime && !dateOnly ? { hour: '2-digit', minute: '2-digit' } : {}),
+    timeZone: dateOnly ? 'UTC' : zone,
   })
 }
 
-/** Today's date in the browser's time zone as YYYY-MM-DD (the value of a date input). */
-export function todayISO() {
-  const d = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+/** The calendar parts of an instant in the store's time zone. */
+function shopParts(date) {
+  const out = {}
+  for (const p of new Intl.DateTimeFormat('en-US', {
+    timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(date)) out[p.type] = p.value
+  return out
+}
+
+/** Today's date in the store's time zone as YYYY-MM-DD (the value of a date input). */
+export function todayISO(date = new Date()) {
+  const p = shopParts(date)
+  return `${p.year}-${p.month}-${p.day}`
+}
+
+/** An instant (ISO text from the API) as the value of a datetime-local input: YYYY-MM-DDTHH:mm in the store's time zone. */
+export function toInputValue(value) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  const p = shopParts(d)
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`
+}
+
+/** The calendar day N days before today in the store's time zone (YYYY-MM-DD). */
+export function daysAgoISO(days) {
+  const [y, m, d] = todayISO().split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d - days)).toISOString().slice(0, 10)
 }
 
 export function timeAgo(value) {

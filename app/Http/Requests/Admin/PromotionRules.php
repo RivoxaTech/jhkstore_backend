@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Domain\Promotion\Models\Discount;
+use App\Support\ShopTime;
 use Illuminate\Validation\Rule;
 
 /** The rules discounts and coupons share: type and value, scope with its targets, and the date window. */
@@ -54,6 +55,8 @@ trait PromotionRules
         foreach (['starts_at', 'ends_at'] as $key) {
             if ($this->has($key) && $this->input($key) === '') {
                 $data[$key] = null;
+            } elseif ($this->filled($key)) {
+                $data[$key] = ShopTime::normalise($this->input($key));   // typed in shop time; an offset is converted to it
             }
         }
         if ($this->input('scope') === 'store') {

@@ -114,8 +114,8 @@ const valueText = (r) => {
   if (r.value === null || r.value === undefined) return '-'
   return r.type === 'percent' ? `${r.value}%` : money(r.value)
 }
-// the API sends the shop's wall-clock time; show it as it is (no conversion to the browser's zone)
-const shop = (iso) => formatDate(String(iso).slice(0, 16), true)
+// the API sends an instant with its offset; formatDate shows it in the store's time zone
+const shop = (iso) => formatDate(iso, true)
 const dates = (r) => (!r.starts_at && !r.ends_at ? 'Always' : `${r.starts_at ? shop(r.starts_at) : 'now'} → ${r.ends_at ? shop(r.ends_at) : 'no end'}`)
 const scopeText = (r) => (r.scope === 'store' ? SCOPE_LABEL.store : `${SCOPE_LABEL[r.scope]} (${r.targets_count ?? 0})`)
 const usedText = (r) => `${r.used_count ?? 0}${r.usage_limit ? ` / ${r.usage_limit}` : ''}`
