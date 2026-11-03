@@ -87,6 +87,11 @@ export const api = {
   del: (path) => request('DELETE', path),
   /** multipart POST (use `_method=PUT` inside the FormData when updating with files) */
   postForm: (path, form) => request('POST', path, { form }),
+  /** A private file (the cookie authenticates it) as a Blob, e.g. to show a payment proof in an <img> through an object URL. */
+  async blob(path) {
+    const res = await request('GET', path, { raw: true })
+    return res.blob()
+  },
   /** Download a private file (the cookie authenticates it) and hand it to the browser. */
   async download(path, fallbackName = 'file') {
     const res = await request('GET', path, { raw: true })

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { Search, ShoppingBag } from '@lucide/vue'
 import { api } from '@/api/client.js'
@@ -12,8 +12,12 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 import { formatDate, money } from '@/utils/format.js'
 
-const STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled']
-const PAYMENT_STATUSES = [['cod_pending', 'Cash on delivery - to collect'], ['paid', 'Paid'], ['cancelled', 'Cancelled'], ['pending', 'Awaiting payment'], ['failed', 'Failed']]
+const STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled', 'rejected']
+// the filter boxes come from GET admin/orders/options; these are the readable names (an unknown value falls back to its own name)
+const PAYMENT_STATUS_LABELS = { cod_pending: 'Cash on delivery - to collect', awaiting_payment: 'Awaiting payment (bank transfer)', paid: 'Paid', cancelled: 'Cancelled', pending: 'Pending', failed: 'Failed' }
+const paymentStatuses = ref(Object.keys(PAYMENT_STATUS_LABELS))
+const paymentMethods = ref([{ code: 'cod', name: 'Cash on delivery' }, { code: 'bank_transfer', name: 'Bank transfer' }])
+const statusLabel = (v) => PAYMENT_STATUS_LABELS[v] || v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, ' ')
 
 const route = useRoute()
 const router = useRouter()
@@ -39,6 +43,14 @@ const tabs = computed(() => [
   ...STATUSES.map(s => ({ key: s, label: s[0].toUpperCase() + s.slice(1), count: counts.value[s] || 0 })),
 ])
 
+onMounted(async () => {
+  try {
+    const o = await api.get('admin/orders/options')
+    if (o.payment_statuses?.length) paymentStatuses.value = o.payment_statuses
+    if (o.payment_methods?.length) paymentMethods.value = o.payment_methods
+  } catch { /* the built-in lists are enough */ }
+})
+
 let seq = 0
 async function load() {
   const mine = ++seq
@@ -46,15 +58,15 @@ async function load() {
   error.value = ''
   try {
     const res = await api.get('admin/orders', {
-      q: q('q'), status: status.value, payment_status: q('payment_status'), from: q('from'), to: q('to'),
-      user_id: q('user_id'), page: page.value, per_page: PER_PAGE.value,
+      search: q('q'), status: status.value, payment_status: q('payment_status'), payment_method: q('payment_method'), from: q('from'), to: q('to'),
+      customer_id: q('customer_id'), page: page.value, per_page: PER_PAGE.value,
     })
     if (mine !== seq) return
     rows.value = res.data
     meta.value = res.meta
     counts.value = res.counts || {}
     loadedOnce.value = true
-    if (!q('q') && !status.value && !q('payment_status') && !q('from') && !q('to') && !q('user_id')) ui.pendingOrders = counts.value.pending || 0
+    if (!q('q') && !status.value && !q('payment_status') && !q('payment_method') && !q('from') && !q('to') && !q('customer_id')) ui.pendingOrders = counts.value.pending || 0
   } catch (e) {
     if (mine === seq) error.value = e.message
   } finally {
@@ -70,7 +82,7 @@ function go(patch) {
   Object.keys(query).forEach(k => (query[k] === '' || query[k] == null) && delete query[k])
   router.push({ name: 'orders', query })
 }
-const hasFilters = computed(() => ['q', 'status', 'payment_status', 'from', 'to', 'user_id'].some(k => q(k)))
+const hasFilters = computed(() => ['q', 'status', 'payment_status', 'payment_method', 'from', 'to', 'customer_id'].some(k => q(k)))
 const clearFilters = () => { search.value = ''; router.push({ name: 'orders' }) }
 
 let t
@@ -102,9 +114,13 @@ onBeforeUnmount(() => clearTimeout(t))
         <Search :size="16" />
         <input v-model="search" class="input" type="search" placeholder="Order no, customer, phone or email" aria-label="Search orders" />
       </div>
+      <select class="select" style="width: 150px" :value="q('payment_method')" aria-label="Payment method" @change="go({ payment_method: $event.target.value, page: undefined })">
+        <option value="">All methods</option>
+        <option v-for="m in paymentMethods" :key="m.code" :value="m.code">{{ m.name }}</option>
+      </select>
       <select class="select" style="width: 160px" :value="q('payment_status')" aria-label="Payment" @change="go({ payment_status: $event.target.value, page: undefined })">
         <option value="">All payments</option>
-        <option v-for="[v, label] in PAYMENT_STATUSES" :key="v" :value="v">{{ label }}</option>
+        <option v-for="v in paymentStatuses" :key="v" :value="v">{{ statusLabel(v) }}</option>
       </select>
       <label class="date-field">From <input class="input" type="date" :value="q('from')" aria-label="From date" @change="go({ from: $event.target.value, page: undefined })" /></label>
       <label class="date-field">To <input class="input" type="date" :value="q('to')" :min="q('from') || undefined" aria-label="To date" @change="go({ to: $event.target.value, page: undefined })" /></label>
@@ -134,7 +150,7 @@ onBeforeUnmount(() => clearTimeout(t))
               <div class="muted truncate" :title="o.customer.email">{{ o.customer.phone || o.customer.email }}</div>
             </td>
             <td style="text-align: right">{{ o.items_count }}</td>
-            <td class="nowrap" style="text-align: right"><strong>{{ money(o.grand_total) }}</strong></td>
+            <td class="nowrap" style="text-align: right"><strong>{{ money(o.grand_total) }}</strong><div v-if="o.delivery_fee_pending" class="muted" title="The delivery fee is not set yet">+ delivery fee TBC</div></td>
             <td>
               <div>{{ o.payment_method_label }}</div>
               <StatusBadge :status="o.payment_status" />

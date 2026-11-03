@@ -1,7 +1,7 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { Ban, Check, FileText, PackageCheck, Printer, Save, Truck } from '@lucide/vue'
+import { Ban, Check, CircleX, FileText, PackageCheck, Printer, Save, ShieldCheck, Truck, ZoomIn } from '@lucide/vue'
 import { api, ApiError } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -9,7 +9,7 @@ import { useSiteStore } from '@/stores/site.js'
 import AppModal from '@/components/AppModal.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
-import { formatDate, money } from '@/utils/format.js'
+import { currencySymbol, formatDate, money } from '@/utils/format.js'
 
 const route = useRoute()
 const ui = useUiStore()
@@ -26,6 +26,16 @@ const errors = ref({})
 const form = reactive({ note: '', reason: '', courier: '', awb_number: '', tracking_url: '' })
 const adminNote = ref('')
 const noteBusy = ref(false)
+const fee = ref('')                 // delivery fee box
+const feeBusy = ref(false)
+const feeError = ref('')
+const proofUrl = ref('')            // object URL of the payment proof (the file is private: it is fetched with the login cookie)
+const proofState = ref('')          // '' | loading | error
+const zoom = ref(false)
+const proofModal = ref(false)       // "reject the proof" reason dialog
+const proofReason = ref('')
+const proofError = ref('')
+const payBusy = ref(false)
 const printMode = ref(['invoice', 'slip'].includes(String(route.query.print)) ? String(route.query.print) : 'invoice')
 
 async function load() {
@@ -34,6 +44,7 @@ async function load() {
   try {
     order.value = (await api.get(`admin/orders/${route.params.id}`)).data
     adminNote.value = order.value.admin_note || ''
+    loadProof()
   } catch (e) {
     error.value = e.status === 404 ? 'This order does not exist.' : e.message
   } finally {
@@ -42,6 +53,25 @@ async function load() {
 }
 onMounted(load)
 watch(() => route.params.id, load)
+
+// The screenshot is on a private disk: only the authenticated route can show it, so it is fetched with the login cookie and shown from an object URL.
+async function loadProof() {
+  if (proofUrl.value) URL.revokeObjectURL(proofUrl.value)
+  proofUrl.value = ''
+  proofState.value = ''
+  const current = order.value
+  if (!current?.payment?.has_proof) return
+  proofState.value = 'loading'
+  try {
+    const blob = await api.blob(`admin/orders/${current.id}/payment/proof`)
+    if (order.value?.id !== current.id) return
+    proofUrl.value = URL.createObjectURL(blob)
+    proofState.value = ''
+  } catch {
+    proofState.value = 'error'
+  }
+}
+onBeforeUnmount(() => { if (proofUrl.value) URL.revokeObjectURL(proofUrl.value) })
 
 const o = computed(() => order.value)
 const totals = computed(() => o.value?.totals || {})
@@ -55,6 +85,9 @@ const taxLabel = computed(() => {
 const hasTax = computed(() => has(totals.value, 'tax_total') && (Number(totals.value.tax_total) > 0 || !totals.value.tax_inclusive))
 const storeAddress = computed(() => String(site.store.address || '').split(/\r?\n/).filter(Boolean))
 const sameAddress = computed(() => JSON.stringify(o.value?.shipping_address) === JSON.stringify(o.value?.billing_address))
+// the delivery fee row: null = the fee is not confirmed yet
+const feePending = computed(() => totals.value.delivery_fee === null || totals.value.delivery_fee === undefined)
+const deliveryText = computed(() => (feePending.value ? 'To be confirmed' : totals.value.delivery_fee > 0 ? money(totals.value.delivery_fee) : 'Free'))
 
 const NEXT = {
   confirmed: { title: 'Confirm this order', button: 'Confirm order', tone: 'primary', icon: Check },
@@ -64,27 +97,43 @@ const NEXT = {
 }
 const next = computed(() => (o.value?.actions.next_status ? NEXT[o.value.actions.next_status] : null))
 
+// the order is still waiting for something: say what, and keep the Confirm button off (the API would answer 422 with the same code)
+const BLOCKED = {
+  delivery_fee_pending: 'Set the delivery fee first.',
+  payment_not_verified: 'Verify the bank transfer payment first.',
+}
+const blockedText = computed(() => BLOCKED[o.value?.actions?.blocked_reason] || '')
+const isBank = computed(() => o.value?.payment?.method === 'bank_transfer')
+const FORM_FIELDS = ['status', 'reason', 'courier', 'awb_number', 'tracking_url', 'note']
+const PROOF_LABEL = { none: 'No proof yet', submitted: 'Proof to check', verified: 'Verified', rejected: 'Proof rejected' }
+// a proof that was never checked on an order that was turned down or cancelled is not waiting for anybody
+const proofLabel = computed(() => (o.value?.payment?.proof_status === 'submitted' && ['rejected', 'cancelled'].includes(o.value.status) ? 'Not checked' : PROOF_LABEL[o.value?.payment?.proof_status] || o.value?.payment?.proof_status))
+
 function openAction(status) {
   Object.assign(form, { note: '', reason: '', courier: '', awb_number: '', tracking_url: '' })
   errors.value = {}
   modal.value = status === 'cancelled'
     ? { status, title: 'Cancel this order', confirm: 'Cancel order', tone: 'danger' }
-    : { status, title: NEXT[status].title, confirm: NEXT[status].button, tone: NEXT[status].tone }
+    : status === 'rejected'
+      ? { status, title: 'Reject this order', confirm: 'Reject order', tone: 'danger' }
+      : { status, title: NEXT[status].title, confirm: NEXT[status].button, tone: NEXT[status].tone }
 }
 
 async function submit() {
   busy.value = true
   errors.value = {}
   const body = { status: modal.value.status, note: form.note || undefined }
-  if (modal.value.status === 'cancelled') body.reason = form.reason
+  if (modal.value.status === 'cancelled' || modal.value.status === 'rejected') body.reason = form.reason
   if (modal.value.status === 'shipped') Object.assign(body, { courier: form.courier, awb_number: form.awb_number, tracking_url: form.tracking_url || undefined })
   try {
     order.value = (await api.post(`admin/orders/${o.value.id}/status`, body)).data
     ui.toast(`Order ${o.value.order_number} is now ${o.value.status}.`)
-    if (modal.value.status === 'confirmed' || modal.value.status === 'cancelled') ui.pendingOrders = Math.max(0, ui.pendingOrders - 1)
+    if (['confirmed', 'cancelled', 'rejected'].includes(modal.value.status)) ui.pendingOrders = Math.max(0, ui.pendingOrders - 1)
     modal.value = null
+    loadProof()
   } catch (e) {
-    if (e instanceof ApiError && Object.keys(e.errors).length) errors.value = e.errors
+    // a field of the form gets its message under the field; anything else (delivery_fee_pending, payment_not_verified, ...) is the server's message
+    if (e instanceof ApiError && FORM_FIELDS.some(k => e.errors[k])) errors.value = e.errors
     else ui.toast(e.message, 'error')
   } finally {
     busy.value = false
@@ -103,6 +152,51 @@ async function saveNote() {
   }
 }
 
+// ---- delivery fee of an order that was placed without one
+async function setFee() {
+  feeError.value = ''
+  if (String(fee.value).trim() === '') { feeError.value = 'Enter the delivery fee (0 for free delivery).'; return }
+  feeBusy.value = true
+  try {
+    order.value = (await api.put(`admin/orders/${o.value.id}/delivery-fee`, { fee: Number(fee.value) })).data
+    fee.value = ''
+    ui.toast('Delivery fee set. The total was recalculated.')
+  } catch (e) {
+    feeError.value = e.errors?.fee?.[0] || e.message
+  } finally {
+    feeBusy.value = false
+  }
+}
+
+// ---- bank transfer: verify the proof or send it back
+async function verifyPayment() {
+  payBusy.value = true
+  try {
+    order.value = (await api.post(`admin/orders/${o.value.id}/payment/verify`)).data
+    ui.toast('Payment verified.')
+  } catch (e) {
+    ui.toast(e.message, 'error')
+  } finally {
+    payBusy.value = false
+  }
+}
+
+function openRejectProof() { proofReason.value = ''; proofError.value = ''; proofModal.value = true }
+async function rejectProof() {
+  proofError.value = ''
+  payBusy.value = true
+  try {
+    order.value = (await api.post(`admin/orders/${o.value.id}/payment/reject-proof`, { reason: proofReason.value })).data
+    proofModal.value = false
+    ui.toast('Proof sent back. The customer can upload a new one.')
+    loadProof()
+  } catch (e) {
+    proofError.value = e.errors?.reason?.[0] || e.message
+  } finally {
+    payBusy.value = false
+  }
+}
+
 async function print(mode) {
   printMode.value = mode
   await nextTick()
@@ -111,7 +205,7 @@ async function print(mode) {
 
 const fe = (field) => errors.value[field]?.[0] || ''
 const addressLines = (a) => [a.line1, a.area, a.landmark && `Landmark: ${a.landmark}`, [a.city, a.state, a.postcode].filter(Boolean).join(', '), a.country].filter(Boolean)
-const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delivered': s.status === 'delivered' })
+const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status === 'rejected', 'is-delivered': s.status === 'delivered' })
 </script>
 
 <template>
@@ -125,7 +219,9 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
       <button class="btn btn-outline" type="button" @click="print('invoice')"><Printer :size="16" /> Print invoice</button>
       <button class="btn btn-outline" type="button" @click="print('slip')"><FileText :size="16" /> Packing slip</button>
       <button v-if="canManage && o.actions.can_cancel" class="btn btn-soft-danger" type="button" @click="openAction('cancelled')"><Ban :size="16" /> Cancel order</button>
-      <button v-if="canManage && next" class="btn" :class="`btn-${next.tone}`" type="button" @click="openAction(o.actions.next_status)"><component :is="next.icon" :size="16" /> {{ next.button }}</button>
+      <button v-if="canManage && o.actions.can_reject" class="btn btn-soft-danger" type="button" data-reject-order @click="openAction('rejected')"><CircleX :size="16" /> Reject order</button>
+      <span v-if="canManage && next && blockedText" class="muted" data-blocked :data-reason="o.actions.blocked_reason" style="max-width: 220px; line-height: 1.25">{{ blockedText }}</span>
+      <button v-if="canManage && next" class="btn" :class="`btn-${next.tone}`" type="button" :disabled="Boolean(o.actions.blocked_reason)" :title="blockedText || undefined" @click="openAction(o.actions.next_status)"><component :is="next.icon" :size="16" /> {{ next.button }}</button>
     </div>
   </div>
 
@@ -139,9 +235,11 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
       <div class="od-meta" style="margin-bottom: 12px">
         <StatusBadge :status="o.status" />
         <span>Placed {{ formatDate(o.placed_at, true) }}</span>
-                <StatusBadge :status="o.payment.status" />
-        <span v-if="o.estimated_delivery_date && o.status !== 'delivered' && o.status !== 'cancelled'">Estimated delivery {{ formatDate(o.estimated_delivery_date) }}</span>
+        <StatusBadge :status="o.payment.status" />
+        <span v-if="o.estimated_delivery_date && !['delivered', 'cancelled', 'rejected'].includes(o.status)">Estimated delivery {{ formatDate(o.estimated_delivery_date) }}</span>
         <span v-if="o.status === 'cancelled'" style="color: var(--danger)">Cancelled by {{ o.cancelled_by }}: {{ o.cancel_reason }}</span>
+        <span v-if="o.status === 'rejected'" style="color: var(--danger)" data-reject-reason>Rejected: {{ o.reject_reason }}</span>
+        <span v-if="o.delivery.fee_pending" style="color: var(--warning)">Delivery fee to be confirmed</span>
       </div>
 
       <div class="od-layout">
@@ -178,10 +276,13 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
               <div><span>Items total (regular prices)</span><span>{{ money(totals.items_total) }}</span></div>
               <div v-if="totals.product_discount > 0" class="minus"><span>Product discount</span><span>- {{ money(totals.product_discount) }}</span></div>
               <div v-if="totals.bulk_discount > 0" class="minus"><span>Bulk-offer discount</span><span>- {{ money(totals.bulk_discount) }}</span></div>
+              <div v-if="totals.discount_total > 0" class="minus" data-discount-row><span>Discount</span><span>- {{ money(totals.discount_total) }}</span></div>
+              <div v-if="totals.coupon_discount > 0" class="minus" data-coupon-row><span>Coupon<template v-if="totals.coupon_code"> {{ totals.coupon_code }}</template></span><span>- {{ money(totals.coupon_discount) }}</span></div>
               <div><span>Subtotal</span><span>{{ money(totals.subtotal) }}</span></div>
-              <div><span>Delivery fee</span><span>{{ totals.delivery_fee > 0 ? money(totals.delivery_fee) : 'Free' }}</span></div>
+              <div><span>Delivery fee</span><span data-delivery-text>{{ deliveryText }}</span></div>
               <div v-if="hasTax && !totals.tax_inclusive"><span>{{ taxLabel }}</span><span>+ {{ money(totals.tax_total) }}</span></div>
               <div class="grand"><span>Grand total</span><span>{{ money(totals.grand_total) }}</span></div>
+              <small v-if="feePending">The delivery fee is not set yet: the total does not include it.</small>
               <small v-if="totals.tax_note || (hasTax && totals.tax_inclusive)">{{ totals.tax_note }}<template v-if="hasTax && totals.tax_inclusive"> ({{ taxLabel }}: {{ money(totals.tax_total) }})</template></small>
             </div>
           </section>
@@ -198,8 +299,23 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
         </div>
 
         <div>
+          <section v-if="o.actions.needs_delivery_fee" class="card" data-section="delivery-fee">
+            <div class="card__head"><h2>Delivery fee</h2><StatusBadge status="pending" /></div>
+            <div class="card__body" style="display: grid; gap: 8px">
+              <p class="muted" style="margin: 0">This order was placed without a delivery fee. Set it to recalculate the total; the order cannot be confirmed before.</p>
+              <div v-if="canManage" class="field">
+                <label for="fee">Delivery fee <span class="req">*</span></label>
+                <div style="display: flex; gap: 8px">
+                  <div class="input-affix" style="flex: 1"><span>{{ currencySymbol() }}</span><input id="fee" v-model="fee" class="input" type="number" min="0" step="0.01" placeholder="0 = free" :class="{ 'has-error': feeError }" @keyup.enter="setFee" /></div>
+                  <button class="btn btn-primary" type="button" :disabled="feeBusy" data-set-fee @click="setFee"><span v-if="feeBusy" class="spinner" /> Set fee</button>
+                </div>
+                <div v-if="feeError" class="err">{{ feeError }}</div>
+              </div>
+            </div>
+          </section>
+
           <section class="card">
-            <div class="card__head"><h2>Customer</h2><RouterLink class="btn btn-soft btn-sm" :to="{ name: 'orders', query: { user_id: o.customer.id } }">{{ o.customer.orders_count }} {{ o.customer.orders_count === 1 ? "order" : "orders" }}</RouterLink></div>
+            <div class="card__head"><h2>Customer</h2><RouterLink class="btn btn-soft btn-sm" :to="{ name: 'orders', query: { customer_id: o.customer.id } }">{{ o.customer.orders_count }} {{ o.customer.orders_count === 1 ? "order" : "orders" }}</RouterLink></div>
             <div class="kv-list">
               <div><span class="k">Name</span><span class="v">{{ o.customer.name }}</span></div>
               <div><span class="k">Email</span><span class="v">{{ o.customer.email || '-' }}</span></div>
@@ -227,15 +343,52 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
             </div>
           </section>
 
-          <section class="card">
+          <section class="card" data-section="payment">
             <div class="card__head"><h2>Payment</h2><StatusBadge :status="o.payment.status" /></div>
             <div class="kv-list">
               <div><span class="k">Method</span><span class="v">{{ o.payment.method_label }}</span></div>
               <div><span class="k">Amount</span><span class="v">{{ money(o.payment.amount) }}</span></div>
               <div v-if="o.payment.collect_on_delivery"><span class="k">To collect on delivery</span><span class="v">{{ money(o.payment.collect_on_delivery) }}</span></div>
               <div v-if="o.payment.paid_at"><span class="k">Paid on</span><span class="v">{{ formatDate(o.payment.paid_at, true) }}</span></div>
+              <template v-if="isBank">
+                <div><span class="k">Proof</span><span class="v"><span class="badge" :class="`badge--${o.payment.proof_status}`" data-proof-status>{{ proofLabel }}</span></span></div>
+                <div v-if="o.payment.proof_reference"><span class="k">Reference</span><span class="v" data-proof-reference>{{ o.payment.proof_reference }}</span></div>
+                <div v-if="o.payment.verified_at"><span class="k">Verified on</span><span class="v">{{ formatDate(o.payment.verified_at, true) }}</span></div>
+              </template>
             </div>
             <p v-if="o.payment.method === 'cod' && o.payment.status === 'cod_pending'" class="muted" style="padding: 0 14px 12px">Cash on delivery is marked as paid when the order is marked delivered.</p>
+
+            <div v-if="isBank" class="card__body" style="display: grid; gap: 10px; border-top: 1px solid var(--border-light)" data-bank-panel>
+              <p v-if="o.payment.proof_reject_reason && o.payment.proof_status === 'rejected'" class="alert alert--error" style="margin: 0" data-proof-reject-reason>Proof rejected: {{ o.payment.proof_reject_reason }}</p>
+
+              <div v-if="o.payment.has_proof">
+                <div class="muted" style="margin-bottom: 4px">Payment proof (screenshot from the customer)</div>
+                <button v-if="proofUrl" class="proof-thumb" type="button" title="Click to enlarge" data-proof-thumb @click="zoom = true">
+                  <img :src="proofUrl" alt="Payment proof" data-proof-img /><span class="proof-zoom"><ZoomIn :size="16" /></span>
+                </button>
+                <p v-else-if="proofState === 'loading'" class="muted" style="margin: 0">Loading the picture...</p>
+                <p v-else-if="proofState === 'error'" class="err" style="margin: 0">The picture could not be loaded. <button class="btn btn-outline btn-sm" type="button" @click="loadProof">Retry</button></p>
+              </div>
+              <p v-else class="muted" style="margin: 0" data-no-proof>The customer has not uploaded a proof yet.</p>
+
+              <div v-if="canManage && o.actions.can_verify_payment" class="act-bar">
+                <button class="btn btn-success" type="button" :disabled="payBusy" data-verify-payment @click="verifyPayment"><span v-if="payBusy" class="spinner" /><ShieldCheck v-else :size="16" /> Verify payment</button>
+                <button class="btn btn-soft-danger" type="button" :disabled="payBusy" data-reject-proof @click="openRejectProof"><CircleX :size="16" /> Reject proof</button>
+              </div>
+
+              <div>
+                <div class="muted" style="margin-bottom: 3px">Accounts shown to the customer</div>
+                <p v-if="!o.payment.bank_accounts.length" class="muted" style="margin: 0">None (no active account).</p>
+                <ul v-else class="acct-show">
+                  <li v-for="(a, i) in o.payment.bank_accounts" :key="i">
+                    <strong>{{ a.bank }}</strong><span v-if="a.title"> · {{ a.title }}</span>
+                    <div v-if="a.number" class="muted">Account {{ a.number }}</div>
+                    <div v-if="a.iban" class="muted">IBAN {{ a.iban }}</div>
+                  </li>
+                </ul>
+                <p v-if="o.payment.bank_instructions" class="muted" style="margin: 6px 0 0; white-space: pre-line">{{ o.payment.bank_instructions }}</p>
+              </div>
+            </div>
           </section>
 
           <section v-if="o.shipment" class="card">
@@ -304,7 +457,9 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
         <div><span>Items total (regular prices)</span><span>{{ money(totals.items_total) }}</span></div>
         <div v-if="totals.product_discount > 0"><span>Product discount</span><span>- {{ money(totals.product_discount) }}</span></div>
         <div v-if="totals.bulk_discount > 0"><span>Bulk-offer discount</span><span>- {{ money(totals.bulk_discount) }}</span></div>
-        <div><span>Delivery</span><span>{{ totals.delivery_fee > 0 ? money(totals.delivery_fee) : 'Free' }}</span></div>
+        <div v-if="totals.discount_total > 0"><span>Discount</span><span>- {{ money(totals.discount_total) }}</span></div>
+        <div v-if="totals.coupon_discount > 0"><span>Coupon<template v-if="totals.coupon_code"> {{ totals.coupon_code }}</template></span><span>- {{ money(totals.coupon_discount) }}</span></div>
+        <div><span>Delivery</span><span>{{ deliveryText }}</span></div>
         <div v-if="hasTax && !totals.tax_inclusive"><span>{{ taxLabel }}</span><span>{{ money(totals.tax_total) }}</span></div>
         <div class="grand"><span>Total</span><span>{{ money(totals.grand_total) }}</span></div>
         <div v-if="hasTax && totals.tax_inclusive"><span>{{ taxLabel }}</span><span>{{ money(totals.tax_total) }}</span></div>
@@ -320,6 +475,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
         The courier collected {{ money(o.payment.collect_on_delivery) }} in cash: the payment will be marked as paid.
       </p>
       <p v-if="modal.status === 'cancelled'" class="alert alert--info" style="margin: 0">The stock goes back on the shelf.</p>
+      <p v-if="modal.status === 'rejected'" class="alert alert--info" style="margin: 0">The customer sees the reason on the order page. The stock goes back on the shelf and a coupon use is given back. This cannot be undone.</p>
 
       <template v-if="modal.status === 'shipped'">
         <div class="form-grid">
@@ -341,9 +497,9 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
         </div>
       </template>
 
-      <div v-if="modal.status === 'cancelled'" class="field">
+      <div v-if="modal.status === 'cancelled' || modal.status === 'rejected'" class="field">
         <label for="reason">Reason <span class="req">*</span></label>
-        <textarea id="reason" v-model="form.reason" class="textarea" :class="{ 'has-error': fe('reason') }" rows="3" maxlength="255" style="height: auto; padding: 8px 11px" placeholder="Why is this order cancelled?" />
+        <textarea id="reason" v-model="form.reason" class="textarea" :class="{ 'has-error': fe('reason') }" rows="3" maxlength="300" style="height: auto; padding: 8px 11px" :placeholder="modal.status === 'rejected' ? 'Why is this order rejected? The customer will read it.' : 'Why is this order cancelled?'" />
         <div v-if="fe('reason')" class="err">{{ fe('reason') }}</div>
       </div>
       <div v-else class="field">
@@ -357,4 +513,31 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled', 'is-delive
       <button class="btn" :class="`btn-${modal.tone}`" type="submit" form="status-form" :disabled="busy"><span v-if="busy" class="spinner" /> {{ modal.confirm }}</button>
     </template>
   </AppModal>
+
+  <AppModal v-if="proofModal" title="Reject the payment proof" @close="!payBusy && (proofModal = false)">
+    <form id="proof-form" style="display: grid; gap: 12px" @submit.prevent="rejectProof">
+      <p class="alert alert--info" style="margin: 0">The order stays pending. The customer sees your reason and can upload a new screenshot.</p>
+      <div class="field">
+        <label for="proof-reason">Reason <span class="req">*</span></label>
+        <textarea id="proof-reason" v-model="proofReason" class="textarea" :class="{ 'has-error': proofError }" rows="3" maxlength="300" style="height: auto; padding: 8px 11px" placeholder="e.g. The amount does not match the order total." />
+        <div v-if="proofError" class="err">{{ proofError }}</div>
+      </div>
+    </form>
+    <template #footer>
+      <button class="btn btn-outline" type="button" :disabled="payBusy" @click="proofModal = false">Close</button>
+      <button class="btn btn-danger" type="submit" form="proof-form" :disabled="payBusy"><span v-if="payBusy" class="spinner" /> Reject proof</button>
+    </template>
+  </AppModal>
+
+  <AppModal v-if="zoom && proofUrl" title="Payment proof" large @close="zoom = false">
+    <img :src="proofUrl" alt="Payment proof, enlarged" data-proof-zoom style="max-width: 100%; max-height: 72vh; margin: 0 auto; object-fit: contain" />
+  </AppModal>
 </template>
+
+<style scoped>
+.proof-thumb { position: relative; display: block; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--muted-soft); cursor: zoom-in; padding: 0; max-width: 100%; }
+.proof-thumb img { display: block; max-width: 100%; max-height: 200px; margin: 0 auto; object-fit: contain; }
+.proof-zoom { position: absolute; right: 6px; bottom: 6px; background: rgba(15, 23, 42, .65); color: #fff; border-radius: 6px; padding: 3px; display: grid; }
+.acct-show { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.acct-show li { padding: 6px 9px; border: 1px solid var(--border-light); border-radius: 8px; background: #f8fafc; }
+</style>

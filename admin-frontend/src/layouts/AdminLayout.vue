@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Bell, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Users } from '@lucide/vue'
+import { BadgePercent, Bell, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Ticket, Users } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useCatalogStore } from '@/stores/catalog.js'
@@ -76,6 +76,12 @@ async function logout() {
         </RouterLink>
         <RouterLink v-if="auth.can('customers.view')" :to="{ name: 'customers' }" class="nav-item" :class="{ 'is-active': route.name === 'customers' }" exact-active-class="" active-class="">
           <Users :size="19" /><span>Customers</span>
+        </RouterLink>
+        <RouterLink v-if="auth.can('discounts.view')" :to="{ name: 'discounts' }" class="nav-item" :class="{ 'is-active': route.name === 'discounts' }" exact-active-class="" active-class="">
+          <BadgePercent :size="19" /><span>Discounts</span>
+        </RouterLink>
+        <RouterLink v-if="auth.can('coupons.view')" :to="{ name: 'coupons' }" class="nav-item" :class="{ 'is-active': route.name === 'coupons' }" exact-active-class="" active-class="">
+          <Ticket :size="19" /><span>Coupons</span>
         </RouterLink>
         <RouterLink v-if="auth.can('settings.*')" :to="{ name: 'settings' }" class="nav-item" :class="{ 'is-active': route.name === 'settings' }" exact-active-class="" active-class="">
           <Settings :size="19" /><span>Settings</span>

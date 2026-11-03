@@ -19,7 +19,7 @@ const DEV = [process.env.E2E_DEV_USER || 'developer', process.env.E2E_DEV_PASSWO
 const CHROME = process.env.CHROME_PATH || ['C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => fs.existsSync(p))
 if (!CHROME) { console.error('Chrome not found: set CHROME_PATH'); process.exit(2) }
 
-const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery']
+const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery', 'settings.store', 'settings.delivery', 'settings.payments', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage']
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0
@@ -71,8 +71,8 @@ try {
   // ================= the client admin, default access
   await login(a.page, ADMIN)
   check(a.page.url().endsWith('/admin/'), 'admin login lands on the dashboard')
-  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Customers', 'Settings']), `admin sidebar: Dashboard, Orders, Customers, Settings (${(await nav(a.page)).join(', ')})`)
-  for (const [path, heading] of [['', 'Dashboard'], ['orders', 'Orders'], ['customers', 'Customers'], ['settings', 'Settings']]) {
+  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Customers', 'Discounts', 'Coupons', 'Settings']), `admin sidebar: Dashboard, Orders, Customers, Discounts, Coupons, Settings (${(await nav(a.page)).join(', ')})`)
+  for (const [path, heading] of [['', 'Dashboard'], ['orders', 'Orders'], ['customers', 'Customers'], ['discounts', 'Discounts'], ['coupons', 'Coupons'], ['settings', 'Settings']]) {
     await goto(a.page, path)
     await a.page.waitForSelector('h1', { timeout: 15000 })
     check((await a.page.$eval('h1', (e) => e.innerText)).includes(heading), `admin opens /admin/${path} ("${heading}")`)
@@ -81,7 +81,22 @@ try {
   check(await a.page.evaluate(() => document.body.innerText.includes('Orders today')), 'the admin dashboard shows the order figures')
 
   await goto(a.page, 'settings')
-  check(JSON.stringify(await tabsOf(a.page)) === JSON.stringify(['General', 'Footer & Social', 'Orders & Delivery']), `admin sees only three Settings tabs (${(await tabsOf(a.page)).join(', ')})`)
+  check(JSON.stringify(await tabsOf(a.page)) === JSON.stringify(['General', 'Footer & Social', 'Orders & Delivery', 'Delivery', 'Payments', 'Store']), `admin sees General, Footer, Orders & Delivery, Delivery, Payments and Store, and no Theme (${(await tabsOf(a.page)).join(', ')})`)
+  // the new tabs render their fields from the API (colour / choice / accounts are the new field types)
+  await goto(a.page, 'settings?tab=delivery')
+  await a.page.waitForSelector('#s-delivery_method', { timeout: 15000 })
+  check(await a.page.$eval('#s-delivery_method', (e) => e.tagName === 'SELECT' && e.options.length === 5), 'Delivery tab: the delivery method is a select of five options')
+  check(!!(await a.page.$('[data-section="zones"]')), 'Delivery tab: the delivery zone manager is there')
+  await goto(a.page, 'settings?tab=payments')
+  await a.page.waitForSelector('[data-add-account]', { timeout: 15000 })
+  check(!!(await a.page.$('#s-pay_cod_enabled')) && !!(await a.page.$('#s-pay_bank_enabled')) && !!(await a.page.$('#s-pay_card_visible')) && !!(await a.page.$('#s-pay_bank_instructions')), 'Payments tab: COD, bank transfer and card switches, instructions and the accounts editor')
+  await goto(a.page, 'settings?tab=store')
+  await a.page.waitForSelector('#s-store_open', { timeout: 15000 })
+  check(!!(await a.page.$('#s-store_closed_message')) && !!(await a.page.$('#s-checkout_notice')) && !!(await a.page.$('#s-delivery_eta_text')), 'Store tab: open switch, closed message, checkout notice and ETA text')
+  await goto(a.page, 'settings?tab=footer')
+  await a.page.waitForSelector('#s-agency_name', { timeout: 15000 })
+  check(!!(await a.page.$('#s-agency_url')), 'Footer tab: agency name and link')
+  check(!(await a.page.$('#tab-theme')) && (await send('GET', 'admin/settings', null, await tokenOf(ADMIN))).json.tabs.every((t) => t.key !== 'theme'), 'the admin has no Theme tab, in the panel and in the API')
   for (const path of ['products', 'categories', 'access-control']) {
     await goto(a.page, path)
     check(a.page.url().endsWith('/forbidden'), `admin cannot open /admin/${path}`)
@@ -91,7 +106,7 @@ try {
   // ================= the developer
   await login(d.page, DEV)
   const devNav = await nav(d.page)
-  check(JSON.stringify(devNav) === JSON.stringify(['Dashboard', 'Products', 'Categories', 'Settings', 'Access Control']), `developer sidebar has no Orders or Customers (${devNav.join(', ')})`)
+  check(JSON.stringify(devNav) === JSON.stringify(['Dashboard', 'Products', 'Categories', 'Discounts', 'Coupons', 'Settings', 'Access Control']), `developer sidebar has no Orders or Customers (${devNav.join(', ')})`)
   check(!(await d.page.evaluate(() => /Orders today|Revenue today|Pending orders/.test(document.body.innerText))), 'the developer dashboard shows no order or revenue figures')
   await goto(d.page, 'orders')
   check(d.page.url().endsWith('/forbidden'), 'the developer cannot open /admin/orders')
@@ -118,7 +133,28 @@ try {
   // ---- settings: seven tabs, Banners inside, links editor
   await goto(d.page, 'settings')
   const tabs = await tabsOf(d.page)
-  check(JSON.stringify(tabs) === JSON.stringify(['General', 'Branding', 'Banners', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'SEO']), `settings has the seven tabs (${tabs.join(', ')})`)
+  check(JSON.stringify(tabs) === JSON.stringify(['General', 'Branding', 'Banners', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'Delivery', 'Payments', 'Store', 'Theme', 'SEO']), `the developer sees all eleven tabs, Theme included (${tabs.join(', ')})`)
+
+  // ---- Theme tab (developer only): colour inputs stay in sync and the live preview follows the form; the admin panel's own look does not change
+  await tap(d.page, '#tab-theme')
+  await d.page.waitForSelector('[data-theme-preview]', { timeout: 10000 })
+  const btnColour = () => d.page.$eval('[data-theme-preview] .tp-btn', (e) => getComputedStyle(e).backgroundColor)
+  const panelPrimary = () => d.page.evaluate(() => getComputedStyle(document.querySelector('.btn-primary')).backgroundColor)
+  const themeBefore = { preview: await btnColour(), panel: await panelPrimary() }
+  check(!!(await d.page.$('#s-theme_primary')) && !!(await d.page.$('input[type="color"][aria-label^="Primary colour"]')) && (await d.page.$eval('#s-theme_font_heading', (e) => e.tagName)) === 'SELECT' && (await d.page.$eval('#s-theme_radius', (e) => e.tagName)) === 'SELECT', 'Theme tab: colour inputs (picker + hex box), font / radius / shadow selects')
+  await d.page.$eval('#s-theme_primary', (el) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '#FF0000'); el.dispatchEvent(new Event('input', { bubbles: true })) })
+  await sleep(200)
+  check((await btnColour()) === 'rgb(255, 0, 0)' && themeBefore.preview !== 'rgb(255, 0, 0)', 'Theme tab: the live preview button follows the primary colour', { before: themeBefore.preview, after: await btnColour() })
+  check((await d.page.$eval('input[type="color"][aria-label^="Primary colour"]', (e) => e.value)) === '#ff0000', 'Theme tab: the colour picker follows the hex box')
+  await d.page.select('#s-theme_radius', '999px')
+  await sleep(150)
+  check((await d.page.$eval('[data-theme-preview] .tp-btn', (e) => getComputedStyle(e).borderTopLeftRadius)) !== '8px', 'Theme tab: the preview follows the corner radius')
+  check((await panelPrimary()) === themeBefore.panel, 'the admin panel keeps its own colours while the theme is edited')
+  await d.page.$eval('#s-theme_primary', (el) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, 'red'); el.dispatchEvent(new Event('input', { bubbles: true })) })
+  await tap(d.page, 'button[form="settings-form"]')
+  await d.page.waitForSelector('#panel-theme .err', { timeout: 10000 })
+  check(/#RRGGBB/.test(await d.page.$eval('#panel-theme .err', (e) => e.innerText)), 'Theme tab: an invalid colour shows the server message next to the field', await d.page.$eval('#panel-theme .err', (e) => e.innerText))
+  await goto(d.page, 'settings')   // nothing was saved: the form is dropped
   await tap(d.page, '#tab-banners')
   await d.page.waitForSelector('#panel-banners', { timeout: 10000 })
   check(await d.page.evaluate(() => [...document.querySelectorAll('#panel-banners button')].some((b) => b.textContent.includes('Add banner'))), 'the Banners tab holds the banner manager')
@@ -143,6 +179,12 @@ try {
   await d.page.waitForSelector('[data-role="admin"] input[data-permission="products.view"]', { timeout: 15000 })
   check(!(await d.page.$('[data-role="admin"] input[data-permission="orders.view"]:not(:checked)')), 'the admin starts with orders switched on')
   check(!(await d.page.$('[data-role="developer"] input[data-permission="orders.view"]')), 'there is no orders switch for the developer')
+  const newKeys = ['discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'settings.store', 'settings.delivery', 'settings.payments']
+  const adminRows = await d.page.$$eval('[data-role="admin"] input[data-permission]', (els) => els.map((e) => [e.dataset.permission, e.checked]))
+  check(newKeys.every((k) => adminRows.some(([key, on]) => key === k && on)), 'Access Control: Discounts, Coupons and the Store / Delivery / Payments tabs are listed and on for the admin')
+  check(!adminRows.some(([key]) => key === 'settings.theme' || key === 'access.manage'), 'Access Control: settings.theme and access.manage are not offered for the admin')
+  const groups = await d.page.$$eval('[data-role="admin"] .access-group__head strong', (els) => els.map((e) => e.innerText))
+  check(groups.includes('Discounts') && groups.includes('Coupons'), 'Access Control: Discounts and Coupons are groups', groups)
   for (const key of ['products.view', 'settings.banners']) {
     await d.page.$eval(`[data-role="admin"] input[data-permission="${key}"]`, (el) => el.click())
   }
@@ -163,6 +205,18 @@ try {
 
   // the developer cannot give themselves orders
   check((await send('PUT', 'admin/access-control/developer', { permissions: ['orders.view'] }, devToken)).status === 422, 'the developer cannot grant themselves orders (422)')
+
+  // any single Settings tab opens the Settings page (auth.can('settings.*')): an admin that holds only settings.payments sees just that tab
+  await setAdminAccess(['settings.payments'])
+  await goto(a.page, 'settings')
+  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Settings']) && JSON.stringify(await tabsOf(a.page)) === JSON.stringify(['Payments']), `only settings.payments: the sidebar has Settings and the page has the Payments tab (${(await nav(a.page)).join(', ')} / ${(await tabsOf(a.page)).join(', ')})`)
+  await goto(a.page, 'discounts')
+  check(a.page.url().endsWith('/forbidden'), 'without discounts.view /admin/discounts shows "no access"')
+  await setAdminAccess(['discounts.view', 'coupons.view'])
+  await goto(a.page, 'discounts')
+  await a.page.waitForSelector('h1', { timeout: 15000 })
+  check(!(await a.page.$('[data-add]')) && !(await a.page.$('button[aria-label^="Edit "], button[aria-label^="Delete "]')), 'discounts.view without discounts.manage: no Add / Edit / Delete buttons')
+  await setAdminAccess(ADMIN_DEFAULTS)
 
   check(a.problems.length === 0 && d.problems.length === 0, `no script errors (${[...a.problems, ...d.problems].join('; ') || 'none'})`)
 } finally {

@@ -30,11 +30,11 @@ the **developer** (everything except orders) and the **admin** (the client). Aut
 
 ## Pages (sidebar)
 
-Dashboard · Orders (list, detail, status changes, printable invoice and packing slip) · Products (list, form with options, prices, stock, tags, pictures, content tabs) ·
-Categories (two levels) · Customers (read-only list, search, CSV export) · Settings · Access Control (developer only).
+Dashboard · Orders (list with status tabs and payment filters, detail, reject with a reason, bank-transfer proof check, delivery fee confirmation, printable invoice and packing slip) · Products (list, form with options, prices, stock, tags, pictures, content tabs) ·
+Categories (two levels) · Customers (read-only list, search, CSV export) · **Discounts** and **Coupons** (compact lists, searchable product / category picker, usages of a coupon) · Settings · Access Control (developer only).
 
-**Settings** is one page with tabs: General, Branding, **Banners** (the full banner manager: create, edit, delete, reorder, activate, placements, pictures), Footer & Social, Currency & Tax, Orders & Delivery, SEO.
-The tabs and their fields come from the API (`GET admin/settings`), so a new tab (for example *Payment details*) appears without panel changes. Only the changed keys are saved.
+**Settings** is one page with tabs: General, Branding, **Banners** (the full banner manager: create, edit, delete, reorder, activate, placements, pictures), Footer & Social, Currency & Tax, Orders & Delivery, **Delivery** (method, fees and the delivery zone manager), **Payments** (COD, bank transfer, bank accounts), **Store** (open / closed, notices), **Theme** (developer only, with a live preview card) and SEO.
+The tabs and their fields come from the API (`GET admin/settings`), so a new tab appears without panel changes. Field types: string, text, bool, int, money, percent, file, links, accounts (bank accounts), color (`#RRGGBB`, picker plus hex box) and choice (a select of the options the API sends). Only the changed keys are saved.
 
 ## Permissions
 
@@ -45,7 +45,9 @@ See `../docs/ACCESS_CONTROL.md`.
 ## Browser smoke test
 
 `npm run e2e` (needs Chrome, the API running on a freshly seeded database with the DemoSeeder, and `npm run build`): checks both accounts (sidebar, tabs, forbidden pages, no order data for the developer), every screen,
-the product-edit route, the Settings tabs and links editor, and that the developer's Access Control switches change what the admin sees. It restores the admin's default access afterwards.
+the product-edit route, the Settings tabs (Delivery, Payments, Store, and the developer-only Theme tab with its live preview) and links editor, and that the developer's Access Control switches change what the admin sees. It restores the admin's default access afterwards.
+
+`npm run flow-ui` drives the order, discount, coupon, delivery zone and payment screens on the real app (it places bank-transfer orders and uploads a proof through the public API; run it on a freshly seeded database with the DemoSeeder). It puts back the settings it changes.
 See the header of `e2e/smoke.mjs` for the environment variables.
 
 ## Notes
