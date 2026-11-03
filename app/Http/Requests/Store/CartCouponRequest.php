@@ -1,0 +1,24 @@
+<?php
+
+namespace App\Http\Requests\Store;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+/** PUT /store/cart/coupon { code } */
+class CartCouponRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        return ['code' => ['required', 'string', 'max:32']];
+    }
+
+    public function messages(): array
+    {
+        return ['code.required' => 'Enter the coupon code.'];
+    }
+}

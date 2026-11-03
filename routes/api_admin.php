@@ -4,8 +4,11 @@ use App\Http\Controllers\Admin\AccessControlController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DeliveryZoneController;
+use App\Http\Controllers\Admin\DiscountController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\SettingController;
@@ -87,10 +90,50 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
         Route::get('orders/options', [OrderController::class, 'options']);
         Route::get('orders', [OrderController::class, 'index']);
         Route::get('orders/{order}', [OrderController::class, 'show'])->whereNumber('order');
+        Route::get('orders/{order}/payment/proof', [OrderController::class, 'proof'])->whereNumber('order');   // the private screenshot
     });
     Route::middleware('admin.can:orders.manage')->group(function () {
         Route::post('orders/{order}/status', [OrderController::class, 'status'])->whereNumber('order');
         Route::patch('orders/{order}/note', [OrderController::class, 'note'])->whereNumber('order');
+        // bank transfer: verify the customer's proof or send it back; the delivery fee of an order that was placed without one
+        Route::post('orders/{order}/payment/verify', [OrderController::class, 'verifyPayment'])->whereNumber('order');
+        Route::post('orders/{order}/payment/reject-proof', [OrderController::class, 'rejectProof'])->whereNumber('order');
+        Route::put('orders/{order}/delivery-fee', [OrderController::class, 'deliveryFee'])->whereNumber('order');
+    });
+
+    // Discounts (automatic) and coupons (code). The usage list of a coupon only shows order numbers to an admin who may see orders.
+    Route::get('promotion-targets', [DiscountController::class, 'targets'])->middleware('admin.can:discounts.view,coupons.view');
+    Route::middleware('admin.can:discounts.view')->group(function () {
+        Route::get('discounts', [DiscountController::class, 'index']);
+        Route::get('discounts/{discount}', [DiscountController::class, 'show'])->whereNumber('discount');
+    });
+    Route::middleware('admin.can:discounts.manage')->group(function () {
+        Route::post('discounts', [DiscountController::class, 'store']);
+        Route::match(['put', 'patch'], 'discounts/{discount}', [DiscountController::class, 'update'])->whereNumber('discount');
+        Route::patch('discounts/{discount}/active', [DiscountController::class, 'active'])->whereNumber('discount');
+        Route::delete('discounts/{discount}', [DiscountController::class, 'destroy'])->whereNumber('discount');
+    });
+    Route::middleware('admin.can:coupons.view')->group(function () {
+        Route::get('coupons', [CouponController::class, 'index']);
+        Route::get('coupons/{coupon}', [CouponController::class, 'show'])->whereNumber('coupon');
+        Route::get('coupons/{coupon}/usages', [CouponController::class, 'usages'])->whereNumber('coupon');
+    });
+    Route::middleware('admin.can:coupons.manage')->group(function () {
+        Route::post('coupons', [CouponController::class, 'store']);
+        Route::match(['put', 'patch'], 'coupons/{coupon}', [CouponController::class, 'update'])->whereNumber('coupon');
+        Route::patch('coupons/{coupon}/active', [CouponController::class, 'active'])->whereNumber('coupon');
+        Route::delete('coupons/{coupon}', [CouponController::class, 'destroy'])->whereNumber('coupon');
+    });
+
+    // Delivery zones live in the Settings > Delivery tab (like the banners in their tab); the order of the zones is the order they are matched in
+    Route::middleware('admin.can:settings.delivery')->group(function () {
+        Route::get('delivery-zones', [DeliveryZoneController::class, 'index']);
+        Route::put('delivery-zones/reorder', [DeliveryZoneController::class, 'reorder']);
+        Route::get('delivery-zones/{zone}', [DeliveryZoneController::class, 'show'])->whereNumber('zone');
+        Route::post('delivery-zones', [DeliveryZoneController::class, 'store']);
+        Route::match(['put', 'patch'], 'delivery-zones/{zone}', [DeliveryZoneController::class, 'update'])->whereNumber('zone');
+        Route::patch('delivery-zones/{zone}/active', [DeliveryZoneController::class, 'active'])->whereNumber('zone');
+        Route::delete('delivery-zones/{zone}', [DeliveryZoneController::class, 'destroy'])->whereNumber('zone');
     });
 
     // Customers (read-only list and CSV export; contains personal data)
@@ -98,8 +141,8 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
     Route::get('customers/export', [CustomerController::class, 'export'])->middleware('admin.can:customers.export');
 
     // Settings: each tab has its own permission (settings.<tab>); the controller checks it per key, here any tab opens the page
-    Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.general,settings.branding,settings.banners,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo');
-    Route::put('settings', [SettingController::class, 'update'])->middleware('admin.can:settings.general,settings.branding,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo');
+    Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.general,settings.branding,settings.banners,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments');
+    Route::put('settings', [SettingController::class, 'update'])->middleware('admin.can:settings.general,settings.branding,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments');
     // pictures: logo, favicon (Branding tab) and share-image (SEO tab); the controller checks the tab of the picture
     Route::post('settings/{slot}', [SettingController::class, 'uploadFile'])->whereIn('slot', ['logo', 'favicon', 'share-image'])->middleware('admin.can:settings.branding,settings.seo');
     Route::delete('settings/{slot}', [SettingController::class, 'deleteFile'])->whereIn('slot', ['logo', 'favicon', 'share-image'])->middleware('admin.can:settings.branding,settings.seo');

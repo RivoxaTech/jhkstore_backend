@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Expired admin API tokens are removed a day after they ran out.
 Schedule::command('sanctum:prune-expired --hours=24')->dailyAt('03:45');
+
+// Carts that were not touched for 30 days are removed.
+Schedule::command('shop:prune-carts')->dailyAt('04:10');

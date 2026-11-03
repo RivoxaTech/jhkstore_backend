@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Store\BannerController;
+use App\Http\Controllers\Store\CartController;
 use App\Http\Controllers\Store\CategoryController;
 use App\Http\Controllers\Store\CheckoutController;
 use App\Http\Controllers\Store\OrderController;
@@ -37,3 +38,21 @@ Route::middleware('throttle:public')->group(function () {
 Route::post('checkout/quote', [CheckoutController::class, 'quote'])->middleware(['throttle:quote', 'honeypot']);
 Route::post('orders', [OrderController::class, 'store'])->middleware(['throttle:checkout', 'honeypot']);
 Route::get('orders/{orderNumber}', [OrderController::class, 'show'])->middleware('throttle:order-lookup');
+
+// Coupon check: the quote with the coupon applied (its own limit: a code cannot be guessed quickly)
+Route::post('coupons/validate', [CheckoutController::class, 'validateCoupon'])->middleware(['throttle:coupon', 'honeypot']);
+
+// Bank transfer: the customer uploads the screenshot of the payment (a wrong phone is the same 404 as an unknown order)
+Route::post('orders/{orderNumber}/payment-proof', [OrderController::class, 'paymentProof'])->middleware(['throttle:payment-proof', 'honeypot']);
+
+// Persistent cart: bound to the random token in the X-Cart-Token header (no header = a new cart). 60 calls a minute per IP.
+Route::middleware('throttle:cart')->prefix('cart')->group(function () {
+    Route::get('/', [CartController::class, 'show']);
+    Route::delete('/', [CartController::class, 'clear']);
+    Route::post('items', [CartController::class, 'add']);
+    Route::put('items/{variantId}', [CartController::class, 'update'])->whereNumber('variantId');
+    Route::delete('items/{variantId}', [CartController::class, 'remove'])->whereNumber('variantId');
+    Route::put('contact', [CartController::class, 'contact']);
+    Route::put('coupon', [CartController::class, 'setCoupon']);
+    Route::delete('coupon', [CartController::class, 'removeCoupon']);
+});
