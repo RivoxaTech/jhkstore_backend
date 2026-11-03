@@ -118,6 +118,19 @@ class ProductExtrasTest extends TestCase
         $this->assertTrue(collect($this->getJson(self::ADMIN.'/products')->json('data'))->firstWhere('id', $low->id)['low_stock']);
     }
 
+    public function test_the_low_stock_alert_level_of_an_option_can_be_set_in_the_form(): void
+    {
+        $product = $this->product(['stock' => 8]);
+        $variant = $product->variants()->first();
+        $this->actingAsAdmin('developer');
+
+        $this->putJson(self::ADMIN."/products/{$product->id}", ['variants' => [[
+            'id' => $variant->id, 'name' => $variant->name, 'sku' => $variant->sku, 'mrp' => 200, 'selling_price' => 160, 'stock' => 8, 'low_stock_threshold' => 12,
+        ]]])->assertOk()->assertJsonPath('data.variants.0.low_stock_threshold', 12);
+
+        $this->assertSame(1, $this->getJson(self::ADMIN.'/dashboard')->json('catalog.low_stock'));   // 8 left, alert at 12
+    }
+
     // ------------------------------------------------------------------ video
 
     public function test_a_video_is_uploaded_with_a_poster_and_shown_publicly(): void

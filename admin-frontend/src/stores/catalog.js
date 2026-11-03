@@ -15,6 +15,8 @@ export const useCatalogStore = defineStore('catalog', () => {
   const currency = ref({ code: '', symbol: '$', decimals: 2 })
   const categories = ref([]) // [{ id, name, sub_categories: [{ id, name }] }]
   const loaded = ref(false)
+  // a store without sub-categories never shows the sub-category field (products and categories forms, product filters)
+  const hasSubCategories = computed(() => categories.value.some(c => (c.sub_categories || []).length > 0))
   let loading = null
 
   // Until the options arrived, the public store settings give the same answer.
@@ -33,5 +35,5 @@ export const useCatalogStore = defineStore('catalog', () => {
     return loading
   }
 
-  return { options, currency, categories, loaded, load, reload: () => load(true) }
+  return { options, currency, categories, loaded, hasSubCategories, load, reload: () => load(true) }
 })

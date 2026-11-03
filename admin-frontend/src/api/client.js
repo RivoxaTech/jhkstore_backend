@@ -87,6 +87,33 @@ export const api = {
   del: (path) => request('DELETE', path),
   /** multipart POST (use `_method=PUT` inside the FormData when updating with files) */
   postForm: (path, form) => request('POST', path, { form }),
+  /**
+   * Like postForm, but reports the upload progress (0 to 100) to `onProgress` (fetch cannot): for a large file such as a product video.
+   * Answers like the other calls (parsed JSON, or an ApiError with the validation messages).
+   */
+  async postFormProgress(path, form, onProgress) {
+    await ensureCsrf()
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', buildUrl(path))
+      xhr.withCredentials = true
+      xhr.setRequestHeader('Accept', 'application/json')
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
+      xhr.setRequestHeader('X-XSRF-TOKEN', readCookie('XSRF-TOKEN') || '')
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100)) }
+      xhr.onerror = () => reject(new ApiError(0, { message: 'Cannot reach the server. Check that the backend is running.' }))
+      xhr.onload = () => {
+        let data = null
+        try { data = JSON.parse(xhr.responseText) } catch { /* not JSON */ }
+        if (xhr.status >= 200 && xhr.status < 300) return resolve(data)
+        if (xhr.status === 401) unauthorizedHandler(path)
+        // a file larger than the PHP limits is refused before Laravel sees it: say so in plain words
+        if (xhr.status === 413) return reject(new ApiError(413, { message: 'The file is larger than the server allows. Ask your developer to raise upload_max_filesize and post_max_size.' }))
+        reject(new ApiError(xhr.status, data))
+      }
+      xhr.send(form)
+    })
+  },
   /** A private file (the cookie authenticates it) as a Blob, e.g. to show a payment proof in an <img> through an object URL. */
   async blob(path) {
     const res = await request('GET', path, { raw: true })

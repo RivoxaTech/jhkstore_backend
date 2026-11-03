@@ -18,6 +18,7 @@ const routes = [
       { path: 'orders', name: 'orders', component: () => import('@/views/OrdersView.vue'), meta: { title: 'Orders', permission: 'orders.view' } },
       { path: 'orders/:id([0-9]+)', name: 'order', component: () => import('@/views/OrderDetailView.vue'), meta: { title: 'Order', permission: 'orders.view' } },
       { path: 'customers', name: 'customers', component: () => import('@/views/CustomersView.vue'), meta: { title: 'Customers', permission: 'customers.view' } },
+      { path: 'wholesale', name: 'wholesale', component: () => import('@/views/WholesaleView.vue'), meta: { title: 'Wholesale', permission: 'wholesale.view' } },
       { path: 'discounts', name: 'discounts', component: () => import('@/views/DiscountsView.vue'), meta: { title: 'Discounts', permission: 'discounts.view' } },
       { path: 'coupons', name: 'coupons', component: () => import('@/views/CouponsView.vue'), meta: { title: 'Coupons', permission: 'coupons.view' } },
       // any Settings tab opens the page; the page lists only the tabs the admin may use (Banners is a tab of Settings)

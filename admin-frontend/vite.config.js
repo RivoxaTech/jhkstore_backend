@@ -24,6 +24,7 @@ export default defineConfig(({ command, mode }) => {
         '/api': { target: backend, changeOrigin: false },
         '/sanctum': { target: backend, changeOrigin: false },
         '/storage': { target: backend, changeOrigin: false },
+        '/admin-sw.js': { target: backend, changeOrigin: false },   // the push service worker lives in Laravel's public folder
       },
     },
     build: {

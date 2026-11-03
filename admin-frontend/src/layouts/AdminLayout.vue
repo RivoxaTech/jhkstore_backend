@@ -1,12 +1,13 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { BadgePercent, Bell, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Ticket, Users } from '@lucide/vue'
+import { BadgePercent, Bell, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Store, Ticket, Users } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useCatalogStore } from '@/stores/catalog.js'
 import { useSiteStore } from '@/stores/site.js'
 import StoreMark from '@/components/StoreMark.vue'
+import PushToggle from '@/components/PushToggle.vue'
 import { api } from '@/api/client.js'
 
 const auth = useAuthStore()
@@ -20,22 +21,27 @@ const query = ref('')
 const menuOpen = ref(false)
 const menuEl = ref(null)
 
-// Keeps the "pending orders" badge fresh (sidebar + bell). One light call every minute.
-async function refreshPending() {
-  if (!auth.can('orders.view')) return
-  try {
-    const orders = await api.get('admin/orders', { per_page: 1 })
-    ui.pendingOrders = orders.counts?.pending ?? 0
-  } catch { /* the badges are optional */ }
+// Keeps the badges fresh: pending orders + payment proofs to check (sidebar + bell) and new wholesale requests. Two light calls every 30 seconds,
+// only for what this admin may see (also the fallback when browser push is not available).
+async function refreshBadges() {
+  if (document.hidden) return
+  if (auth.can('orders.view')) {
+    try { ui.pendingOrders = (await api.get('admin/orders/pending-count')).count ?? 0 } catch { /* the badges are optional */ }
+  }
+  if (auth.can('wholesale.view')) {
+    try { ui.newWholesale = (await api.get('admin/wholesale/new-count')).count ?? 0 } catch { /* the badges are optional */ }
+  }
 }
+const BADGE_POLL_MS = 30000
 let timer
 onMounted(() => {
   if (auth.can('products.view') || auth.can('categories.view')) catalog.load().catch(() => { /* the features fall back to the public store settings */ })
-  refreshPending()
-  timer = setInterval(refreshPending, 60000)
+  refreshBadges()
+  timer = setInterval(refreshBadges, BADGE_POLL_MS)
   document.addEventListener('click', closeMenu)
+  document.addEventListener('visibilitychange', refreshBadges)
 })
-onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('click', closeMenu) })
+onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('click', closeMenu); document.removeEventListener('visibilitychange', refreshBadges) })
 watch(() => route.fullPath, () => { ui.mobileSidebarOpen = false; menuOpen.value = false })
 
 const closeMenu = (e) => { if (menuEl.value && !menuEl.value.contains(e.target)) menuOpen.value = false }
@@ -66,7 +72,7 @@ async function logout() {
         </RouterLink>
         <RouterLink v-if="auth.can('orders.view')" :to="{ name: 'orders' }" class="nav-item" :class="{ 'is-active': route.name === 'orders' || route.name === 'order' }" exact-active-class="" active-class="">
           <ShoppingBag :size="19" /><span>Orders</span>
-          <b v-if="ui.pendingOrders" class="nav-badge" :title="`${ui.pendingOrders} orders waiting`">{{ ui.pendingOrders }}</b>
+          <b v-if="ui.pendingOrders" class="nav-badge" data-testid="orders-badge" :title="`${ui.pendingOrders} orders or payment proofs waiting`">{{ ui.pendingOrders }}</b>
         </RouterLink>
         <RouterLink v-if="auth.can('products.view')" :to="{ name: 'products' }" class="nav-item" :class="{ 'is-active': String(route.name).startsWith('product') }" exact-active-class="" active-class="">
           <Package :size="19" /><span>Products</span>
@@ -76,6 +82,10 @@ async function logout() {
         </RouterLink>
         <RouterLink v-if="auth.can('customers.view')" :to="{ name: 'customers' }" class="nav-item" :class="{ 'is-active': route.name === 'customers' }" exact-active-class="" active-class="">
           <Users :size="19" /><span>Customers</span>
+        </RouterLink>
+        <RouterLink v-if="auth.can('wholesale.view')" :to="{ name: 'wholesale' }" class="nav-item" :class="{ 'is-active': route.name === 'wholesale' }" exact-active-class="" active-class="">
+          <Store :size="19" /><span>Wholesale</span>
+          <b v-if="ui.newWholesale" class="nav-badge" data-testid="wholesale-badge" :title="`${ui.newWholesale} new requests`">{{ ui.newWholesale }}</b>
         </RouterLink>
         <RouterLink v-if="auth.can('discounts.view')" :to="{ name: 'discounts' }" class="nav-item" :class="{ 'is-active': route.name === 'discounts' }" exact-active-class="" active-class="">
           <BadgePercent :size="19" /><span>Discounts</span>
@@ -108,6 +118,7 @@ async function logout() {
           <Search :size="18" />
         </form>
         <div class="topbar__space" />
+        <PushToggle v-if="auth.can('orders.view') || auth.can('wholesale.view')" />
         <RouterLink v-if="auth.can('orders.view')" class="icon-btn" :to="{ name: 'orders', query: { status: 'pending' } }" :title="`${ui.pendingOrders} pending orders`" aria-label="Pending orders">
           <Bell :size="17" />
           <span v-if="ui.pendingOrders" class="dot">{{ ui.pendingOrders > 99 ? '99+' : ui.pendingOrders }}</span>

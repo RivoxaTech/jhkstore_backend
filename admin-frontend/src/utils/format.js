@@ -82,7 +82,25 @@ export function initials(name = '') {
   return name.split(/\s+/).filter(p => /[\p{L}\p{N}]/u.test(p[0] || '')).slice(0, 2).map(p => p[0].toUpperCase()).join('') || '?'
 }
 
+/** wa.me link for a phone number (digits only) with a ready message. Null when the number has no digits. */
+export function whatsappUrl(phone, text = '') {
+  const digits = String(phone || '').replace(/\D+/g, '')
+  if (digits.length < 7) return null
+  return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ''}`
+}
+
 export const ACTION_LABELS = {
+  'orders.exported': 'downloaded the orders list',
+  'wholesale.updated': 'updated wholesale request',
+  'wholesale.exported': 'downloaded the wholesale requests',
+  'notifications.test_email': 'sent a test e-mail',
+  'product.sold_out_changed': 'changed the sold-out switch of product',
+  'product.featured_changed': 'changed the featured switch of product',
+  'product.video_added': 'added a video to product',
+  'product.video_deleted': 'deleted a video of product',
+  'product.video_poster_changed': 'changed a video poster of product',
+  'product.videos_reordered': 'reordered the videos of product',
+  'customers.abandoned_carts_exported': 'downloaded the abandoned carts',
   'category.created': 'added category',
   'category.updated': 'updated category',
   'category.deleted': 'deleted category',

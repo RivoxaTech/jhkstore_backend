@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { Ban, Check, CircleX, FileText, PackageCheck, Printer, Save, ShieldCheck, Truck, ZoomIn } from '@lucide/vue'
+import { Ban, Check, CircleX, FileText, MessageCircle, PackageCheck, Printer, Save, ShieldCheck, Truck, ZoomIn } from '@lucide/vue'
 import { api, ApiError } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -9,7 +9,7 @@ import { useSiteStore } from '@/stores/site.js'
 import AppModal from '@/components/AppModal.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
-import { currencySymbol, formatDate, money } from '@/utils/format.js'
+import { currencySymbol, formatDate, money, whatsappUrl } from '@/utils/format.js'
 
 const route = useRoute()
 const ui = useUiStore()
@@ -204,6 +204,13 @@ async function print(mode) {
 }
 
 const fe = (field) => errors.value[field]?.[0] || ''
+// WhatsApp with the customer, prefilled with the order number and where the order stands
+const whatsapp = computed(() => {
+  const x = o.value
+  if (!x) return null
+  const text = `Hello ${x.customer.name}, this is ${site.name} about your order ${x.order_number} (${x.status_label.toLowerCase()}).`
+  return whatsappUrl(x.customer.phone, text)
+})
 const addressLines = (a) => [a.line1, a.area, a.landmark && `Landmark: ${a.landmark}`, [a.city, a.state, a.postcode].filter(Boolean).join(', '), a.country].filter(Boolean)
 const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status === 'rejected', 'is-delivered': s.status === 'delivered' })
 </script>
@@ -218,6 +225,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
     <div v-if="o" class="act-bar">
       <button class="btn btn-outline" type="button" @click="print('invoice')"><Printer :size="16" /> Print invoice</button>
       <button class="btn btn-outline" type="button" @click="print('slip')"><FileText :size="16" /> Packing slip</button>
+      <a v-if="whatsapp" class="btn btn-outline" :href="whatsapp" target="_blank" rel="noopener" data-testid="whatsapp"><MessageCircle :size="16" /> WhatsApp</a>
       <button v-if="canManage && o.actions.can_cancel" class="btn btn-soft-danger" type="button" @click="openAction('cancelled')"><Ban :size="16" /> Cancel order</button>
       <button v-if="canManage && o.actions.can_reject" class="btn btn-soft-danger" type="button" data-reject-order @click="openAction('rejected')"><CircleX :size="16" /> Reject order</button>
       <span v-if="canManage && next && blockedText" class="muted" data-blocked :data-reason="o.actions.blocked_reason" style="max-width: 220px; line-height: 1.25">{{ blockedText }}</span>

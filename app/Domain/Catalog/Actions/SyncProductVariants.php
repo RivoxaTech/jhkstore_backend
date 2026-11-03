@@ -35,6 +35,9 @@ class SyncProductVariants
                 'is_active' => $row['is_active'] ?? true,
                 'sort_order' => $row['sort_order'] ?? $i,
             ]);
+            if (isset($row['low_stock_threshold'])) {
+                $variant->low_stock_threshold = (int) $row['low_stock_threshold'];   // "alert me at this many or fewer" (the dashboard low-stock widget)
+            }
             $variant->discount_percent = ProductVariant::discountFor($row['mrp'], $row['selling_price']);
             $variant->product_id = $product->id;
             $variant->is_default = false; // fixed below: exactly one default

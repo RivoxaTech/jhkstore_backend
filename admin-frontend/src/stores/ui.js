@@ -7,7 +7,8 @@ export const useUiStore = defineStore('ui', () => {
   const sidebarCollapsed = ref(localStorage.getItem('admin_sidebar') === '1')
   const mobileSidebarOpen = ref(false)
   const toasts = ref([])
-  const pendingOrders = ref(0) // orders waiting for a decision, badge on the Orders item and the bell
+  const pendingOrders = ref(0) // pending orders + payment proofs to check: badge on the Orders item and the bell
+  const newWholesale = ref(0)  // wholesale requests nobody has looked at yet: badge on the Wholesale item
 
   function toggleSidebar() {
     if (window.innerWidth < 960) {
@@ -26,5 +27,5 @@ export const useUiStore = defineStore('ui', () => {
 
   const dismiss = (id) => { toasts.value = toasts.value.filter(t => t.id !== id) }
 
-  return { sidebarCollapsed, mobileSidebarOpen, toasts, pendingOrders, toggleSidebar, toast, dismiss }
+  return { sidebarCollapsed, mobileSidebarOpen, toasts, pendingOrders, newWholesale, toggleSidebar, toast, dismiss }
 })

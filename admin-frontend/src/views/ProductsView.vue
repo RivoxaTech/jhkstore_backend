@@ -64,7 +64,7 @@ async function load() {
   try {
     const res = await api.get('admin/products', {
       q: q('q'), status: status.value, category_id: q('category_id'),
-      sub_category_id: q('sub_category_id'), tag: q('tag'), page: page.value, per_page: PER_PAGE.value,
+      sub_category_id: q('sub_category_id'), tag: q('tag'), stock: q('stock'), featured: q('featured'), page: page.value, per_page: PER_PAGE.value,
     })
     if (mine !== seq) return
     rows.value = res.data
@@ -89,7 +89,8 @@ function go(patch) {
 }
 // choosing another category clears the sub-category that depended on it
 const pickCategory = (v) => go({ category_id: v, sub_category_id: undefined, page: undefined })
-const hasFilters = computed(() => ['q', 'status', 'category_id', 'sub_category_id', 'tag'].some(k => q(k)))
+const hasFilters = computed(() => ['q', 'status', 'category_id', 'sub_category_id', 'tag', 'stock', 'featured'].some(k => q(k)))
+const STOCK_FILTERS = [['in', 'In stock'], ['low', 'Running low'], ['out', 'Out of stock'], ['sold_out', 'Marked sold out']]
 const clearFilters = () => { search.value = ''; router.push({ name: 'products' }) }
 
 let t
@@ -109,6 +110,20 @@ async function changeStatus(row, value) {
     load()
   } catch (e) {
     row.status = before
+    ui.toast(e.message, 'error')
+  }
+}
+
+// the two switches of the list: the change is shown at once and undone when the server refuses it
+async function setFlag(row, flag, value) {
+  const field = flag === 'sold-out' ? 'is_sold_out' : 'is_featured'
+  const before = row[field]
+  row[field] = value
+  try {
+    await api.patch(`admin/products/${row.id}/${flag}`, { value })
+    ui.toast(flag === 'sold-out' ? (value ? `"${row.name}" is shown as sold out.` : `"${row.name}" can be ordered again.`) : (value ? `"${row.name}" is featured.` : `"${row.name}" is no longer featured.`), 'info')
+  } catch (e) {
+    row[field] = before
     ui.toast(e.message, 'error')
   }
 }
@@ -166,9 +181,13 @@ async function confirmDelete() {
         <option value="">All categories</option>
         <option v-for="c in catalog.categories" :key="c.id" :value="c.id">{{ c.name }}</option>
       </select>
-      <select class="select" style="width: 150px" :value="q('sub_category_id')" :disabled="!subOptions.length" aria-label="Sub-category" @change="go({ sub_category_id: $event.target.value, page: undefined })">
+      <select v-if="catalog.hasSubCategories" class="select" style="width: 150px" :value="q('sub_category_id')" :disabled="!subOptions.length" aria-label="Sub-category" @change="go({ sub_category_id: $event.target.value, page: undefined })">
         <option value="">All sub-categories</option>
         <option v-for="s in subOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
+      </select>
+      <select class="select" style="width: 130px" :value="q('stock')" aria-label="Stock" data-filter="stock" @change="go({ stock: $event.target.value, page: undefined })">
+        <option value="">Any stock</option>
+        <option v-for="[v, l] in STOCK_FILTERS" :key="v" :value="v">{{ l }}</option>
       </select>
       <select class="select" style="width: 130px" :value="q('tag')" aria-label="Tag" @change="go({ tag: $event.target.value, page: undefined })">
         <option value="">All tags</option>
@@ -192,12 +211,11 @@ async function confirmDelete() {
       <table class="table prod-table">
         <thead>
           <tr>
-            <th class="sno">#</th><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Tags</th><th>Status</th><th />
+            <th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th class="c">Sold out</th><th class="c">Featured</th><th />
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(p, i) in rows" :key="p.id" class="row-link" @click="router.push({ name: 'product-edit', params: { id: p.id } })">
-            <td class="sno">{{ (page - 1) * PER_PAGE + i + 1 }}</td>
+          <tr v-for="p in rows" :key="p.id" class="row-link" :data-product="p.id" :class="{ 'is-soldout': p.is_sold_out }" @click="router.push({ name: 'product-edit', params: { id: p.id } })">
             <td>
               <div class="cell-main">
                 <span class="thumb"><img v-if="p.thumb_url" :src="p.thumb_url" :alt="p.name" loading="lazy" /><template v-else>{{ p.name.slice(0, 2).toUpperCase() }}</template></span>
@@ -209,26 +227,25 @@ async function confirmDelete() {
             </td>
             <td>
               <div class="truncate">{{ p.category?.name }}</div>
-              <div class="muted truncate">{{ p.sub_category?.name }}</div>
+              <div v-if="catalog.hasSubCategories" class="muted truncate">{{ p.sub_category?.name }}</div>
             </td>
             <td class="nowrap price-cell">
               <strong>{{ money(p.min_price) }}</strong><s v-if="p.mrp && p.mrp !== p.min_price">{{ money(p.mrp) }}</s>
               <div v-if="p.discount_percent > 0" class="off-tag">{{ Number(p.discount_percent) }}% off</div>
             </td>
             <td>
-              <span class="stock-pill" :class="{ 'is-zero': !p.is_in_stock || !p.stock }" :title="p.is_in_stock ? 'Units in stock (all options)' : 'Out of stock'">{{ p.stock ?? 0 }}</span>
-            </td>
-            <td>
-              <div class="tags-cell">
-                <span v-for="tg in p.tags.slice(0, 2)" :key="tg.id" class="tag-chip" :style="{ '--c': tg.color || undefined }"><i class="dot" />{{ tg.name }}</span>
-                <span v-if="p.tags.length > 2" class="chip">+{{ p.tags.length - 2 }}</span>
-                <span v-if="!p.tags.length" class="muted">-</span>
-              </div>
+              <span class="stock-pill" :class="{ 'is-zero': !p.is_in_stock || !p.stock, 'is-low': p.low_stock && p.stock > 0 }" :title="p.is_in_stock ? (p.low_stock ? 'Running low (all options)' : 'Units in stock (all options)') : 'Out of stock'">{{ p.stock ?? 0 }}</span>
             </td>
             <td @click.stop>
               <select class="select status-select" :class="`s-${p.status}`" :value="p.status" :disabled="!canManage" aria-label="Status" @change="changeStatus(p, $event.target.value)">
                 <option v-for="s in STATUSES" :key="s" :value="s">{{ s[0].toUpperCase() + s.slice(1) }}</option>
               </select>
+            </td>
+            <td class="c" @click.stop>
+              <label class="switch" :title="p.is_sold_out ? 'Shown as sold out: customers cannot order it' : 'Mark as sold out (stays visible, cannot be ordered)'"><input type="checkbox" :checked="p.is_sold_out" :disabled="!canManage" data-flag="sold-out" :aria-label="`Sold out: ${p.name}`" @change="setFlag(p, 'sold-out', $event.target.checked)" /><span /></label>
+            </td>
+            <td class="c" @click.stop>
+              <label class="switch" title="Featured products are listed with ?featured=1"><input type="checkbox" :checked="p.is_featured" :disabled="!canManage" data-flag="featured" :aria-label="`Featured: ${p.name}`" @change="setFlag(p, 'featured', $event.target.checked)" /><span /></label>
             </td>
             <td @click.stop>
               <div class="row-actions">

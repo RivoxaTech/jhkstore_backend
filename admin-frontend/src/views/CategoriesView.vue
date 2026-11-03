@@ -31,6 +31,8 @@ const loading = ref(true)
 const error = ref('')
 const search = ref('')
 const expanded = ref(new Set())  // 'c<id>' for an opened category
+// A store with no sub-category at all does not show the sub-category column or rows (the "+ Sub" button stays: it is how the first one is made)
+const subsExist = computed(() => Number(counts.value.sub_categories) > 0)
 const modal = ref(null)          // { item, parent } while the create/edit modal is open (parent = the category of a sub-category)
 const toDelete = ref(null)       // { item, level } level: 'category' | 'sub'
 const busy = ref(false)
@@ -147,14 +149,14 @@ const deleteMessage = computed(() => {
         <input v-model="search" class="input" type="search" placeholder="Search categories or sub-categories" aria-label="Search categories" />
       </div>
       <span v-if="!loading && categories.length" class="muted">
-        {{ counts.categories }} categories · {{ counts.sub_categories }} sub-categories
+        {{ counts.categories }} categories<template v-if="subsExist"> · {{ counts.sub_categories }} sub-categories</template>
       </span>
       <span v-if="!loading && categories.length" class="top-count" :class="{ 'is-full': topCount >= MAX_TOP }" title="Categories shown on the home screen" data-test="top-count">Home: {{ topCount }}/{{ MAX_TOP }}</span>
-      <div v-if="categories.length && !searching" style="margin-left: auto; display: flex; gap: 6px">
+      <div v-if="categories.length && !searching && subsExist" style="margin-left: auto; display: flex; gap: 6px">
         <button class="btn btn-outline btn-sm" type="button" @click="expandAll">Expand all</button>
         <button class="btn btn-outline btn-sm" type="button" @click="collapseAll">Collapse all</button>
       </div>
-      <RowsPerPage :style="{ marginLeft: categories.length && !searching ? '0' : 'auto' }" :model-value="perPage" @update:model-value="setPerPage" />
+      <RowsPerPage :style="{ marginLeft: categories.length && !searching && subsExist ? '0' : 'auto' }" :model-value="perPage" @update:model-value="setPerPage" />
     </div>
 
     <div v-if="error" class="alert alert--error" style="margin: 0 12px 10px" role="alert">
@@ -171,7 +173,7 @@ const deleteMessage = computed(() => {
       <table class="table cat-table">
         <thead>
           <tr>
-            <th class="sno">#</th><th>Name</th><th class="num">Sub-categories</th><th class="num">Products</th>
+            <th class="sno">#</th><th>Name</th><th v-if="subsExist" class="num">Sub-categories</th><th class="num">Products</th>
             <th class="tog">Active</th><th class="tog" title="Shown on the home screen (max 12)">Home</th><th class="num">Order</th><th />
           </tr>
         </thead>
@@ -181,7 +183,7 @@ const deleteMessage = computed(() => {
               <td class="sno">{{ (page - 1) * PER_PAGE + ci + 1 }}</td>
               <td>
                 <div class="cell-main">
-                  <button class="chev" :class="{ 'is-open': isOpen(`c${c.id}`) }" type="button" :aria-expanded="isOpen(`c${c.id}`)" :aria-label="`${isOpen(`c${c.id}`) ? 'Collapse' : 'Expand'} ${c.name}`" @click.stop="toggle(`c${c.id}`)">
+                  <button v-if="subsExist" class="chev" :class="{ 'is-open': isOpen(`c${c.id}`) }" type="button" :aria-expanded="isOpen(`c${c.id}`)" :aria-label="`${isOpen(`c${c.id}`) ? 'Collapse' : 'Expand'} ${c.name}`" @click.stop="toggle(`c${c.id}`)">
                     <ChevronRight :size="16" />
                   </button>
                   <LogoBox :name="c.name" :src="c.icon_thumb_url" />
@@ -192,7 +194,7 @@ const deleteMessage = computed(() => {
                   <span v-if="c.is_top" class="top-tag" title="Shown on the home screen">Top</span>
                 </div>
               </td>
-              <td class="num">{{ c.sub_categories_count }}</td>
+              <td v-if="subsExist" class="num">{{ c.sub_categories_count }}</td>
               <td class="num">{{ c.products_count }}</td>
               <td class="tog" @click.stop>
                 <label class="switch" :title="c.is_active ? 'Active' : 'Hidden from customers'"><input type="checkbox" :checked="c.is_active" :disabled="!canManage" :aria-label="`${c.name} active`" @change="flip(c, 'is_active', false)" /><span /></label>
@@ -210,7 +212,7 @@ const deleteMessage = computed(() => {
               </td>
             </tr>
 
-            <template v-if="isOpen(`c${c.id}`)">
+            <template v-if="subsExist && isOpen(`c${c.id}`)">
               <tr v-for="(s, si) in c.sub_categories" :key="`s${s.id}`" class="cat-sub" data-kind="sub-category">
                 <td class="sno">{{ (page - 1) * PER_PAGE + ci + 1 }}.{{ si + 1 }}</td>
                 <td>
@@ -223,7 +225,7 @@ const deleteMessage = computed(() => {
                     </div>
                   </div>
                 </td>
-                <td class="num muted">-</td>
+                <td v-if="subsExist" class="num muted">-</td>
                 <td class="num">{{ s.products_count }}</td>
                 <td class="tog">
                   <label class="switch" :title="s.is_active ? 'Active' : 'Hidden from customers'"><input type="checkbox" :checked="s.is_active" :disabled="!canManage" :aria-label="`${s.name} active`" @change="flip(s, 'is_active', true)" /><span /></label>

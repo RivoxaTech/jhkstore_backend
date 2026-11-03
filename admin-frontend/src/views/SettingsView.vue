@@ -14,6 +14,7 @@ import TableSkeleton from '@/components/TableSkeleton.vue'
 import UploadField from '@/components/UploadField.vue'
 import BannersPanel from '@/components/BannersPanel.vue'
 import DeliveryZonesPanel from '@/components/DeliveryZonesPanel.vue'
+import NotificationsPanel from '@/components/NotificationsPanel.vue'
 import ThemePreview from '@/components/ThemePreview.vue'
 
 // Generic settings screen: the API describes the tabs the admin may open (each is guarded by its own permission), their sections and fields
@@ -277,6 +278,7 @@ const bankWarning = computed(() => 'pay_bank_enabled' in form && Boolean(form.pa
       </section>
 
       <DeliveryZonesPanel v-if="activeTab.key === 'delivery'" :method="method" style="grid-column: 1 / -1" />
+      <NotificationsPanel v-if="activeTab.key === 'notifications'" style="grid-column: 1 / -1" />
     </div>
     </fieldset>
   </form>

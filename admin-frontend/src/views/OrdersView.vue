@@ -1,9 +1,10 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { Search, ShoppingBag } from '@lucide/vue'
+import { Download, Search, ShoppingBag } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
+import { useAuthStore } from '@/stores/auth.js'
 import PaginationBar from '@/components/PaginationBar.vue'
 import RowsPerPage from '@/components/RowsPerPage.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
@@ -22,6 +23,7 @@ const statusLabel = (v) => PAYMENT_STATUS_LABELS[v] || v.charAt(0).toUpperCase()
 const route = useRoute()
 const router = useRouter()
 const ui = useUiStore()
+const auth = useAuthStore()
 
 const rows = ref([])
 const meta = ref(null)
@@ -66,7 +68,6 @@ async function load() {
     meta.value = res.meta
     counts.value = res.counts || {}
     loadedOnce.value = true
-    if (!q('q') && !status.value && !q('payment_status') && !q('payment_method') && !q('from') && !q('to') && !q('customer_id')) ui.pendingOrders = counts.value.pending || 0
   } catch (e) {
     if (mine === seq) error.value = e.message
   } finally {
@@ -91,6 +92,20 @@ watch(search, (value) => {
   t = setTimeout(() => { if (value.trim() !== q('q')) go({ q: value.trim(), page: undefined }) }, 350)
 })
 onBeforeUnmount(() => clearTimeout(t))
+
+// the CSV of the orders the current filters select (permission orders.export)
+const exporting = ref(false)
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const query = new URLSearchParams(Object.entries({ search: q('q'), status: status.value, payment_status: q('payment_status'), payment_method: q('payment_method'), from: q('from'), to: q('to'), customer_id: q('customer_id') }).filter(([, v]) => v))
+    await api.download(`admin/orders/export${query.size ? `?${query}` : ''}`, 'orders.csv')
+  } catch (e) {
+    ui.toast(e.message, 'error')
+  } finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -98,6 +113,9 @@ onBeforeUnmount(() => clearTimeout(t))
     <div>
       <h1>Orders</h1>
       <div class="crumbs"><RouterLink :to="{ name: 'dashboard' }">Dashboard</RouterLink> › <span>Orders</span></div>
+    </div>
+    <div class="page-actions">
+      <button v-if="auth.can('orders.export')" class="btn btn-outline" type="button" data-testid="export-orders" :disabled="exporting" @click="exportCsv"><Download :size="16" /> Export CSV</button>
     </div>
   </div>
 
