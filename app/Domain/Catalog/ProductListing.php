@@ -96,6 +96,9 @@ class ProductListing
         if (isset($f['max_price'])) {
             $query->where('products.min_price', '<=', $f['max_price']);
         }
+        if (! empty($f['featured'])) {
+            $query->where('products.is_featured', true);
+        }
         if (! empty($f['in_stock'])) {
             $query->inStock();
         }

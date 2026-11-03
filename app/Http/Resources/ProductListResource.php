@@ -33,7 +33,10 @@ class ProductListResource extends JsonResource
             'discount_percent' => (float) $this->max_discount_percent,
             'variants_count' => $this->variants->count(),
             'is_in_stock' => $this->is_in_stock,
+            'is_sold_out' => (bool) $this->is_sold_out,
+            'is_featured' => (bool) $this->is_featured,
             'stock' => $stock,
+            'low_stock' => $this->variants->contains(fn ($v) => $v->is_active && $v->stock_qty - $v->reserved_qty <= $v->low_stock_threshold),
             'tags' => $this->tags->map(fn ($t) => ['id' => $t->id, 'name' => $t->name, 'slug' => $t->slug, 'color' => $t->color])->values(),
             'updated_at' => $this->updated_at,
         ];

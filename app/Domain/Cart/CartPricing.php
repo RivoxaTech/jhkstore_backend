@@ -38,7 +38,7 @@ class CartPricing
     {
         return [
             // a product deleted after the customer added it must still load (the line is then reported as unavailable)
-            'product' => fn ($q) => $q->withTrashed()->select(['id', 'category_id', 'sub_category_id', 'name', 'slug', 'sku', 'status', 'tax_rate', 'min_order_qty', 'max_order_qty', 'is_cod_available']),
+            'product' => fn ($q) => $q->withTrashed()->select(['id', 'category_id', 'sub_category_id', 'name', 'slug', 'sku', 'status', 'tax_rate', 'min_order_qty', 'max_order_qty', 'is_cod_available', 'is_sold_out']),
             'product.media', 'product.remoteImages',
             'priceTiers',
         ];
@@ -94,12 +94,15 @@ class CartPricing
             $unit = $bulk['price'] ?? $base;
 
             $sellable = $variant->is_active && in_array($product->id, $visibleProductIds, true) && $stock;
-            $available = $sellable ? max(0, (int) $stock->stock_qty - (int) $stock->reserved_qty) : 0;
+            $soldOut = $sellable && $product->is_sold_out;   // switched to "Sold out" by the shop: visible, but cannot be ordered
+            $available = $sellable && ! $soldOut ? max(0, (int) $stock->stock_qty - (int) $stock->reserved_qty) : 0;
             $name = $variant->name ?: $product->name;
             $issues = [];
 
             if (! $sellable) {
                 $issues[] = $this->issue('unavailable', "\"$name\" is no longer available.", true);
+            } elseif ($soldOut) {
+                $issues[] = $this->issue('sold_out', "\"$name\" is sold out.", true);
             } elseif ($available === 0) {
                 $issues[] = $this->issue('out_of_stock', "\"$name\" is out of stock.", true);
             } elseif ($qty > $available) {

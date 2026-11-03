@@ -67,6 +67,23 @@ class SaveProduct
         return $product;
     }
 
+    /** The "Sold out" switch: the product stays visible but cannot be ordered. */
+    public function setSoldOut(Product $product, bool $value, Admin $admin): Product
+    {
+        $product->forceFill(['is_sold_out' => $value])->save();
+        Audit::log($admin, 'product.sold_out_changed', $product, ['is_sold_out' => $value]);
+
+        return $product;
+    }
+
+    public function setFeatured(Product $product, bool $value, Admin $admin): Product
+    {
+        $product->forceFill(['is_featured' => $value])->save();
+        Audit::log($admin, 'product.featured_changed', $product, ['is_featured' => $value]);
+
+        return $product;
+    }
+
     /** @param  list<int>  $tagIds */
     public function setTags(Product $product, array $tagIds, Admin $admin): Product
     {

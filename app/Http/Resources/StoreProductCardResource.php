@@ -52,7 +52,9 @@ class StoreProductCardResource extends JsonResource
             'discount_percent' => $cheapest ? (float) $cheapest->discount_percent : 0.0,
             'badge_text' => $this->badge_text,
             'tags' => $this->tags->pluck('slug')->values(),
-            'in_stock' => $variants->contains(fn ($v) => $v->available() > 0),
+            'in_stock' => ! $this->is_sold_out && $variants->contains(fn ($v) => $v->available() > 0),
+            'is_sold_out' => (bool) $this->is_sold_out,        // shown as "Sold out": visible, cannot be ordered
+            'is_featured' => (bool) $this->is_featured,
         ];
     }
 

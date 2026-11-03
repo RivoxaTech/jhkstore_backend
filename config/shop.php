@@ -27,6 +27,15 @@ return [
         'coupon_per_minute' => (int) env('COUPON_PER_MINUTE', 30),                // coupon checks per IP (a code cannot be guessed quickly)
         'proof_per_minute' => (int) env('PAYMENT_PROOF_PER_MINUTE', 10),          // payment proof uploads per IP
         'proof_per_order_hour' => (int) env('PAYMENT_PROOF_PER_ORDER_HOUR', 10),  // per order number, whatever the IP
+        'wholesale_per_hour' => (int) env('WHOLESALE_PER_HOUR', 5),               // wholesale requests per IP
+        'wholesale_per_phone_hour' => (int) env('WHOLESALE_PER_PHONE_HOUR', 5),   // per phone number, whatever the IP
+    ],
+
+    // Product videos (uploads): mp4 / webm. The PHP settings upload_max_filesize and post_max_size on the server must be at least max_kb.
+    'video' => [
+        'max_kb' => (int) env('PRODUCT_VIDEO_MAX_KB', 51200),         // 50 MB each
+        'poster_max_kb' => (int) env('PRODUCT_VIDEO_POSTER_MAX_KB', 2048),
+        'max_files' => 2,
     ],
 
     // Bank transfer screenshot: kept on the PRIVATE disk (never a public URL), shown to the admin through an authenticated route only.

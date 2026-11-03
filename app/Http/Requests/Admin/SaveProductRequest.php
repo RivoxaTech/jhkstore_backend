@@ -7,6 +7,7 @@ use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\Models\SubCategory;
+use App\Domain\Catalog\ProductVideos;
 use Illuminate\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\DB;
@@ -75,6 +76,13 @@ class SaveProductRequest extends FormRequest
             'max_order_qty' => ['sometimes', 'integer', 'min:1', 'max:65535'],
             'is_cod_available' => ['sometimes', 'boolean'],
             'status' => ['sometimes', Rule::in(ProductStatus::values())],
+            'is_sold_out' => ['sometimes', 'boolean'],
+            'is_featured' => ['sometimes', 'boolean'],
+            'video_url' => ['nullable', 'string', 'max:500', function (string $attribute, mixed $value, \Closure $fail) {
+                if (ProductVideos::embed((string) $value) === null) {
+                    $fail('Enter an https link to a YouTube or Vimeo video, or to an .mp4 / .webm file.');
+                }
+            }],
             'meta_title' => ['nullable', 'string', 'max:255'],
             'meta_description' => ['nullable', 'string', 'max:255'],
 

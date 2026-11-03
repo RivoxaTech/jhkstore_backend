@@ -23,7 +23,7 @@ class Product extends Model implements HasMedia
     protected $fillable = [
         'category_id', 'sub_category_id', 'name', 'sku', 'short_description', 'description',
         'badge_text', 'tax_rate', 'min_order_qty', 'max_order_qty',
-        'is_cod_available', 'status', 'meta_title', 'meta_description',
+        'is_cod_available', 'status', 'meta_title', 'meta_description', 'is_sold_out', 'is_featured', 'video_url',
     ];
 
     protected function casts(): array
@@ -33,6 +33,8 @@ class Product extends Model implements HasMedia
             'tax_rate' => 'decimal:2',
             'is_cod_available' => 'boolean',
             'is_in_stock' => 'boolean',
+            'is_sold_out' => 'boolean',
+            'is_featured' => 'boolean',
             'min_price' => 'decimal:2',
             'max_discount_percent' => 'decimal:2',
             'published_at' => 'datetime',
@@ -42,6 +44,8 @@ class Product extends Model implements HasMedia
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('images')->useDisk('public');
+        $this->addMediaCollection('video')->useDisk('public');          // uploaded product videos (at most config shop.video.max_files), see ProductVideos
+        $this->addMediaCollection('video_poster')->useDisk('public');   // the poster picture of an uploaded video (custom property video_id)
     }
 
     public function registerMediaConversions(?Media $media = null): void
@@ -113,10 +117,10 @@ class Product extends Model implements HasMedia
             ->where('tags.slug', $slug)->where('tags.is_active', true));
     }
 
-    /** Products with at least one sellable unit. */
+    /** Products with at least one sellable unit (a product switched to "sold out" has none, whatever the stock says). */
     public function scopeInStock(Builder $query): Builder
     {
-        return $query->whereExists(fn ($q) => $q->select(DB::raw(1))->from('product_variants as v')
+        return $query->where('products.is_sold_out', false)->whereExists(fn ($q) => $q->select(DB::raw(1))->from('product_variants as v')
             ->whereColumn('v.product_id', 'products.id')
             ->where('v.is_active', true)
             ->whereRaw('v.stock_qty - v.reserved_qty > 0'));

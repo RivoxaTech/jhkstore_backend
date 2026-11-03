@@ -63,6 +63,12 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
         Route::delete('products/{product}', [ProductController::class, 'destroy']);
         Route::patch('products/{product}/status', [ProductController::class, 'status']);
         Route::put('products/{product}/tags', [ProductController::class, 'tags']);
+        Route::patch('products/{product}/sold-out', [ProductController::class, 'soldOut']);
+        Route::patch('products/{product}/featured', [ProductController::class, 'featured']);
+        Route::post('products/{product}/videos', [ProductController::class, 'addVideo']);
+        Route::put('products/{product}/videos/order', [ProductController::class, 'reorderVideos']);
+        Route::post('products/{product}/videos/{video}/poster', [ProductController::class, 'videoPoster'])->whereNumber('video');
+        Route::delete('products/{product}/videos/{video}', [ProductController::class, 'deleteVideo'])->whereNumber('video');
         Route::post('products/{product}/images', [ProductController::class, 'addImages']);
         Route::put('products/{product}/images/order', [ProductController::class, 'reorderImages']);
         Route::put('products/{product}/images/{image}/primary', [ProductController::class, 'primaryImage']);
@@ -141,8 +147,8 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
     Route::get('customers/export', [CustomerController::class, 'export'])->middleware('admin.can:customers.export');
 
     // Settings: each tab has its own permission (settings.<tab>); the controller checks it per key, here any tab opens the page
-    Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.general,settings.branding,settings.banners,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments');
-    Route::put('settings', [SettingController::class, 'update'])->middleware('admin.can:settings.general,settings.branding,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments');
+    Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.general,settings.branding,settings.banners,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications');
+    Route::put('settings', [SettingController::class, 'update'])->middleware('admin.can:settings.general,settings.branding,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications');
     // pictures: logo, favicon (Branding tab) and share-image (SEO tab); the controller checks the tab of the picture
     Route::post('settings/{slot}', [SettingController::class, 'uploadFile'])->whereIn('slot', ['logo', 'favicon', 'share-image'])->middleware('admin.can:settings.branding,settings.seo');
     Route::delete('settings/{slot}', [SettingController::class, 'deleteFile'])->whereIn('slot', ['logo', 'favicon', 'share-image'])->middleware('admin.can:settings.branding,settings.seo');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Catalog\Actions\ManageProductImages;
+use App\Domain\Catalog\Actions\ManageProductVideos;
 use App\Domain\Catalog\Actions\SaveProduct;
 use App\Domain\Catalog\Enums\ProductStatus;
 use App\Domain\Catalog\Models\Product;
@@ -10,17 +11,21 @@ use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\Models\Tag;
 use App\Domain\Catalog\ProductImages;
 use App\Domain\Catalog\ProductSearch;
+use App\Domain\Catalog\ProductVideos;
 use App\Domain\Support\Settings;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ReorderProductImagesRequest;
 use App\Http\Requests\Admin\SaveProductRequest;
+use App\Http\Requests\Admin\SetProductFlagRequest;
 use App\Http\Requests\Admin\SetProductStatusRequest;
 use App\Http\Requests\Admin\SetProductTagsRequest;
 use App\Http\Requests\Admin\UploadProductImagesRequest;
+use App\Http\Requests\Admin\UploadProductVideoRequest;
 use App\Http\Resources\ProductListResource;
 use App\Http\Resources\ProductResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
@@ -44,7 +49,7 @@ class ProductController extends Controller
 
     /**
      * Lean product list. Filters: ?q (name, SKU, variant SKU) ?status ?category_id ?sub_category_id
-     * ?tag (slug) ?page ?per_page. Newest first; `counts` = products per status.
+     * ?tag (slug) ?stock (in | low | out | sold_out) ?featured (1) ?page ?per_page. Newest first; `counts` = products per status.
      */
     public function index(Request $request)
     {
@@ -54,6 +59,8 @@ class ProductController extends Controller
             'category_id' => ['nullable', 'integer'],
             'sub_category_id' => ['nullable', 'integer'],
             'tag' => ['nullable', 'string', 'max:80'],
+            'stock' => ['nullable', Rule::in(['in', 'low', 'out', 'sold_out'])],
+            'featured' => ['nullable', 'boolean'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -64,6 +71,14 @@ class ProductController extends Controller
             ->when($request->query('category_id'), fn ($q, $v) => $q->where('products.category_id', $v))
             ->when($request->query('sub_category_id'), fn ($q, $id) => $q->where('products.sub_category_id', $id))
             ->when($request->query('tag'), fn ($q, $slug) => $q->whereHas('tags', fn ($t) => $t->where('tags.slug', $slug)))
+            ->when($request->query('stock'), fn ($q, $v) => match ($v) {
+                'in' => $q->where('products.is_in_stock', true)->where('products.is_sold_out', false),
+                'out' => $q->where('products.is_in_stock', false),
+                'sold_out' => $q->where('products.is_sold_out', true),
+                default => $q->whereExists(fn ($w) => $w->select(DB::raw(1))->from('product_variants as lv')->whereColumn('lv.product_id', 'products.id')
+                    ->where('lv.is_active', true)->whereRaw('lv.stock_qty - lv.reserved_qty <= lv.low_stock_threshold')),
+            })
+            ->when($request->boolean('featured'), fn ($q) => $q->where('products.is_featured', true))
             ->latest('products.id')
             ->paginate((int) $request->query('per_page', 20))
             ->withQueryString();
@@ -106,6 +121,22 @@ class ProductController extends Controller
     public function status(SetProductStatusRequest $request, Product $product, SaveProduct $save): ProductResource
     {
         $save->setStatus($product, $request->validated('status'), $request->user());
+
+        return new ProductResource($this->loaded($product->id));
+    }
+
+    /** PATCH products/{id}/sold-out { value }: the product stays visible as "Sold out" and cannot be ordered. */
+    public function soldOut(SetProductFlagRequest $request, Product $product, SaveProduct $save): ProductResource
+    {
+        $save->setSoldOut($product, $request->boolean('value'), $request->user());
+
+        return new ProductResource($this->loaded($product->id));
+    }
+
+    /** PATCH products/{id}/featured { value } */
+    public function featured(SetProductFlagRequest $request, Product $product, SaveProduct $save): ProductResource
+    {
+        $save->setFeatured($product, $request->boolean('value'), $request->user());
 
         return new ProductResource($this->loaded($product->id));
     }
@@ -153,6 +184,40 @@ class ProductController extends Controller
         $images->reorder($product, array_map('strval', $request->validated('ids')), $request->user());
 
         return response()->json(['data' => ProductImages::all($this->loaded($product->id))]);
+    }
+
+    // ------------------------------------------------------------------ videos
+
+    /** Upload a video (multipart: `video`, optional `poster`). Up to config shop.video.max_files per product; mp4 / webm, no transcoding. */
+    public function addVideo(UploadProductVideoRequest $request, Product $product, ManageProductVideos $videos): JsonResponse
+    {
+        $videos->add($product, $request->file('video'), $request->file('poster'), $request->user());
+
+        return response()->json(['data' => ProductVideos::forAdmin($this->loaded($product->id))], 201);
+    }
+
+    /** Replace the poster picture of a video (multipart: `poster`). */
+    public function videoPoster(UploadProductVideoRequest $request, Product $product, int $video, ManageProductVideos $videos): JsonResponse
+    {
+        $videos->setPoster($product, $video, $request->file('poster'), $request->user());
+
+        return response()->json(['data' => ProductVideos::forAdmin($this->loaded($product->id))]);
+    }
+
+    public function deleteVideo(Request $request, Product $product, int $video, ManageProductVideos $videos): JsonResponse
+    {
+        $videos->delete($product, $video, $request->user());
+
+        return response()->json(['data' => ProductVideos::forAdmin($this->loaded($product->id))]);
+    }
+
+    /** PUT products/{id}/videos/order { ids }: every uploaded video id once, in the wanted order. */
+    public function reorderVideos(Request $request, Product $product, ManageProductVideos $videos): JsonResponse
+    {
+        $ids = $request->validate(['ids' => ['required', 'array', 'max:10'], 'ids.*' => ['integer']])['ids'];
+        $videos->reorder($product, array_map('intval', $ids), $request->user());
+
+        return response()->json(['data' => ProductVideos::forAdmin($this->loaded($product->id))]);
     }
 
     private function loaded(int $id): Product

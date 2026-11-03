@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Domain\Catalog\Models\ProductContentTab;
 use App\Domain\Catalog\ProductImages;
+use App\Domain\Catalog\ProductVideos;
 use App\Domain\Support\Settings;
 use Illuminate\Http\Request;
 
@@ -63,9 +64,9 @@ class StoreProductResource extends StoreProductCardResource
                     'option_price' => (float) $v->selling_price,     // the option's own price, before any discount
                     'discount_percent' => (float) $v->discount_percent,
                     'is_cod_available' => $v->is_cod_available ?? $this->is_cod_available,
-                    'in_stock' => $qty > 0,
-                    'qty' => $qty,
-                    'low_stock' => $qty > 0 && $qty <= $threshold,   // "Only 2 left"
+                    'in_stock' => ! $this->is_sold_out && $qty > 0,
+                    'qty' => $this->is_sold_out ? 0 : $qty,
+                    'low_stock' => ! $this->is_sold_out && $qty > 0 && $qty <= $threshold,   // "Only 2 left"
                     // "Buy 5+ for 152 each - extra 5% off"
                     'price_tiers' => $v->priceTiers->map(fn ($t) => [
                         'min_qty' => $t->min_qty,
@@ -83,6 +84,8 @@ class StoreProductResource extends StoreProductCardResource
             'images' => $strip($card['has_single_option']
                 ? $images->where('variant_id', $this->variants->first()->id)->concat(collect(ProductImages::gallery($this->resource)))->unique('url')
                 : collect(ProductImages::gallery($this->resource))),
+            // uploaded videos (with their poster) and the video link; the storefront plays an upload in <video>, an embed in an <iframe>
+            'videos' => ProductVideos::forStore($this->resource),
             'related' => StoreProductCardResource::collection($this->related),
         ];
     }

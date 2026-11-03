@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Domain\Catalog\ProductImages;
+use App\Domain\Catalog\ProductVideos;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -36,6 +37,10 @@ class ProductResource extends JsonResource
             'min_price' => $this->min_price === null ? null : (float) $this->min_price,
             'max_discount_percent' => (float) $this->max_discount_percent,
             'is_in_stock' => $this->is_in_stock,
+            'is_sold_out' => (bool) $this->is_sold_out,
+            'is_featured' => (bool) $this->is_featured,
+            'video_url' => $this->video_url,
+            'videos' => ProductVideos::forAdmin($this->resource),
             'meta_title' => $this->meta_title,
             'meta_description' => $this->meta_description,
             'variants' => $this->variants->map(fn ($v) => [
