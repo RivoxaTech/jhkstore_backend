@@ -532,6 +532,7 @@ function showErrors(message) {
 
 <style scoped>
 .pf { max-width: 1180px; }
+.pf :deep(.textarea) { min-height: 44px; }
 .pf-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 14px; align-items: start; }
 .pf-row--name { grid-template-columns: minmax(260px, 2fr) minmax(160px, 1fr) minmax(160px, 1fr); }
 .pf-switches { display: grid; gap: 6px; align-content: start; padding-top: 18px; }

@@ -37,7 +37,7 @@ const gridlines = computed(() => [0, 0.25, 0.5, 0.75, 1].map(f => ({ y: PAD.top 
 const labelEvery = computed(() => Math.max(1, Math.ceil(props.points.length / 7)))
 const label = (date) => {
   if (props.granularity === 'month') return formatDate(`${date}-01`).replace(/^\d+ /, '')
-  return formatDate(date).replace(/ \d{4}$/, '')
+  return formatDate(date).replace(/,?\s*\d{4}$/, '')
 }
 
 const short = (v) => (v >= 1e6 ? `${+(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${+(v / 1e3).toFixed(1)}k` : String(Math.round(v)))

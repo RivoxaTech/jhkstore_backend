@@ -72,7 +72,7 @@ try {
   await login(a.page, ADMIN)
   check(a.page.url().endsWith('/admin/'), 'admin login lands on the dashboard')
   check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Customers', 'Wholesale', 'Discounts', 'Coupons', 'Settings']), `admin sidebar: Dashboard, Orders, Customers, Wholesale, Discounts, Coupons, Settings (${(await nav(a.page)).join(', ')})`)
-  for (const [path, heading] of [['', 'Dashboard'], ['orders', 'Orders'], ['customers', 'Customers'], ['discounts', 'Discounts'], ['coupons', 'Coupons'], ['settings', 'Settings']]) {
+  for (const [path, heading] of [['', 'Dashboard'], ['orders', 'Orders'], ['customers', 'Customers'], ['wholesale', 'Wholesale'], ['discounts', 'Discounts'], ['coupons', 'Coupons'], ['settings', 'Settings']]) {
     await goto(a.page, path)
     await a.page.waitForSelector('h1', { timeout: 15000 })
     check((await a.page.$eval('h1', (e) => e.innerText)).includes(heading), `admin opens /admin/${path} ("${heading}")`)
@@ -93,6 +93,11 @@ try {
   await goto(a.page, 'settings?tab=store')
   await a.page.waitForSelector('#s-store_open', { timeout: 15000 })
   check(!!(await a.page.$('#s-store_closed_message')) && !!(await a.page.$('#s-checkout_notice')) && !!(await a.page.$('#s-delivery_eta_text')), 'Store tab: open switch, closed message, checkout notice and ETA text')
+  await goto(a.page, 'settings?tab=notifications')
+  await a.page.waitForSelector('#s-mail_enabled', { timeout: 15000 })
+  check((await Promise.all(['#s-mail_from_name', '#s-notify_admin_email', '#s-mail_on_placed', '#s-mail_on_cancelled', '#s-storefront_track_url', '#s-push_enabled', '[data-testid="send-test-email"]'].map((sel) => a.page.$(sel)))).every(Boolean), 'Notifications tab: e-mail switches, owner address, tracking page, push switch and the test e-mail button')
+  await a.page.waitForSelector('[data-testid="failed-jobs"]', { timeout: 15000 })
+  check(/^\d+/.test(await a.page.$eval('[data-testid="failed-jobs"]', (e) => e.innerText)), 'Notifications tab: the queue status shows the failed jobs count')
   await goto(a.page, 'settings?tab=footer')
   await a.page.waitForSelector('#s-agency_name', { timeout: 15000 })
   check(!!(await a.page.$('#s-agency_url')), 'Footer tab: agency name and link')
@@ -106,12 +111,15 @@ try {
   // ================= the developer
   await login(d.page, DEV)
   const devNav = await nav(d.page)
-  check(JSON.stringify(devNav) === JSON.stringify(['Dashboard', 'Products', 'Categories', 'Discounts', 'Coupons', 'Settings', 'Access Control']), `developer sidebar has no Orders or Customers (${devNav.join(', ')})`)
+  check(JSON.stringify(devNav) === JSON.stringify(['Dashboard', 'Products', 'Categories', 'Discounts', 'Coupons', 'Settings', 'Access Control']), `developer sidebar has no Orders, Customers or Wholesale (${devNav.join(', ')})`)
   check(!(await d.page.evaluate(() => /Orders today|Revenue today|Pending orders/.test(document.body.innerText))), 'the developer dashboard shows no order or revenue figures')
   await goto(d.page, 'orders')
   check(d.page.url().endsWith('/forbidden'), 'the developer cannot open /admin/orders')
   await goto(d.page, 'customers')
   check(d.page.url().endsWith('/forbidden'), 'the developer cannot open /admin/customers by default')
+  await goto(d.page, 'wholesale')
+  check(d.page.url().endsWith('/forbidden'), 'the developer cannot open /admin/wholesale by default')
+  check((await send('GET', 'admin/wholesale', null, devToken)).status === 403 && (await send('GET', 'admin/orders/export', null, devToken)).status === 403 && (await send('GET', 'admin/orders/pending-count', null, devToken)).status === 403, 'the API refuses wholesale, the orders CSV and the order badge count to the developer (403)')
   check((await send('GET', 'admin/orders', null, devToken)).status === 403, 'the API refuses orders to the developer (403)')
 
   for (const [path, heading] of [['products', 'Products'], ['products/new', 'Add product'], ['categories', 'Categories'], ['settings', 'Settings'], ['access-control', 'Access Control']]) {
@@ -119,6 +127,15 @@ try {
     await d.page.waitForSelector('h1', { timeout: 15000 })
     check((await d.page.$eval('h1', (e) => e.innerText)).includes(heading), `developer opens /admin/${path} ("${heading}")`)
   }
+  await goto(d.page, 'products/new')
+  await d.page.waitForSelector('[data-testid="options-table"]', { timeout: 15000 })
+  check(JSON.stringify(await d.page.$$eval('.pf-card', (els) => els.map((e) => e.dataset.section))) === JSON.stringify(['basics', 'options', 'stock', 'images', 'video', 'content', 'seo', 'related']), 'the product form has the sections Basics, Options and pricing, Stock, Images, Video, Content, SEO, Related')
+  await goto(d.page, 'products')
+  await d.page.waitForSelector('.prod-table, .empty', { timeout: 15000 })
+  check(await d.page.evaluate(() => !!document.querySelector('[data-filter="stock"]') && /Sold out/.test(document.body.innerText)) || !(await d.page.$('.prod-table')), 'the product list has the stock filter and the sold-out and featured columns')
+  await goto(d.page, '')
+  await d.page.waitForSelector('.dash-tabs', { timeout: 15000 })
+  check(JSON.stringify(await d.page.$$eval('.dash-tabs [role="tab"]', (els) => els.map((e) => e.innerText.trim()))) === JSON.stringify(['Today', 'Last 7 days', 'Last 30 days', 'This month', 'All time']) && !(await d.page.$('[data-kpi="revenue"]')), 'the dashboard has the five date tabs; the developer has no revenue card')
   await goto(d.page, 'nothing-here')
   check(/not found/i.test(await d.page.title()), 'an unknown address shows "not found"')
 

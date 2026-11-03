@@ -138,6 +138,7 @@
                                                 "categories.manage",
                                                 "orders.view",
                                                 "orders.manage",
+                                                "orders.export",
                                                 "customers.view",
                                                 "customers.export",
                                                 "settings.general",
@@ -151,10 +152,13 @@
                                                 "settings.store",
                                                 "settings.delivery",
                                                 "settings.payments",
+                                                "settings.notifications",
                                                 "discounts.view",
                                                 "discounts.manage",
                                                 "coupons.view",
                                                 "coupons.manage",
+                                                "wholesale.view",
+                                                "wholesale.manage",
                                                 "access.manage"
                                             ]
                                         }
@@ -335,11 +339,12 @@
                                                         },
                                                         "permissions": {
                                                             "type": "array",
+                                                            "description": "what the panel uses to hide screens, tabs and buttons",
                                                             "items": {}
                                                         },
                                                         "timezone": {
                                                             "type": "string",
-                                                            "description": "what the panel uses to hide screens, tabs and buttons"
+                                                            "description": "the store's time zone (IANA name): every date input and display in the panel uses it"
                                                         }
                                                     },
                                                     "required": [
@@ -404,11 +409,12 @@
                                                         },
                                                         "permissions": {
                                                             "type": "array",
+                                                            "description": "what the panel uses to hide screens, tabs and buttons",
                                                             "items": {}
                                                         },
                                                         "timezone": {
                                                             "type": "string",
-                                                            "description": "what the panel uses to hide screens, tabs and buttons"
+                                                            "description": "the store's time zone (IANA name): every date input and display in the panel uses it"
                                                         }
                                                     },
                                                     "required": [
@@ -525,11 +531,12 @@
                                                 },
                                                 "permissions": {
                                                     "type": "array",
+                                                    "description": "what the panel uses to hide screens, tabs and buttons",
                                                     "items": {}
                                                 },
                                                 "timezone": {
                                                     "type": "string",
-                                                    "description": "what the panel uses to hide screens, tabs and buttons"
+                                                    "description": "the store's time zone (IANA name): every date input and display in the panel uses it"
                                                 }
                                             },
                                             "required": [
@@ -2612,13 +2619,136 @@
                 }
             }
         },
+        "/v1/admin/customers/abandoned-carts": {
+            "get": {
+                "operationId": "customer.abandonedCarts",
+                "summary": "Abandoned carts: a saved phone or e-mail, items, no activity for two hours and no order since (see AbandonedCarts). ?q ?page ?per_page.\nNeeds `customers.view`; the cart token is never sent",
+                "tags": [
+                    "Customer"
+                ],
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 100
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/customers/abandoned-carts/export": {
+            "get": {
+                "operationId": "customer.exportAbandonedCarts",
+                "summary": "CSV of the abandoned carts: name, phone, e-mail, items, value, last activity. `customers.export`, audited",
+                "tags": [
+                    "Customer"
+                ],
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "text/csv; charset=UTF-8": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Transfer-Encoding": {
+                                "required": true,
+                                "schema": {
+                                    "type": "string",
+                                    "enum": [
+                                        "chunked"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/admin/dashboard": {
             "get": {
                 "operationId": "admin.dashboard",
-                "description": "Order figures (orders today, revenue, pending) and every activity line about an order are sent ONLY to an admin who holds\n`orders.view`: the developer gets none of them, not even as an order number in the activity list.",
-                "summary": "Numbers and lists for the admin dashboard. A few small aggregate queries + one short list,\nso it stays fast however many products and orders exist",
+                "summary": "`GET /admin/dashboard?range=today|7d|30d|month|all` (default 30d). Every section is sent only to an admin who holds its permission:\n  orders.view     KPI cards, the chart series, the top sellers, the newest orders (order figures, revenue, order numbers)\n  products.view   the low-stock options and the product counts\n  wholesale.view  the number of new wholesale requests      customers.view  new customers in the range\nA section the admin may not see is not even queried; the activity list leaves out order, customer and wholesale lines for them. The\ndeveloper account therefore gets the catalogue widgets only. Small aggregate queries, fast however many orders exist (see Dashboard)",
                 "tags": [
                     "Dashboard"
+                ],
+                "parameters": [
+                    {
+                        "name": "range",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "today",
+                                "7d",
+                                "30d",
+                                "month",
+                                "all",
+                                null
+                            ]
+                        }
+                    }
                 ],
                 "responses": {
                     "200": {
@@ -2628,21 +2758,67 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "catalog": {
+                                        "range": {
                                             "type": "object",
                                             "properties": {
-                                                "low_stock": {
-                                                    "type": "integer",
-                                                    "minimum": 0
+                                                "key": {
+                                                    "type": "string"
                                                 },
-                                                "products": {
-                                                    "type": "integer",
-                                                    "minimum": 0
+                                                "label": {
+                                                    "type": "string"
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "to": {
+                                                    "type": "string"
+                                                },
+                                                "timezone": {
+                                                    "type": "string"
+                                                },
+                                                "options": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "today": {
+                                                            "type": "string",
+                                                            "const": "Today"
+                                                        },
+                                                        "7d": {
+                                                            "type": "string",
+                                                            "const": "Last 7 days"
+                                                        },
+                                                        "30d": {
+                                                            "type": "string",
+                                                            "const": "Last 30 days"
+                                                        },
+                                                        "month": {
+                                                            "type": "string",
+                                                            "const": "This month"
+                                                        },
+                                                        "all": {
+                                                            "type": "string",
+                                                            "const": "All time"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "today",
+                                                        "7d",
+                                                        "30d",
+                                                        "month",
+                                                        "all"
+                                                    ]
                                                 }
                                             },
                                             "required": [
-                                                "low_stock",
-                                                "products"
+                                                "key",
+                                                "label",
+                                                "from",
+                                                "to",
+                                                "timezone",
+                                                "options"
                                             ]
                                         },
                                         "recent_activity": {
@@ -2651,35 +2827,238 @@
                                                 "type": "string"
                                             }
                                         },
+                                        "catalog": {
+                                            "type": "object",
+                                            "properties": {
+                                                "low_stock": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                },
+                                                "products": {
+                                                    "type": "integer"
+                                                },
+                                                "low_stock_items": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "variant_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "product_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "product_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "option_name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "sku": {
+                                                                "type": "string"
+                                                            },
+                                                            "available": {},
+                                                            "threshold": {
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "variant_id",
+                                                            "product_id",
+                                                            "product_name",
+                                                            "option_name",
+                                                            "sku",
+                                                            "available",
+                                                            "threshold"
+                                                        ]
+                                                    }
+                                                },
+                                                "by_status": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "low_stock",
+                                                "products",
+                                                "low_stock_items",
+                                                "by_status"
+                                            ]
+                                        },
                                         "orders": {
                                             "type": "object",
                                             "properties": {
                                                 "today": {
-                                                    "type": "integer"
+                                                    "type": "integer",
+                                                    "description": "what the first dashboard showed: today, and the live number of pending orders"
                                                 },
                                                 "revenue_today": {
                                                     "type": "number"
                                                 },
                                                 "pending": {
-                                                    "type": "integer",
-                                                    "minimum": 0
+                                                    "type": "integer"
+                                                },
+                                                "kpis": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "revenue": {
+                                                            "type": "number"
+                                                        },
+                                                        "pending_amount": {
+                                                            "type": "number"
+                                                        },
+                                                        "total_orders": {
+                                                            "type": "integer"
+                                                        },
+                                                        "average_order_value": {
+                                                            "type": "number"
+                                                        },
+                                                        "pending_count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "cancelled_rejected_count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "awaiting_proof_count": {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "revenue",
+                                                        "pending_amount",
+                                                        "total_orders",
+                                                        "average_order_value",
+                                                        "pending_count",
+                                                        "cancelled_rejected_count",
+                                                        "awaiting_proof_count"
+                                                    ]
+                                                },
+                                                "series": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "granularity": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "month",
+                                                                "day"
+                                                            ]
+                                                        },
+                                                        "points": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "date": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "orders": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "revenue": {
+                                                                        "type": "number"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "date",
+                                                                    "orders",
+                                                                    "revenue"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "granularity",
+                                                        "points"
+                                                    ]
+                                                },
+                                                "top_products": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "product_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "qty": {
+                                                                "type": "integer"
+                                                            },
+                                                            "revenue": {
+                                                                "type": "number"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "product_id",
+                                                            "name",
+                                                            "qty",
+                                                            "revenue"
+                                                        ]
+                                                    }
+                                                },
+                                                "recent": {
+                                                    "type": "array",
+                                                    "items": {}
                                                 }
                                             },
                                             "required": [
                                                 "today",
                                                 "revenue_today",
-                                                "pending"
+                                                "pending",
+                                                "kpis",
+                                                "series",
+                                                "top_products",
+                                                "recent"
+                                            ]
+                                        },
+                                        "wholesale": {
+                                            "type": "object",
+                                            "properties": {
+                                                "new": {
+                                                    "type": "integer"
+                                                },
+                                                "in_range": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "new",
+                                                "in_range"
+                                            ]
+                                        },
+                                        "customers": {
+                                            "type": "object",
+                                            "properties": {
+                                                "new": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "new"
                                             ]
                                         }
                                     },
                                     "required": [
-                                        "catalog",
+                                        "range",
                                         "recent_activity",
-                                        "orders"
+                                        "catalog",
+                                        "orders",
+                                        "wholesale",
+                                        "customers"
                                     ]
                                 }
                             }
                         }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -3770,6 +4149,167 @@
                 }
             }
         },
+        "/v1/admin/notifications/status": {
+            "get": {
+                "operationId": "notification.status",
+                "summary": "Counts only (never the content of a failed job, which could hold an order)",
+                "tags": [
+                    "Notification"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "queue_connection": {
+                                            "type": "string"
+                                        },
+                                        "mailer": {
+                                            "type": "string"
+                                        },
+                                        "from_address": {
+                                            "type": "string"
+                                        },
+                                        "pending_jobs": {
+                                            "type": "integer"
+                                        },
+                                        "failed_jobs": {
+                                            "type": "integer"
+                                        },
+                                        "mail_enabled": {
+                                            "type": "boolean"
+                                        },
+                                        "push": {
+                                            "type": "object",
+                                            "properties": {
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "configured": {
+                                                    "type": "boolean"
+                                                },
+                                                "devices": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "enabled",
+                                                "configured",
+                                                "devices"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "queue_connection",
+                                        "mailer",
+                                        "from_address",
+                                        "pending_jobs",
+                                        "failed_jobs",
+                                        "mail_enabled",
+                                        "push"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/notifications/test-email": {
+            "post": {
+                "operationId": "notification.testEmail",
+                "summary": "POST notifications/test-email { to? }: sent at once (not queued), so a mistake in the mail setup shows up as an error here",
+                "tags": [
+                    "Notification"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "allOf": [
+                                    {
+                                        "$ref": "#/components/schemas/Settings"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "to": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "format": "email",
+                                                "maxLength": 190
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "to": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "to"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "code": {
+                                            "type": "string",
+                                            "const": "mail_failed"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "code"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/store/orders": {
             "post": {
                 "operationId": "order.store",
@@ -3953,6 +4493,48 @@
                 }
             }
         },
+        "/v1/admin/orders/pending-count": {
+            "get": {
+                "operationId": "order.pendingCount",
+                "summary": "The number behind the sidebar badge: pending orders plus bank transfer payment proofs waiting to be checked",
+                "tags": [
+                    "Order"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "count": {
+                                            "type": "integer"
+                                        },
+                                        "pending": {
+                                            "type": "integer",
+                                            "minimum": 0
+                                        },
+                                        "proofs": {
+                                            "type": "integer",
+                                            "minimum": 0
+                                        }
+                                    },
+                                    "required": [
+                                        "count",
+                                        "pending",
+                                        "proofs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/admin/orders": {
             "get": {
                 "operationId": "order.index",
@@ -3962,123 +4544,10 @@
                 ],
                 "parameters": [
                     {
-                        "name": "q",
-                        "in": "query",
-                        "schema": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
-                            "maxLength": 100
-                        }
-                    },
-                    {
-                        "name": "search",
-                        "in": "query",
-                        "schema": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
-                            "maxLength": 100
-                        }
-                    },
-                    {
                         "name": "status",
                         "in": "query",
                         "schema": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
-                            "enum": [
-                                "pending",
-                                "confirmed",
-                                "packed",
-                                "shipped",
-                                "delivered",
-                                "cancelled",
-                                "rejected",
-                                null
-                            ]
-                        }
-                    },
-                    {
-                        "name": "payment_status",
-                        "in": "query",
-                        "schema": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
-                            "enum": [
-                                "pending",
-                                "cod_pending",
-                                "awaiting_payment",
-                                "paid",
-                                "failed",
-                                "cancelled",
-                                null
-                            ]
-                        }
-                    },
-                    {
-                        "name": "payment_method",
-                        "in": "query",
-                        "schema": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
-                            "enum": [
-                                "cod",
-                                "bank_transfer",
-                                null
-                            ]
-                        }
-                    },
-                    {
-                        "name": "from",
-                        "in": "query",
-                        "schema": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
-                            "format": "date"
-                        }
-                    },
-                    {
-                        "name": "to",
-                        "in": "query",
-                        "schema": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
-                            "format": "date"
-                        }
-                    },
-                    {
-                        "name": "customer_id",
-                        "in": "query",
-                        "schema": {
-                            "type": [
-                                "integer",
-                                "null"
-                            ]
-                        }
-                    },
-                    {
-                        "name": "per_page",
-                        "in": "query",
-                        "schema": {
-                            "type": [
-                                "integer",
-                                "null"
-                            ],
-                            "minimum": 1,
-                            "maximum": 100
+                            "type": "string"
                         }
                     }
                 ],
@@ -4227,9 +4696,6 @@
                             }
                         }
                     },
-                    "422": {
-                        "$ref": "#/components/responses/ValidationException"
-                    },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
                     }
@@ -4313,6 +4779,51 @@
                     },
                     "404": {
                         "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/orders/export": {
+            "get": {
+                "operationId": "order.export",
+                "summary": "GET orders/export: the CSV of the orders the filters of the list select (same query string), `orders.export`, audited. Columns: order number,\ndate, customer, phone, status, payment method and status, items, totals, city",
+                "tags": [
+                    "Order"
+                ],
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "text/csv; charset=UTF-8": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Transfer-Encoding": {
+                                "required": true,
+                                "schema": {
+                                    "type": "string",
+                                    "enum": [
+                                        "chunked"
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -4605,7 +5116,7 @@
         "/v1/store/products": {
             "get": {
                 "operationId": "store.product.index",
-                "summary": "Product cards. Homepage sections are this endpoint with a tag, e.g. ?tag=best-seller&per_page=10.\nQuery: ?tag ?category ?sub_category (slugs) ?q ?min_price ?max_price ?in_stock=1\n?sort=popularity|newest|price_asc|price_desc|discount ?page ?per_page (max 100)",
+                "summary": "Product cards. Homepage sections are this endpoint with a tag, e.g. ?tag=best-seller&per_page=10.\nQuery: ?tag ?category ?sub_category (slugs) ?q ?min_price ?max_price ?in_stock=1 ?featured=1 (the products the shop marked as featured)\n?sort=popularity|newest|price_asc|price_desc|discount ?page ?per_page (max 100)",
                 "tags": [
                     "Product"
                 ],
@@ -4678,6 +5189,16 @@
                     },
                     {
                         "name": "in_stock",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "boolean",
+                                "null"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "featured",
                         "in": "query",
                         "schema": {
                             "type": [
@@ -4946,6 +5467,41 @@
                                             "type": "array",
                                             "items": {}
                                         },
+                                        "video": {
+                                            "type": "object",
+                                            "properties": {
+                                                "max_files": {
+                                                    "type": "integer"
+                                                },
+                                                "max_mb": {
+                                                    "type": "number"
+                                                },
+                                                "poster_max_mb": {
+                                                    "type": "number"
+                                                },
+                                                "types": {
+                                                    "type": "array",
+                                                    "prefixItems": [
+                                                        {
+                                                            "type": "string",
+                                                            "const": "video/mp4"
+                                                        },
+                                                        {
+                                                            "type": "string",
+                                                            "const": "video/webm"
+                                                        }
+                                                    ],
+                                                    "minItems": 2,
+                                                    "maxItems": 2
+                                                }
+                                            },
+                                            "required": [
+                                                "max_files",
+                                                "max_mb",
+                                                "poster_max_mb",
+                                                "types"
+                                            ]
+                                        },
                                         "content_tabs": {
                                             "type": "array",
                                             "items": {
@@ -4985,6 +5541,7 @@
                                         "tags",
                                         "currency",
                                         "statuses",
+                                        "video",
                                         "content_tabs"
                                     ]
                                 }
@@ -5000,7 +5557,7 @@
         "/v1/admin/products": {
             "get": {
                 "operationId": "admin.product.index",
-                "summary": "Lean product list. Filters: ?q (name, SKU, variant SKU) ?status ?category_id ?sub_category_id\n?tag (slug) ?page ?per_page. Newest first; `counts` = products per status",
+                "summary": "Lean product list. Filters: ?q (name, SKU, variant SKU) ?status ?category_id ?sub_category_id\n?tag (slug) ?stock (in | low | out | sold_out) ?featured (1) ?page ?per_page. Newest first; `counts` = products per status",
                 "tags": [
                     "Product"
                 ],
@@ -5062,6 +5619,33 @@
                                 "null"
                             ],
                             "maxLength": 80
+                        }
+                    },
+                    {
+                        "name": "stock",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "in",
+                                "low",
+                                "out",
+                                "sold_out",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "featured",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "boolean",
+                                "null"
+                            ]
                         }
                     },
                     {
@@ -5539,6 +6123,387 @@
                 }
             }
         },
+        "/v1/admin/products/{product}/sold-out": {
+            "patch": {
+                "operationId": "product.soldOut",
+                "summary": "PATCH products/{id}/sold-out { value }: the product stays visible as \"Sold out\" and cannot be ordered",
+                "tags": [
+                    "Product"
+                ],
+                "parameters": [
+                    {
+                        "name": "product",
+                        "in": "path",
+                        "required": true,
+                        "description": "The product ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetProductFlagRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`ProductResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProductResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/products/{product}/featured": {
+            "patch": {
+                "operationId": "product.featured",
+                "summary": "PATCH products/{id}/featured { value }",
+                "tags": [
+                    "Product"
+                ],
+                "parameters": [
+                    {
+                        "name": "product",
+                        "in": "path",
+                        "required": true,
+                        "description": "The product ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetProductFlagRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`ProductResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProductResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/products/{product}/videos": {
+            "post": {
+                "operationId": "product.addVideo",
+                "summary": "Upload a video (multipart: `video`, optional `poster`). Up to config shop.video.max_files per product; mp4 / webm, no transcoding",
+                "tags": [
+                    "Product"
+                ],
+                "parameters": [
+                    {
+                        "name": "product",
+                        "in": "path",
+                        "required": true,
+                        "description": "The product ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UploadProductVideoRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/products/{product}/videos/order": {
+            "put": {
+                "operationId": "product.reorderVideos",
+                "summary": "PUT products/{id}/videos/order { ids }: every uploaded video id once, in the wanted order",
+                "tags": [
+                    "Product"
+                ],
+                "parameters": [
+                    {
+                        "name": "product",
+                        "in": "path",
+                        "required": true,
+                        "description": "The product ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        },
+                                        "minItems": 1,
+                                        "maxItems": 10
+                                    }
+                                },
+                                "required": [
+                                    "ids"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/products/{product}/videos/{video}/poster": {
+            "post": {
+                "operationId": "product.videoPoster",
+                "summary": "Replace the poster picture of a video (multipart: `poster`)",
+                "tags": [
+                    "Product"
+                ],
+                "parameters": [
+                    {
+                        "name": "product",
+                        "in": "path",
+                        "required": true,
+                        "description": "The product ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "video",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UploadProductVideoRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/products/{product}/videos/{video}": {
+            "delete": {
+                "operationId": "product.deleteVideo",
+                "tags": [
+                    "Product"
+                ],
+                "parameters": [
+                    {
+                        "name": "product",
+                        "in": "path",
+                        "required": true,
+                        "description": "The product ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "video",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/admin/products/{product}/images": {
             "post": {
                 "operationId": "product.addImages",
@@ -5922,6 +6887,199 @@
                     },
                     "404": {
                         "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/push/status": {
+            "get": {
+                "operationId": "push.status",
+                "summary": "GET push/status[?endpoint=]: is push switched on and configured, the public key, and whether THIS browser is subscribed",
+                "tags": [
+                    "Push"
+                ],
+                "parameters": [
+                    {
+                        "name": "endpoint",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "enabled": {
+                                            "type": "boolean"
+                                        },
+                                        "configured": {
+                                            "type": "boolean",
+                                            "description": "the switch in Settings > Notifications"
+                                        },
+                                        "public_key": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "the VAPID keys are in .env"
+                                        },
+                                        "subscribed": {
+                                            "type": [
+                                                "boolean",
+                                                "null"
+                                            ]
+                                        },
+                                        "devices": {
+                                            "type": "integer",
+                                            "minimum": 0
+                                        }
+                                    },
+                                    "required": [
+                                        "enabled",
+                                        "configured",
+                                        "public_key",
+                                        "subscribed",
+                                        "devices"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/push/subscribe": {
+            "post": {
+                "operationId": "push.subscribe",
+                "summary": "POST push/subscribe: the browser's PushSubscription ({ endpoint, keys: { p256dh, auth } }). Subscribing again moves it to the current admin",
+                "tags": [
+                    "Push"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "endpoint": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "maxLength": 500
+                                    },
+                                    "keys": {
+                                        "type": "object",
+                                        "properties": {
+                                            "p256dh": {
+                                                "type": "string",
+                                                "maxLength": 255
+                                            },
+                                            "auth": {
+                                                "type": "string",
+                                                "maxLength": 100
+                                            }
+                                        },
+                                        "required": [
+                                            "p256dh",
+                                            "auth"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "endpoint",
+                                    "keys"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "subscribed": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "subscribed"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/push/unsubscribe": {
+            "post": {
+                "operationId": "push.unsubscribe",
+                "summary": "POST push/unsubscribe { endpoint }: only the admin's own browsers can be removed",
+                "tags": [
+                    "Push"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "endpoint": {
+                                        "type": "string",
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "endpoint"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "subscribed": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "subscribed"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -7465,6 +8623,461 @@
                     }
                 }
             }
+        },
+        "/v1/store/wholesale-requests": {
+            "post": {
+                "operationId": "wholesale.store",
+                "summary": "A guest asks for a wholesale price. Answers only the reference (WS-2026-000001): nothing about other requests or customers.\nLimits: 5 an hour per IP and 5 an hour per phone number; the honeypot field must stay empty",
+                "tags": [
+                    "Wholesale"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/WholesaleRequestRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "reference": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "reference"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/wholesale": {
+            "get": {
+                "operationId": "wholesale.index",
+                "summary": "Paginated, newest first. ?status ?search ?per_page; `counts` = requests per status (for the tabs, same search)",
+                "tags": [
+                    "Wholesale"
+                ],
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "new",
+                                "contacted",
+                                "quoted",
+                                "closed",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 100
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated set of `WholesaleRequestResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/WholesaleRequestResource"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "properties": {
+                                                "first": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "prev": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "next": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "first",
+                                                "last",
+                                                "prev",
+                                                "next"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "from",
+                                                "last_page",
+                                                "links",
+                                                "path",
+                                                "per_page",
+                                                "to",
+                                                "total"
+                                            ]
+                                        },
+                                        "counts": {
+                                            "type": "array",
+                                            "items": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "links",
+                                        "meta",
+                                        "counts"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/wholesale/new-count": {
+            "get": {
+                "operationId": "wholesale.newCount",
+                "summary": "The number behind the sidebar badge: requests that are still `new`",
+                "tags": [
+                    "Wholesale"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "count": {
+                                            "type": "integer",
+                                            "minimum": 0
+                                        }
+                                    },
+                                    "required": [
+                                        "count"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/wholesale/{wholesale}": {
+            "get": {
+                "operationId": "wholesale.show",
+                "tags": [
+                    "Wholesale"
+                ],
+                "parameters": [
+                    {
+                        "name": "wholesale",
+                        "in": "path",
+                        "required": true,
+                        "description": "The wholesale ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WholesaleRequestResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/WholesaleRequestResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "wholesale.update",
+                "tags": [
+                    "Wholesale"
+                ],
+                "parameters": [
+                    {
+                        "name": "wholesale",
+                        "in": "path",
+                        "required": true,
+                        "description": "The wholesale ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateWholesaleRequestRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`WholesaleRequestResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/WholesaleRequestResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/wholesale/export": {
+            "get": {
+                "operationId": "wholesale.export",
+                "summary": "CSV of the (filtered) list: reference, date, status, name, phone, e-mail, business, product, quantity, message, note",
+                "tags": [
+                    "Wholesale"
+                ],
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "new",
+                                "contacted",
+                                "quoted",
+                                "closed",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "text/csv; charset=UTF-8": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Transfer-Encoding": {
+                                "required": true,
+                                "schema": {
+                                    "type": "string",
+                                    "enum": [
+                                        "chunked"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -8893,8 +10506,17 @@
                     "is_in_stock": {
                         "type": "string"
                     },
+                    "is_sold_out": {
+                        "type": "boolean"
+                    },
+                    "is_featured": {
+                        "type": "boolean"
+                    },
                     "stock": {
                         "type": "integer"
+                    },
+                    "low_stock": {
+                        "type": "string"
                     },
                     "tags": {
                         "type": "string"
@@ -8917,7 +10539,10 @@
                     "discount_percent",
                     "variants_count",
                     "is_in_stock",
+                    "is_sold_out",
+                    "is_featured",
                     "stock",
+                    "low_stock",
                     "tags",
                     "updated_at"
                 ],
@@ -9017,6 +10642,21 @@
                     "is_in_stock": {
                         "type": "string"
                     },
+                    "is_sold_out": {
+                        "type": "boolean"
+                    },
+                    "is_featured": {
+                        "type": "boolean"
+                    },
+                    "video_url": {
+                        "type": "string"
+                    },
+                    "videos": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
                     "meta_title": {
                         "type": "string"
                     },
@@ -9111,6 +10751,10 @@
                     "min_price",
                     "max_discount_percent",
                     "is_in_stock",
+                    "is_sold_out",
+                    "is_featured",
+                    "video_url",
+                    "videos",
                     "meta_title",
                     "meta_description",
                     "variants",
@@ -9763,6 +11407,19 @@
                             "archived"
                         ]
                     },
+                    "is_sold_out": {
+                        "type": "boolean"
+                    },
+                    "is_featured": {
+                        "type": "boolean"
+                    },
+                    "video_url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 500
+                    },
                     "meta_title": {
                         "type": [
                             "string",
@@ -10011,6 +11668,19 @@
                     "fee"
                 ],
                 "title": "SetDeliveryFeeRequest"
+            },
+            "SetProductFlagRequest": {
+                "type": "object",
+                "description": "`value` = true or false: the switch of PATCH products/{id}/sold-out and PATCH products/{id}/featured.",
+                "properties": {
+                    "value": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "value"
+                ],
+                "title": "SetProductFlagRequest"
             },
             "SetProductStatusRequest": {
                 "type": "object",
@@ -10566,7 +12236,14 @@
                         "type": "string"
                     },
                     "in_stock": {
-                        "type": "string"
+                        "type": "boolean"
+                    },
+                    "is_sold_out": {
+                        "type": "boolean"
+                    },
+                    "is_featured": {
+                        "type": "boolean",
+                        "description": "shown as \"Sold out\": visible, cannot be ordered"
                     }
                 },
                 "required": [
@@ -10589,7 +12266,9 @@
                     "discount_percent",
                     "badge_text",
                     "tags",
-                    "in_stock"
+                    "in_stock",
+                    "is_sold_out",
+                    "is_featured"
                 ],
                 "title": "StoreProductCardResource"
             },
@@ -10811,6 +12490,29 @@
                 ],
                 "title": "UpdateOrderNoteRequest"
             },
+            "UpdateWholesaleRequestRequest": {
+                "type": "object",
+                "description": "PATCH /admin/wholesale/{id}: the status and/or the internal note (send only what changes).",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "new",
+                            "contacted",
+                            "quoted",
+                            "closed"
+                        ]
+                    },
+                    "admin_note": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2000
+                    }
+                },
+                "title": "UpdateWholesaleRequestRequest"
+            },
             "UploadProductImagesRequest": {
                 "type": "object",
                 "description": "`images[]` = the files; `variant_id` (optional) = put them in the gallery of that option instead of the product's own.",
@@ -10837,6 +12539,170 @@
                     "images"
                 ],
                 "title": "UploadProductImagesRequest"
+            },
+            "UploadProductVideoRequest": {
+                "type": "object",
+                "description": "`video` = an mp4 or webm file (up to config shop.video.max_kb, the content is checked, not the file name), `poster` (optional) = a PNG,\nJPG or WEBP picture up to shop.video.poster_max_kb. Also used with only a `poster` to replace the poster of an existing video.",
+                "properties": {
+                    "video": {
+                        "type": "string",
+                        "format": "binary",
+                        "contentMediaType": "application/octet-stream",
+                        "description": "Maximum file size: 51200 kilobytes."
+                    },
+                    "poster": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "binary",
+                        "contentMediaType": "application/octet-stream",
+                        "description": "Maximum file size: 2048 kilobytes."
+                    }
+                },
+                "required": [
+                    "video"
+                ],
+                "title": "UploadProductVideoRequest"
+            },
+            "WholesaleRequestRequest": {
+                "type": "object",
+                "description": "POST /store/wholesale-requests: a guest asks for a bulk price. Name and phone are required; the product is a catalogue product (and option)\nor free text (`product_name`); quantity at least 1.",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 120
+                    },
+                    "phone": {
+                        "type": "string",
+                        "maxLength": 25
+                    },
+                    "email": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "email",
+                        "maxLength": 190
+                    },
+                    "business_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 150
+                    },
+                    "product_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "variant_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "product_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 255
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10000000
+                    },
+                    "message": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 1000
+                    }
+                },
+                "required": [
+                    "name",
+                    "phone",
+                    "quantity"
+                ],
+                "title": "WholesaleRequestRequest"
+            },
+            "WholesaleRequestResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "reference": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "phone": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "business_name": {
+                        "type": "string"
+                    },
+                    "product_id": {
+                        "type": "string"
+                    },
+                    "variant_id": {
+                        "type": "string"
+                    },
+                    "product_name": {
+                        "type": "string"
+                    },
+                    "quantity": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "admin_note": {
+                        "type": "string"
+                    },
+                    "handled_at": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "reference",
+                    "status",
+                    "name",
+                    "phone",
+                    "email",
+                    "business_name",
+                    "product_id",
+                    "variant_id",
+                    "product_name",
+                    "quantity",
+                    "message",
+                    "admin_note",
+                    "handled_at",
+                    "created_at",
+                    "updated_at"
+                ],
+                "title": "WholesaleRequestResource"
             }
         },
         "responses": {
