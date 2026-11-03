@@ -52,8 +52,8 @@ class SettingsTest extends TestCase
         $this->asAdmin();
 
         $res = $this->getJson(self::ADMIN.'/settings')->assertOk();
-        $this->assertSame(['general', 'branding', 'banners', 'footer', 'currency_tax', 'orders_delivery', 'seo'], array_column($res->json('tabs'), 'key'));
-        $this->assertSame(['General', 'Branding', 'Banners', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'SEO'], array_column($res->json('tabs'), 'label'));
+        $this->assertSame(['general', 'branding', 'banners', 'footer', 'currency_tax', 'orders_delivery', 'delivery', 'payments', 'store', 'seo'], array_column($res->json('tabs'), 'key'));   // no Theme: it is the developer's
+        $this->assertSame(['General', 'Branding', 'Banners', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'Delivery', 'Payments', 'Store', 'SEO'], array_column($res->json('tabs'), 'label'));
         $this->assertSame(['currency', 'tax'], array_column($res->json('tabs.4.sections'), 'key'));
         $res->assertJsonPath('values.delivery_fee', 300)->assertJsonPath('values.currency_symbol', '$');
         $this->assertSame([], $res->json('tabs.2.sections'));   // Banners: managed through the banner endpoints
@@ -256,7 +256,7 @@ class SettingsTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->getJson(self::STORE.'/settings')->assertOk()
             ->assertJsonPath('footer', ['text' => 'Quality goods, fast delivery.', 'copyright' => '© 2026 Acme', 'support_hours' => 'Mon-Fri 9-18',
-                'whatsapp_number' => '+49 170 1234567', 'whatsapp_url' => 'https://wa.me/491701234567'])
+                'whatsapp_number' => '+49 170 1234567', 'whatsapp_url' => 'https://wa.me/491701234567', 'agency' => ['name' => '', 'url' => '']])
             ->assertJsonPath('seo', ['meta_title' => 'Acme Store', 'meta_description' => 'Everything you need.', 'share_image_url' => null]);
 
         $this->asAdmin();

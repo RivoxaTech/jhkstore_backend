@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * The complete schema of the lean store for a FRESH install: products, categories, orders, customers (a contact record, no login),
- * settings, banners, the two admin accounts with their roles, and the framework tables. See docs/DATABASE.md for every table.
+ * settings, banners, delivery zones, discounts, coupons, the persistent cart, the two admin accounts with their roles, and the framework tables. See docs/DATABASE.md for every table.
  *
  * Tables are created first, foreign keys are added afterwards so the order of the tables does not matter.
  * New changes go into new migration files after this one. A database created from an earlier version of this file must be rebuilt (migrate:fresh).
@@ -406,7 +406,13 @@ return new class extends Migration
             $table->decimal('mrp_total', 12, 2);
             $table->decimal('product_discount_total', 12, 2)->default(0.00);
             $table->decimal('bulk_discount_total', 12, 2)->default(0.00);
-            $table->decimal('shipping_fee', 12, 2)->default(0.00);
+            $table->decimal('discount_total', 12, 2)->default(0.00);      // automatic discounts (the coupon is separate)
+            $table->decimal('coupon_discount', 12, 2)->default(0.00);
+            $table->unsignedBigInteger('coupon_id')->nullable();
+            $table->string('coupon_code', 32)->nullable();
+            $table->decimal('shipping_fee', 12, 2)->nullable();            // null while the delivery fee is still to be confirmed
+            $table->boolean('delivery_fee_pending')->default(false);
+            $table->unsignedBigInteger('delivery_zone_id')->nullable();
             $table->decimal('tax_total', 12, 2)->default(0.00);
             $table->boolean('tax_inclusive')->default(true);
             $table->decimal('grand_total', 12, 2);
@@ -419,6 +425,8 @@ return new class extends Migration
             $table->timestamp('cancelled_at')->nullable();
             $table->string('cancel_reason', 255)->nullable();
             $table->string('cancelled_by', 20)->nullable();
+            $table->timestamp('rejected_at')->nullable();
+            $table->string('reject_reason', 300)->nullable();
             $table->string('source', 10)->default('web');
             $table->timestamps();
             $table->text('admin_note')->nullable();
@@ -429,6 +437,7 @@ return new class extends Migration
             $table->index(['customer_phone'], 'orders_customer_phone_index');
             $table->unique(['order_number'], 'orders_order_number_unique');
             $table->index(['payment_status'], 'orders_payment_status_index');
+            $table->index(['coupon_id'], 'orders_coupon_id_index');
             $table->index(['status', 'created_at'], 'orders_status_created_at_index');
             $table->index(['customer_id', 'created_at'], 'orders_customer_id_created_at_index');
             $table->unique(['customer_id', 'idempotency_key'], 'orders_customer_id_idempotency_key_unique');
@@ -450,6 +459,9 @@ return new class extends Migration
             $table->unsignedSmallInteger('qty');
             $table->decimal('discount', 12, 2)->default(0.00);
             $table->decimal('bulk_discount', 12, 2)->default(0.00);
+            $table->decimal('discount_amount', 12, 2)->default(0.00);      // saving of a discount or coupon on the line (bulk is `bulk_discount`)
+            $table->string('discount_source', 10)->nullable();             // bulk | discount | coupon
+            $table->unsignedBigInteger('discount_source_id')->nullable();  // the discount or coupon id
             $table->decimal('tax_rate', 4, 2)->default(0.00);
             $table->decimal('tax_amount', 12, 2)->default(0.00);
             $table->decimal('line_total', 12, 2);
@@ -505,6 +517,11 @@ return new class extends Migration
             $table->string('failure_reason', 255)->nullable();
             $table->json('response')->nullable();
             $table->timestamp('paid_at')->nullable();
+            $table->string('proof_status', 12)->default('none');          // none | submitted | verified | rejected (bank transfer)
+            $table->string('proof_reference', 120)->nullable();
+            $table->string('proof_reject_reason', 300)->nullable();
+            $table->timestamp('verified_at')->nullable();
+            $table->unsignedBigInteger('verified_by')->nullable();
             $table->timestamps();
             $table->unique(['gateway_order_id'], 'payments_gateway_order_id_unique');
             $table->unique(['gateway_payment_id'], 'payments_gateway_payment_id_unique');
@@ -543,6 +560,110 @@ return new class extends Migration
             $table->timestamp('ends_at')->nullable();
             $table->timestamps();
             $table->index(['placement', 'is_active', 'sort_order'], 'banners_placement_is_active_sort_order_index');
+        });
+
+        // ---- Delivery, discounts, coupons and the persistent cart
+        Schema::create('delivery_zones', function (Blueprint $table) {
+            $table->id();
+            $table->string('name', 120);
+            $table->string('match_type', 10);                 // city | area | postcode
+            $table->json('match_values');                      // list of names / postcodes (a postcode may end with *)
+            $table->decimal('fee', 12, 2)->default(0.00);
+            $table->decimal('free_above', 12, 2)->nullable();
+            $table->decimal('min_order', 12, 2)->nullable();   // replaces the store minimum for orders in this zone
+            $table->string('eta_text', 120)->nullable();
+            $table->unsignedInteger('sort_order')->default(0);
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+            $table->index(['is_active', 'sort_order'], 'delivery_zones_is_active_sort_order_index');
+        });
+
+        Schema::create('discounts', function (Blueprint $table) {
+            $table->id();
+            $table->string('name', 120);
+            $table->string('type', 10);                        // percent | fixed
+            $table->decimal('value', 12, 2);
+            $table->string('scope', 20);                       // store | products | categories | sub_categories
+            $table->timestamp('starts_at')->nullable();
+            $table->timestamp('ends_at')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->integer('priority')->default(0);
+            $table->timestamps();
+            $table->index(['is_active', 'starts_at', 'ends_at'], 'discounts_active_window_index');
+        });
+
+        Schema::create('discount_targets', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('discount_id');
+            $table->string('type', 20);                        // product | category | sub_category
+            $table->unsignedBigInteger('target_id');
+            $table->unique(['discount_id', 'type', 'target_id'], 'discount_targets_unique');
+        });
+
+        Schema::create('coupons', function (Blueprint $table) {
+            $table->id();
+            $table->string('code', 32);
+            $table->string('name', 120);
+            $table->string('description', 255)->nullable();
+            $table->string('type', 16);                        // percent | fixed | free_delivery
+            $table->decimal('value', 12, 2)->nullable();       // null for a free-delivery coupon
+            $table->string('scope', 20);
+            $table->timestamp('starts_at')->nullable();
+            $table->timestamp('ends_at')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->decimal('min_order', 12, 2)->nullable();
+            $table->decimal('max_discount', 12, 2)->nullable();
+            $table->unsignedInteger('usage_limit')->nullable();
+            $table->unsignedInteger('per_customer_limit')->nullable();
+            $table->boolean('first_order_only')->default(false);
+            $table->boolean('free_delivery')->default(false);
+            $table->unsignedInteger('used_count')->default(0);
+            $table->timestamps();
+            $table->unique(['code'], 'coupons_code_unique');
+        });
+
+        Schema::create('coupon_targets', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('coupon_id');
+            $table->string('type', 20);
+            $table->unsignedBigInteger('target_id');
+            $table->unique(['coupon_id', 'type', 'target_id'], 'coupon_targets_unique');
+        });
+
+        Schema::create('coupon_usages', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('coupon_id');
+            $table->unsignedBigInteger('order_id');
+            $table->unsignedBigInteger('customer_id')->nullable();
+            $table->string('phone', 20)->nullable();           // normalised, the per-customer limit counts these
+            $table->decimal('amount', 12, 2)->default(0.00);
+            $table->timestamp('released_at')->nullable();      // set when the order was cancelled or rejected: the use is given back
+            $table->timestamps();
+            $table->unique(['coupon_id', 'order_id'], 'coupon_usages_coupon_order_unique');
+            $table->index(['coupon_id', 'phone'], 'coupon_usages_coupon_phone_index');
+        });
+
+        Schema::create('carts', function (Blueprint $table) {
+            $table->id();
+            $table->char('token', 40);
+            $table->string('customer_phone', 20)->nullable();
+            $table->string('customer_name', 120)->nullable();
+            $table->string('customer_email', 190)->nullable();
+            $table->string('coupon_code', 32)->nullable();
+            $table->timestamp('last_activity_at')->nullable();
+            $table->timestamp('expires_at')->nullable();
+            $table->timestamps();
+            $table->unique(['token'], 'carts_token_unique');
+            $table->index(['expires_at'], 'carts_expires_at_index');
+        });
+
+        Schema::create('cart_items', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('cart_id');
+            $table->unsignedBigInteger('variant_id');          // no foreign key on purpose: an option that was deleted stays in the cart as an unavailable line
+            $table->unsignedInteger('qty');
+            $table->timestamps();
+            $table->unique(['cart_id', 'variant_id'], 'cart_items_cart_variant_unique');
         });
 
         // ---- Foreign keys
@@ -622,6 +743,23 @@ return new class extends Migration
             $table->foreign('order_id', 'shipments_order_id_foreign')->references('id')->on('orders')->onDelete('cascade');
         });
 
+        Schema::table('discount_targets', function (Blueprint $table) {
+            $table->foreign('discount_id', 'discount_targets_discount_id_foreign')->references('id')->on('discounts')->onDelete('cascade');
+        });
+
+        Schema::table('coupon_targets', function (Blueprint $table) {
+            $table->foreign('coupon_id', 'coupon_targets_coupon_id_foreign')->references('id')->on('coupons')->onDelete('cascade');
+        });
+
+        Schema::table('coupon_usages', function (Blueprint $table) {
+            $table->foreign('coupon_id', 'coupon_usages_coupon_id_foreign')->references('id')->on('coupons')->onDelete('restrict');
+            $table->foreign('order_id', 'coupon_usages_order_id_foreign')->references('id')->on('orders')->onDelete('cascade');
+        });
+
+        Schema::table('cart_items', function (Blueprint $table) {
+            $table->foreign('cart_id', 'cart_items_cart_id_foreign')->references('id')->on('carts')->onDelete('cascade');
+        });
+
     }
 
     public function down(): void
@@ -629,6 +767,14 @@ return new class extends Migration
         Schema::disableForeignKeyConstraints();
 
         foreach ([
+            'cart_items',
+            'carts',
+            'coupon_usages',
+            'coupon_targets',
+            'coupons',
+            'discount_targets',
+            'discounts',
+            'delivery_zones',
             'banners',
             'payments',
             'shipments',

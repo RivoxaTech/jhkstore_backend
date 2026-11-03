@@ -68,6 +68,33 @@ class AccessControlTest extends TestCase
             ['orders.view', 'GET', '/orders/999999', []],
             ['orders.manage', 'POST', '/orders/999999/status', []],
             ['orders.manage', 'PATCH', '/orders/999999/note', []],
+            ['orders.view', 'GET', '/orders/999999/payment/proof', []],
+            ['orders.manage', 'POST', '/orders/999999/payment/verify', []],
+            ['orders.manage', 'POST', '/orders/999999/payment/reject-proof', []],
+            ['orders.manage', 'PUT', '/orders/999999/delivery-fee', []],
+            ['discounts.view', 'GET', '/discounts', []],
+            ['discounts.view', 'GET', '/discounts/999999', []],
+            ['discounts.manage', 'POST', '/discounts', []],
+            ['discounts.manage', 'PUT', '/discounts/999999', []],
+            ['discounts.manage', 'PATCH', '/discounts/999999/active', []],
+            ['discounts.manage', 'DELETE', '/discounts/999999', []],
+            ['coupons.view', 'GET', '/coupons', []],
+            ['coupons.view', 'GET', '/coupons/999999', []],
+            ['coupons.view', 'GET', '/coupons/999999/usages', []],
+            ['coupons.manage', 'POST', '/coupons', []],
+            ['coupons.manage', 'PUT', '/coupons/999999', []],
+            ['coupons.manage', 'PATCH', '/coupons/999999/active', []],
+            ['coupons.manage', 'DELETE', '/coupons/999999', []],
+            ['settings.delivery', 'GET', '/delivery-zones', []],
+            ['settings.delivery', 'POST', '/delivery-zones', []],
+            ['settings.delivery', 'PUT', '/delivery-zones/reorder', []],
+            ['settings.delivery', 'PUT', '/delivery-zones/999999', []],
+            ['settings.delivery', 'PATCH', '/delivery-zones/999999/active', []],
+            ['settings.delivery', 'DELETE', '/delivery-zones/999999', []],
+            ['settings.delivery', 'PUT', '/settings', ['delivery_days' => 3]],
+            ['settings.theme', 'PUT', '/settings', ['theme_primary' => '#112233']],
+            ['settings.store', 'PUT', '/settings', ['store_open' => true]],
+            ['settings.payments', 'PUT', '/settings', ['pay_cod_enabled' => true]],
             ['customers.view', 'GET', '/customers', []],
             ['customers.export', 'GET', '/customers/export', []],
             ['settings.general', 'GET', '/settings', []],
@@ -112,6 +139,8 @@ class AccessControlTest extends TestCase
             'dashboard.view', 'products.view', 'products.manage', 'categories.view', 'categories.manage', 'orders.view', 'orders.manage',
             'customers.view', 'customers.export', 'settings.general', 'settings.branding', 'settings.banners', 'settings.footer',
             'settings.currency_tax', 'settings.orders_delivery', 'settings.seo', 'access.manage',
+            'settings.theme', 'settings.store', 'settings.delivery', 'settings.payments',
+            'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage',
         ], AdminAccess::all());
         $this->assertSame(['developer', 'admin'], AdminAccess::ROLES);
     }
@@ -131,9 +160,10 @@ class AccessControlTest extends TestCase
         $this->assertTrue($developer->hasRole('developer'));
         $this->assertTrue($admin->hasRole('admin'));
 
-        // the client starts with the dashboard, orders, customers and three Settings tabs
+        // the client starts with the dashboard, orders, customers, discounts, coupons and the Settings tabs General, Footer, Orders & Delivery, Store, Delivery, Payments
         $this->assertEqualsCanonicalizing(
-            ['dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery'],
+            ['dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery',
+                'settings.store', 'settings.delivery', 'settings.payments', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage'],
             AdminAccess::effective($admin),
         );
         // the developer has everything except orders and (by default) customers
@@ -384,7 +414,7 @@ class AccessControlTest extends TestCase
         $this->assertNotContains('access.manage', $adminKeys);
         $this->assertContains('settings.banners', $adminKeys);
         $this->assertSame(
-            collect(AdminAccess::all())->reject(fn ($p) => $p === 'access.manage')->sort()->values()->all(),
+            collect(AdminAccess::all())->reject(fn ($p) => in_array($p, ['access.manage', 'settings.theme'], true))->sort()->values()->all(),
             collect($adminKeys)->sort()->values()->all(),
         );
         $this->assertTrue(collect($roles['admin']['groups'])->flatMap(fn ($g) => $g['permissions'])->every(fn ($p) => $p['locked'] === false));
@@ -396,6 +426,96 @@ class AccessControlTest extends TestCase
         $this->assertTrue($devPermissions['products.manage']['locked']);
         $this->assertTrue($devPermissions['access.manage']['locked']);
         $this->assertTrue($devPermissions['access.manage']['enabled']);
+    }
+
+    // ------------------------------------------------------------------ Phase A permissions
+
+    public function test_the_developer_is_blocked_from_every_new_order_related_endpoint(): void
+    {
+        $order = $this->bankOrder();
+        $this->uploadProof($order)->assertOk();
+        $this->actingAsAdmin('developer');
+
+        $this->getJson(self::ADMIN."/orders/{$order->id}/payment/proof")->assertForbidden();           // the private screenshot
+        $this->postJson(self::ADMIN."/orders/{$order->id}/payment/verify")->assertForbidden();
+        $this->postJson(self::ADMIN."/orders/{$order->id}/payment/reject-proof", ['reason' => 'Blurry'])->assertForbidden();
+        $this->putJson(self::ADMIN."/orders/{$order->id}/delivery-fee", ['fee' => 5])->assertForbidden();
+        $this->postJson(self::ADMIN."/orders/{$order->id}/status", ['status' => 'rejected', 'reason' => 'No'])->assertForbidden();
+        $this->getJson(self::ADMIN.'/orders?payment_method=bank_transfer&status=rejected&search=ORD')->assertForbidden();
+        $this->getJson(self::ADMIN.'/orders/999999/payment/proof')->assertForbidden();                 // 403 before the record is looked up
+
+        $order->refresh();
+        $this->assertSame('pending', $order->status->value);
+        $this->assertSame('awaiting_payment', $order->payment_status->value);
+        $this->assertSame('submitted', $order->payment->proof_status);
+
+        // and the developer can never be given them
+        $this->putJson(self::ADMIN.'/access-control/developer', ['permissions' => ['orders.manage']])->assertStatus(422);
+        $this->assertSame([], array_values(array_filter(AdminAccess::effective(Admin::where('username', 'tester')->firstOrFail()), fn ($p) => str_starts_with($p, 'orders.'))));
+    }
+
+    public function test_the_theme_tab_belongs_to_the_developer_and_can_never_be_given_to_the_admin(): void
+    {
+        $this->actingAsAdmin('developer');
+        $this->putJson(self::ADMIN.'/access-control/admin', ['permissions' => ['settings.theme', 'settings.general']])->assertStatus(422)->assertJsonValidationErrors('permissions');
+        $this->assertFalse(Role::findByName('admin', 'admin')->hasPermissionTo('settings.theme'));
+        $this->assertTrue(Role::findByName('developer', 'admin')->hasPermissionTo('settings.theme'));
+
+        // the developer sees the tab and can change the theme
+        $tabs = collect($this->getJson(self::ADMIN.'/settings')->assertOk()->json('tabs'))->pluck('key')->all();
+        $this->assertContains('theme', $tabs);
+        $this->putJson(self::ADMIN.'/settings', ['theme_primary' => '#112233'])->assertOk();
+
+        // the admin does not, even with the permission written into the database by hand
+        $admin = $this->actingAsAdmin('admin');
+        Role::findByName('admin', 'admin')->givePermissionTo('settings.theme');
+        $admin->unsetRelation('roles')->unsetRelation('permissions');
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        $this->assertFalse(AdminAccess::allows($admin->fresh(), 'settings.theme'));
+        $this->assertNotContains('settings.theme', AdminAccess::effective($admin->fresh()));
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($admin->fresh(), ['*']);
+        $this->assertNotContains('theme', collect($this->getJson(self::ADMIN.'/settings')->json('tabs'))->pluck('key')->all());
+        $this->putJson(self::ADMIN.'/settings', ['theme_primary' => '#ABCDEF'])->assertForbidden();
+        $this->assertSame('#112233', app(\App\Domain\Support\Settings::class)->get('theme_primary'));
+
+        // the Access Control screen does not even offer it for the admin
+        $this->actingAsAdmin('developer');
+        $adminRows = collect($this->getJson(self::ADMIN.'/access-control')->json('roles.1.groups'))->flatMap(fn ($g) => collect($g['permissions'])->pluck('key'));
+        $this->assertNotContains('settings.theme', $adminRows->all());
+        $this->assertContains('settings.payments', $adminRows->all());
+    }
+
+    public function test_the_new_permissions_have_the_documented_defaults(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $developer = Admin::where('username', 'developer')->firstOrFail();
+        $admin = Admin::where('username', 'admin')->firstOrFail();
+
+        foreach (['discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'settings.store', 'settings.delivery', 'settings.payments'] as $p) {
+            $this->assertTrue(AdminAccess::allows($admin, $p), "admin should start with $p");
+            $this->assertTrue(AdminAccess::allows($developer, $p), "developer should start with $p");
+        }
+        $this->assertFalse(AdminAccess::allows($admin, 'settings.theme'));
+        $this->assertTrue(AdminAccess::allows($developer, 'settings.theme'));
+        // the developer's access is fixed: only the customers list can be switched
+        $this->assertSame(['customers.view', 'customers.export'], AdminAccess::togglable('developer'));
+        $this->assertNotContains('settings.theme', AdminAccess::togglable('admin'));
+    }
+
+    public function test_a_permission_added_by_an_update_gets_its_default_and_never_overrides_what_the_developer_switched(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        AdminAccess::setRolePermissions('admin', ['dashboard.view']);                            // the developer switched almost everything off
+        Permission::query()->whereIn('name', ['coupons.view', 'settings.payments'])->delete();   // an install from before these permissions existed
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
+        AdminAccess::sync();
+
+        $admin = Role::findByName('admin', 'admin');
+        $this->assertEqualsCanonicalizing(['dashboard.view', 'coupons.view', 'settings.payments'], $admin->permissions->pluck('name')->all());   // the new ones start on, nothing else came back
+        $this->assertTrue(Role::findByName('developer', 'admin')->hasPermissionTo('coupons.view'));
+        $this->assertFalse($admin->hasPermissionTo('settings.theme'));
     }
 
     // ------------------------------------------------------------------ auth basics

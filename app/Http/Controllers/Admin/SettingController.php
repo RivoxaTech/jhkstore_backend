@@ -15,7 +15,8 @@ class SettingController extends Controller
 {
     /**
      * The Settings page: tab => [label, the setting groups (sections) it shows]. Every tab is guarded by its own permission `settings.<tab>`
-     * (see AdminAccess). The `banners` tab has no settings: the panel fills it with the banner screens (/admin/banners endpoints).
+     * (see AdminAccess). The `banners` tab has no settings: the panel fills it with the banner screens (/admin/banners endpoints); the `delivery` tab
+     * also holds the delivery zone manager (/admin/delivery-zones endpoints). `theme` is the developer's.
      * To add a tab later (e.g. `payment_details`): add a line here, the groups in Settings::DEFINITIONS, a section below and the
      * permission `settings.payment_details` in AdminAccess::GROUPS.
      */
@@ -25,7 +26,11 @@ class SettingController extends Controller
         'banners' => ['Banners', []],
         'footer' => ['Footer & Social', ['footer']],
         'currency_tax' => ['Currency & Tax', ['currency', 'tax']],
-        'orders_delivery' => ['Orders & Delivery', ['orders', 'shipping']],
+        'orders_delivery' => ['Orders & Delivery', ['orders']],
+        'delivery' => ['Delivery', ['delivery']],
+        'payments' => ['Payments', ['payments']],
+        'store' => ['Store', ['store']],
+        'theme' => ['Theme', ['theme']],
         'seo' => ['SEO', ['seo']],
     ];
 
@@ -36,7 +41,10 @@ class SettingController extends Controller
         'currency' => 'Currency',
         'tax' => 'Tax',
         'orders' => 'Orders',
-        'shipping' => 'Delivery',
+        'delivery' => 'Delivery',
+        'payments' => 'Payment methods',
+        'store' => 'Store status and notices',
+        'theme' => 'Colours, fonts and corners of the storefront',
         'seo' => 'Search engines and sharing',
     ];
 
@@ -67,6 +75,7 @@ class SettingController extends Controller
             abort_unless($this->mayEdit($request->user(), $key), 403, 'You do not have permission to change this setting.');
         }
         $data = $request->validate($settings->rules($keys), $settings->messages($keys), $settings->attributes($keys));
+        $this->checkCombination($settings, $data);
         $settings->set($data);
         Audit::log($request->user(), 'settings.updated', null, $data);
 
@@ -103,6 +112,32 @@ class SettingController extends Controller
         return response()->json($this->payload($settings, $request->user()));
     }
 
+    /**
+     * Rules that need more than one setting (the values that are sent are merged over the stored ones): at least one payment method stays on,
+     * and bank transfer needs at least one active account to pay into.
+     */
+    private function checkCombination(Settings $settings, array $data): void
+    {
+        $paymentKeys = ['pay_cod_enabled', 'pay_bank_enabled', 'pay_bank_accounts'];
+        if (array_intersect($paymentKeys, array_keys($data)) === []) {
+            return;
+        }
+        $value = fn (string $key) => array_key_exists($key, $data) ? $data[$key] : $settings->get($key);
+        $cod = filter_var($value('pay_cod_enabled'), FILTER_VALIDATE_BOOLEAN);
+        $bank = filter_var($value('pay_bank_enabled'), FILTER_VALIDATE_BOOLEAN);
+        $blame = fn (string $first, string $second) => array_key_exists($first, $data) ? $first : $second;
+
+        if (! $cod && ! $bank) {
+            $key = $blame('pay_cod_enabled', 'pay_bank_enabled');
+            throw ValidationException::withMessages([$key => ['Keep at least one payment method on: cash on delivery or bank transfer.']]);
+        }
+        $active = collect($settings->accountsFrom($value('pay_bank_accounts')))->where('active', true);
+        if ($bank && $active->isEmpty()) {
+            $key = $blame('pay_bank_enabled', 'pay_bank_accounts');
+            throw ValidationException::withMessages([$key => ['Add at least one active bank account before you turn bank transfer on.']]);
+        }
+    }
+
     /** The tab a setting is shown in. */
     private function tabOf(string $key): string
     {
@@ -136,7 +171,7 @@ class SettingController extends Controller
             $sections[$def[0]]['fields'][] = [
                 'key' => $key, 'type' => $def[1], 'label' => $def[3], 'help' => $def[4] ?? null,
                 'min' => $def[5] ?? null, 'max' => $def[6] ?? null, 'value' => $def[1] === 'file' ? null : $settings->get($key),
-            ] + ($def[1] === 'file' ? ['upload' => $uploads[$key]] : []);
+            ] + ($def[1] === 'file' ? ['upload' => $uploads[$key]] : []) + ($def[1] === 'choice' ? ['options' => Settings::CHOICES[$key]] : []);
             if ($def[1] === 'file') {
                 $files[$key] = $settings->fileUrl($key);
             }

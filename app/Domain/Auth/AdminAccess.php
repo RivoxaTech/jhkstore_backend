@@ -18,7 +18,7 @@ use Spatie\Permission\PermissionRegistrar;
  * The permission list lives here (reviewable, the same on every install); which role holds which permission lives in the spatie tables, so
  * the developer can change the admin's access without a deployment. `sync()` creates what is missing and never resets a role that exists.
  * The hard rules below are enforced on every write AND on every check, so a database edit cannot bypass them:
- *   - the developer can never hold `orders.*`          - `access.manage` belongs to the developer only
+ *   - the developer can never hold `orders.*`          - `access.manage` and `settings.theme` belong to the developer only
  *
  * Routes ask for a permission with the `admin.can:<permission>` middleware; the admin panel hides what an admin cannot do.
  */
@@ -64,16 +64,33 @@ class AdminAccess
             'settings.currency_tax' => 'Settings: Currency & Tax',
             'settings.orders_delivery' => 'Settings: Orders & Delivery',
             'settings.seo' => 'Settings: SEO',
+            'settings.theme' => 'Settings: Theme (colours, fonts, corners; developer only)',
+            'settings.store' => 'Settings: Store (open or closed, notices)',
+            'settings.delivery' => 'Settings: Delivery (method, fees, zones)',
+            'settings.payments' => 'Settings: Payments (methods, bank accounts)',
+        ]],
+        'discounts' => ['Discounts', [
+            'discounts.view' => 'See discounts',
+            'discounts.manage' => 'Create, edit, activate and delete discounts',
+        ]],
+        'coupons' => ['Coupons', [
+            'coupons.view' => 'See coupons and where they were used',
+            'coupons.manage' => 'Create, edit, activate and delete coupons',
         ]],
         'developer' => ['Developer', [
             self::ACCESS_MANAGE => 'Access Control: decide what the admin may see',
         ]],
     ];
 
-    /** What the admin starts with: the dashboard, orders, the customers list and the contact / footer / delivery settings. */
+    /** Never given to the admin, whatever the developer switches: the look of the storefront belongs to the developer. */
+    public const DEVELOPER_ONLY = [self::ACCESS_MANAGE, 'settings.theme'];
+
+    /** What the admin starts with: the dashboard, orders, the customers list, discounts and coupons and the store / delivery / payment settings. */
     public const ADMIN_DEFAULTS = [
         'dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export',
         'settings.general', 'settings.footer', 'settings.orders_delivery',
+        'settings.store', 'settings.delivery', 'settings.payments',
+        'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage',
     ];
 
     /** Permissions that are always on for the developer and cannot be switched off. */
@@ -96,7 +113,7 @@ class AdminAccess
     {
         return $role === self::DEVELOPER
             ? array_values(array_filter(self::all(), fn ($p) => str_starts_with($p, 'orders.')))
-            : [self::ACCESS_MANAGE];
+            : self::DEVELOPER_ONLY;
     }
 
     /** Permissions that may be switched on and off for a role on the Access Control screen. */
@@ -117,13 +134,18 @@ class AdminAccess
     /** Creates the permissions and the two roles. A role that already exists keeps its permissions (the developer may have changed them). */
     public static function sync(bool $reset = false): void
     {
+        $added = [];
         foreach (self::all() as $name) {
-            Permission::findOrCreate($name, self::GUARD);
+            if (Permission::findOrCreate($name, self::GUARD)->wasRecentlyCreated) {
+                $added[] = $name;
+            }
         }
         foreach ([self::DEVELOPER => self::developerDefaults(), self::ADMIN => self::ADMIN_DEFAULTS] as $name => $defaults) {
             $role = Role::findOrCreate($name, self::GUARD);
             if ($reset || $role->wasRecentlyCreated) {
                 $role->syncPermissions($defaults);
+            } elseif ($new = array_values(array_intersect($added, $defaults))) {
+                $role->givePermissionTo($new);   // a permission added by an update starts with its default; what the developer switched stays
             }
             // the hard rules hold even if a row was edited by hand
             $role->revokePermissionTo(array_values(array_intersect(self::forbidden($name), $role->permissions->pluck('name')->all())));

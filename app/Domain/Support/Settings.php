@@ -14,9 +14,11 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  * Every setting is declared in DEFINITIONS with its group, type, default and label, so a missing row falls back to the default,
  * the admin Settings page can be built from the list, and writes are validated by type. Client values (store name, currency, tax, …)
  * live here, not in code. *
- * Types: string | text | bool | int | money | percent | file | links
+ * Types: string | text | bool | int | money | percent | file | links | accounts | color | choice
  *  - `file`  a picture owned by the setting's row (medialibrary); the value is the media id, uploaded through the admin endpoints
  *  - `links` a JSON list of {platform, label, url, active}; the order of the list is the display order
+ *  - `accounts` a JSON list of {bank, title, number, iban, active} (bank transfer accounts); the order of the list is the display order
+ *  - `color` a #RRGGBB colour       `choice` one value of a fixed list (CHOICES)
  */
 class Settings
 {
@@ -26,6 +28,21 @@ class Settings
 
     /** Platforms a footer / social link can have. `custom` is any other site. */
     public const LINK_PLATFORMS = ['facebook', 'instagram', 'linkedin', 'x', 'youtube', 'tiktok', 'whatsapp', 'pinterest', 'website', 'custom'];
+
+    /** The fonts a store may pick for the storefront (a fixed list: the storefront loads them, nothing else). */
+    public const FONTS = ['Inter', 'Poppins', 'Playfair Display', 'Plus Jakarta Sans', 'Roboto', 'Lato', 'system-ui'];
+
+    public const DELIVERY_METHODS = ['flat', 'free', 'free_above', 'zones', 'owner_confirms'];
+
+    /** The values of every `choice` setting. */
+    public const CHOICES = [
+        'delivery_method' => self::DELIVERY_METHODS,
+        'delivery_unmatched' => ['block', 'owner_confirms', 'flat'],
+        'theme_font_heading' => self::FONTS,
+        'theme_font_body' => self::FONTS,
+        'theme_radius' => ['0px', '4px', '8px', '12px', '16px', '999px'],
+        'theme_shadow' => ['none', 'soft', 'medium'],
+    ];
 
     /** key => [group, type, default, label, help?, min?, max?] */
     public const DEFINITIONS = [
@@ -48,6 +65,8 @@ class Settings
         'footer_copyright' => ['footer', 'string', '', 'Copyright text', 'e.g. © 2026 My Store. All rights reserved.'],
         'support_hours' => ['footer', 'string', '', 'Support hours', 'e.g. Mon-Fri 9:00-18:00.'],
         'whatsapp_number' => ['footer', 'string', '', 'WhatsApp number', 'With the country code, e.g. +49 170 1234567.'],
+        'agency_name' => ['footer', 'string', '', 'Agency name', 'Shown as a credit in the footer, e.g. Built by Example Agency. Empty = no credit.'],
+        'agency_url' => ['footer', 'string', '', 'Agency link', 'The agency website (https:// only).'],
 
         // --- search engines and sharing
         'seo_meta_title' => ['seo', 'string', '', 'Default meta title', 'Used by pages that have no title of their own.'],
@@ -66,9 +85,40 @@ class Settings
         'order_number_prefix' => ['orders', 'string', 'ORD', 'Order number prefix', 'Order numbers look like PREFIX-2026-000123.'],
         'min_order_amount' => ['orders', 'money', 0, 'Minimum order amount', '0 = no minimum.'],
         'cod_max_amount' => ['orders', 'money', 0, 'Cash on delivery limit', '0 = no limit.'],
-        'delivery_fee' => ['shipping', 'money', 0, 'Delivery charge', 'One flat charge per order. 0 = free delivery.'],
-        'free_delivery_min_cart' => ['shipping', 'money', 0, 'Free delivery from', 'Cart value from which delivery is free. 0 = never free.'],
-        'delivery_days' => ['shipping', 'int', 5, 'Delivery time (days)', 'Shown to customers as the delivery estimate.', 0, 60],
+
+        // --- store: open / closed and notices
+        'store_open' => ['store', 'bool', true, 'Store is open', 'Off: customers can still browse and see prices, but cannot place orders.'],
+        'store_closed_message' => ['store', 'text', '', 'Message while the store is closed', 'Shown to customers instead of the checkout, e.g. We are closed until Monday.'],
+        'checkout_notice' => ['store', 'text', '', 'Checkout notice', 'A short notice shown at checkout (up to 300 characters).'],
+        'delivery_eta_text' => ['store', 'string', '', 'Delivery estimate text', 'e.g. 2 to 4 days. Shown when a delivery zone has no estimate of its own.'],
+
+        // --- delivery (the zones themselves are managed in the Delivery tab, table delivery_zones)
+        'delivery_method' => ['delivery', 'choice', 'free_above', 'Delivery method', 'Flat fee, always free, free above an amount, fee by delivery zone, or the owner confirms the fee after the order.'],
+        'delivery_fee' => ['delivery', 'money', 0, 'Delivery charge', 'The fee of the flat and free-above methods (and of unmatched addresses set to flat). 0 = free delivery.'],
+        'free_delivery_min_cart' => ['delivery', 'money', 0, 'Free delivery from', 'Cart value from which delivery is free (free-above method). 0 = never free.'],
+        'delivery_days' => ['delivery', 'int', 5, 'Delivery time (days)', 'Shown to customers as the delivery estimate.', 0, 60],
+        'delivery_unmatched' => ['delivery', 'choice', 'block', 'Address outside every zone', 'Zones method: refuse the order, let the owner confirm the fee, or use the flat delivery charge.'],
+
+        // --- payments
+        'pay_cod_enabled' => ['payments', 'bool', true, 'Cash on delivery', 'Customers can pay the courier when the order arrives.'],
+        'pay_bank_enabled' => ['payments', 'bool', false, 'Bank transfer', 'Customers pay into one of the accounts below and upload a screenshot of the transfer.'],
+        'pay_card_visible' => ['payments', 'bool', false, 'Show "Card payment, coming soon"', 'Only a label: card payments are not available and can never be chosen.'],
+        'pay_bank_instructions' => ['payments', 'text', '', 'Bank transfer instructions', 'Shown to the customer next to the accounts, e.g. Use your order number as the reference.'],
+        'pay_bank_accounts' => ['payments', 'accounts', [], 'Bank accounts', 'Any number of accounts, shown in this order.'],
+
+        // --- theme (developer only): the storefront reads these through GET /store/settings
+        'theme_primary' => ['theme', 'color', '#2563EB', 'Primary colour', 'Buttons and links.'],
+        'theme_primary_contrast' => ['theme', 'color', '#FFFFFF', 'Text on the primary colour'],
+        'theme_accent' => ['theme', 'color', '#F59E0B', 'Accent colour', 'Badges and highlights.'],
+        'theme_bg' => ['theme', 'color', '#FFFFFF', 'Page background'],
+        'theme_surface' => ['theme', 'color', '#F8FAFC', 'Card background'],
+        'theme_text' => ['theme', 'color', '#0F172A', 'Text colour'],
+        'theme_muted' => ['theme', 'color', '#64748B', 'Muted text colour'],
+        'theme_border' => ['theme', 'color', '#E2E8F0', 'Border colour'],
+        'theme_font_heading' => ['theme', 'choice', 'Inter', 'Heading font'],
+        'theme_font_body' => ['theme', 'choice', 'Inter', 'Body font'],
+        'theme_radius' => ['theme', 'choice', '8px', 'Corner radius'],
+        'theme_shadow' => ['theme', 'choice', 'soft', 'Shadow'],
 
     ];
 
@@ -198,6 +248,12 @@ class Settings
         $out = [];
         foreach ($keys as $key) {
             $out[$key] = lcfirst(self::DEFINITIONS[$key][3]);
+            if (self::DEFINITIONS[$key][1] === 'accounts') {
+                $out["$key.*.bank"] = 'bank name';
+                $out["$key.*.title"] = 'account title';
+                $out["$key.*.number"] = 'account number';
+                $out["$key.*.iban"] = 'IBAN';
+            }
             if (self::DEFINITIONS[$key][1] === 'links') {
                 $out["$key.*.platform"] = 'platform';
                 $out["$key.*.label"] = 'label';
@@ -216,6 +272,17 @@ class Settings
         foreach ($keys as $key) {
             if ($key === 'default_phone_country_code') {
                 $out["$key.regex"] = 'Enter the country code with a + and 1 to 4 digits, for example +92.';
+            }
+            if (self::DEFINITIONS[$key][1] === 'color') {
+                $out["$key.regex"] = 'Enter a colour as #RRGGBB, for example #2563EB.';
+            }
+            if ($key === 'agency_url') {
+                $out["$key.url"] = 'Enter a full web address starting with https://.';
+            }
+            if (self::DEFINITIONS[$key][1] === 'accounts') {
+                $out["$key.*.bank.required"] = 'Enter the bank name.';
+                $out["$key.*.number.required_without"] = 'Enter the account number or the IBAN.';
+                $out["$key.*.iban.required_without"] = 'Enter the account number or the IBAN.';
             }
             if (self::DEFINITIONS[$key][1] === 'links') {
                 $out["$key.*.url.required"] = 'Enter the link address.';
@@ -241,9 +308,18 @@ class Settings
                 'percent' => ['required', 'numeric', 'min:0', 'max:100'],
                 'text' => ['nullable', 'string', 'max:1000'],
                 'file' => ['prohibited'],                      // only through the upload endpoints
-                'links' => ['present', 'array'],
+                'links', 'accounts' => ['present', 'array'],
+                'color' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+                'choice' => ['required', 'string', 'in:'.implode(',', self::CHOICES[$key])],
                 default => ['nullable', 'string', 'max:255'],
             };
+            if ($def[1] === 'accounts') {
+                $rules["$key.*.bank"] = ['required', 'string', 'max:80'];
+                $rules["$key.*.title"] = ['nullable', 'string', 'max:120'];
+                $rules["$key.*.number"] = ['nullable', 'required_without:'.$key.'.*.iban', 'string', 'max:40'];
+                $rules["$key.*.iban"] = ['nullable', 'required_without:'.$key.'.*.number', 'string', 'max:40'];
+                $rules["$key.*.active"] = ['nullable', 'boolean'];
+            }
             if ($def[1] === 'links') {
                 $rules["$key.*.platform"] = ['required', 'string', 'in:'.implode(',', self::LINK_PLATFORMS)];
                 $rules["$key.*.label"] = ['nullable', 'string', 'max:60'];
@@ -263,6 +339,12 @@ class Settings
             'seo_meta_title' => ['nullable', 'string', 'max:70'],
             'seo_meta_description' => ['nullable', 'string', 'max:300'],
             'footer_text' => ['nullable', 'string', 'max:500'],
+            'agency_name' => ['nullable', 'string', 'max:80'],
+            'agency_url' => ['nullable', 'url:https', 'max:255'],
+            'store_closed_message' => ['nullable', 'string', 'max:300'],
+            'checkout_notice' => ['nullable', 'string', 'max:300'],
+            'delivery_eta_text' => ['nullable', 'string', 'max:120'],
+            'pay_bank_instructions' => ['nullable', 'string', 'max:1000'],
         ];
 
         return array_intersect_key($overrides, $rules) + $rules;
@@ -276,6 +358,19 @@ class Settings
     public function freeDeliveryMinCents(): int
     {
         return $this->cents($this->get('free_delivery_min_cart'));
+    }
+
+    public function deliveryMethod(): string
+    {
+        return (string) $this->get('delivery_method');
+    }
+
+    /** The accounts a customer may pay into: the active ones, in order. */
+    public function publicAccounts(): array
+    {
+        return collect($this->get('pay_bank_accounts'))->where('active', true)->map(fn ($a) => [
+            'bank' => $a['bank'], 'title' => $a['title'], 'number' => $a['number'], 'iban' => $a['iban'],
+        ])->values()->all();
     }
 
     public function minOrderCents(): int
@@ -319,11 +414,36 @@ class Settings
     {
         return match ($type) {
             'links' => $this->castLinks($value),
+            'accounts' => $this->accountsFrom($value),
             'bool' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
             'int' => (int) $value,
             'money', 'percent' => round((float) $value, 2),
             default => $value === null ? '' : (string) $value,
         };
+    }
+
+    /** Keeps only well-formed rows (a bank name and an account number or an IBAN), in the given order. */
+    public function accountsFrom(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = json_decode($value, true);
+        }
+        $out = [];
+        foreach (is_array($value) ? $value : [] as $row) {
+            $row = is_array($row) ? $row : [];
+            $bank = trim((string) ($row['bank'] ?? ''));
+            $number = trim((string) ($row['number'] ?? ''));
+            $iban = trim((string) ($row['iban'] ?? ''));
+            if ($bank === '' || ($number === '' && $iban === '')) {
+                continue;
+            }
+            $out[] = [
+                'bank' => $bank, 'title' => trim((string) ($row['title'] ?? '')), 'number' => $number, 'iban' => $iban,
+                'active' => filter_var($row['active'] ?? true, FILTER_VALIDATE_BOOLEAN),
+            ];
+        }
+
+        return $out;
     }
 
     /** Keeps only well-formed rows, in the given order. */
