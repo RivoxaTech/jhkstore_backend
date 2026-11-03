@@ -2,6 +2,7 @@
 
 Base URL: `{APP_URL}/api/v1/store`. JSON in, JSON out – always send `Accept: application/json`. List endpoints answer `{ data, links, meta }`; single items `{ data }`.
 Errors: `422 { message, errors:{field:[…]} }`; checkout errors also carry a stable `code` (e.g. `cart_invalid`, `below_min_order`, `cod_not_allowed`, `price_changed`, `store_closed`, `coupon_invalid`, `delivery_not_available`, `payment_method_unavailable`).
+**Dates** in every answer carry the shop's UTC offset, in the store's time zone (`APP_TIMEZONE`), for example `2026-11-03T23:59:00+05:00` – never a bare UTC `Z`. Show them as they come, or convert them with any date library; a calendar day without a time (`estimated_delivery_date`, `delivery.arrives_by`) is a plain `YYYY-MM-DD`.
 The OpenAPI reference is in [openapi.json](openapi.json) (and generated live at `/docs/api`); a Postman collection is in `docs/postman/`.
 
 **There are no customer accounts.** Nothing in this API needs a login, a token or a cookie: customers never register or sign in. The storefront keeps the cart (variant ids and quantities) itself, for example in `localStorage`, **or** uses the persistent server cart (section 5, a random token instead of a login), asks the server to price it, and sends the whole order in one request.
@@ -27,7 +28,7 @@ The OpenAPI reference is in [openapi.json](openapi.json) (and generated live at 
 `logo_url`, `favicon_url` and `seo.share_image_url` are absolute URLs or `null`. `social_links` holds only the **active** links, **already in the order the store owner set** (render them as they come);
 `platform` is one of `facebook, instagram, linkedin, x, youtube, tiktok, whatsapp, pinterest, website, custom` (pick an icon from it), `label` is never empty. `footer.whatsapp_url` is `https://wa.me/<digits>` or `null`.
 `footer.agency` is the agency credit (`name` and an `https://` `url`, both empty = show nothing).
-The `seo` values are site-wide defaults for pages that have no title / description of their own (products and categories carry their own `meta_title` / `meta_description`).
+The settings answer has no new required field in this release; `store.open`, `store.closed_message`, `checkout`, `payment`, `delivery` and `theme` behave as described below. The `seo` values are site-wide defaults for pages that have no title / description of their own (products and categories carry their own `meta_title` / `meta_description`).
 Prices in all responses are plain numbers in the store currency.
 
 * **Open / closed**: `store.open` = `false` means customers can still browse and get a quote, but `POST /orders` answers `422 { code: "store_closed", message }` (the message is `store.closed_message`, or a default). Show `store.closed_message` instead of the checkout button. `checkout.notice` is a short notice for the checkout page; `checkout.eta_text` (e.g. "2 to 4 days") is the delivery estimate to show when the quote has no zone estimate.
@@ -53,12 +54,24 @@ A spot can hold **one banner or many**: the API always answers a list and **the 
 |---|---|
 | `GET /categories` (`?top=1`) | tree: `data[]` category `{id,name,slug,description,is_top,icon_url,image_url,sub_categories:[{id,name,slug,icon_url,image_url}]}`. Only active items, already ordered, cached 10 min. **Two levels** |
 | `GET /categories/{slug}` | one category (404 when inactive) |
-| `GET /products` | filters `tag`, `category`, `sub_category` (slugs; add `category` to disambiguate), `q`, `min_price`, `max_price`, `in_stock=1`, `sort` (`popularity`,`newest`,`price_asc`,`price_desc`,`discount`), `page`, `per_page` ≤ 100. Home page sections = the list with a tag, e.g. `?tag=best-seller&per_page=10` |
-| `GET /products/{slug}` | detail: options (`variants[]` with price, stock `qty`, `low_stock`, bulk `price_tiers`, own pictures), images, content tabs, `delivery.arrives_by`, related products |
+| `GET /products` | filters `tag`, `category`, `sub_category` (slugs; add `category` to disambiguate), `q`, `min_price`, `max_price`, `in_stock=1`, `featured=1` (only the products the shop marked as featured), `sort` (`popularity`,`newest`,`price_asc`,`price_desc`,`discount`), `page`, `per_page` ≤ 100. Home page sections = the list with a tag, e.g. `?tag=best-seller&per_page=10` |
+| `GET /products/{slug}` | detail: options (`variants[]` with price, stock `qty`, `low_stock`, bulk `price_tiers`, own pictures), images, `videos`, content tabs, `delivery.arrives_by`, related products |
 | `GET /tags` | active tags |
 
 A product is the parent of its **options**; only an option (`variant_id`) can be ordered. A product with one option is shown as that option (`has_single_option`).
 Card/detail fields such as `badge_label`, `show_starting_at` and `display_mode` are hints for the layout; images are absolute URLs or `null`.
+
+**Sold out and featured.** Every card and detail has `is_sold_out` and `is_featured` (booleans). A product the shop marked **sold out** stays visible, but `in_stock` is `false` (also on each option of the detail, with `qty: 0`) – show a "Sold out" label and no add-to-cart button. It is filtered out by `in_stock=1`. It cannot be bought: the quote answers `can_checkout: false` with the blocking issue / line warning `sold_out`, and `POST /orders` (or a cart) answers `422 cart_invalid` with a `lines[]` entry of code `sold_out`; nothing is taken from stock. `GET /products?featured=1` lists the featured products (home page "featured" section).
+
+**Videos.** The product detail has `videos`, a list (empty when there is none) of `{ url, poster_url, mime, source }`, the uploaded files first (in the order set in the admin panel), then the optional video link:
+
+| `source` | `url` | `mime` | How to show it |
+|---|---|---|---|
+| `upload` | absolute URL of an MP4 / WEBM file | `video/mp4` or `video/webm` | `<video controls poster="{poster_url}">` (`poster_url` may be `null`) |
+| `embed` | `https://www.youtube-nocookie.com/embed/ID` or `https://player.vimeo.com/video/ID` | `null` | an `<iframe>` |
+| `embed` | a direct `https://…/file.mp4` or `.webm` link of another site, kept as it is | `video/mp4` / `video/webm` | `<video controls>` |
+
+A store has at most 2 uploaded videos per product, so at most 3 entries. Cards carry no videos.
 
 **Discounted prices.** When an automatic discount is live, cards and options show it: `price` is what one unit costs after a **percent** discount, `compare_price` the price to show struck through (the MRP, or the price before the discount; `null` when there is nothing to compare), `discount_label` e.g. `"25% off"` (or `null`). A **fixed-amount** discount (e.g. "$10 off") is taken off the order, not off a unit, so it only gives `discount_label`; `price` stays the option price and the saving appears in the quote. On a product page `variants[].option_price` is the option's own price before any discount. `mrp` stays the MRP. Bulk prices are not part of these fields (see `price_tiers` and the quote). The `min_price` / `max_price` filters and the `price_*` sorts use the option prices, not the discounted ones.
 
@@ -76,7 +89,7 @@ Send `cart_token` (the persistent cart, section 5) **instead of** `items`; the q
 
 The server prices the lines from live data (option price, bulk prices, discounts, coupon, tax, delivery, minimum order) and answers `{ data }`:
 
-* `items[]` – per line: `price`, `unit_price` (the bulk price when reached), `bulk_applied`, `next_offer` (hint: "add 5 more to pay 140 each"), `line_total` (what is paid for the line, after discounts), `saving`, `discount_amount` (what a discount or the coupon takes off this line), `discount_source` (`discount`, `coupon`, `bulk` when only a bulk price lowers the line, or `null`), `discount_id` / `coupon_id`, `available_qty`, `can_buy`, `in_totals`, `warnings[]` (`out_of_stock`, `insufficient_stock`, `low_stock`, `below_min_qty`, `above_max_qty`, `unavailable`; `blocking: true` ones stop the order).
+* `items[]` – per line: `price`, `unit_price` (the bulk price when reached), `bulk_applied`, `next_offer` (hint: "add 5 more to pay 140 each"), `line_total` (what is paid for the line, after discounts), `saving`, `discount_amount` (what a discount or the coupon takes off this line), `discount_source` (`discount`, `coupon`, `bulk` when only a bulk price lowers the line, or `null`), `discount_id` / `coupon_id`, `available_qty`, `can_buy`, `in_totals`, `warnings[]` (`sold_out`, `out_of_stock`, `insufficient_stock`, `low_stock`, `below_min_qty`, `above_max_qty`, `unavailable`; `blocking: true` ones stop the order).
 * `summary` – `items_total`, `product_discount` (MRP → option price), `bulk_discount`, `discount_total` (automatic discounts only), `coupon_code` (the coupon that was applied, or `null`), `coupon_discount`, `coupon_free_delivery`, `coupon_error { code, message }` or `null`, `subtotal`, `delivery_method`, `delivery_fee` (a number, or **`null` while it is not known**), `delivery_pending`, `delivery_needs_address`, `delivery_zone { id, name, eta_text }` or `null`, `delivery_eta_text`, `delivery_free`, `free_delivery_min_cart`, `amount_for_free_delivery`, `grand_total`, `total_savings` (product + bulk + discounts + coupon), `tax_total`, `tax_inclusive`, `tax_label`, `min_order_amount`.
 * `can_checkout` and `issues[]` (blocking problems, including `below_min_order` and `delivery_not_available`).
 
@@ -154,13 +167,14 @@ POST /orders          Idempotency-Key: 8-64 characters (recommended)
 * `422 coupon_invalid` with `reason` and `coupon_error { code, message }` – the coupon is refused (reasons as in the quote). **Unlike the quote, a bad coupon blocks the order.** The coupon use is counted under a database lock: of two simultaneous orders for the last use, one wins and the other gets `usage_limit`. A coupon that takes nothing off and is not free-delivery is not counted as used.
 * `422 delivery_not_available` – the store delivers by zones and the address is outside every zone.
 * The **customer is found or created by normalised phone** (`+49 170 1234567`, `+49-170-1234567` and `0049 170 1234567` are the same person; a number typed without the country code is another number, unless the store has set a default phone country code: then `0170 1234567` is the same person as `+49 170 1234567`). A changed name or a new e-mail updates the contact; an order without e-mail never wipes a stored one. The order keeps its own snapshot of the contact and the addresses.
+* **E-mails.** When the store switched order e-mails on and the order has an e-mail address, the customer gets plain e-mails (order received, confirmed, shipped with courier and tracking number, delivered, cancelled or rejected with the reason, payment proof rejected). They contain the order number, items, totals, payment method, delivery estimate and a link to your tracking page: `<storefront_track_url>?order=NUMBER` (the store sets `storefront_track_url`, for example `https://shop.example/track`). **Your tracking page must read `?order=` and ask for the phone number**, then call section 8; the link carries no token. The e-mails have no images and no tracking pixels. They are queued, so a mail problem never delays or fails an order.
 * The answer is the order: `order_number` (`PREFIX-2026-000123`), `status`, `payment_method`, `payment_status`, `payment {…}` (see section 7), `totals` (`items_total`, `product_discount`, `bulk_discount`, `discount_total`, `coupon_code`, `coupon_discount`, `subtotal`, `delivery_fee` – **`null` when it is still to be confirmed** –, `delivery_fee_pending`, `grand_total`, tax fields, `total_savings`), `items[]` (snapshots, with `discount_amount` and `discount_source`), `shipping_address`, `billing_address`, `timeline[]`, `customer`. Stock is deducted at once.
 * An order placed while the delivery fee is unknown has `delivery_fee_pending: true` and a `grand_total` without delivery. Show "delivery fee to be confirmed"; the shop sets the fee and the tracking answer then shows the final total.
 * Hidden-field **honeypot**: add an input named `website` (`SHOP_HONEYPOT_FIELD`) to the checkout form, hide it with CSS and leave it empty. A request that fills it is refused with `422 { "code": "rejected" }`. API clients that do not send the field are unaffected. No captcha.
 
 ## 7. Bank transfer: the payment proof
 
-With `payment_method: "bank_transfer"` the order starts `payment_status: "awaiting_payment"` and `payment.proof_status: "none"`. Show the customer the accounts and instructions (`payment.accounts`, `payment.instructions` in the order answer, or `payment.bank_transfer` of the settings), tell them to use the order number as the reference, and let them upload a screenshot of the transfer:
+With `payment_method: "bank_transfer"` the order starts `payment_status: "awaiting_payment"` and `payment.proof_status: "none"`. Show the customer the accounts and instructions (`payment.accounts`, `payment.instructions` in the order answer, or `payment.bank_transfer` of the settings). The order answers (`POST /orders`, `GET /orders/{orderNumber}`) always show the accounts and instructions **as they were when the order was placed** (a snapshot): if the shop changes its bank details later, existing orders keep the old ones and only new orders get the new ones; tell them to use the order number as the reference, and let them upload a screenshot of the transfer:
 
 ```
 POST /orders/{orderNumber}/payment-proof?phone=+15550100100        multipart/form-data
@@ -196,6 +210,25 @@ Besides the order fields of section 6 the answer has:
 
 `payment_method` and `payment_status` stay as flat fields as well. `payment_status` is `cod_pending`, `awaiting_payment`, `paid` or `cancelled`. The timeline also records payment events ("Payment proof uploaded", "Payment verified", "Payment proof rejected: …", "Delivery fee confirmed: 12.50") and a rejection ("Rejected: …"). No tokens in URLs, no tracking pixels.
 
+## 9. Wholesale request: `POST /wholesale-requests`
+
+A form for customers who want a bulk price. No login, nothing is priced or reserved; the shop answers by phone or WhatsApp.
+
+```json
+POST /wholesale-requests
+{ "name": "Bulk Buyer", "phone": "+1 555 010 0100",                         // required
+  "email": "buyer@example.com", "business_name": "ACME Retail",                // optional
+  "product_id": 7, "variant_id": 12,                                          // a catalogue product AND one of its options ...
+  "product_name": "Cardboard boxes",                                         // ... or free text (required when there is no product_id)
+  "quantity": 500,                                                           // required, 1 or more
+  "message": "Weekly delivery please",                                       // optional, 1000 characters
+  "website": "" }                                                            // the honeypot field, leave empty
+```
+
+`201 { "data": { "reference": "WS-2026-000001" } }` – only the reference; show it to the customer. Validation errors are `422 { message, errors }` as elsewhere (`variant_id` must belong to `product_id`). The honeypot field (`SHOP_HONEYPOT_FIELD`, default `website`) works as in section 6 (`422 { code: "rejected" }`). The customer record is found or created by the **normalised phone** (the same rule as an order), the name and e-mail update it; a request is not an order and changes no order count. The shop sees the request in its admin panel (and may be told by e-mail or push).
+
+Limits: **5 an hour per IP and 5 an hour per phone number** (`WHOLESALE_PER_HOUR`, `WHOLESALE_PER_PHONE_HOUR`); beyond that `429` with `Retry-After`.
+
 ## Rate limits
 
 Because nobody logs in, the public endpoints are protected by limits (`429` with a `Retry-After` header when exceeded; all can be changed per client in `.env`):
@@ -208,6 +241,7 @@ Because nobody logs in, the public endpoints are protected by limits (`429` with
 | every `/cart` call | 60 / minute per IP (`CART_PER_MINUTE`) |
 | `POST /orders` | 10 / minute and 60 / hour per IP, and 10 / hour per phone number (`CHECKOUT_PER_MINUTE`, `CHECKOUT_PER_HOUR`, `CHECKOUT_PER_PHONE_HOUR`) |
 | `POST /orders/{orderNumber}/payment-proof` | 10 / minute per IP and 10 / hour per order number (`PAYMENT_PROOF_PER_MINUTE`, `PAYMENT_PROOF_PER_ORDER_HOUR`) |
+| `POST /wholesale-requests` | 5 / hour per IP and 5 / hour per phone number (`WHOLESALE_PER_HOUR`, `WHOLESALE_PER_PHONE_HOUR`) |
 | `GET /orders/{orderNumber}` | 20 / minute per IP and 15 / hour per order number (`ORDER_LOOKUP_PER_MINUTE`, `ORDER_LOOKUP_PER_ORDER_HOUR`) |
 
 Allow the storefront origin in `FRONTEND_URLS` (CORS). Calls from a browser need no credentials; the cart token travels in the `X-Cart-Token` request header (any request header is allowed by CORS). From another origin a browser can only read the response headers listed in `exposed_headers` (`Idempotency-Replayed`, `X-Cart-Token`), so the token can be read from `data.token` or from the `X-Cart-Token` response header.

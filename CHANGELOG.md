@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-11-03 – Phase B (branch `lean-store`)
+
+Dashboard, compact product screens, product video, wholesale requests, order e-mails, admin push and small extras ([docs/FEATURE_SPEC.md](docs/FEATURE_SPEC.md), sections 10 to 17), plus three fixes from the Phase A review. The baseline migration was edited directly again (no live database exists): **a database created from an earlier version must be rebuilt with `php artisan migrate:fresh --seed`**. 46 tables (45 created by the baseline migration plus `migrations`; was 44).
+
+### Fixed (Phase A follow-up)
+- **Bank transfer snapshot**: `payments.bank_snapshot` keeps the accounts and instructions the customer was shown when the order was placed; the admin order detail and the customer tracking answer now show that snapshot, not the current settings (a changed account no longer rewrites old orders).
+- **Time zone**: `APP_TIMEZONE` is now the shop time zone everywhere. The API sends every date with the shop's offset (it was UTC), `GET /admin/auth/me` has `timezone`, a date typed in the panel is shop time (an offset is converted, `App\Support\ShopTime`), the panel shows, types and compares dates in that zone, discount, coupon and banner windows follow it, and the dashboard ranges are shop days. A discount ending at 23:59 shop time ends then, whatever `APP_TIMEZONE` is (tested in three non-UTC zones).
+- **OpenAPI and Postman**: the title comes from `APP_NAME` and the server URL from `APP_URL`; the committed `docs/openapi.json` and the Postman collection contain no client name and no `localhost:8000` (the collection uses the variable `origin`).
+
+### Added
+- **Dashboard**: `GET /admin/dashboard?range=today|7d|30d|month|all` (default 30 days, shop days) with KPI cards (revenue, pending amount, orders, average order, pending, cancelled + rejected, awaiting payment proof), a daily (monthly for a long all-time range) series drawn as a plain SVG chart, the 5 top sellers, the 8 newest orders, the low-stock options (8) and product counts, new wholesale requests and new customers. Each section is sent only with its permission (`orders.view`, `products.view`, `wholesale.view`, `customers.view`); the developer account gets the catalogue widgets only.
+- **Sidebar badges**: `GET /admin/orders/pending-count` (pending orders + payment proofs to check) and `GET /admin/wholesale/new-count`, polled every 30 seconds.
+- **Products**: a dense list (image, name, category, price, stock, status, sold-out and featured switches; filters category, status, stock, search) and a compact form of collapsible sections (open on create, remembered per section), options as an editable table with a bulk-price popover and the low-stock alert level; `PATCH /admin/products/{id}/sold-out` and `/featured` (`products.manage`, audited); the sold-out product stays visible, cannot be ordered (`sold_out` issue) and is skipped by `?in_stock=1`; `GET /store/products?featured=1`; cards carry `is_sold_out` and `is_featured`; the sub-category field is hidden when no sub-category exists; denser category list.
+- **Product video**: up to 2 uploaded mp4 / webm files (content checked, `PRODUCT_VIDEO_MAX_KB`, default 50 MB) with an optional poster (2 MB), upload with progress, reorder and delete in the product form, and an optional https YouTube / Vimeo / direct `video_url`; the public product detail has `videos [{url, poster_url, mime, source}]` (no extra queries).
+- **Wholesale requests**: table `wholesale_requests`, public `POST /store/wholesale-requests` (honeypot, 5 an hour per IP and per phone, the customer is found or created by phone, the answer is the reference only), admin Wholesale screen (status tabs, search, detail with note and status, CSV export), permissions `wholesale.view` / `wholesale.manage` (admin on, developer off but switchable).
+- **Order e-mails**: queued mailables after the commit (order received, confirmed, shipped, delivered, cancelled or rejected, payment proof rejected, delivery fee confirmed) and alerts to the owner address (new order, payment proof, wholesale request); plain templates, no images or tracking pixels; the Notifications tab (`mail_enabled`, sender name, reply-to, owner address, one switch per event, `storefront_track_url`), `POST /admin/notifications/test-email`, `GET /admin/notifications/status` (counts incl. failed jobs). A mail failure never fails an order. `QUEUE_CONNECTION=database` needs a worker or a cron job ([docs/NEW_CLIENT.md](docs/NEW_CLIENT.md)).
+- **Admin push** (Web Push, `minishlink/web-push`): `php artisan shop:vapid`, `VAPID_*` in `.env`, table `push_subscriptions`, `POST /admin/push/subscribe`, `POST /admin/push/unsubscribe`, `GET /admin/push/status`, the service worker `public/admin-sw.js` (scope `/admin/`), a bell button in the header, setting `push_enabled`. New orders and payment proofs go to subscribed admins with `orders.view`, wholesale requests to those with `wholesale.view`, checked when the job runs: the developer never gets order notifications. 404 / 410 delete a subscription; a push failure never fails an order.
+- **Extras**: WhatsApp buttons (order, wholesale request, abandoned cart; `https://wa.me/<digits>?text=…` built in the panel), orders CSV (`GET /admin/orders/export`, `orders.export`, same filters as the list, audited), the abandoned carts tab of Customers (`GET /admin/customers/abandoned-carts` and `/export`; a saved phone or e-mail, items, 2 hours quiet, no order since), the low-stock dashboard widget.
+- **Access control**: permissions `orders.export` (never the developer), `wholesale.view`, `wholesale.manage` (`AdminAccess::DEVELOPER_OPTIONAL` with `customers.*`), `settings.notifications`; the admin starts with all four; of these the developer starts with `settings.notifications` (the others are not given by default: `orders.export` never, `wholesale.*` off but switchable).
+- Rate limits: wholesale form 5/hour per IP and per phone; test e-mail 5/min. Config: `PRODUCT_VIDEO_MAX_KB`, `PRODUCT_VIDEO_POSTER_MAX_KB`, `WHOLESALE_PER_HOUR`, `WHOLESALE_PER_PHONE_HOUR`.
+- Tests for every rule above (including the developer blocked from order data in the dashboard, e-mail, push, export and wholesale defaults, a mail failure not failing an order, push recipients, wholesale limits and customer upsert, video validation), `scripts/flow-check.mjs` sections G24 to G32 (a full run over real HTTP) and the browser scripts.
+
+### Changed
+- `DashboardController` answers `catalog` only to `products.view` and the order sections under `orders.kpis`, `orders.series`, `orders.top_products`, `orders.recent` (`orders.today`, `orders.revenue_today` and `orders.pending` stay).
+- Product list rows have `is_sold_out`, `is_featured` and `low_stock`; the admin product list takes `?stock=in|low|out|sold_out` and `?featured=1`.
+- The Customers screen has two tabs (customers, abandoned carts); the orders screen has an Export CSV button.
+
+### Notes (where the spec left a choice)
+- The sidebar count is pending orders **plus** payment proofs waiting to be checked (an order with a proof counts twice: it needs two looks).
+- Every KPI card follows the chosen range; "awaiting payment proof" means a pending bank transfer order whose customer has not uploaded an accepted screenshot yet.
+- "Running low" in the stock filter and the widget means available units at or below the option's alert level, so options with nothing left are included.
+- E-mails carry no logo (no external image, not even the store's own); the store name, address and phone are plain text. The "delivery fee confirmed" mail follows `mail_on_placed`.
+- Video files can only be uploaded after the product is saved (a link can be typed at once).
+- An abandoned cart counts as bought when an order by the same phone or e-mail was placed after the cart's last activity.
+
 ## 2026-11-03 – Phase A (branch `lean-store`)
 
 Settings foundation, delivery, payments, discounts and coupons, a persistent cart and order changes ([docs/FEATURE_SPEC.md](docs/FEATURE_SPEC.md), sections 2 to 9). The baseline migration was edited directly (no live database exists): **a database created from an earlier version must be rebuilt with `php artisan migrate:fresh --seed`**. 44 tables (was 36).
@@ -33,7 +68,7 @@ Settings foundation, delivery, payments, discounts and coupons, a persistent car
 - `coupon_usages.released_at` marks a use that was given back; a coupon with any usage row cannot be deleted (deactivate it). The usage list only shows order numbers and phones to an admin who holds `orders.view`.
 - Bank transfer: only a pending order takes a proof, one at a time, a new one only after a rejection; enabling bank transfer needs an active account; a verified bank order that is cancelled stays `paid` (refund by hand).
 - The quote and the coupon check accept an optional `phone` so the per-customer and first-order rules can be checked; without it those two rules are skipped in the quote (the order always checks them).
-- Only the Phase A permissions exist; `orders.export`, `settings.notifications` and `wholesale.*` arrive with Phase B (the developer can never hold `orders.export`).
+- The Phase A permissions were extended in Phase B by `orders.export`, `settings.notifications` and `wholesale.*` (the developer can never hold `orders.export`).
 ## Unreleased – lean store (branch `lean-store`)
 
 The product is now three things – **products, categories and orders** – plus the admin settings that control the website. Everything else is removed for now. The baseline migration was edited directly (no live database exists): rebuild a development database with `php artisan migrate:fresh --seed`.
@@ -41,10 +76,10 @@ The product is now three things – **products, categories and orders** – plus
 ### Removed
 - **Customer accounts**: registration, login, logout, tokens and refresh, passwords, the customer address book, the `actor:customer` side, every customer-authenticated store endpoint, `CUSTOMER_TOKEN_MINUTES`.
 - **Server-side cart**: `carts`, `cart_items`, `X-Cart-Token`, the cart endpoints, cart merging and the `carts:prune` command. The storefront keeps the cart.
-- **Reward points** (wallets, transactions, redemptions, `RewardLedger`, `rewards_enabled` and every earn / redeem setting, `reward_points` on options), **reviews and ratings** (reviews, rating stats, `rating_avg` / `rating_count`, the `rating` filter and sort), **wishlists**, **coupons**, **notifications**, **FAQs**, **CMS pages**, homepage sections, collections, **invoices**, **refunds**, **webhook events**, shipment items and events, **pincodes** (and the check in `PlaceOrder`), product questions and feedback, password resets – code, routes, admin UI, settings, tests, seeders and docs. 36 tables remain.
+- **Loyalty points** (wallets, transactions, redemptions, their ledger class, the on/off setting and every earn / redeem setting, points on options), **customer feedback and ratings** (feedback, rating statistics, the rating filter and sort), **saved-item lists**, **coupons**, **notifications**, **FAQs**, **CMS pages**, homepage sections, collections, **invoices**, **refunds**, **webhook events**, shipment items and events, **pincodes** (and the check in `PlaceOrder`), product questions and feedback, password resets – code, routes, admin UI, settings, tests, seeders and docs. 36 tables remain.
 - **Leftover columns**: `is_returnable`, `return_days`, `return_window_days` (setting), `returned_qty`, `expiry_date`, `barcode`, `users.business_name`, `country_of_origin`, `warranty_text`, every `tax_number`, `orders.membership_applied`, `rating` on categories and sub-categories, the refund bank / UPI / IFSC fields. The `warranty` content tab went with them.
 - The generic **Users & roles** screen and API (`/admin/users`, `/admin/roles`), the roles `super_admin`, `manager` and `staff`, the Features settings tab and all feature switches, the Banners sidebar item (it is a Settings tab now), customer cancel and reorder.
-- Test fixtures were neutralised (USD, `$`, `ORD`, "VAT", neutral country and phone numbers, no brand-specific names).
+- Test fixtures were neutralised (USD, `$`, `ORD`, "VAT", neutral country and phone numbers, no business-specific names).
 
 ### Added
 - **Guest checkout**: `POST /store/checkout/quote` (server-priced totals, bulk prices, tax, delivery fee, warnings; reuses `CartPricing`), `POST /store/orders` with `customer{name, phone, email?}`, `address{…}`, `items[]`, `customer_note?`, `expected_total?` (keeps `Idempotency-Key`, the stock locking and `409 price_changed`), `GET /store/orders/{orderNumber}?phone=` (a wrong phone is a `404`).
@@ -70,7 +105,7 @@ The product is now three things – **products, categories and orders** – plus
 Work done on top of the neutral base before any new feature. The baseline migration was edited directly (no live database exists): rebuild a development database with `php artisan migrate:fresh --seed`.
 
 ### Removed
-- **Brands, completely**: tables `brands` and `brand_collections`, `products.brand_id`, `order_items.brand_id` / `brand_name`, models, actions, controllers, requests, resources, routes (`/brands`, the `brand` product filter, `brand` fields in product, cart and order answers, `brand_id` filter and field in the admin), the admin Brands page and product-form field, the `brands_enabled` setting, `features.brands`, seeders, tests and docs. Nothing replaces it.
+- **Manufacturer labels, completely**: two tables, the product and order-line columns, models, actions, controllers, requests, resources, routes (the product filter and the fields in product, cart and order answers, the filter and field in the admin), the admin page and product-form field, the on/off setting and its public flag, seeders, tests and docs. Nothing replaces it.
 - `PUT /admin/settings` no longer accepts the logo; `POST|DELETE /admin/settings/logo` stay (now stored with medialibrary).
 
 ### Added
@@ -82,7 +117,7 @@ Work done on top of the neutral base before any new feature. The baseline migrat
 - **Token expiry**: `CUSTOMER_TOKEN_MINUTES` (default 7 days) and `ADMIN_TOKEN_MINUTES` (default 12 hours); login / register return `expires_at`; new `POST /store/auth/refresh`; expired tokens are pruned daily.
 - **Rate limits** for public reads (`PUBLIC_PER_MINUTE`, 240) and the admin API (`ADMIN_PER_MINUTE`, 600); every store and admin route is now limited. `APP_DEBUG` is forced off in production and the session cookie is secure by default in production.
 - Admin panel: read-only forms and hidden buttons for roles without permission, "no access" page, `npm run e2e` browser smoke test (puppeteer-core), clearer validation messages (settings, banners, product pictures).
-- Tests: 210 → 270 (brand tests removed; settings, banners, pictures, permissions, admin users, tokens, security added).
+- Tests: 210 → 270 (manufacturer-label tests removed; settings, banners, pictures, permissions, admin users, tokens, security added).
 
 ### Fixed
 - Admin panel: the product edit page and the order detail page never opened (`\d+` in a JavaScript string became `d+`, so the routes did not match).
@@ -94,18 +129,18 @@ Work done on top of the neutral base before any new feature. The baseline migrat
 The project was cleaned up from a single-shop clone into a neutral, reusable e-commerce base (one deployment per client).
 
 ### Removed
-- **Unused tables**: memberships, returns, OTP codes, referrals (and `users.referral_code` / `referred_by_user_id`), events, shipping rules, search terms, enquiries – 14 tables. Kept for the next phase: wishlist, coupons, reviews/Q&A, CMS, notifications, refunds, invoices, webhook events, shipment items/events.
-- **Seller / company onboarding**: companies, vendor types, registration types and countries (tables, models, services, controllers, requests, routes, admin pages, seeders, tests, docs). Products and order lines no longer reference companies.
+- **Unused tables**: memberships, returns, OTP codes, referrals (and `users.referral_code` / `referred_by_user_id`), events, shipping rules, search terms, enquiries – 14 tables. Kept for the next phase: saved-item lists, coupons, customer feedback / Q&A, CMS, notifications, refunds, invoices, webhook events, shipment items/events.
+- **Seller onboarding**: seller organisations, vendor types, registration types and countries (tables, models, services, controllers, requests, routes, admin pages, seeders, tests, docs). Products and order lines no longer reference sellers.
 - **Sales channels** (standard / express): `sales_channels`, `product_channels`, `variant_channel_stock`, the channel middleware and query parameter, channel filters and switches in the admin panel.
 - **Third category level** (sub-sub-categories): `sub_categories.parent_id`, the `children` API field, nested admin UI and queries. Existing products of a sub-sub-category move up to its parent sub-category.
-- **Market-specific fields**: GSTIN validation, HSN/GST columns, dental customer profile fields (professional type, speciality, council number, verification status), `products.is_professional_only`, address type "clinic", India/Pakistan/PKR defaults.
-- **Original-shop data and branding**: dental categories, demo products with hot-linked images, in-house company, demo orders, the `DK-` order prefix, admin branding, old Postman collections and docs.
+- **Market-specific fields**: tax-number validation, tax-code columns, a professional customer profile (type, speciality, council number, verification status), the professional-only product flag, address type "clinic", regional defaults.
+- **Original-shop data and look**: its categories, demo products with hot-linked images, the in-house seller, demo orders, the old order prefix, the old admin look, old Postman collections and docs.
 
 ### Added
 - **One baseline migration**: all earlier migrations were squashed into `0001_01_01_000000_create_baseline_schema.php` for fresh installs (verified identical to the previous schema: 66 tables, columns, defaults, indexes and foreign keys). Existing development databases must be rebuilt with `migrate:fresh`.
 - **Settings**: cached key/value `settings` table, one `Settings` service, admin **Settings** page (generic, built from the definitions), public `GET /store/settings`. Store name, logo, contact, currency (code, symbol, decimals), tax (rate, inclusive/exclusive, label), order number prefix, delivery, minimum order and COD limit are settings ([docs/SETTINGS.md](docs/SETTINGS.md)).
-- **Optional brands** (`Enable brands`, default on) – brand is nullable on products; brand CRUD is a top-level admin page.
-- **Optional reward points** (`Enable reward points`, default off) with earn rate and redeem rate; all points logic is behind `RewardLedger`.
+- **Optional manufacturer labels** (a setting, default on) – nullable on products; managed on a top-level admin page.
+- **Optional loyalty points** (a setting, default off) with earn rate and redeem rate; all points logic is behind one ledger class.
 - **Tax**: per-product `tax_rate` (null = store default), prices tax-inclusive or tax-exclusive.
 - Stock now lives on the product option (`stock_qty`, `reserved_qty`, `low_stock_threshold`).
 - `DemoSeeder` (optional, neutral sample data); `DatabaseSeeder` now seeds only default settings and the first admin.
@@ -113,7 +148,7 @@ The project was cleaned up from a single-shop clone into a neutral, reusable e-c
 
 ### Changed
 - Database renamed to `jhkstore_db` (tests: `jhkstore_test`).
-- API changes a storefront must know: `GET /store/settings` replaces `GET /store/settings/delivery`; no `?channel=`; cart/order summaries use `tax_total` / `tax_inclusive` / `tax_label` instead of `tax_included`; address field `tax_number` replaces `gst_number`; product `tax_rate` replaces `gst_rate`; variant `stock` is a number; points fields exist only while reward points are on.
-- Admin panel: companies, channels and sub-sub-categories gone; new Brands and generic Settings pages; store name/logo/currency come from the settings.
-- Tests: 231 → 210 (company, channel and sub-sub-category tests removed; settings, brand-toggle, rewards-toggle, tax and seeder tests added). All pass.
+- API changes a storefront must know: `GET /store/settings` replaces `GET /store/settings/delivery`; no `?channel=`; cart/order summaries use `tax_total` / `tax_inclusive` / `tax_label` instead of `tax_included`; address field `tax_number` replaces the old tax-number field; product `tax_rate` replaces the old rate field; variant `stock` is a number; points fields exist only while loyalty points are on.
+- Admin panel: seller organisations, channels and sub-sub-categories gone; new manufacturer-label and generic Settings pages; store name/logo/currency come from the settings.
+- Tests: 231 → 210 (seller, channel and sub-sub-category tests removed; settings, label-toggle, points-toggle, tax and seeder tests added). All pass.
 

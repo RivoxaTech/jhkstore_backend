@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Store API (public, no login)",
-    "description": "Storefront API of the lean store. Customers have no accounts: nothing here needs a token. Run the requests in order: settings, catalogue, product detail (saves variant_id), quote, place order (saves order_number), look the order up; then the coupon, cart (saves cart_token) and bank transfer requests (14 to 28). Set origin (the store URL, e.g. https://shop.example.com) and product_slug.",
+    "description": "Storefront API of the lean store. Customers have no accounts: nothing here needs a token. Run the requests in order: settings, catalogue, product detail (saves variant_id), quote, place order (saves order_number), look the order up; then the coupon, cart (saves cart_token) and bank transfer requests (14 to 28), then the featured filter (29) and the wholesale form (30). Request 9 also saves product_id. Set origin (the store URL, e.g. https://shop.example.com) and product_slug.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -40,6 +40,10 @@
     {
       "key": "coupon_code",
       "value": "SAVE10"
+    },
+    {
+      "key": "product_id",
+      "value": ""
     }
   ],
   "item": [
@@ -299,7 +303,7 @@
             "type": "text/javascript",
             "exec": [
               "const d = pm.response.json().data;",
-              "if (d && d.variants && d.variants.length) { pm.collectionVariables.set('variant_id', d.variants[0].id); }"
+              "if (d && d.variants && d.variants.length) { pm.collectionVariables.set('variant_id', d.variants[0].id); pm.collectionVariables.set('product_id', d.id); }"
             ]
           }
         }
@@ -1009,6 +1013,68 @@
           ]
         },
         "description": "Besides status, items, totals and the timeline: payment { method, status, proof_status, reject_reason, can_upload_proof, instructions, accounts }, delivery_fee_pending, reject_reason, store_phone, whatsapp_url."
+      }
+    },
+    {
+      "name": "29. Featured products (GET /products?featured=1)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/products?featured=1&per_page=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "products"
+          ],
+          "query": [
+            {
+              "key": "featured",
+              "value": "1"
+            },
+            {
+              "key": "per_page",
+              "value": "10"
+            }
+          ]
+        },
+        "description": "Only the products the shop marked as featured. Cards and the product detail carry is_sold_out and is_featured; a sold-out product has in_stock false and cannot be ordered (issue sold_out). The product detail (request 9) has videos [{ url, poster_url, mime, source: upload|embed }]."
+      }
+    },
+    {
+      "name": "30. Wholesale request (a bulk price)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Bulk Buyer\",\n  \"phone\": \"{{phone}}\",\n  \"email\": \"buyer@example.com\",\n  \"business_name\": \"ACME Retail\",\n  \"product_id\": \"{{product_id}}\",\n  \"variant_id\": \"{{variant_id}}\",\n  \"quantity\": 500,\n  \"message\": \"Weekly delivery please\",\n  \"website\": \"\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/wholesale-requests",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "wholesale-requests"
+          ]
+        },
+        "description": "Answers 201 { data: { reference: \"WS-2026-000001\" } }. name, phone and quantity are required; send product_id + variant_id (a product and one of its options) or product_name as free text. 5 an hour per IP and per phone number (429 with Retry-After). Leave the honeypot field website empty."
       }
     }
   ]

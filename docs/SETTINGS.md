@@ -5,12 +5,13 @@ default below, so a fresh install works without any setup; `SettingsSeeder` writ
 
 * **Read**: `app(Settings::class)->get('delivery_fee')` – typed, cached (one cache entry plus a per-request copy).
 * **Write**: `app(Settings::class)->set(['delivery_fee' => 5])` – clears the cache. (The service does not validate; the admin API validates by type.)
-* **Admin panel**: *Settings*, built from the list of definitions, so a new setting appears automatically. Eleven tabs:
-  **General**, **Branding**, **Banners**, **Footer & Social**, **Currency & Tax**, **Orders & Delivery**, **Delivery**, **Payments**, **Store**, **Theme**, **SEO** (the tab → section map is `SettingController::TABS`). **Banners** has no settings: it holds the banner manager (`/admin/banners` endpoints). **Delivery** has its settings and the delivery zone manager (`/admin/delivery-zones` endpoints). **Theme** is the developer's: the admin never gets it. Every tab has its own permission `settings.<tab>` (`settings.general`, `settings.branding`, `settings.banners`, `settings.footer`, `settings.currency_tax`, `settings.orders_delivery`, `settings.delivery`, `settings.payments`, `settings.store`, `settings.theme`, `settings.seo`): the developer switches them for the admin in Access Control ([ACCESS_CONTROL.md](ACCESS_CONTROL.md)), the API lists only the tabs the admin may open and answers 403 for the others. `settings.theme` can never be given to the admin.
+* **Admin panel**: *Settings*, built from the list of definitions, so a new setting appears automatically. Twelve tabs:
+  **General**, **Branding**, **Banners**, **Footer & Social**, **Currency & Tax**, **Orders & Delivery**, **Delivery**, **Payments**, **Store**, **Notifications**, **Theme**, **SEO** (the tab → section map is `SettingController::TABS`). **Banners** has no settings: it holds the banner manager (`/admin/banners` endpoints). **Delivery** has its settings and the delivery zone manager (`/admin/delivery-zones` endpoints). **Notifications** holds the e-mail and push switches and, below them, the mail / queue status (counts only) and a "send test e-mail" button. **Theme** is the developer's: the admin never gets it. Every tab has its own permission `settings.<tab>` (`settings.general`, `settings.branding`, `settings.banners`, `settings.footer`, `settings.currency_tax`, `settings.orders_delivery`, `settings.delivery`, `settings.payments`, `settings.store`, `settings.notifications`, `settings.theme`, `settings.seo`): the developer switches them for the admin in Access Control ([ACCESS_CONTROL.md](ACCESS_CONTROL.md)), the API lists only the tabs the admin may open and answers 403 for the others. `settings.theme` can never be given to the admin.
   API: `GET/PUT /api/v1/admin/settings`; pictures: `POST/DELETE /api/v1/admin/settings/{logo|favicon|share-image}`.
+* **Time zone**: not a setting but `APP_TIMEZONE` in `.env` (default `UTC`, set it before the first order). Dates are stored as shop time, the API sends them with the shop's offset, and the panel gets the zone name as `timezone` in `GET /admin/auth/me`. Every date typed in a settings form (banner, discount and coupon windows) is shop time.
 * **Storefront**: `GET /api/v1/store/settings` – the public subset (store profile and branding, open / closed, checkout notice, footer, social links and agency credit, SEO defaults, currency, tax, delivery, payment methods, order limits, theme). See [STOREFRONT-API.md](STOREFRONT-API.md).
 * **Add a setting**: add one line to `Settings::DEFINITIONS` (group, type, default, label, help) and regenerate the tables below.
-* **Add a tab**: add the entry to `SettingController::TABS` (and a section label in `SECTIONS`), the settings with that group to `Settings::DEFINITIONS`, and a `settings.<tab>` permission to `AdminAccess::GROUPS`; the admin panel renders the tab from the API; nothing else changes. (The Delivery, Payments, Store and Theme tabs were added this way.)
+* **Add a tab**: add the entry to `SettingController::TABS` (and a section label in `SECTIONS`), the settings with that group to `Settings::DEFINITIONS`, and a `settings.<tab>` permission to `AdminAccess::GROUPS`; the admin panel renders the tab from the API; nothing else changes. (The Delivery, Payments, Store, Notifications and Theme tabs were added this way.)
 
 **Types**: `string`, `text`, `bool`, `int`, `money` / `percent` (numbers with 2 decimals), `file` (a picture, uploaded through its own endpoint), `links` (a JSON list), `accounts` (a JSON list of bank accounts), `color` (`#RRGGBB`) and `choice` (one value of a fixed list; the API sends the list as `options`).
 
@@ -128,6 +129,27 @@ The zones themselves are rows of `delivery_zones`, managed in this tab (`/admin/
 | `pay_card_visible` | bool | `off` | Shows a "card payment, coming soon" label; card can never be chosen |
 | `pay_bank_instructions` | text | `(empty)` | Shown to the customer next to the accounts (≤ 1000 characters) |
 | `pay_bank_accounts` | accounts | `[]` | The accounts the customer may pay into, in display order |
+
+### Notifications (Notifications tab)
+
+E-mails are queued: a queue worker (or the cron variant) must run, see [NEW_CLIENT.md](NEW_CLIENT.md). The mail server itself (`MAIL_*`) is in `.env`, the switches are here. These settings are not public.
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `mail_enabled` | bool | `off` | Master switch: off = no e-mail at all, also no owner alerts |
+| `mail_from_name` | string | `(empty)` | Sender name customers see (empty = the store name) |
+| `mail_reply_to` | string | `(empty)` | Reply-to address (empty = the store e-mail) |
+| `notify_admin_email` | string | `(empty)` | The owner's address: gets an alert for every new order, payment proof and wholesale request. Not an admin account. Empty = no alerts |
+| `mail_on_placed` | bool | `on` | Customer: order received (also the "delivery fee confirmed" mail) |
+| `mail_on_confirmed` | bool | `on` | Customer: order confirmed |
+| `mail_on_shipped` | bool | `on` | Customer: shipped, with courier and tracking number |
+| `mail_on_delivered` | bool | `on` | Customer: delivered |
+| `mail_on_cancelled` | bool | `on` | Customer: cancelled or rejected, with the reason |
+| `mail_on_payment_proof_rejected` | bool | `on` | Customer: the payment screenshot was not accepted, upload a new one |
+| `storefront_track_url` | string | `(empty)` | The storefront's tracking page (`http(s)://`); e-mails link to it as `?order=NUMBER`, the customer is asked for the phone number. No token in the link |
+| `push_enabled` | bool | `off` | Admin browser push (needs the three `VAPID_*` values in `.env`: `php artisan shop:vapid`) |
+
+A customer mail goes only when the order has an e-mail address. No e-mail contains an image, a script or a tracking pixel. Endpoints: `GET /admin/notifications/status` (queue connection, mailer, waiting and failed job counts, push status) and `POST /admin/notifications/test-email { to? }` (sent at once; default recipient = the owner address), both `settings.notifications`.
 
 ### Theme (Theme tab, developer only)
 
