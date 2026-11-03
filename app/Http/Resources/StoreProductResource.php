@@ -49,6 +49,7 @@ class StoreProductResource extends StoreProductCardResource
                 $qty = $v->available();
                 $threshold = (int) $v->low_stock_threshold;
                 $own = $strip($images->where('variant_id', $v->id));
+                $shown = $this->display($v);
 
                 return [
                     'id' => $v->id,
@@ -56,7 +57,10 @@ class StoreProductResource extends StoreProductCardResource
                     'sku' => $v->sku,
                     'is_default' => $v->is_default,
                     'mrp' => (float) $v->mrp,
-                    'price' => (float) $v->selling_price,
+                    'price' => $shown['price'],                      // after a live discount
+                    'compare_price' => $shown['compare_price'],
+                    'discount_label' => $shown['discount_label'],
+                    'option_price' => (float) $v->selling_price,     // the option's own price, before any discount
                     'discount_percent' => (float) $v->discount_percent,
                     'is_cod_available' => $v->is_cod_available ?? $this->is_cod_available,
                     'in_stock' => $qty > 0,

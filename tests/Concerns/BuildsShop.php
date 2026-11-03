@@ -6,7 +6,13 @@ use App\Domain\Auth\Models\Admin;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\ProductVariant;
+use App\Domain\Delivery\Models\DeliveryZone;
 use App\Domain\Order\Models\Order;
+use App\Domain\Promotion\Models\Coupon;
+use App\Domain\Promotion\Models\CouponTarget;
+use App\Domain\Promotion\Models\Discount;
+use App\Domain\Promotion\Models\DiscountTarget;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Testing\TestResponse;
 
 /** Fixtures for the quote, guest checkout and order tests: products with bulk prices, order payloads and the calls. */
@@ -103,16 +109,78 @@ trait BuildsShop
         return Order::query()->where('order_number', $number)->firstOrFail();
     }
 
+    // ------------------------------------------------------------------ promotions, zones, bank transfer
+
+    /** An automatic discount (default: 10 % on the whole store). `targets` = ids for a products / categories / sub_categories scope. */
+    protected function makeDiscount(array $o = []): Discount
+    {
+        $targets = $o['targets'] ?? [];
+        unset($o['targets']);
+        $discount = Discount::create($o + ['name' => 'Sale', 'type' => 'percent', 'value' => 10, 'scope' => 'store', 'is_active' => true, 'priority' => 0]);
+        $type = Discount::TARGET_TYPE[$discount->scope] ?? null;
+        foreach ($targets as $id) {
+            DiscountTarget::create(['discount_id' => $discount->id, 'type' => $type, 'target_id' => $id]);
+        }
+
+        return $discount->load('targets');
+    }
+
+    /** A coupon (default: SAVE10, 10 % on the whole store). */
+    protected function makeCoupon(array $o = []): Coupon
+    {
+        $targets = $o['targets'] ?? [];
+        unset($o['targets']);
+        $coupon = Coupon::create($o + ['code' => 'SAVE10', 'name' => 'Save 10', 'type' => 'percent', 'value' => 10, 'scope' => 'store', 'is_active' => true]);
+        $type = Coupon::TARGET_TYPE[$coupon->scope] ?? null;
+        foreach ($targets as $id) {
+            CouponTarget::create(['coupon_id' => $coupon->id, 'type' => $type, 'target_id' => $id]);
+        }
+
+        return $coupon->load('targets');
+    }
+
+    protected function makeZone(array $o = []): DeliveryZone
+    {
+        static $n = 0;
+        $n++;
+
+        return DeliveryZone::create($o + ['name' => "Zone $n", 'match_type' => 'city', 'match_values' => ['Springfield'], 'fee' => 5, 'sort_order' => $n, 'is_active' => true]);
+    }
+
+    /** A valid payment proof picture. */
+    protected function proofFile(string $name = 'proof.png', int $size = 300): UploadedFile
+    {
+        return UploadedFile::fake()->image($name, $size, $size);
+    }
+
+    /** Places a bank transfer order as a guest; returns the stored order. */
+    protected function bankOrder(array $contact = [], int $qty = 1): Order
+    {
+        $this->setSetting('pay_bank_enabled', true);
+        $this->setSetting('pay_bank_accounts', [['bank' => 'Test Bank', 'title' => 'Test Shop', 'number' => '123456', 'iban' => '', 'active' => true]]);
+        $variantId = $this->variantOf($this->shopProduct());
+        $number = $this->placeOrder($this->orderBody([$variantId => $qty], ['customer' => $this->contact($contact), 'payment_method' => 'bank_transfer']))->assertCreated()->json('data.order_number');
+
+        return Order::query()->where('order_number', $number)->firstOrFail();
+    }
+
+    protected function uploadProof(Order $order, ?string $phone = null, ?UploadedFile $file = null, array $extra = []): TestResponse
+    {
+        $this->app['auth']->forgetGuards();
+
+        return $this->flushHeaders()->post(self::STORE."/orders/{$order->order_number}/payment-proof?phone=".urlencode($phone ?? $order->customer_phone), ['proof' => $file ?? $this->proofFile()] + $extra, ['Accept' => 'application/json']);
+    }
+
     // ------------------------------------------------------------------ calls
 
-    protected function quote(array $items, array $headers = []): TestResponse
+    protected function quote(array $items, array $headers = [], array $extra = []): TestResponse
     {
         $lines = [];
         foreach ($items as $key => $value) {
             $lines[] = is_array($value) ? ['variant_id' => $value[0], 'qty' => $value[1]] : ['variant_id' => $key, 'qty' => $value];
         }
 
-        return $this->flushHeaders()->withHeaders($headers)->postJson(self::STORE.'/checkout/quote', ['items' => $lines]);
+        return $this->flushHeaders()->withHeaders($headers)->postJson(self::STORE.'/checkout/quote', ['items' => $lines] + $extra);
     }
 
     protected function placeOrder(array $body = [], array $headers = []): TestResponse

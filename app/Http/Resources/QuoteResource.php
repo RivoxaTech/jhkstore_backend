@@ -12,12 +12,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * The answer of POST /store/checkout/quote: the storefront's cart priced by the server. Lines with their live prices, bulk-offer hints and
- * warnings, and the summary (what the order total would be). The resource is a PricedCart (see CartPricing).
- * Amounts are numbers in the shop currency.
+ * warnings, and the summary (what the order total would be). The resource is a PricedCart (see CartPricing); the persistent cart adds its
+ * `token` through `$extra`. Amounts are numbers in the shop currency (`delivery_fee` is null while the fee is not known yet).
  */
 class QuoteResource extends JsonResource
 {
-    public function __construct(PricedCart $priced)
+    /** @param  array<string,mixed>  $extra  added to the answer as it is (the cart token) */
+    public function __construct(PricedCart $priced, private readonly array $extra = [])
     {
         parent::__construct($priced);
     }
@@ -45,10 +46,13 @@ class QuoteResource extends JsonResource
         }
         if ($c->countedLines() !== [] && ! $c->meetsMinimum()) {
             $issues[] = ['variant_id' => null, 'code' => 'below_min_order',
-                'message' => 'The minimum order amount is '.$pricing->fmt($c->minOrderAmount, $symbol).'. Add items worth '.$pricing->fmt($c->minOrderAmount - $c->subtotal, $symbol).' more.'];
+                'message' => 'The minimum order amount is '.$pricing->fmt($c->minOrderAmount, $symbol).'. Add items worth '.$pricing->fmt($c->minOrderAmount - $c->subtotalBeforeCoupon, $symbol).' more.'];
+        }
+        if ($c->deliveryUnavailable) {
+            $issues[] = ['variant_id' => null, 'code' => 'delivery_not_available', 'message' => 'Sorry, we do not deliver to this address.'];
         }
 
-        return [
+        return $this->extra + [
             'currency' => $settings->currencyCode(),
             'currency_symbol' => $symbol,
             'items_count' => $c->unitsCount,
@@ -58,13 +62,23 @@ class QuoteResource extends JsonResource
                 'items_total' => $money($c->itemsTotal),               // everything at MRP
                 'product_discount' => $money($c->productDiscount),     // MRP -> option price
                 'bulk_discount' => $money($c->bulkDiscount),           // option price -> bulk price ("Buy 5+ for ...")
+                'discount_total' => $money($c->discountTotal),          // automatic discounts
+                'coupon_code' => $c->couponCode,                       // the coupon that was applied, or null
+                'coupon_discount' => $money($c->couponDiscount),
+                'coupon_free_delivery' => $c->couponFreeDelivery,
+                'coupon_error' => $c->couponError,                     // { code, message } when the coupon was refused (the quote itself is not blocked)
                 'subtotal' => $money($c->subtotal),
-                'delivery_fee' => $money($c->deliveryFee),
+                'delivery_method' => $c->deliveryMethod,
+                'delivery_fee' => $c->deliveryFeeKnown() ? $money($c->deliveryFee) : null,   // null: not known yet
+                'delivery_pending' => $c->deliveryPending,             // the owner confirms the fee after the order
+                'delivery_needs_address' => $c->deliveryNeedsAddress,  // zones: send the address to get the fee
+                'delivery_zone' => $c->deliveryZone,                   // { id, name, eta_text } or null
+                'delivery_eta_text' => $c->deliveryEtaText,
                 'delivery_free' => $c->deliveryFree,
                 'free_delivery_min_cart' => $money($c->freeDeliveryMin),   // 0 = no free delivery
-                'amount_for_free_delivery' => ($c->freeDeliveryMin > 0 && ! $c->deliveryFree && $c->countedLines() !== []) ? $money($c->freeDeliveryMin - $c->subtotal) : null,
+                'amount_for_free_delivery' => ($c->freeDeliveryMin > 0 && ! $c->deliveryFree && $c->countedLines() !== [] && $c->deliveryFeeKnown()) ? $money($c->freeDeliveryMin - $c->subtotal) : null,
                 'grand_total' => $money($c->grandTotal),
-                'total_savings' => $money($c->totalSavings()),         // product + bulk discounts
+                'total_savings' => $money($c->totalSavings()),         // product + bulk + automatic discounts + coupon
                 'tax_total' => $money($c->taxTotal),
                 'tax_inclusive' => $c->taxInclusive,
                 'tax_label' => (string) $settings->get('tax_label'),
@@ -107,7 +121,11 @@ class QuoteResource extends JsonResource
             'line_total' => $money($l->lineTotal()),
             'product_saving' => $money($l->productDiscount()),
             'bulk_saving' => $money($l->bulkDiscount()),
-            'saving' => $money($l->productDiscount() + $l->bulkDiscount()),
+            'discount_amount' => $money($l->discount),             // what a discount or the coupon takes off this line
+            'discount_source' => $l->savingSource(),               // discount | coupon | bulk | null
+            'discount_id' => $l->discountSource === 'discount' ? $l->discountSourceId : null,
+            'coupon_id' => $l->discountSource === 'coupon' ? $l->discountSourceId : null,
+            'saving' => $money($l->productDiscount() + $l->bulkDiscount() + $l->discount),
             'tax_rate' => $l->taxRate,
             'tax' => $money($l->tax()),
             'in_totals' => $l->counted,                              // false = the option can no longer be bought; it is shown with a warning, not counted

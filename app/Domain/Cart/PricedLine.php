@@ -9,6 +9,7 @@ use App\Domain\Catalog\Models\ProductVariant;
  * One order line after the server worked out its price (amounts in cents). Built by CartPricing, read by the quote resource and by PlaceOrder.
  * `counted` = the line takes part in the totals. A line that cannot be sold at all (switched off, out of stock) stays visible with a
  * warning but is not counted; a line whose quantity is wrong (too many, too few, more than the stock) is counted but blocks the checkout.
+ * `discount` is the saving of an automatic discount or of the coupon on the line (never both: the better one wins), see CartPricing.
  */
 final class PricedLine
 {
@@ -31,11 +32,21 @@ final class PricedLine
         public readonly array $issues,
         public readonly float $taxRate = 0.0,
         public readonly int $tax = 0,
+        public readonly int $discount = 0,
+        public readonly ?string $discountSource = null,   // discount | coupon
+        public readonly ?int $discountSourceId = null,
     ) {}
 
-    public function lineTotal(): int
+    /** What the line costs after bulk prices, before a discount or coupon. */
+    public function grossTotal(): int
     {
         return $this->unitPrice * $this->qty;
+    }
+
+    /** What the customer pays for the line. */
+    public function lineTotal(): int
+    {
+        return $this->grossTotal() - $this->discount;
     }
 
     public function mrpTotal(): int
@@ -53,6 +64,12 @@ final class PricedLine
     public function bulkDiscount(): int
     {
         return ($this->basePrice - $this->unitPrice) * $this->qty;
+    }
+
+    /** Where the line's price reduction comes from: its discount or coupon, else a bulk price, else nothing. */
+    public function savingSource(): ?string
+    {
+        return $this->discountSource ?? ($this->bulk ? 'bulk' : null);
     }
 
     /** The tax of the line: already inside the total when prices include tax, added on top otherwise (see CartPricing). */

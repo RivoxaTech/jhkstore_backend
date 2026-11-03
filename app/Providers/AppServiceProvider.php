@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Domain\Customer\Phone;
+use App\Domain\Promotion\Promotions;
 use App\Domain\Support\Settings;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +18,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // One copy per request: the settings are read many times while pricing a cart.
         $this->app->singleton(Settings::class);
+        $this->app->singleton(Promotions::class);   // the live discounts, loaded once per request
     }
 
     public function boot(): void
@@ -56,6 +58,18 @@ class AppServiceProvider extends ServiceProvider
 
             return $limits;
         });
+
+        // Persistent cart: 60 calls a minute per IP (reads and changes alike; a read without a token creates a cart).
+        RateLimiter::for('cart', fn (Request $request) => Limit::perMinute((int) config('shop.rate.cart_per_minute'))->by('cart|'.$request->ip()));
+
+        // Coupon check: a code cannot be guessed quickly.
+        RateLimiter::for('coupon', fn (Request $request) => Limit::perMinute((int) config('shop.rate.coupon_per_minute'))->by('coupon|'.$request->ip()));
+
+        // Payment proof upload: per IP per minute, and per order number per hour.
+        RateLimiter::for('payment-proof', fn (Request $request) => [
+            Limit::perMinute((int) config('shop.rate.proof_per_minute'))->by('proof-min|'.$request->ip()),
+            Limit::perHour((int) config('shop.rate.proof_per_order_hour'))->by('proof-order|'.strtoupper((string) $request->route('orderNumber'))),
+        ]);
 
         // Order lookup (order number + phone): guessing is slow. Per IP per minute, and per order number per hour.
         RateLimiter::for('order-lookup', fn (Request $request) => [

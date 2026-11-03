@@ -23,5 +23,16 @@ return [
         'checkout_per_phone_hour' => (int) env('CHECKOUT_PER_PHONE_HOUR', 10),   // per phone number, whatever the IP
         'lookup_per_minute' => (int) env('ORDER_LOOKUP_PER_MINUTE', 20),
         'lookup_per_order_hour' => (int) env('ORDER_LOOKUP_PER_ORDER_HOUR', 15),  // per order number, whatever the IP
+        'cart_per_minute' => (int) env('CART_PER_MINUTE', 60),                    // every cart call (reads and changes) per IP
+        'coupon_per_minute' => (int) env('COUPON_PER_MINUTE', 30),                // coupon checks per IP (a code cannot be guessed quickly)
+        'proof_per_minute' => (int) env('PAYMENT_PROOF_PER_MINUTE', 10),          // payment proof uploads per IP
+        'proof_per_order_hour' => (int) env('PAYMENT_PROOF_PER_ORDER_HOUR', 10),  // per order number, whatever the IP
+    ],
+
+    // Bank transfer screenshot: kept on the PRIVATE disk (never a public URL), shown to the admin through an authenticated route only.
+    'payment_proof' => [
+        'max_kb' => (int) env('PAYMENT_PROOF_MAX_KB', 4096),
+        'min_px' => 100,
+        'max_px' => 6000,
     ],
 ];

@@ -40,7 +40,7 @@ class ProductStoreTest extends TestCase
         $res = $this->getJson(self::STORE.'/products')->assertOk();
         $card = $res->json('data.0');
 
-        $this->assertSame(['id', 'name', 'slug', 'short_description', 'image_url', 'thumb_url', 'category', 'options_count', 'has_single_option', 'offers_count', 'show_starting_at', 'badge_label', 'price', 'mrp', 'discount_percent',
+        $this->assertSame(['id', 'name', 'slug', 'short_description', 'image_url', 'thumb_url', 'category', 'options_count', 'has_single_option', 'offers_count', 'show_starting_at', 'badge_label', 'price', 'compare_price', 'discount_label', 'mrp', 'discount_percent',
             'badge_text', 'tags', 'in_stock'], array_keys($card));
         $this->assertSame('Prime Pack', $card['name']);
         $this->assertSame('prime-pack', $card['slug']);
@@ -201,6 +201,7 @@ class ProductStoreTest extends TestCase
             return count(DB::getQueryLog());
         };
         $this->makeProduct($category, [], ['best-seller']);
+        $count();   // the first call also reads the live discounts (kept for the rest of the request)
         $few = $count();
         foreach (range(1, 8) as $i) {
             $this->makeProduct($category, ['variants' => [
@@ -298,7 +299,7 @@ class ProductStoreTest extends TestCase
         $this->assertSame('bullets', $d['content_tabs'][0]['format']);
 
         $this->assertCount(2, $d['variants']);
-        $this->assertSame(['id', 'name', 'sku', 'is_default', 'mrp', 'price', 'discount_percent', 'is_cod_available',
+        $this->assertSame(['id', 'name', 'sku', 'is_default', 'mrp', 'price', 'compare_price', 'discount_label', 'option_price', 'discount_percent', 'is_cod_available',
             'in_stock', 'qty', 'low_stock', 'price_tiers', 'image_url', 'thumb_url', 'images'], array_keys($d['variants'][0]));
         $this->assertSame('Small', $d['variants'][0]['name']);
         $this->assertEquals(400, $d['variants'][0]['price']);
@@ -343,6 +344,7 @@ class ProductStoreTest extends TestCase
             return count(DB::getQueryLog());
         };
 
+        $count($few->slug);   // the first call also reads the live discounts (kept for the rest of the request)
         $this->assertSame($count($few->slug), $count($many->slug));
     }
 
