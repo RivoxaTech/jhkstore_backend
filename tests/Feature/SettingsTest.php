@@ -88,6 +88,7 @@ class SettingsTest extends TestCase
         foreach (['92', '+0', '+92 3', '0300', '+12345', 'abc'] as $bad) {
             $this->putJson(self::ADMIN.'/settings', ['default_phone_country_code' => $bad])->assertStatus(422)->assertJsonValidationErrors('default_phone_country_code');
         }
+        $this->putJson(self::ADMIN.'/settings', ['default_phone_country_code' => '92'])->assertJsonPath('errors.default_phone_country_code.0', 'Enter the country code with a + and 1 to 4 digits, for example +92.');
         $this->putJson(self::ADMIN.'/settings', ['default_phone_country_code' => '+92'])->assertOk();
         $this->putJson(self::ADMIN.'/settings', ['default_phone_country_code' => ''])->assertOk();   // empty = off
         $this->putJson(self::ADMIN.'/settings', ['store_name' => ''])->assertStatus(422)->assertJsonValidationErrors('store_name');

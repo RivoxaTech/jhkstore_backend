@@ -214,6 +214,9 @@ class Settings
     {
         $out = [];
         foreach ($keys as $key) {
+            if ($key === 'default_phone_country_code') {
+                $out["$key.regex"] = 'Enter the country code with a + and 1 to 4 digits, for example +92.';
+            }
             if (self::DEFINITIONS[$key][1] === 'links') {
                 $out["$key.*.url.required"] = 'Enter the link address.';
                 $out["$key.*.url.url"] = 'Enter a full web address starting with http:// or https://.';
