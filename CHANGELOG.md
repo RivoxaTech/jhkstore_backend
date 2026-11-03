@@ -24,7 +24,11 @@ The product is now three things – **products, categories and orders** – plus
 ### Added (later)
 - Setting `default_phone_country_code` (General tab, e.g. `+92`, empty by default): a phone with a single leading 0 and no country code gets this prefix, so `0300…` and `+92300…` are one customer (orders, order lookup, customer search). Empty = unchanged behaviour.
 
+### QA
+- Full flow check on the real app: `scripts/flow-check.mjs` (API, 239 assertions) and `admin-frontend/e2e/flow-ui.mjs` / `npm run flow-ui` (browser, 41 checks). Results and how to run them: [docs/QA_REPORT.md](docs/QA_REPORT.md).
+
 ### Fixed
+- The admin **order search** and **customer search** for a local phone (`0300…`) now find the records stored with the default country code (`+92300…`).
 - The demo seeder's bulk prices after the points column was removed were wrong; a test now checks them.
 
 ## Unreleased – stabilisation (branch `stabilize`)

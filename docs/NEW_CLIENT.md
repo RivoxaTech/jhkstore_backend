@@ -55,7 +55,7 @@ Add the cron entry `* * * * * php artisan schedule:run` (removal of expired admi
 
 Log in at `/admin` as the **developer** and set, in this order (see [SETTINGS.md](SETTINGS.md) for every field):
 
-1. **General** – name, tagline, contact email / phone / address, country. **Branding** – logo and favicon.
+1. **General** – name, tagline, contact email / phone / address, country, and the **default phone country code** (e.g. `+92`: customers who type `0300…` and `+92 300…` become one customer; set it **before the first order**). **Branding** – logo and favicon.
 2. **Currency & Tax** – code, symbol and decimals (e.g. `EUR`, `€`, 2); default tax rate, whether prices include tax, and the label ("VAT", "Sales tax", …). A product can override the rate.
 3. **Orders & Delivery** – order number prefix, delivery charge, free-delivery limit, delivery days, minimum order, cash-on-delivery limit.
 4. **Footer & Social**, **SEO**, and the **Banners** tab (home hero, secondary banners, promo strip).
