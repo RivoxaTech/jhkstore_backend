@@ -14,8 +14,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * A placed order. Everything on it (prices, names, addresses, customer) is a snapshot taken when it was placed, so later edits of the
  * catalogue or the customer never change an old order.
  *
- * Amounts: mrp_total (at MRP) - product_discount_total - bulk_discount_total = items_subtotal; grand_total = items_subtotal + shipping_fee
- * (+ tax_total when prices are tax exclusive). `tax_total` is the sales tax (already inside the prices when `tax_inclusive`).
+ * Amounts: mrp_total (at MRP) - product_discount_total - bulk_discount_total - discount_total - coupon_discount = items_subtotal; grand_total =
+ * items_subtotal + shipping_fee (null while `delivery_fee_pending`: the owner confirms it later) (+ tax_total when prices are tax exclusive). `tax_total` is the sales tax (already inside the prices when `tax_inclusive`).
  */
 class Order extends Model
 {
@@ -27,7 +27,8 @@ class Order extends Model
             'status' => OrderStatus::class,
             'payment_status' => PaymentStatus::class,
             'mrp_total' => 'decimal:2', 'product_discount_total' => 'decimal:2', 'bulk_discount_total' => 'decimal:2',
-            'items_subtotal' => 'decimal:2', 'shipping_fee' => 'decimal:2', 'tax_total' => 'decimal:2', 'grand_total' => 'decimal:2',
+            'items_subtotal' => 'decimal:2', 'shipping_fee' => 'decimal:2', 'discount_total' => 'decimal:2', 'coupon_discount' => 'decimal:2',
+            'delivery_fee_pending' => 'boolean', 'rejected_at' => 'datetime', 'tax_total' => 'decimal:2', 'grand_total' => 'decimal:2',
             'tax_inclusive' => 'boolean', 'items_count' => 'integer',
             'estimated_delivery_date' => 'date',
             'placed_at' => 'datetime', 'confirmed_at' => 'datetime', 'shipped_at' => 'datetime',

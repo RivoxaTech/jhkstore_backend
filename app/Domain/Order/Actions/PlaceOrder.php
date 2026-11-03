@@ -2,9 +2,12 @@
 
 namespace App\Domain\Order\Actions;
 
+use App\Domain\Cart\Actions\ManageCart;
 use App\Domain\Cart\CartPricing;
+use App\Domain\Cart\Models\Cart;
 use App\Domain\Cart\PricedCart;
 use App\Domain\Cart\PricedLine;
+use App\Domain\Cart\PricingContext;
 use App\Domain\Catalog\Actions\RefreshProductSummary;
 use App\Domain\Catalog\Models\InventoryMovement;
 use App\Domain\Catalog\Models\ProductVariant;
@@ -21,25 +24,32 @@ use App\Domain\Order\Models\OrderAddress;
 use App\Domain\Order\Models\OrderItem;
 use App\Domain\Order\Models\OrderStatusHistory;
 use App\Domain\Order\Models\Payment;
+use App\Domain\Promotion\Models\Coupon;
+use App\Domain\Promotion\Models\CouponUsage;
 use App\Domain\Support\Settings;
 use App\Support\Audit;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * Guest checkout: turns what the storefront sent (contact, address, option ids and quantities) into an order. Nobody logs in.
+ * Guest checkout: turns what the storefront sent (contact, address, option ids and quantities, or a cart token) into an order. Nobody logs in.
  * Everything happens in ONE database transaction:
  *
- *   1. lock the stock rows of the ordered options (FOR UPDATE, always in option order, so two checkouts can never deadlock or oversell)
+ *   1. lock the cart (when a cart token is used), then the stock rows of the ordered options (FOR UPDATE, always in option order, so two
+ *      checkouts can never deadlock or oversell), then the coupon row (so two orders cannot take the last use of a coupon together)
  *   2. look for an earlier order with the same Idempotency-Key (a double tap waits at step 1, then finds the first order here)
  *   3. price everything again from live data (CartPricing) and re-validate it
- *      (stock, quantity limits, minimum order, cash-on-delivery limit, the total the customer saw)
- *   4. find or create the customer by normalised phone, write order + lines + address snapshots + payment + history, deduct the stock (movement `sale`)
+ *      (stock, quantity limits, coupon, delivery zone, minimum order, payment method, the total the customer saw)
+ *   4. find or create the customer by normalised phone, write order + lines + address snapshots + payment + history, deduct the stock (movement `sale`),
+ *      write the coupon use, empty the cart
  *
- * Stock is DEDUCTED when the order is placed (`stock_qty - qty`), not reserved: a COD order is a real order from the first minute.
- * `reserved_qty` stays free for online payments later (hold while the payment is pending). Cancelling puts the stock back.
+ * Stock is DEDUCTED when the order is placed (`stock_qty - qty`), not reserved: an order is a real order from the first minute.
+ * Cancelling or rejecting puts the stock back and gives the coupon use back (ChangeOrderStatus).
+ * Payment: cash on delivery (collected when delivered) or bank transfer (the customer uploads a screenshot, the admin verifies it).
+ * Delivery: the fee follows the store's method; with `owner_confirms` the order is placed with the fee unknown (`delivery_fee_pending`).
  */
 class PlaceOrder
 {
@@ -48,10 +58,11 @@ class PlaceOrder
         private readonly Settings $settings,
         private readonly UpsertCustomer $customers,
         private readonly RefreshProductSummary $refreshProduct,
+        private readonly ManageCart $carts,
     ) {}
 
     /**
-     * @param  array{customer: array{name:string, phone:string, email?:?string}, address: array, billing_address?: array, items: list<array{variant_id:int, qty:int}>, customer_note?:?string, expected_total?:numeric}  $input
+     * @param  array{customer: array{name:string, phone:string, email?:?string}, address: array, billing_address?: array, items?: list<array{variant_id:int, qty:int}>, cart_token?:?string, coupon_code?:?string, payment_method?:?string, customer_note?:?string, expected_total?:numeric}  $input
      * @return array{0: Order, 1: bool}  the order and whether it is an earlier order returned for the same idempotency key
      */
     public function handle(array $input, ?string $idempotencyKey = null): array
@@ -59,6 +70,8 @@ class PlaceOrder
         if ($idempotencyKey && ($existing = $this->replay($input['customer']['phone'], $idempotencyKey))) {
             return [$existing, true];
         }
+
+        $this->checkStoreAndPayment($input['payment_method'] ?? PaymentMethod::Cod->value);
 
         try {
             $order = DB::transaction(fn () => $this->place($input, $idempotencyKey), 3);
@@ -72,8 +85,37 @@ class PlaceOrder
         return [$order, ! $order->wasRecentlyCreated];
     }
 
+    /** A closed store takes no orders (the quote still works); a payment method the store switched off cannot be chosen. */
+    private function checkStoreAndPayment(string $method): void
+    {
+        if (! (bool) $this->settings->get('store_open')) {
+            $message = trim((string) $this->settings->get('store_closed_message'));
+            throw new CommerceException('store_closed', $message !== '' ? $message : 'The store is closed right now. Please try again later.', 'store');
+        }
+
+        $enabled = match ($method) {
+            PaymentMethod::Cod->value => (bool) $this->settings->get('pay_cod_enabled'),
+            PaymentMethod::BankTransfer->value => (bool) $this->settings->get('pay_bank_enabled'),
+            default => false,
+        };
+        if (! $enabled) {
+            throw new CommerceException('payment_method_unavailable', 'This payment method is not available. Please choose another one.', 'payment_method');
+        }
+    }
+
     private function place(array $input, ?string $key): Order
     {
+        $cart = null;
+        if (empty($input['items']) && ! empty($input['cart_token'])) {
+            $cart = Cart::query()->where('token', $input['cart_token'])->active()->lockForUpdate()->first();
+            $rows = $cart ? $cart->items()->get() : collect();
+            if ($rows->isEmpty()) {
+                throw new CommerceException('cart_invalid', 'Your cart is empty.', 'cart_token', 422, ['lines' => []]);
+            }
+            $input['items'] = $rows->map(fn ($r) => ['variant_id' => $r->variant_id, 'qty' => $r->qty])->all();
+            $input['coupon_code'] = $input['coupon_code'] ?? $cart->coupon_code;
+        }
+
         $variantIds = collect($input['items'])->pluck('variant_id')->map(fn ($id) => (int) $id)->unique()->sort()->values();
         $stocks = ProductVariant::query()->whereIn('id', $variantIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
 
@@ -81,23 +123,35 @@ class PlaceOrder
             return $existing;   // the same request arrived while the first one was running
         }
 
-        $priced = $this->pricing->forItems($input['items'], $stocks);
-        $this->validate($priced, $input);
-
         $shipping = $input['address'];
         $billing = $input['billing_address'] ?? $shipping;
+        $method = PaymentMethod::from($input['payment_method'] ?? PaymentMethod::Cod->value);
+
+        $context = new PricingContext(
+            couponCode: $input['coupon_code'] ?? null,
+            address: Arr::only($shipping, ['city', 'area', 'postcode']),
+            phone: Phone::normalise($input['customer']['phone']),
+            lockCoupon: true,   // after the stock rows: every order locks in the same order
+        );
+        $priced = $this->pricing->forItems($input['items'], $stocks, $context);
+        $this->validate($priced, $input, $method);
+
         $customer = $this->customers->handle([
             'name' => $input['customer']['name'], 'phone' => $input['customer']['phone'],
             'email' => $input['customer']['email'] ?? null, 'city' => $shipping['city'] ?? null,
         ]);
 
-        $order = $this->createOrder($customer, $priced, $shipping, $billing, $input, $key);
+        $order = $this->createOrder($customer, $priced, $shipping, $billing, $input, $key, $method);
         $this->createItems($order, $priced);
         $this->deductStock($order, $priced, $stocks);
+        $this->useCoupon($order, $priced, $customer);
         $this->customers->recordOrder($customer, $order->grand_total);
 
         foreach (collect($priced->countedLines())->map(fn (PricedLine $l) => $l->product)->unique('id') as $product) {
             $this->refreshProduct->handle($product);
+        }
+        if ($cart) {
+            $this->carts->empty($cart);   // the cart has become an order
         }
 
         return $order->load(['items', 'addresses', 'history', 'payment']);
@@ -113,7 +167,7 @@ class PlaceOrder
             : null;
     }
 
-    private function validate(PricedCart $priced, array $input): void
+    private function validate(PricedCart $priced, array $input, PaymentMethod $method): void
     {
         if ($priced->countedLines() === [] || $priced->hasBlockingIssue()) {
             $lines = [];
@@ -130,9 +184,17 @@ class PlaceOrder
             throw new CommerceException('cart_invalid', $lines[0]['message'] ?? 'Your order has no items.', 'items', 422, ['lines' => $lines]);
         }
 
+        if ($priced->couponRequested && $priced->couponError) {
+            throw new CommerceException('coupon_invalid', $priced->couponError['message'], 'coupon_code', 422, ['reason' => $priced->couponError['code'], 'coupon_error' => $priced->couponError]);
+        }
+
+        if ($priced->deliveryUnavailable) {
+            throw new CommerceException('delivery_not_available', 'Sorry, we do not deliver to this address.', 'address');
+        }
+
         if (! $priced->meetsMinimum()) {
             $min = $this->pricing->fmt($priced->minOrderAmount);
-            $more = $this->pricing->fmt($priced->minOrderAmount - $priced->subtotal);
+            $more = $this->pricing->fmt($priced->minOrderAmount - $priced->subtotalBeforeCoupon);
             throw new CommerceException('below_min_order', "The minimum order amount is $min. Add items worth $more more.", 'items');
         }
 
@@ -142,21 +204,25 @@ class PlaceOrder
             ]);
         }
 
-        // payment: only cash on delivery exists today; online methods get their own branch here later
-        $codMax = $this->settings->codMaxCents();
-        if ($codMax > 0 && $priced->grandTotal > $codMax) {
-            throw new CommerceException('cod_not_allowed', 'Cash on delivery is available up to '.$this->pricing->fmt($codMax).' per order. Please reduce your order.', 'items');
-        }
-        foreach ($priced->countedLines() as $line) {
-            if (! ($line->variant->is_cod_available ?? $line->product->is_cod_available)) {
-                throw new CommerceException('cod_not_allowed', 'Cash on delivery is not available for "'.($line->variant->name ?: $line->product->name).'".', 'items');
+        // cash on delivery has a limit and can be switched off per product; bank transfer has neither
+        if ($method === PaymentMethod::Cod) {
+            $codMax = $this->settings->codMaxCents();
+            if ($codMax > 0 && $priced->grandTotal > $codMax) {
+                throw new CommerceException('cod_not_allowed', 'Cash on delivery is available up to '.$this->pricing->fmt($codMax).' per order. Please reduce your order.', 'items');
+            }
+            foreach ($priced->countedLines() as $line) {
+                if (! ($line->variant->is_cod_available ?? $line->product->is_cod_available)) {
+                    throw new CommerceException('cod_not_allowed', 'Cash on delivery is not available for "'.($line->variant->name ?: $line->product->name).'".', 'items');
+                }
             }
         }
     }
 
-    private function createOrder(Customer $customer, PricedCart $priced, array $shipping, array $billing, array $input, ?string $key): Order
+    private function createOrder(Customer $customer, PricedCart $priced, array $shipping, array $billing, array $input, ?string $key, PaymentMethod $method): Order
     {
         $money = fn (int $cents) => $this->settings->money($cents);
+        $bank = $method === PaymentMethod::BankTransfer;
+        $couponUsed = $priced->couponId !== null && ($priced->couponDiscount > 0 || $priced->couponFreeDelivery);
 
         $order = Order::create([
             'order_number' => 'TMP-'.Str::random(20),   // replaced below, once the id exists
@@ -165,15 +231,21 @@ class PlaceOrder
             'customer_email' => $customer->email,
             'customer_phone' => $customer->phone,
             'status' => OrderStatus::Pending,
-            'payment_status' => PaymentStatus::CodPending,
+            'payment_status' => $bank ? PaymentStatus::AwaitingPayment : PaymentStatus::CodPending,
             'fulfillment_status' => 'unfulfilled',
-            'payment_method' => PaymentMethod::Cod->value,
+            'payment_method' => $method->value,
             'items_count' => $priced->unitsCount,
             'mrp_total' => $money($priced->itemsTotal),
             'product_discount_total' => $money($priced->productDiscount),
             'bulk_discount_total' => $money($priced->bulkDiscount),
+            'discount_total' => $money($priced->discountTotal),
+            'coupon_discount' => $money($priced->couponDiscount),
+            'coupon_id' => $couponUsed ? $priced->couponId : null,
+            'coupon_code' => $couponUsed ? $priced->couponCode : null,
             'items_subtotal' => $money($priced->subtotal),
-            'shipping_fee' => $money($priced->deliveryFee),
+            'shipping_fee' => $priced->deliveryPending ? null : $money($priced->deliveryFee),
+            'delivery_fee_pending' => $priced->deliveryPending,
+            'delivery_zone_id' => $priced->deliveryZoneId,
             'tax_total' => $money($priced->taxTotal),
             'tax_inclusive' => $priced->taxInclusive,
             'grand_total' => $money($priced->grandTotal),
@@ -196,8 +268,9 @@ class PlaceOrder
         ]);
 
         Payment::create([
-            'payable_type' => Payment::ORDER, 'payable_id' => $order->id, 'method' => PaymentMethod::Cod->value,
-            'amount' => $money($priced->grandTotal), 'currency' => $this->settings->currencyCode(), 'status' => Payment::COD_PENDING,
+            'payable_type' => Payment::ORDER, 'payable_id' => $order->id, 'method' => $method->value,
+            'amount' => $money($priced->grandTotal), 'currency' => $this->settings->currencyCode(),
+            'status' => $bank ? Payment::AWAITING_PROOF : Payment::COD_PENDING, 'proof_status' => Payment::PROOF_NONE,
         ]);
 
         return $order;
@@ -227,6 +300,9 @@ class PlaceOrder
                 'qty' => $line->qty,
                 'discount' => $money($line->productDiscount() + $line->bulkDiscount()),
                 'bulk_discount' => $money($line->bulkDiscount()),
+                'discount_amount' => $money($line->discount),
+                'discount_source' => $line->savingSource(),
+                'discount_source_id' => $line->discountSourceId,
                 'tax_rate' => $line->taxRate,
                 'tax_amount' => $money($line->tax()),
                 'line_total' => $money($line->lineTotal()),
@@ -258,5 +334,19 @@ class PlaceOrder
                 ]);
             }
         }
+    }
+
+    /** Writes the coupon use. The coupon row is locked by this transaction (see place()), so the counter cannot be raced. */
+    private function useCoupon(Order $order, PricedCart $priced, Customer $customer): void
+    {
+        if ($order->coupon_id === null) {
+            return;
+        }
+
+        CouponUsage::create([
+            'coupon_id' => $order->coupon_id, 'order_id' => $order->id, 'customer_id' => $customer->id, 'phone' => $customer->phone,
+            'amount' => $this->settings->money($priced->couponDiscount),
+        ]);
+        Coupon::query()->whereKey($order->coupon_id)->increment('used_count');
     }
 }

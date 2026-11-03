@@ -3,12 +3,15 @@
 namespace App\Http\Requests\Store;
 
 use App\Domain\Customer\Phone;
+use App\Domain\Order\Enums\PaymentMethod;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * POST /store/orders: a guest order. Contact (name, phone, optional e-mail), a delivery address and the items. Nobody logs in, so the
  * input is validated strictly: phone shape, field lengths, the number of items and quantities (config/shop.php).
+ * The items come in the body or from the persistent cart (`cart_token`); `payment_method` is cod (default) or bank_transfer; `coupon_code` is optional.
  */
 class PlaceOrderRequest extends FormRequest
 {
@@ -48,6 +51,7 @@ class PlaceOrderRequest extends FormRequest
 
             'customer_note' => ['nullable', 'string', 'max:500'],
             'expected_total' => ['nullable', 'numeric', 'min:0', 'max:1000000000'],
+            'payment_method' => ['nullable', Rule::in(PaymentMethod::values())],
         ] + CheckoutItemsRules::rules();
     }
 
@@ -86,6 +90,7 @@ class PlaceOrderRequest extends FormRequest
             'address.city.required' => 'Enter the city.',
             'address.postcode.regex' => 'Enter a valid postcode (3 to 20 letters or digits).',
             'customer_note.max' => 'The note can be at most 500 characters.',
+            'payment_method.in' => 'Choose cash on delivery or bank transfer.',
         ] + CheckoutItemsRules::messages();
     }
 

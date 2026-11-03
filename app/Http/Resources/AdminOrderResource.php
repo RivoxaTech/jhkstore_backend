@@ -3,6 +3,9 @@
 namespace App\Http\Resources;
 
 use App\Domain\Order\Enums\OrderStatus;
+use App\Domain\Order\Enums\PaymentMethod;
+use App\Domain\Order\Enums\PaymentStatus;
+use App\Domain\Support\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -23,6 +26,9 @@ class AdminOrderResource extends JsonResource
         $admins = $this->context['admins'] ?? [];
         $payment = $o->payment;
         $next = $o->status->forwardStep();
+        $bank = $o->payment_method === PaymentMethod::BankTransfer->value;
+        $proofStatus = $payment?->proof_status ?? 'none';
+        $settings = app(Settings::class);
 
         return [
             'id' => $o->id,
@@ -34,6 +40,7 @@ class AdminOrderResource extends JsonResource
             'shipped_at' => $o->shipped_at,
             'delivered_at' => $o->delivered_at,
             'cancelled_at' => $o->cancelled_at,
+            'rejected_at' => $o->rejected_at,
             'estimated_delivery_date' => $o->estimated_delivery_date?->toDateString(),
             'source' => $o->source,
             'customer' => [
@@ -55,12 +62,23 @@ class AdminOrderResource extends JsonResource
                 'amount' => (float) $o->grand_total,
                 'paid_at' => $payment?->paid_at,
                 'collect_on_delivery' => $o->payment_method === 'cod' && $o->payment_status->value === 'cod_pending' ? (float) $o->grand_total : null,
+                'proof_status' => $proofStatus,
+                'proof_reference' => $payment?->proof_reference,
+                'proof_reject_reason' => $payment?->proof_reject_reason,
+                'has_proof' => $bank && $payment && $payment->getFirstMedia('proof') !== null,
+                'proof_url' => $bank && $payment && $payment->getFirstMedia('proof') ? url("/api/v1/admin/orders/{$o->id}/payment/proof") : null,   // needs the admin login: the file is private
+                'verified_at' => $payment?->verified_at,
+                'bank_accounts' => $bank ? $settings->publicAccounts() : [],      // what the customer was shown
+                'bank_instructions' => $bank ? (string) $settings->get('pay_bank_instructions') : null,
             ],
+            'delivery' => ['fee_pending' => (bool) $o->delivery_fee_pending, 'zone_id' => $o->delivery_zone_id],
+            'coupon' => $o->coupon_code ? ['code' => $o->coupon_code, 'id' => $o->coupon_id, 'discount' => (float) $o->coupon_discount] : null,
             'shipment' => OrderPresenter::tracking($o),
             'customer_note' => $o->customer_note,
             'admin_note' => $o->admin_note,
             'cancel_reason' => $o->cancel_reason,
             'cancelled_by' => $o->cancelled_by,
+            'reject_reason' => $o->reject_reason,
             'timeline' => $o->history->map(fn ($h) => OrderPresenter::step($h, [
                 'type' => $h->changed_by_type,
                 'name' => $h->changed_by_type === 'admin' ? ($admins[$h->changed_by_id] ?? 'Admin') : ($h->changed_by_type === 'customer' ? $o->customer_name : 'System'),
@@ -71,6 +89,12 @@ class AdminOrderResource extends JsonResource
                 'next_label' => $next ? ucfirst($next->value) : null,
                 'needs_shipping_details' => $next === OrderStatus::Shipped,
                 'can_cancel' => $o->status->isCancellable(),
+                'can_reject' => $o->status->isRejectable(),
+                'can_verify_payment' => $bank && ! $o->status->isVoid() && $proofStatus === 'submitted',   // verify or reject the proof
+                'needs_delivery_fee' => (bool) $o->delivery_fee_pending && ! $o->status->isVoid(),
+                'blocked_reason' => $o->status === OrderStatus::Pending
+                    ? ($o->delivery_fee_pending ? 'delivery_fee_pending' : ($bank && $o->payment_status !== PaymentStatus::Paid ? 'payment_not_verified' : null))
+                    : null,   // why the order cannot be confirmed yet
                 'allowed' => array_map(fn (OrderStatus $s) => $s->value, $o->status->next()),
             ],
         ];

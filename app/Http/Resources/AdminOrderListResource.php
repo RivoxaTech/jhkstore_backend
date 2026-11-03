@@ -20,6 +20,7 @@ class AdminOrderListResource extends JsonResource
             'payment_method' => $this->payment_method,
             'payment_method_label' => OrderPresenter::paymentMethodLabel($this->payment_method),
             'payment_status' => $this->payment_status->value,
+            'delivery_fee_pending' => (bool) $this->delivery_fee_pending,
             'status' => $this->status->value,
             'status_label' => OrderPresenter::statusLabel($this->status),
         ];

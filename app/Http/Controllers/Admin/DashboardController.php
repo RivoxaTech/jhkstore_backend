@@ -61,7 +61,7 @@ class DashboardController extends Controller
 
         if ($withOrders) {
             // today's orders and revenue, orders waiting for a decision: small indexed aggregates
-            $today = Order::query()->toBase()->where('created_at', '>=', today())->where('status', '!=', 'cancelled')
+            $today = Order::query()->toBase()->where('created_at', '>=', today())->whereNotIn('status', ['cancelled', 'rejected'])
                 ->selectRaw('COUNT(*) as total, COALESCE(SUM(grand_total), 0) as revenue')->first();
             $out['orders'] = [
                 'today' => (int) $today->total,

@@ -6,6 +6,7 @@ enum PaymentStatus: string
 {
     case Pending = 'pending';          // online payment not completed yet (later)
     case CodPending = 'cod_pending';   // cash on delivery, not collected yet
+    case AwaitingPayment = 'awaiting_payment';   // bank transfer: the money (or its proof) has not been verified yet
     case Paid = 'paid';
     case Failed = 'failed';
     case Cancelled = 'cancelled';      // the order was cancelled before any money was taken

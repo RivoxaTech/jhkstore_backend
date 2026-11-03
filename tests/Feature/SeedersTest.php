@@ -24,6 +24,16 @@ class SeedersTest extends TestCase
         $this->assertSame(0, Product::count());
         $this->assertSame(0, DB::table('categories')->count());
         $this->assertSame(0, DB::table('customers')->count());
+        // nothing of the Phase A features is pre-filled: no zones, discounts, coupons or carts, and the store starts open with cash on delivery
+        foreach (['delivery_zones', 'discounts', 'discount_targets', 'coupons', 'coupon_targets', 'coupon_usages', 'carts', 'cart_items', 'orders', 'payments'] as $table) {
+            $this->assertSame(0, DB::table($table)->count(), $table);
+        }
+        $settings = app(Settings::class);
+        $this->assertTrue($settings->get('store_open'));
+        $this->assertTrue($settings->get('pay_cod_enabled'));
+        $this->assertFalse($settings->get('pay_bank_enabled'));
+        $this->assertSame([], $settings->get('pay_bank_accounts'));
+        $this->assertSame('', $settings->get('agency_name'));
     }
 
     public function test_the_demo_seeder_adds_neutral_sample_data_and_can_run_again(): void
@@ -52,5 +62,10 @@ class SeedersTest extends TestCase
         // nothing in it is specific to a business
         $names = Product::pluck('name')->implode(' ');
         $this->assertDoesNotMatchRegularExpression('/dental|dentalkart|instadent/i', $names);
+
+        // and it adds no promotions, zones or orders either
+        foreach (['delivery_zones', 'discounts', 'coupons', 'carts', 'orders'] as $table) {
+            $this->assertSame(0, DB::table($table)->count(), $table);
+        }
     }
 }

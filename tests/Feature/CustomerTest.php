@@ -164,7 +164,10 @@ class CustomerTest extends TestCase
         $this->assertEqualsCanonicalizing(['id', 'name', 'phone', 'email', 'city', 'first_order_at', 'last_order_at', 'orders_count', 'total_spent', 'created_at', 'updated_at'], $columns);
         $this->assertFalse(DB::getSchemaBuilder()->hasTable('users'));
         $this->assertFalse(DB::getSchemaBuilder()->hasTable('user_addresses'));
-        $this->assertFalse(DB::getSchemaBuilder()->hasTable('carts'));
+        // the server cart is bound to a random token, not to an account
+        $this->assertTrue(DB::getSchemaBuilder()->hasTable('carts'));
+        $this->assertFalse(DB::getSchemaBuilder()->hasColumn('carts', 'user_id'));
+        $this->assertFalse(DB::getSchemaBuilder()->hasColumn('carts', 'customer_id'));
 
         // none of the old account endpoints exist
         foreach (['auth/login', 'auth/register', 'auth/logout', 'auth/me', 'auth/refresh', 'cart', 'addresses'] as $path) {

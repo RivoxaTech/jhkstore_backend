@@ -2,10 +2,11 @@
 
 namespace App\Domain\Order\Enums;
 
-/** Online methods (card, wallet ...) plug in here later; only cash on delivery exists today. */
+/** Cash on delivery and bank transfer (the customer uploads a screenshot, the admin verifies it). Card is only a "coming soon" label. */
 enum PaymentMethod: string
 {
     case Cod = 'cod';
+    case BankTransfer = 'bank_transfer';
 
     /** @return list<string> */
     public static function values(): array
@@ -17,6 +18,7 @@ enum PaymentMethod: string
     {
         return match ($this) {
             self::Cod => 'Cash on delivery',
+            self::BankTransfer => 'Bank transfer',
         };
     }
 }

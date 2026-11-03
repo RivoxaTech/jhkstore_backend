@@ -150,6 +150,31 @@ class SecurityTest extends TestCase
         $this->assertContains('throttle:order-lookup', $lookup);
     }
 
+    public function test_the_new_public_endpoints_have_their_own_limits(): void
+    {
+        $middleware = function (string $uri, string $method) {
+            $route = collect(Route::getRoutes()->getRoutes())->first(fn ($r) => $r->uri() === $uri && in_array($method, $r->methods(), true));
+            $this->assertNotNull($route, "$method $uri is not routed");
+
+            return $route->gatherMiddleware();
+        };
+
+        $this->assertContains('throttle:coupon', $middleware('api/v1/store/coupons/validate', 'POST'));
+        $this->assertContains('honeypot', $middleware('api/v1/store/coupons/validate', 'POST'));
+        $this->assertContains('throttle:payment-proof', $middleware('api/v1/store/orders/{orderNumber}/payment-proof', 'POST'));
+        $this->assertContains('honeypot', $middleware('api/v1/store/orders/{orderNumber}/payment-proof', 'POST'));
+        foreach ([['api/v1/store/cart', 'GET'], ['api/v1/store/cart', 'DELETE'], ['api/v1/store/cart/items', 'POST'], ['api/v1/store/cart/items/{variantId}', 'PUT'],
+            ['api/v1/store/cart/items/{variantId}', 'DELETE'], ['api/v1/store/cart/contact', 'PUT'], ['api/v1/store/cart/coupon', 'PUT'], ['api/v1/store/cart/coupon', 'DELETE']] as [$uri, $method]) {
+            $this->assertContains('throttle:cart', $middleware($uri, $method), "$method $uri");
+        }
+
+        // the limiters exist and are separate from the others
+        foreach (['cart', 'coupon', 'payment-proof'] as $name) {
+            $this->assertNotNull(RateLimiter::limiter($name), "limiter $name");
+        }
+        $this->assertSame(60, config('shop.rate.cart_per_minute'));
+    }
+
     public function test_login_is_limited_per_name_and_ip(): void
     {
         AdminAccess::sync();

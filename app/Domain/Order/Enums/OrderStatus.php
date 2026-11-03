@@ -2,7 +2,7 @@
 
 namespace App\Domain\Order\Enums;
 
-/** pending -> confirmed -> packed -> shipped -> delivered, plus cancelled (only before shipping). */
+/** pending -> confirmed -> packed -> shipped -> delivered, plus cancelled (only before shipping) and rejected (only from pending, with a reason). */
 enum OrderStatus: string
 {
     case Pending = 'pending';
@@ -11,6 +11,7 @@ enum OrderStatus: string
     case Shipped = 'shipped';
     case Delivered = 'delivered';
     case Cancelled = 'cancelled';
+    case Rejected = 'rejected';
 
     /** @return list<string> */
     public static function values(): array
@@ -22,11 +23,11 @@ enum OrderStatus: string
     public function next(): array
     {
         return match ($this) {
-            self::Pending => [self::Confirmed, self::Cancelled],
+            self::Pending => [self::Confirmed, self::Cancelled, self::Rejected],
             self::Confirmed => [self::Packed, self::Cancelled],
             self::Packed => [self::Shipped, self::Cancelled],
             self::Shipped => [self::Delivered],
-            self::Delivered, self::Cancelled => [],
+            self::Delivered, self::Cancelled, self::Rejected => [],
         };
     }
 
@@ -41,11 +42,23 @@ enum OrderStatus: string
         return $this->canMoveTo(self::Cancelled);
     }
 
+    /** The shop turns an order down: only while it is still pending. */
+    public function isRejectable(): bool
+    {
+        return $this->canMoveTo(self::Rejected);
+    }
+
+    /** Cancelled and rejected orders: the stock, the customer's totals and the coupon use were given back, nothing can change any more. */
+    public function isVoid(): bool
+    {
+        return $this === self::Cancelled || $this === self::Rejected;
+    }
+
     /** The status the order normally moves to next (the button label in the admin panel). */
     public function forwardStep(): ?self
     {
         foreach ($this->next() as $to) {
-            if ($to !== self::Cancelled) {
+            if ($to !== self::Cancelled && $to !== self::Rejected) {
                 return $to;
             }
         }

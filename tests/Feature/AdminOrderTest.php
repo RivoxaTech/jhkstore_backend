@@ -65,7 +65,7 @@ class AdminOrderTest extends TestCase
 
         $this->assertSame($orders->pluck('order_number')->reverse()->values()->take(3)->all(), collect($res->json('data'))->pluck('order_number')->all());
         $res->assertJsonPath('meta.total', 4)->assertJsonPath('meta.per_page', 3)->assertJsonPath('counts.pending', 2)->assertJsonPath('counts.confirmed', 1)->assertJsonPath('counts.cancelled', 1);
-        $this->assertSame(['id', 'order_number', 'placed_at', 'customer', 'items_count', 'grand_total', 'payment_method', 'payment_method_label', 'payment_status', 'status', 'status_label'], array_keys($res->json('data.0')));
+        $this->assertSame(['id', 'order_number', 'placed_at', 'customer', 'items_count', 'grand_total', 'payment_method', 'payment_method_label', 'payment_status', 'delivery_fee_pending', 'status', 'status_label'], array_keys($res->json('data.0')));
         $this->assertSame(['id', 'name', 'email', 'phone'], array_keys($res->json('data.0.customer')));
         $this->assertSame(2, $res->json('data.0.items_count'));
 
@@ -164,8 +164,9 @@ class AdminOrderTest extends TestCase
         $this->asAdmin();
 
         $this->getJson(self::ADMIN.'/orders/options')->assertOk()
-            ->assertJsonPath('statuses', ['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled'])
-            ->assertJsonPath('payment_methods.0.code', 'cod');
+            ->assertJsonPath('statuses', ['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled', 'rejected'])
+            ->assertJsonPath('payment_methods.0.code', 'cod')
+            ->assertJsonPath('payment_methods.1.code', 'bank_transfer');
     }
 
     // ------------------------------------------------------------------ detail
@@ -190,7 +191,7 @@ class AdminOrderTest extends TestCase
         $this->assertSame($d['shipping_address'], $d['billing_address']);
 
         $item = $d['items'][0];
-        $this->assertSame(['id', 'product_id', 'variant_id', 'name', 'option_name', 'sku', 'image_url', 'qty', 'mrp', 'price', 'unit_price', 'bulk_applied', 'discount', 'bulk_discount', 'line_total', 'tax_rate', 'tax_amount', 'status'], array_keys($item));
+        $this->assertSame(['id', 'product_id', 'variant_id', 'name', 'option_name', 'sku', 'image_url', 'qty', 'mrp', 'price', 'unit_price', 'bulk_applied', 'discount', 'bulk_discount', 'discount_amount', 'discount_source', 'line_total', 'tax_rate', 'tax_amount', 'status'], array_keys($item));
         $this->assertSame(5, $item['qty']);
         $this->assertEquals(152, $item['unit_price']);
         $this->assertEquals(160, $item['price']);
@@ -205,7 +206,8 @@ class AdminOrderTest extends TestCase
 
         $this->assertSame('confirmed', $d['actions']['next_status']);
         $this->assertTrue($d['actions']['can_cancel']);
-        $this->assertSame(['confirmed', 'cancelled'], $d['actions']['allowed']);
+        $this->assertSame(['confirmed', 'cancelled', 'rejected'], $d['actions']['allowed']);
+        $this->assertTrue($d['actions']['can_reject']);
         $this->assertSame('customer', $d['timeline'][0]['by']['type']);
         $this->assertSame('Dr. Detail', $d['timeline'][0]['by']['name']);
         $this->assertNull($d['shipment']);

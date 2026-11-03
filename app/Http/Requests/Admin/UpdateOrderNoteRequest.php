@@ -13,11 +13,15 @@ class UpdateOrderNoteRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['admin_note' => ['nullable', 'string', 'max:2000']];
+        // `present`: a request without the field is refused instead of silently clearing the note (send null or "" to clear it on purpose)
+        return ['admin_note' => ['present', 'nullable', 'string', 'max:2000']];
     }
 
     public function messages(): array
     {
-        return ['admin_note.max' => 'The note can be at most 2000 characters.'];
+        return [
+            'admin_note.present' => 'Send the note in the admin_note field (null or empty clears it).',
+            'admin_note.max' => 'The note can be at most 2000 characters.',
+        ];
     }
 }

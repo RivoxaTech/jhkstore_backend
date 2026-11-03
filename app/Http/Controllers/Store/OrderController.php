@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Store;
 
 use App\Domain\Customer\Phone;
+use App\Domain\Order\Actions\HandlePaymentProof;
 use App\Domain\Order\Actions\PlaceOrder;
 use App\Domain\Order\Models\Order;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Store\PaymentProofRequest;
 use App\Http\Requests\Store\PlaceOrderRequest;
 use App\Http\Resources\StoreOrderResource;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +20,7 @@ class OrderController extends Controller
 
     /**
      * Place an order. Body: customer { name, phone, email? }, address { line1, city, area?, landmark?, state?, postcode?, country?, name?, phone? },
-     * items [{ variant_id, qty }], customer_note?, expected_total?. Send an `Idempotency-Key` header (any unique string, max 64) so a double tap or
+     * items [{ variant_id, qty }] or cart_token, payment_method? (cod | bank_transfer), coupon_code?, customer_note?, expected_total?. Send an `Idempotency-Key` header (any unique string, max 64) so a double tap or
      * a retry returns the same order (200 + `Idempotency-Replayed: true`) instead of a second one. 201 = new order; 409 `price_changed` = the
      * total the customer saw is no longer right.
      */
@@ -35,6 +37,17 @@ class OrderController extends Controller
         $response = (new StoreOrderResource($order))->response()->setStatusCode($replayed ? 200 : 201);
 
         return $replayed ? $response->header('Idempotency-Replayed', 'true') : $response;
+    }
+
+    /**
+     * Bank transfer: upload the screenshot of the payment. POST orders/{orderNumber}/payment-proof?phone=... (multipart `proof`, optional `reference`).
+     * A wrong phone answers the same 404 as an unknown order. Allowed while the order is pending, and again after the shop rejected a proof.
+     */
+    public function paymentProof(PaymentProofRequest $request, HandlePaymentProof $proofs): StoreOrderResource
+    {
+        $order = $proofs->submit($request->order(), $request->file('proof'), $request->validated('reference'));
+
+        return new StoreOrderResource($order);
     }
 
     /**

@@ -23,7 +23,10 @@ class OrderPresenter
         return $method ? (PaymentMethod::tryFrom($method)?->label() ?? strtoupper($method)) : null;
     }
 
-    /** Price breakdown. `subtotal` = items at MRP - product discount - bulk offer; `grand_total` = subtotal + delivery (+ tax when prices exclude it). */
+    /**
+     * Price breakdown. `subtotal` = items at MRP - product discount - bulk offer - discount - coupon; `grand_total` = subtotal + delivery (+ tax when
+     * prices exclude it). `delivery_fee` is null while the fee is still to be confirmed (`delivery_fee_pending`).
+     */
     public static function totals(Order $o): array
     {
         $settings = app(Settings::class);
@@ -31,14 +34,18 @@ class OrderPresenter
             'items_total' => (float) $o->mrp_total,
             'product_discount' => (float) $o->product_discount_total,
             'bulk_discount' => (float) $o->bulk_discount_total,
+            'discount_total' => (float) $o->discount_total,
+            'coupon_code' => $o->coupon_code,
+            'coupon_discount' => (float) $o->coupon_discount,
             'subtotal' => (float) $o->items_subtotal,
-            'delivery_fee' => (float) $o->shipping_fee,
+            'delivery_fee' => $o->shipping_fee === null ? null : (float) $o->shipping_fee,
+            'delivery_fee_pending' => (bool) $o->delivery_fee_pending,
             'grand_total' => (float) $o->grand_total,
             'tax_total' => (float) $o->tax_total,
             'tax_inclusive' => (bool) $o->tax_inclusive,
             'tax_label' => (string) $settings->get('tax_label'),
             'tax_note' => $o->tax_inclusive ? 'Inclusive of all taxes' : 'Tax is added to the total',
-            'total_savings' => round((float) $o->product_discount_total + (float) $o->bulk_discount_total, 2),
+            'total_savings' => round((float) $o->product_discount_total + (float) $o->bulk_discount_total + (float) $o->discount_total + (float) $o->coupon_discount, 2),
         ];
         return $totals;
     }
@@ -60,6 +67,8 @@ class OrderPresenter
             'bulk_applied' => $i->bulk_min_qty ? ['min_qty' => $i->bulk_min_qty, 'price' => (float) $i->unit_price] : null,
             'discount' => (float) $i->discount,
             'bulk_discount' => (float) $i->bulk_discount,
+            'discount_amount' => (float) $i->discount_amount,
+            'discount_source' => $i->discount_source,
             'line_total' => (float) $i->line_total,
             'tax_rate' => (float) $i->tax_rate,
             'tax_amount' => (float) $i->tax_amount,

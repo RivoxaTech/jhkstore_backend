@@ -35,14 +35,16 @@ class DashboardTest extends TestCase
         $one = $this->orderFor([], 2);   // 2 x 160 + 300 = 620
         $two = $this->orderFor([], 1);   // 160 + 300 = 460
         $three = $this->orderFor([], 1, ['stock' => 7]);   // 460, leaves 6; threshold 5 -> not low
+        $four = $this->orderFor([], 1);                    // rejected below: it must not count either
         $this->asAdmin();
         $this->postJson(self::ADMIN."/orders/{$two->id}/status", ['status' => 'confirmed'])->assertOk();
         $this->postJson(self::ADMIN."/orders/{$three->id}/status", ['status' => 'cancelled', 'reason' => 'Test'])->assertOk();
+        $this->postJson(self::ADMIN."/orders/{$four->id}/status", ['status' => 'rejected', 'reason' => 'Test'])->assertOk();
         DB::table('product_variants')->where('id', $one->items()->value('variant_id'))->update(['stock_qty' => 4]);   // running low
 
         $res = $this->getJson(self::ADMIN.'/dashboard')->assertOk();
 
-        $this->assertSame(2, $res->json('orders.today'));                 // the cancelled one does not count
+        $this->assertSame(2, $res->json('orders.today'));                 // the cancelled and the rejected one do not count
         $this->assertEquals(1080, $res->json('orders.revenue_today'));    // 620 + 460
         $this->assertSame(1, $res->json('orders.pending'));
         $this->assertGreaterThanOrEqual(1, $res->json('catalog.low_stock'));

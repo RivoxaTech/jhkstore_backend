@@ -4,13 +4,18 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Auth\Models\Admin;
 use App\Domain\Order\Actions\ChangeOrderStatus;
+use App\Domain\Order\Actions\ConfirmDeliveryFee;
+use App\Domain\Order\Actions\HandlePaymentProof;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Enums\PaymentMethod;
 use App\Domain\Order\Enums\PaymentStatus;
 use App\Domain\Order\Models\Order;
+use App\Domain\Order\Models\Payment;
 use App\Domain\Order\OrderSearch;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ChangeOrderStatusRequest;
+use App\Http\Requests\Admin\RejectPaymentProofRequest;
+use App\Http\Requests\Admin\SetDeliveryFeeRequest;
 use App\Http\Requests\Admin\UpdateOrderNoteRequest;
 use App\Http\Resources\AdminOrderListResource;
 use App\Http\Resources\AdminOrderResource;
@@ -19,10 +24,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class OrderController extends Controller
 {
-    private const DETAIL = ['items', 'addresses', 'history', 'payment', 'shipments'];
+    private const DETAIL = ['items', 'addresses', 'history', 'payment', 'payment.media', 'shipments'];
 
     /** Values for the filter boxes of the orders screen. */
     public function options(): JsonResponse
@@ -35,13 +41,15 @@ class OrderController extends Controller
     }
 
     /**
-     * Paginated orders, newest first. Filters: ?q (order number, customer name, phone, email) ?status ?payment_status ?payment_method
-     * ?from ?to (dates, placed) ?customer_id ?page ?per_page (max 100). `counts` = orders per status for the same filters (without the status filter).
+     * Paginated orders, newest first. Filters: ?search (or ?q: order number, customer name, phone, email) ?status ?payment_status ?payment_method
+     * ?from ?to (dates, placed) ?customer_id ?page ?per_page (max 100). `counts` = orders per status for the same filters (without the status
+     * filter), for the status tabs.
      */
     public function index(Request $request)
     {
         $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
+            'search' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', Rule::in(OrderStatus::values())],
             'payment_status' => ['nullable', Rule::in(PaymentStatus::values())],
             'payment_method' => ['nullable', Rule::in(PaymentMethod::values())],
@@ -50,9 +58,10 @@ class OrderController extends Controller
             'customer_id' => ['nullable', 'integer'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
+        $term = $request->query('search') ?: $request->query('q');
 
         $filtered = fn (): Builder => Order::query()
-            ->when($request->query('q'), fn ($q, $term) => OrderSearch::apply($q, $term))
+            ->when($term, fn ($q, $t) => OrderSearch::apply($q, $t))
             ->when($request->query('payment_status'), fn ($q, $v) => $q->where('orders.payment_status', $v))
             ->when($request->query('payment_method'), fn ($q, $v) => $q->where('orders.payment_method', $v))
             ->when($request->query('customer_id'), fn ($q, $v) => $q->where('orders.customer_id', $v))
@@ -75,8 +84,9 @@ class OrderController extends Controller
     }
 
     /**
-     * Move the order one step: { status: confirmed|packed|shipped|delivered|cancelled, note?, reason? (cancel), courier + awb_number (ship), tracking_url? }.
-     * Allowed moves: pending -> confirmed -> packed -> shipped -> delivered; cancel while pending / confirmed / packed.
+     * Move the order one step: { status: confirmed|packed|shipped|delivered|cancelled|rejected, note?, reason? (cancel, reject), courier + awb_number (ship),
+     * tracking_url? }. Allowed moves: pending -> confirmed -> packed -> shipped -> delivered; cancel while pending / confirmed / packed; reject
+     * (with a reason the customer sees) only while pending. Confirming needs the delivery fee set and a bank transfer verified.
      */
     public function status(ChangeOrderStatusRequest $request, Order $order, ChangeOrderStatus $change): AdminOrderResource
     {
@@ -85,13 +95,45 @@ class OrderController extends Controller
         return $this->full($changed);
     }
 
-    /** Internal note (never shown to the customer). */
+    /** Internal note (never shown to the customer). The field `admin_note` must be present (null or "" clears the note). */
     public function note(UpdateOrderNoteRequest $request, Order $order): AdminOrderResource
     {
         $order->update(['admin_note' => $request->validated('admin_note') ?: null]);
         Audit::log($request->user(), 'order.note_updated', $order);
 
         return $this->full($order->load(self::DETAIL));
+    }
+
+    /** POST orders/{id}/payment/verify: the bank transfer arrived (needs an uploaded proof). The payment and the order become paid. */
+    public function verifyPayment(Request $request, Order $order, HandlePaymentProof $proofs): AdminOrderResource
+    {
+        return $this->full($proofs->verify($order, $request->user()));
+    }
+
+    /** POST orders/{id}/payment/reject-proof { reason }: the proof is not good, the customer uploads a new one. */
+    public function rejectProof(RejectPaymentProofRequest $request, Order $order, HandlePaymentProof $proofs): AdminOrderResource
+    {
+        return $this->full($proofs->reject($order, $request->user(), $request->validated('reason')));
+    }
+
+    /** PUT orders/{id}/delivery-fee { fee }: confirms the fee of an order placed without one; the total is recalculated. */
+    public function deliveryFee(SetDeliveryFeeRequest $request, Order $order, ConfirmDeliveryFee $confirm): AdminOrderResource
+    {
+        return $this->full($confirm->handle($order, $request->validated('fee'), $request->user()));
+    }
+
+    /** GET orders/{id}/payment/proof: the customer's screenshot. It is on the private disk, so only this authenticated route can show it. */
+    public function proof(Order $order): BinaryFileResponse
+    {
+        $media = Payment::query()->where('payable_type', Payment::ORDER)->where('payable_id', $order->id)->first()?->getFirstMedia('proof');
+        abort_unless($media, 404, 'There is no payment proof for this order.');
+
+        return response()->file($media->getPath(), [
+            'Content-Type' => $media->mime_type,
+            'Content-Disposition' => 'inline; filename="payment-proof.'.pathinfo($media->file_name, PATHINFO_EXTENSION).'"',
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     private function full(Order $order): AdminOrderResource
