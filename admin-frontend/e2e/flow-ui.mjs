@@ -856,6 +856,7 @@ try {
   await toast(d.page, /product saved/i)
   const pubVideos = (await fetch(`${BASE}/api/v1/store/products/${gp.json.data.slug}`).then((r) => r.json())).data.videos
   check(pubVideos.length === 2 && pubVideos[0].source === 'upload' && pubVideos[1].url.includes('youtube-nocookie.com/embed/dQw4w9WgXcQ'), 'UI-G4 the public product page has the uploaded video and the YouTube embed', pubVideos.map((v) => v.source))
+  await d.page.evaluate(() => { window.confirm = () => true })   // Chrome stops showing dialogs on a page that had many: answer the confirmation ourselves
   await d.page.$eval('[data-testid="video-manager"] button[aria-label^="Delete"]', (el) => el.click())
   await d.page.waitForFunction(() => !document.querySelector('[data-testid="video-manager"]')?.innerText.includes('g-clip.mp4'), { timeout: 10000 })
   check(db("SELECT COUNT(*) n FROM media WHERE collection_name = 'video' AND model_id = " + gpId)[0].n === 0, 'UI-G4 the video is deleted from the form')
