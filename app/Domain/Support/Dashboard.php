@@ -3,6 +3,8 @@
 namespace App\Domain\Support;
 
 use App\Domain\Catalog\Enums\ProductStatus;
+use App\Domain\Catalog\Models\Product;
+use App\Domain\Catalog\ProductImages;
 use App\Domain\Order\Models\Payment;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -66,6 +68,7 @@ class Dashboard
                 'cancelled_rejected_count' => (int) $all->void,
                 'awaiting_proof_count' => $awaitingProof,
             ],
+            'comparison' => $this->comparison($range, ['revenue' => (float) $paid->revenue, 'total_orders' => (int) $all->total, 'average_order_value' => $paid->total > 0 ? round((float) $paid->revenue / $paid->total, 2) : 0.0]),
             'series' => $this->series($live, $range),
             'top_products' => $this->topProducts($range),
             'recent' => $this->recent($orders),
@@ -109,6 +112,50 @@ class Dashboard
 
     // ------------------------------------------------------------------ pieces
 
+    /** The period right before this one, of the same length (`all` has none). `month` compares with the same number of days of the month before. */
+    public function previousRange(array $range): ?array
+    {
+        $from = $range['from'];
+        if ($from === null) {
+            return null;
+        }
+        $before = $from->copy()->subDay()->endOfDay();
+        if ($range['key'] === 'month') {
+            $start = $from->copy()->subMonthNoOverflow()->startOfMonth();
+            $end = $start->copy()->addDays((int) $from->copy()->startOfDay()->diffInDays($range['to']->copy()->startOfDay()))->endOfDay();
+
+            return ['from' => $start, 'to' => $end->lt($before) ? $end : $before];
+        }
+        $days = (int) $from->copy()->startOfDay()->diffInDays($range['to']->copy()->startOfDay()) + 1;
+
+        return ['from' => $from->copy()->subDays($days)->startOfDay(), 'to' => $before];
+    }
+
+    /** Revenue (not counting cancelled or rejected), orders placed and the average order of a period. */
+    private function figures(array $range): array
+    {
+        $base = fn () => DB::table('orders')->when($range['from'], fn ($q, $from) => $q->where('created_at', '>=', $from->format('Y-m-d H:i:s')))->where('created_at', '<=', $range['to']->format('Y-m-d H:i:s'));
+        $paid = $base()->whereNotIn('status', self::VOID)->selectRaw('COUNT(*) as total, COALESCE(SUM(grand_total), 0) as revenue')->first();
+
+        return ['revenue' => (float) $paid->revenue, 'total_orders' => $base()->count(), 'average_order_value' => $paid->total > 0 ? round((float) $paid->revenue / $paid->total, 2) : 0.0];
+    }
+
+    /** @return array{from:string, to:string, previous:array, change:array}|null  the figures of the previous period and the change in percent (null where the previous period had none) */
+    private function comparison(array $range, array $current): ?array
+    {
+        $previousRange = $this->previousRange($range);
+        if ($previousRange === null) {
+            return null;
+        }
+        $previous = $this->figures($previousRange);
+        $change = [];
+        foreach ($current as $key => $value) {
+            $change[$key] = $previous[$key] > 0 ? round(($value - $previous[$key]) / $previous[$key] * 100, 1) : null;
+        }
+
+        return ['from' => $previousRange['from']->toDateString(), 'to' => $previousRange['to']->toDateString(), 'previous' => $previous, 'change' => $change];
+    }
+
     /** One point per shop day (per month for a long "all time"), zeros included so the chart has no gaps. */
     private function series(\Closure $live, array $range): array
     {
@@ -135,13 +182,22 @@ class Dashboard
     /** The five products that sold the most units in the range (cancelled and rejected orders do not count). */
     private function topProducts(array $range): array
     {
-        return DB::table('order_items as i')->join('orders as o', 'o.id', '=', 'i.order_id')
+        $rows = DB::table('order_items as i')->join('orders as o', 'o.id', '=', 'i.order_id')
             ->when($range['from'], fn ($q, $f) => $q->where('o.created_at', '>=', $f->format('Y-m-d H:i:s')))
             ->where('o.created_at', '<=', $range['to']->format('Y-m-d H:i:s'))
             ->whereNotIn('o.status', self::VOID)->where('i.status', '!=', 'cancelled')
             ->groupBy('i.product_id')->orderByDesc(DB::raw('SUM(i.qty)'))->orderByDesc(DB::raw('SUM(i.line_total)'))->limit(5)
-            ->selectRaw('i.product_id, MAX(i.name) as name, SUM(i.qty) as qty, COALESCE(SUM(i.line_total), 0) as revenue')->get()
-            ->map(fn ($r) => ['product_id' => $r->product_id, 'name' => $r->name, 'qty' => (int) $r->qty, 'revenue' => round((float) $r->revenue, 2)])->values()->all();
+            ->selectRaw('i.product_id, MAX(i.name) as name, SUM(i.qty) as qty, COALESCE(SUM(i.line_total), 0) as revenue')->get();
+
+        // thumbnail and the current price (the cheapest active option) of each product that is still in the catalogue
+        $products = Product::query()->with(['media', 'remoteImages'])->whereIn('id', $rows->pluck('product_id'))->get()->keyBy('id');
+        $prices = DB::table('product_variants')->where('is_active', true)->whereIn('product_id', $rows->pluck('product_id'))->groupBy('product_id')->selectRaw('product_id, MIN(selling_price) as price')->pluck('price', 'product_id');
+
+        return $rows->map(fn ($r) => [
+            'product_id' => $r->product_id, 'name' => $r->name, 'qty' => (int) $r->qty, 'revenue' => round((float) $r->revenue, 2),
+            'thumb_url' => isset($products[$r->product_id]) ? ProductImages::primary($products[$r->product_id])['thumb_url'] : null,
+            'price' => isset($prices[$r->product_id]) ? round((float) $prices[$r->product_id], 2) : null,
+        ])->values()->all();
     }
 
     private function recent(\Closure $orders): array
