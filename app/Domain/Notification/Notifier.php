@@ -37,8 +37,8 @@ class Notifier
     public function orderPlaced(Order $order): void
     {
         $this->customerMail($order, 'mail_on_placed', fn () => new OrderPlacedMail($order));
-        $this->ownerAlert(OwnerAlertMail::NEW_ORDER, $order);
-        $this->push('orders.view', 'New order '.$order->order_number, $this->total($order), $order, 'order-'.$order->id);
+        $this->ownerAlert(OwnerAlertMail::NEW_ORDER, $order, 'owner_mail_on_placed');
+        $this->push('orders.view', 'push_on_placed', PushMessage::newOrder($order, $this->settings));
     }
 
     /** The status the order has just moved to (pending is the start, not a move). */
@@ -53,17 +53,17 @@ class Notifier
         };
     }
 
-    /** The owner set the delivery fee of an order that was placed without one: the customer gets the final total. Follows `mail_on_placed`. */
+    /** The owner set the delivery fee of an order that was placed without one: the customer gets the final total. */
     public function deliveryFeeConfirmed(Order $order): void
     {
-        $this->customerMail($order, 'mail_on_placed', fn () => new OrderFeeConfirmedMail($order));
+        $this->customerMail($order, 'mail_on_fee_confirmed', fn () => new OrderFeeConfirmedMail($order));
     }
 
     /** The customer uploaded a payment screenshot: the owner is told to check it. */
     public function proofSubmitted(Order $order): void
     {
-        $this->ownerAlert(OwnerAlertMail::PAYMENT_PROOF, $order);
-        $this->push('orders.view', 'Payment proof to check', $order->order_number.' · '.$this->total($order), $order, 'proof-'.$order->id);
+        $this->ownerAlert(OwnerAlertMail::PAYMENT_PROOF, $order, 'owner_mail_on_proof');
+        $this->push('orders.view', 'push_on_proof', PushMessage::proofUploaded($order, $this->settings));
     }
 
     /** The shop sent the screenshot back: the customer is asked to upload a new one. */
@@ -74,10 +74,8 @@ class Notifier
 
     public function wholesaleRequested(WholesaleRequest $request): void
     {
-        $this->ownerAlert(OwnerAlertMail::WHOLESALE, $request);
-        $this->safely('push', function () use ($request) {
-            $this->dispatchPush('wholesale.view', ['title' => 'New wholesale request', 'body' => $request->reference.' · '.$request->quantity.' × '.$request->product_name, 'url' => '/admin/wholesale', 'tag' => 'wholesale-'.$request->id]);
-        });
+        $this->ownerAlert(OwnerAlertMail::WHOLESALE, $request, 'owner_mail_on_wholesale');
+        $this->push('wholesale.view', 'push_on_wholesale', PushMessage::wholesale($request, $this->settings));
     }
 
     // ------------------------------------------------------------------ channels
@@ -92,33 +90,28 @@ class Notifier
         });
     }
 
-    private function ownerAlert(string $kind, Order|WholesaleRequest $about): void
+    private function ownerAlert(string $kind, Order|WholesaleRequest $about, string $switch): void
     {
-        $this->safely('owner alert '.$kind, function () use ($kind, $about) {
+        $this->safely('owner alert '.$kind, function () use ($kind, $about, $switch) {
             $to = trim((string) $this->settings->get('notify_admin_email'));
-            if (! $this->settings->get('mail_enabled') || $to === '') {
+            if (! $this->settings->get('mail_enabled') || ! $this->settings->get($switch) || $to === '') {
                 return;
             }
             Mail::to($to)->queue(new OwnerAlertMail($kind, $about));
         });
     }
 
-    private function push(string $permission, string $title, string $body, Order $order, string $tag): void
+    private function push(string $permission, string $switch, array $message): void
     {
-        $this->safely('push', fn () => $this->dispatchPush($permission, ['title' => $title, 'body' => $body, 'url' => '/admin/orders/'.$order->id, 'tag' => $tag]));
+        $this->safely('push', fn () => $this->dispatchPush($permission, $switch, $message));
     }
 
-    private function dispatchPush(string $permission, array $message): void
+    private function dispatchPush(string $permission, string $switch, array $message): void
     {
-        if (! $this->settings->get('push_enabled') || ! WebPushSender::configured()) {
+        if (! $this->settings->get('push_enabled') || ! $this->settings->get($switch) || ! WebPushSender::configured()) {
             return;
         }
         SendPushNotification::dispatch($permission, $message);
-    }
-
-    private function total(Order $order): string
-    {
-        return $this->settings->currencySymbol().number_format((float) $order->grand_total, $this->settings->decimals());
     }
 
     /** Runs one step; whatever it throws is logged and swallowed. */

@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Notification\Models\PushSubscription;
+use App\Domain\Notification\PushLog;
+use App\Domain\Notification\QueueHealth;
+use App\Domain\Notification\SendTestPush;
 use App\Domain\Notification\WebPushSender;
 use App\Domain\Support\Settings;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 /**
  * The bell button of the admin panel: this browser subscribes or unsubscribes. A subscription belongs to the logged-in admin; what the admin
@@ -27,6 +31,8 @@ class PushController extends Controller
             'public_key' => WebPushSender::configured() ? (string) config('webpush.vapid.public_key') : null,
             'subscribed' => $request->filled('endpoint') ? (clone $mine)->where('endpoint', $request->query('endpoint'))->exists() : null,
             'devices' => (clone $mine)->count(),
+            'queue' => QueueHealth::status()['state'],                      // running | stopped | idle | sync
+            'last' => PushLog::last(),                                       // the last push that was sent and how it went
         ]);
     }
 
@@ -46,6 +52,33 @@ class PushController extends Controller
         ]);
 
         return response()->json(['subscribed' => true], 201);
+    }
+
+    /**
+     * POST push/test { endpoint? }: queues a real test push to this admin's own device(s) (just the browser with `endpoint`, if given) and returns
+     * a test id to poll with GET push/test/{id}. Needs the VAPID keys; it does not need the switch in Settings (so a new install can be tested first).
+     */
+    public function test(Request $request): JsonResponse
+    {
+        $data = $request->validate(['endpoint' => ['nullable', 'string', 'max:500']]);
+        if (! WebPushSender::configured()) {
+            return response()->json(['message' => 'Push is not set up on the server: the VAPID keys are missing in .env (php artisan shop:vapid).', 'code' => 'vapid_missing'], 422);
+        }
+        $id = Str::lower(Str::random(16));
+        PushLog::recordTest($id, $request->user()->id, ['status' => 'queued', 'devices' => 0, 'sent' => 0, 'error' => null]);
+        SendTestPush::dispatch($request->user()->id, $id, $data['endpoint'] ?? null);
+
+        return response()->json(['id' => $id, 'queue' => QueueHealth::status()['state']], 202);
+    }
+
+    /** GET push/test/{id}: queued | sent | partial | failed | no_device, with the push service's own error text when it failed. */
+    public function testResult(Request $request, string $id): JsonResponse
+    {
+        $result = PushLog::test($id);
+        abort_if($result === null || ($result['admin'] ?? null) !== $request->user()->id, 404, 'Unknown or expired test.');
+        unset($result['admin']);
+
+        return response()->json($result + ['queue' => QueueHealth::status()['state']]);
     }
 
     /** POST push/unsubscribe { endpoint }: only the admin's own browsers can be removed. */

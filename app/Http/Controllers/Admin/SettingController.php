@@ -35,6 +35,9 @@ class SettingController extends Controller
         'seo' => ['SEO', ['seo']],
     ];
 
+    /** Tabs that hold more than settings: the screen they show (and who may see it). A tab with no visible field and no panel is hidden. */
+    public const PANELS = ['banners' => Settings::ADVANCED, 'delivery' => Settings::CLIENT, 'notifications' => Settings::CLIENT];
+
     public const SECTIONS = [
         'general' => 'Store profile',
         'branding' => 'Logo and favicon',
@@ -141,7 +144,7 @@ class SettingController extends Controller
     }
 
     /** The tab a setting is shown in. */
-    private function tabOf(string $key): string
+    public static function tabOf(string $key): string
     {
         $group = Settings::DEFINITIONS[$key][0];
         foreach (self::TABS as $tab => [, $groups]) {
@@ -152,12 +155,19 @@ class SettingController extends Controller
         throw new \LogicException("Setting [$key] is not shown in any tab.");
     }
 
-    private function mayEdit(Admin $admin, string $key): bool
+    /** The permission of the setting's tab AND, for a technical (`advanced`) field, `settings.advanced`. Used for every read and every write. */
+    public static function mayUse(Admin $admin, string $key): bool
     {
-        return AdminAccess::allows($admin, 'settings.'.$this->tabOf($key));
+        return AdminAccess::allows($admin, 'settings.'.self::tabOf($key))
+            && (Settings::access($key) === Settings::CLIENT || AdminAccess::allows($admin, AdminAccess::SETTINGS_ADVANCED));
     }
 
-    /** Only the tabs (and their values) the admin may open are sent. */
+    private function mayEdit(Admin $admin, string $key): bool
+    {
+        return self::mayUse($admin, $key);
+    }
+
+    /** Only the tabs, sections and fields the admin may use are sent (a tab without any is left out), each field with its tier. */
     private function payload(Settings $settings, Admin $admin): array
     {
         $sections = [];
@@ -169,29 +179,41 @@ class SettingController extends Controller
         foreach (self::FILES as $slot => [$key, $field, $extensions, $maxKb]) {
             $uploads[$key] = ['slot' => $slot, 'field' => $field, 'extensions' => $extensions, 'max_kb' => $maxKb];
         }
+        $visible = [];
         foreach (Settings::DEFINITIONS as $key => $def) {
-            $sections[$def[0]]['fields'][] = [
-                'key' => $key, 'type' => $def[1], 'label' => $def[3], 'help' => $def[4] ?? null,
-                'min' => $def[5] ?? null, 'max' => $def[6] ?? null, 'value' => $def[1] === 'file' ? null : $settings->get($key),
-            ] + ($def[1] === 'file' ? ['upload' => $uploads[$key]] : []) + ($def[1] === 'choice' ? ['options' => Settings::CHOICES[$key]] : []);
             if ($def[1] === 'file') {
                 $files[$key] = $settings->fileUrl($key);
             }
+            if (! self::mayUse($admin, $key)) {
+                continue;
+            }
+            $visible[$key] = true;
+            $sections[$def[0]]['fields'][] = [
+                'key' => $key, 'type' => $def[1], 'label' => $def[3], 'help' => $def[4] ?? null, 'access' => Settings::access($key),
+                'min' => $def[5] ?? null, 'max' => $def[6] ?? null, 'value' => $def[1] === 'file' ? null : $settings->get($key),
+            ] + ($def[1] === 'file' ? ['upload' => $uploads[$key]] : []) + ($def[1] === 'choice' ? ['options' => Settings::CHOICES[$key]] : []);
         }
 
+        $advanced = AdminAccess::allows($admin, AdminAccess::SETTINGS_ADVANCED);
         $tabs = [];
         foreach (self::TABS as $key => [$label, $groups]) {
-            if (AdminAccess::allows($admin, 'settings.'.$key)) {
-                $tabs[] = ['key' => $key, 'label' => $label, 'sections' => array_map(fn ($g) => $sections[$g], $groups)];
+            if (! AdminAccess::allows($admin, 'settings.'.$key)) {
+                continue;
             }
+            $shown = array_values(array_filter(array_map(fn ($g) => $sections[$g], $groups), fn ($s) => $s['fields'] !== []));
+            $panel = self::PANELS[$key] ?? null;
+            if ($shown === [] && ! ($panel === Settings::CLIENT || ($panel === Settings::ADVANCED && $advanced))) {
+                continue;
+            }
+            $tabs[] = ['key' => $key, 'label' => $label, 'sections' => $shown];
         }
-        $visible = fn (string $k) => AdminAccess::allows($admin, 'settings.'.$this->tabOf($k));
 
         return [
             'tabs' => $tabs,
-            'values' => array_filter(array_diff_key($settings->all(), $files), fn ($v, $k) => $visible($k), ARRAY_FILTER_USE_BOTH),
-            'files' => array_filter($files, fn ($v, $k) => $visible($k), ARRAY_FILTER_USE_BOTH),
+            'values' => array_filter(array_diff_key($settings->all(), $files), fn ($v, $k) => isset($visible[$k]), ARRAY_FILTER_USE_BOTH),
+            'files' => array_filter($files, fn ($v, $k) => isset($visible[$k]), ARRAY_FILTER_USE_BOTH),
             'link_platforms' => Settings::LINK_PLATFORMS,
+            'events' => array_values(array_map(fn ($key, $e) => ['key' => $key, 'label' => $e[0], 'customer' => $e[1], 'owner' => $e[2], 'push' => $e[3]], array_keys(Settings::EVENTS), Settings::EVENTS)),
         ];
     }
 }

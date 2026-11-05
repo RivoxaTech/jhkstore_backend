@@ -263,10 +263,17 @@ class SettingsPhaseATest extends TestCase
         $this->actingAsAdmin('admin', everything: false);
 
         $res = $this->getJson(self::ADMIN.'/settings')->assertOk();
+        $this->assertSame([], array_column($res->json('tabs'), 'key'));          // every field of the tab is technical: no tab without settings.advanced
+        $this->putJson(self::ADMIN.'/settings', ['order_number_prefix' => 'WEB'])->assertForbidden();
+        $this->putJson(self::ADMIN.'/settings', ['min_order_amount' => 10])->assertForbidden();   // the minimum order lives in the Delivery tab
+
+        $this->actingAsAdmin('developer');
+        $this->putJson(self::ADMIN.'/access-control/admin', ['permissions' => ['settings.orders_delivery', 'settings.advanced']])->assertOk();
+        $this->actingAsAdmin('admin', everything: false);
+        $res = $this->getJson(self::ADMIN.'/settings')->assertOk();
         $this->assertSame(['orders_delivery'], array_column($res->json('tabs'), 'key'));
-        $this->assertArrayHasKey('min_order_amount', $res->json('values'));
-        $this->assertArrayNotHasKey('delivery_fee', $res->json('values'));         // the delivery charge is in the Delivery tab now
-        $this->putJson(self::ADMIN.'/settings', ['min_order_amount' => 10])->assertOk();
+        $this->assertArrayNotHasKey('delivery_fee', $res->json('values'));         // the delivery charge is in the Delivery tab
+        $this->putJson(self::ADMIN.'/settings', ['order_number_prefix' => 'WEB'])->assertOk();
         $this->putJson(self::ADMIN.'/settings', ['delivery_fee' => 9])->assertForbidden();
         $this->putJson(self::ADMIN.'/settings', ['delivery_days' => 9])->assertForbidden();
 
@@ -275,9 +282,11 @@ class SettingsPhaseATest extends TestCase
         $this->actingAsAdmin('admin', everything: false);
         $res = $this->getJson(self::ADMIN.'/settings')->assertOk();
         $this->assertSame(['delivery'], array_column($res->json('tabs'), 'key'));
-        $this->assertSame(['delivery_method', 'delivery_fee', 'free_delivery_min_cart', 'delivery_days', 'delivery_unmatched'], array_column($res->json('tabs.0.sections.0.fields'), 'key'));
-        $this->putJson(self::ADMIN.'/settings', ['delivery_fee' => 9, 'delivery_method' => 'zones', 'delivery_unmatched' => 'owner_confirms'])->assertOk();
-        $this->putJson(self::ADMIN.'/settings', ['min_order_amount' => 1])->assertForbidden();
+        // the client fields only: delivery time in days and the unmatched-address policy are technical
+        $this->assertSame(['delivery_method', 'delivery_fee', 'free_delivery_min_cart', 'min_order_amount', 'delivery_eta_text'], array_column($res->json('tabs.0.sections.0.fields'), 'key'));
+        $this->putJson(self::ADMIN.'/settings', ['delivery_fee' => 9, 'delivery_method' => 'zones', 'min_order_amount' => 1, 'delivery_eta_text' => '2 to 4 days'])->assertOk();
+        $this->putJson(self::ADMIN.'/settings', ['delivery_unmatched' => 'owner_confirms'])->assertForbidden();
+        $this->putJson(self::ADMIN.'/settings', ['order_number_prefix' => 'X'])->assertForbidden();
     }
 
     public function test_delivery_method_and_unmatched_policy_must_be_known_values(): void

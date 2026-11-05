@@ -69,7 +69,8 @@ class AdminAccess
             'settings.store' => 'Settings: Store (open or closed, notices)',
             'settings.delivery' => 'Settings: Delivery (method, fees, zones)',
             'settings.payments' => 'Settings: Payments (methods, bank accounts)',
-            'settings.notifications' => 'Settings: Notifications (e-mails, admin push)',
+            'settings.notifications' => 'Settings: Notifications (which e-mails and push messages are sent)',
+            'settings.advanced' => 'Settings: technical fields in every tab (store name, currency, tax, order numbers, mail sender, tracking link, ...)',
         ]],
         'discounts' => ['Discounts', [
             'discounts.view' => 'See discounts',
@@ -91,20 +92,43 @@ class AdminAccess
     /** Never given to the admin, whatever the developer switches: the look of the storefront belongs to the developer. */
     public const DEVELOPER_ONLY = [self::ACCESS_MANAGE, 'settings.theme'];
 
+    /** The technical settings (Settings::ADVANCED_*): a field with the tier `advanced` also needs this. On for the developer, off for the admin until the developer switches it on. */
+    public const SETTINGS_ADVANCED = 'settings.advanced';
+
     /** What the admin starts with: the dashboard, orders, the customers list, discounts and coupons and the store / delivery / payment settings. */
     public const ADMIN_DEFAULTS = [
         'dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export',
-        'settings.general', 'settings.footer', 'settings.orders_delivery',
-        'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications',
+        'settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications',
         'orders.export', 'wholesale.view', 'wholesale.manage',
         'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage',
+    ];
+
+    /** What each non-settings permission covers, in plain words (the Access Control screen lists it under the switch). The Settings permissions are described from the settings themselves. */
+    public const COVERS = [
+        'dashboard.view' => ['The Dashboard screen. Each section also needs its own permission: orders, products, wholesale, customers'],
+        'products.view' => ['Products and Tags screens (read only)', 'Low stock and product counts on the dashboard', 'The search box in the header'],
+        'products.manage' => ['Create, edit, delete products, options, stock, bulk prices, tags', 'Product pictures and videos, sold out and featured switches'],
+        'categories.view' => ['Categories and sub-categories screen (read only)'],
+        'categories.manage' => ['Create, edit, reorder, delete categories and sub-categories'],
+        'orders.view' => ['Orders list and order detail, invoice and packing slip', 'Payment proof pictures, the sidebar badge, WhatsApp button', 'Order figures on the dashboard, order e-mails to the owner, order push notifications'],
+        'orders.manage' => ['Change status, reject, notes', 'Verify or reject a payment proof, set the delivery fee'],
+        'orders.export' => ['Download the orders list as CSV'],
+        'customers.view' => ['Customers list and abandoned carts'],
+        'customers.export' => ['CSV download of customers and abandoned carts'],
+        'discounts.view' => ['Discounts screen (read only)'],
+        'discounts.manage' => ['Create, edit, switch on or off, delete discounts'],
+        'coupons.view' => ['Coupons screen, where a coupon was used'],
+        'coupons.manage' => ['Create, edit, switch on or off, delete coupons'],
+        'wholesale.view' => ['Wholesale requests screen (personal data), sidebar badge, dashboard figure, push notification'],
+        'wholesale.manage' => ['Change status, notes and CSV download of wholesale requests'],
+        self::ACCESS_MANAGE => ['The Access Control screen (this one)'],
     ];
 
     /** Personal data the developer does not get by default but can be given (the customers list and the wholesale requests). */
     public const DEVELOPER_OPTIONAL = ['customers.view', 'customers.export', 'wholesale.view', 'wholesale.manage'];
 
     /** Permissions that are always on for the developer and cannot be switched off. */
-    public const DEVELOPER_FIXED_ON = [self::ACCESS_MANAGE];
+    public const DEVELOPER_FIXED_ON = [self::ACCESS_MANAGE, self::SETTINGS_ADVANCED];
 
     /** @return list<string> every permission */
     public static function all(): array
@@ -129,7 +153,7 @@ class AdminAccess
     /** Permissions that may be switched on and off for a role on the Access Control screen. */
     public static function togglable(string $role): array
     {
-        $allowed = array_values(array_diff(self::all(), self::forbidden($role), self::DEVELOPER_FIXED_ON));
+        $allowed = array_values(array_diff(self::all(), self::forbidden($role), $role === self::DEVELOPER ? self::DEVELOPER_FIXED_ON : []));
 
         // the developer's own access is fixed, except the personal data (customers list, wholesale requests), which can be switched on
         return $role === self::DEVELOPER ? self::DEVELOPER_OPTIONAL : $allowed;

@@ -35,18 +35,28 @@ class SendPushNotification implements ShouldQueue
         $allowed = self::recipients($this->permission)->pluck('id')->all();
         $subscriptions = PushSubscription::query()->whereIn('admin_id', $allowed)->get();
 
+        $count = ['sent' => 0, 'failed' => 0, 'gone' => 0];
+        $error = null;
         foreach ($subscriptions as $subscription) {
             try {
                 $result = $sender->send(['endpoint' => $subscription->endpoint, 'p256dh' => $subscription->p256dh, 'auth' => $subscription->auth], $payload);
+                if ($result === 'failed' && $sender instanceof WebPushSender) {
+                    $error ??= PushLog::clean($sender->lastError);
+                }
             } catch (\Throwable $e) {
                 Log::warning('Web push error: '.$e->getMessage());
                 $result = 'failed';
+                $error ??= PushLog::clean($e->getMessage());
             }
+            $count[$result] = ($count[$result] ?? 0) + 1;
             if ($result === 'gone') {
                 $subscription->delete();
             } elseif ($result === 'sent') {
                 $subscription->forceFill(['last_used_at' => now()])->save();
             }
+        }
+        if ($subscriptions->isNotEmpty()) {
+            PushLog::record(['title' => (string) ($this->message['title'] ?? ''), 'devices' => $subscriptions->count(), 'error' => $error] + $count);   // the last real send, for the status card
         }
     }
 

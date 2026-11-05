@@ -44,6 +44,37 @@ class Settings
         'theme_shadow' => ['none', 'soft', 'medium'],
     ];
 
+    /**
+     * Who may see and change a setting, on top of the permission of its tab: `client` (the admin may get it by default) or `advanced` (technical:
+     * the admin needs the permission `settings.advanced`, which only the developer has by default). Everything is `client` unless listed here
+     * or in ADVANCED_GROUPS. docs/ACCESS_CONTROL.md has the full table (a test keeps it complete).
+     */
+    public const ADVANCED_KEYS = [
+        'store_name', 'store_tagline', 'store_country', 'default_phone_country_code',
+        'delivery_days', 'delivery_unmatched',
+        'mail_from_name', 'mail_reply_to', 'notify_admin_email', 'storefront_track_url',
+    ];
+
+    /** Every setting of these groups is `advanced` (branding, footer and agency credit, SEO, currency, tax, order numbers and the cash limit, theme). */
+    public const ADVANCED_GROUPS = ['branding', 'footer', 'seo', 'currency', 'tax', 'orders', 'theme'];
+
+    public const CLIENT = 'client';
+
+    public const ADVANCED = 'advanced';
+
+    /** The notification events and the three switches each has (null = that channel does not exist for the event). key => [label, customer e-mail, owner e-mail, admin push] */
+    public const EVENTS = [
+        'placed' => ['Order placed', 'mail_on_placed', 'owner_mail_on_placed', 'push_on_placed'],
+        'confirmed' => ['Order confirmed', 'mail_on_confirmed', null, null],
+        'shipped' => ['Order shipped', 'mail_on_shipped', null, null],
+        'delivered' => ['Order delivered', 'mail_on_delivered', null, null],
+        'cancelled' => ['Order cancelled or rejected', 'mail_on_cancelled', null, null],
+        'proof_uploaded' => ['Payment proof uploaded', null, 'owner_mail_on_proof', 'push_on_proof'],
+        'proof_rejected' => ['Payment proof rejected', 'mail_on_payment_proof_rejected', null, null],
+        'fee_confirmed' => ['Delivery fee confirmed', 'mail_on_fee_confirmed', null, null],
+        'wholesale' => ['New wholesale request', null, 'owner_mail_on_wholesale', 'push_on_wholesale'],
+    ];
+
     /** key => [group, type, default, label, help?, min?, max?] */
     public const DEFINITIONS = [
         // --- store profile
@@ -54,6 +85,8 @@ class Settings
         'store_address' => ['general', 'text', '', 'Address'],
         'store_country' => ['general', 'string', '', 'Country', 'Used as the default country of addresses.'],
         'default_phone_country_code' => ['general', 'string', '', 'Default phone country code', 'e.g. +92. A phone typed with a single leading 0 and no country code gets it (0300… and +92300… are one customer). Empty = numbers are kept as typed.'],
+        'support_hours' => ['general', 'string', '', 'Support hours', 'e.g. Mon-Fri 9:00-18:00.'],
+        'whatsapp_number' => ['general', 'string', '', 'WhatsApp number', 'With the country code, e.g. +49 170 1234567.'],
 
         // --- branding (pictures are uploaded, not typed)
         'store_logo' => ['branding', 'file', '', 'Logo', 'PNG, JPG or WEBP, up to 2 MB.'],
@@ -63,8 +96,6 @@ class Settings
         'social_links' => ['footer', 'links', [], 'Social and footer links', 'Any number of links, shown in this order.'],
         'footer_text' => ['footer', 'text', '', 'Footer text', 'A short text for the footer, e.g. what the store sells.'],
         'footer_copyright' => ['footer', 'string', '', 'Copyright text', 'e.g. © 2026 My Store. All rights reserved.'],
-        'support_hours' => ['footer', 'string', '', 'Support hours', 'e.g. Mon-Fri 9:00-18:00.'],
-        'whatsapp_number' => ['footer', 'string', '', 'WhatsApp number', 'With the country code, e.g. +49 170 1234567.'],
         'agency_name' => ['footer', 'string', '', 'Agency name', 'Shown as a credit in the footer, e.g. Built by Example Agency. Empty = no credit.'],
         'agency_url' => ['footer', 'string', '', 'Agency link', 'The agency website (https:// only).'],
 
@@ -83,14 +114,12 @@ class Settings
 
         // --- orders and delivery
         'order_number_prefix' => ['orders', 'string', 'ORD', 'Order number prefix', 'Order numbers look like PREFIX-2026-000123.'],
-        'min_order_amount' => ['orders', 'money', 0, 'Minimum order amount', '0 = no minimum.'],
         'cod_max_amount' => ['orders', 'money', 0, 'Cash on delivery limit', '0 = no limit.'],
 
         // --- store: open / closed and notices
         'store_open' => ['store', 'bool', true, 'Store is open', 'Off: customers can still browse and see prices, but cannot place orders.'],
         'store_closed_message' => ['store', 'text', '', 'Message while the store is closed', 'Shown to customers instead of the checkout, e.g. We are closed until Monday.'],
         'checkout_notice' => ['store', 'text', '', 'Checkout notice', 'A short notice shown at checkout (up to 300 characters).'],
-        'delivery_eta_text' => ['store', 'string', '', 'Delivery estimate text', 'e.g. 2 to 4 days. Shown when a delivery zone has no estimate of its own.'],
 
         // --- delivery (the zones themselves are managed in the Delivery tab, table delivery_zones)
         'delivery_method' => ['delivery', 'choice', 'free_above', 'Delivery method', 'Flat fee, always free, free above an amount, fee by delivery zone, or the owner confirms the fee after the order.'],
@@ -98,6 +127,8 @@ class Settings
         'free_delivery_min_cart' => ['delivery', 'money', 0, 'Free delivery from', 'Cart value from which delivery is free (free-above method). 0 = never free.'],
         'delivery_days' => ['delivery', 'int', 5, 'Delivery time (days)', 'Shown to customers as the delivery estimate.', 0, 60],
         'delivery_unmatched' => ['delivery', 'choice', 'block', 'Address outside every zone', 'Zones method: refuse the order, let the owner confirm the fee, or use the flat delivery charge.'],
+        'min_order_amount' => ['delivery', 'money', 0, 'Minimum order amount', '0 = no minimum.'],
+        'delivery_eta_text' => ['delivery', 'string', '', 'Delivery estimate text', 'e.g. 2 to 4 days. Shown when a delivery zone has no estimate of its own.'],
 
         // --- payments
         'pay_cod_enabled' => ['payments', 'bool', true, 'Cash on delivery', 'Customers can pay the courier when the order arrives.'],
@@ -117,6 +148,13 @@ class Settings
         'mail_on_delivered' => ['notifications', 'bool', true, 'E-mail: order delivered'],
         'mail_on_cancelled' => ['notifications', 'bool', true, 'E-mail: order cancelled or rejected', 'With the reason.'],
         'mail_on_payment_proof_rejected' => ['notifications', 'bool', true, 'E-mail: payment proof rejected', 'Asks the customer to upload a new screenshot.'],
+        'mail_on_fee_confirmed' => ['notifications', 'bool', true, 'E-mail: delivery fee confirmed', 'Sent to the customer when the owner has set the delivery fee of the order.'],
+        'owner_mail_on_placed' => ['notifications', 'bool', true, 'Owner e-mail: new order', 'Needs the owner e-mail address.'],
+        'owner_mail_on_proof' => ['notifications', 'bool', true, 'Owner e-mail: payment proof uploaded', 'Needs the owner e-mail address.'],
+        'owner_mail_on_wholesale' => ['notifications', 'bool', true, 'Owner e-mail: new wholesale request', 'Needs the owner e-mail address.'],
+        'push_on_placed' => ['notifications', 'bool', true, 'Push: new order'],
+        'push_on_proof' => ['notifications', 'bool', true, 'Push: payment proof uploaded'],
+        'push_on_wholesale' => ['notifications', 'bool', true, 'Push: new wholesale request'],
         'storefront_track_url' => ['notifications', 'string', '', 'Order tracking page', 'The storefront page that tracks an order, e.g. https://shop.example/track. E-mails link to it as ?order=NUMBER (the customer is asked for the phone number).'],
         'push_enabled' => ['notifications', 'bool', false, 'Admin push notifications', 'Browser notifications for new orders, payment proofs and wholesale requests (needs the VAPID keys in .env: php artisan shop:vapid).'],
 
@@ -141,6 +179,14 @@ class Settings
 
     /** @var array<int,string>|null media id => absolute URL of every `file` setting picture */
     private ?array $fileUrls = null;
+
+    /** `client` or `advanced`: who may see and change the setting besides the permission of its tab. */
+    public static function access(string $key): string
+    {
+        $def = self::DEFINITIONS[$key] ?? throw new \InvalidArgumentException("Unknown setting [$key].");
+
+        return in_array($key, self::ADVANCED_KEYS, true) || in_array($def[0], self::ADVANCED_GROUPS, true) ? self::ADVANCED : self::CLIENT;
+    }
 
     /** Typed value of a setting (the stored one, or the declared default). */
     public function get(string $key): mixed

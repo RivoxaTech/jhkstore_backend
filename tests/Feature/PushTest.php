@@ -165,7 +165,9 @@ class PushTest extends TestCase
         $this->assertSame(['https://push.example.test/owner'], $this->push->endpoints());
         $message = $this->push->sent[0]['payload'];
         $this->assertSame(['title', 'body', 'url', 'tag'], array_keys($message));
-        $this->assertStringStartsWith('New order ORD-', $message['title']);
+        $this->assertSame('New order', $message['title']);
+        $this->assertStringStartsWith('ORD-', $message['body']);
+        $this->assertSame('order-'.DB::table('orders')->value('id'), $message['tag']);
         $this->assertStringContainsString('$', $message['body']);
         $this->assertSame('/admin/orders/'.DB::table('orders')->value('id'), $message['url']);
     }

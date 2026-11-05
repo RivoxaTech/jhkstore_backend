@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Domain\Customer\Phone;
 use App\Domain\Notification\PushSender;
+use App\Domain\Notification\QueueHealth;
 use App\Domain\Notification\WebPushSender;
 use App\Domain\Promotion\Promotions;
 use App\Domain\Support\Settings;
@@ -12,6 +13,9 @@ use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Queue\Events\JobFailed;
+use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -91,6 +95,13 @@ class AppServiceProvider extends ServiceProvider
 
             return $limits;
         });
+
+        // A worker that finishes or fails a job leaves a stamp: that is how the panel knows a queue worker is running (QueueHealth).
+        Event::listen(JobProcessed::class, fn () => QueueHealth::recordActivity());
+        Event::listen(JobFailed::class, fn () => QueueHealth::recordActivity());
+
+        // The test push button: a handful a minute.
+        RateLimiter::for('test-push', fn (Request $request) => Limit::perMinute(5)->by('test-push|'.$request->user()?->getAuthIdentifier()));
 
         // The test e-mail button: a handful a minute.
         RateLimiter::for('test-email', fn (Request $request) => Limit::perMinute(5)->by('test-email|'.$request->user()?->getAuthIdentifier()));

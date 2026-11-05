@@ -336,7 +336,7 @@ class OrderMailTest extends TestCase
         $this->postJson(self::ADMIN.'/notifications/test-email', ['to' => 'me@example.test'])->assertForbidden();
         $this->putJson(self::ADMIN.'/settings', ['mail_enabled' => true])->assertForbidden();
 
-        AdminAccess::setRolePermissions('admin', ['settings.notifications']);
+        AdminAccess::setRolePermissions('admin', ['settings.notifications', 'settings.advanced']);
         $this->putJson(self::ADMIN.'/settings', ['mail_enabled' => false, 'notify_admin_email' => 'new@shop.test', 'mail_on_shipped' => false])->assertOk();
         $this->putJson(self::ADMIN.'/settings', ['notify_admin_email' => 'nope'])->assertStatus(422)->assertJsonValidationErrors('notify_admin_email');
         $this->putJson(self::ADMIN.'/settings', ['storefront_track_url' => 'javascript:alert(1)'])->assertStatus(422)->assertJsonValidationErrors('storefront_track_url');

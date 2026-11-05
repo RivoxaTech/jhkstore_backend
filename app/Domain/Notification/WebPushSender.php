@@ -9,6 +9,9 @@ use Minishlink\WebPush\WebPush;
 /** The real sender: minishlink/web-push with the VAPID keys of config/webpush.php. */
 class WebPushSender implements PushSender
 {
+    /** Why the last send failed (the push service's own words), for the test notification. */
+    public ?string $lastError = null;
+
     public static function configured(): bool
     {
         $v = config('webpush.vapid');
@@ -18,6 +21,7 @@ class WebPushSender implements PushSender
 
     public function send(array $subscription, string $payload): string
     {
+        $this->lastError = null;
         $vapid = config('webpush.vapid');
         $push = new WebPush(['VAPID' => ['subject' => $vapid['subject'], 'publicKey' => $vapid['public_key'], 'privateKey' => $vapid['private_key']]], ['TTL' => 3600], 10);
         $report = $push->sendOneNotification(Subscription::create([
@@ -30,6 +34,7 @@ class WebPushSender implements PushSender
         if ($report->isSubscriptionExpired() || in_array($report->getResponse()?->getStatusCode(), [404, 410], true)) {
             return 'gone';
         }
+        $this->lastError = $report->getReason();
         Log::warning('Web push failed: '.$report->getReason());
 
         return 'failed';

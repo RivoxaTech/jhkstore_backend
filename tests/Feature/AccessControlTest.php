@@ -109,14 +109,16 @@ class AccessControlTest extends TestCase
             ['settings.delivery', 'PUT', '/delivery-zones/999999', []],
             ['settings.delivery', 'PATCH', '/delivery-zones/999999/active', []],
             ['settings.delivery', 'DELETE', '/delivery-zones/999999', []],
-            ['settings.delivery', 'PUT', '/settings', ['delivery_days' => 3]],
+            ['settings.delivery', 'PUT', '/settings', ['delivery_fee' => 3]],
+            ['settings.advanced', 'GET', '/notifications/failed-jobs', []],
+            ['settings.advanced', 'PUT', '/settings', ['store_tagline' => 'x']],
             ['settings.theme', 'PUT', '/settings', ['theme_primary' => '#112233']],
             ['settings.store', 'PUT', '/settings', ['store_open' => true]],
             ['settings.payments', 'PUT', '/settings', ['pay_cod_enabled' => true]],
             ['customers.view', 'GET', '/customers', []],
             ['customers.export', 'GET', '/customers/export', []],
             ['settings.general', 'GET', '/settings', []],
-            ['settings.general', 'PUT', '/settings', ['store_name' => 'Allowed']],
+            ['settings.general', 'PUT', '/settings', ['store_email' => 'allowed@shop.test']],
             ['settings.branding', 'POST', '/settings/logo', []],
             ['settings.branding', 'DELETE', '/settings/favicon', []],
             ['settings.seo', 'POST', '/settings/share-image', []],
@@ -157,7 +159,7 @@ class AccessControlTest extends TestCase
             'dashboard.view', 'products.view', 'products.manage', 'categories.view', 'categories.manage', 'orders.view', 'orders.manage',
             'customers.view', 'customers.export', 'settings.general', 'settings.branding', 'settings.banners', 'settings.footer',
             'settings.currency_tax', 'settings.orders_delivery', 'settings.seo', 'access.manage',
-            'settings.theme', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications',
+            'settings.theme', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'settings.advanced',
             'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'orders.export', 'wholesale.view', 'wholesale.manage',
         ], AdminAccess::all());
         $this->assertSame(['developer', 'admin'], AdminAccess::ROLES);
@@ -178,9 +180,9 @@ class AccessControlTest extends TestCase
         $this->assertTrue($developer->hasRole('developer'));
         $this->assertTrue($admin->hasRole('admin'));
 
-        // the client starts with the dashboard, orders, customers, discounts, coupons and the Settings tabs General, Footer, Orders & Delivery, Store, Delivery, Payments
+        // the client starts with the dashboard, orders, customers, discounts, coupons and the Settings tabs General (contact details), Store, Delivery, Payments, Notifications: no technical settings
         $this->assertEqualsCanonicalizing(
-            ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery',
+            ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general',
                 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage',
                 'wholesale.view', 'wholesale.manage'],
             AdminAccess::effective($admin),
@@ -346,7 +348,7 @@ class AccessControlTest extends TestCase
     public function test_the_developer_switches_the_admin_permissions_and_the_api_follows_at_once(): void
     {
         $this->actingAsAdmin('developer');
-        $this->putJson(self::ADMIN.'/access-control/admin', ['permissions' => ['dashboard.view', 'products.view', 'settings.banners']])
+        $this->putJson(self::ADMIN.'/access-control/admin', ['permissions' => ['dashboard.view', 'products.view', 'settings.banners', 'settings.advanced']])
             ->assertOk()->assertJsonPath('roles.1.role', 'admin');
 
         $this->actingAsAdmin('admin', everything: false);
@@ -357,7 +359,7 @@ class AccessControlTest extends TestCase
         $this->getJson(self::ADMIN.'/orders')->assertForbidden();
         $this->getJson(self::ADMIN.'/customers')->assertForbidden();
         $this->getJson(self::ADMIN.'/categories')->assertForbidden();
-        $this->getJson(self::ADMIN.'/auth/me')->assertJsonPath('admin.permissions', ['dashboard.view', 'products.view', 'settings.banners']);
+        $this->getJson(self::ADMIN.'/auth/me')->assertJsonPath('admin.permissions', ['dashboard.view', 'products.view', 'settings.banners', 'settings.advanced']);
 
         // switched back on
         $this->actingAsAdmin('developer');
@@ -400,7 +402,7 @@ class AccessControlTest extends TestCase
     public function test_settings_tabs_are_guarded_one_by_one(): void
     {
         $this->actingAsAdmin('developer');
-        $this->putJson(self::ADMIN.'/access-control/admin', ['permissions' => ['settings.general', 'settings.footer']])->assertOk();
+        $this->putJson(self::ADMIN.'/access-control/admin', ['permissions' => ['settings.general', 'settings.footer', 'settings.advanced']])->assertOk();
         $this->actingAsAdmin('admin', everything: false);
 
         // the page only lists the tabs the admin may open, and only their values

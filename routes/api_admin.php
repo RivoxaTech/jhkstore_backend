@@ -84,7 +84,8 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
     });
 
     // Banners live in the Settings > Banners tab (multipart for the pictures; reorder = the whole order of a placement)
-    Route::middleware('admin.can:settings.banners')->group(function () {
+    // (technical, so also `settings.advanced`: two middleware = both are needed)
+    Route::middleware(['admin.can:settings.banners', 'admin.can:settings.advanced'])->group(function () {
         Route::get('banners/options', [BannerController::class, 'options']);
         Route::get('banners', [BannerController::class, 'index']);
         Route::get('banners/{banner}', [BannerController::class, 'show'])->whereNumber('banner');
@@ -169,6 +170,7 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
     Route::middleware('admin.can:settings.notifications')->group(function () {
         Route::get('notifications/status', [NotificationController::class, 'status']);
         Route::post('notifications/test-email', [NotificationController::class, 'testEmail'])->middleware('throttle:test-email');
+        Route::get('notifications/failed-jobs', [NotificationController::class, 'failedJobs'])->middleware('admin.can:settings.advanced');   // technical: job names and times only
     });
 
     // Admin push (this browser): for admins who may get order or wholesale notifications; what is sent to whom is decided at send time
@@ -176,6 +178,8 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
         Route::get('status', [PushController::class, 'status']);
         Route::post('subscribe', [PushController::class, 'subscribe']);
         Route::post('unsubscribe', [PushController::class, 'unsubscribe']);
+        Route::post('test', [PushController::class, 'test'])->middleware('throttle:test-push');   // a real push to this admin's own device(s) through the queue
+        Route::get('test/{id}', [PushController::class, 'testResult'])->where('id', '[A-Za-z0-9]{8,40}');
     });
 
     // Settings: each tab has its own permission (settings.<tab>); the controller checks it per key, here any tab opens the page
