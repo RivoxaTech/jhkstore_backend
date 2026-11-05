@@ -59,7 +59,7 @@ async function open() {
   const problems = []
   page.on('pageerror', (e) => problems.push(`page error: ${e.message}`))
   page.on('console', (m) => { if (m.type() === 'error' && !/40[0-9]|422|429/.test(m.text())) problems.push(`console: ${m.text()}`) })
-  page.on('dialog', (d) => d.accept())
+  page.on('dialog', (d) => d.accept().catch(() => { /* already handled */ }))
   return { browser, page, problems }
 }
 async function login(page, [user, pass]) {
@@ -283,7 +283,7 @@ try {
   const stockAfter = db(`SELECT stock_qty FROM product_variants WHERE id = ${line.variant_id}`)[0].stock_qty
   check(db(`SELECT status FROM orders WHERE id = ${second.id}`)[0].status === 'cancelled' && stockAfter - stockBefore === line.qty, 'UI-D14 cancel from the screen: status cancelled and the stock returned', { before: stockBefore, after: stockAfter, qty: line.qty })
   await goto(a.page, '')
-  check(await bodyHas(a.page, /Orders today/) && await bodyHas(a.page, /Pending/i), 'UI-D12 the dashboard shows the order figures to the client admin')
+  check(await bodyHas(a.page, /Revenue/) && await bodyHas(a.page, /Pending orders/i), 'UI-D12 the dashboard shows the order figures to the client admin')
 
   // ============================================================ D15: customers
   await goto(a.page, 'customers')
@@ -794,7 +794,7 @@ try {
   check(d.page.url().endsWith('/forbidden'), 'UI-G3 the developer cannot open /admin/wholesale by default')
 
   // ---- UI-G4 products: dense list, switches, stock filter; the compact form with sections, options table, bulk popover, validation, video
-  const gp = await api('POST', 'admin/products', { category_id: db('SELECT id FROM categories ORDER BY id LIMIT 1')[0].id, name: `UI Switch Item ${RUN}`, sku: `UISW-${RUN}`, status: 'active', variants: [{ name: `UI Switch Item ${RUN}`, sku: `UISW-${RUN}-V`, mrp: 50, selling_price: 40, stock: 2, low_stock_threshold: 5, is_default: true }] }, devToken)
+  const gp = await api('POST', 'admin/products', { category_id: db('SELECT id FROM categories WHERE deleted_at IS NULL AND is_active = 1 ORDER BY id DESC LIMIT 1')[0].id, name: `UI Switch Item ${RUN}`, sku: `UISW-${RUN}`, status: 'active', variants: [{ name: `UI Switch Item ${RUN}`, sku: `UISW-${RUN}-V`, mrp: 50, selling_price: 40, stock: 2, low_stock_threshold: 5, is_default: true }] }, devToken)
   const gpId = gp.json?.data?.id
   await goto(d.page, 'products')
   await waitVal(d.page, `tr[data-product="${gpId}"]`)

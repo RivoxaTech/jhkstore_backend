@@ -1433,6 +1433,7 @@ try {
   check((await store(`products/${pRake.slug}`)).json?.data?.sub_category?.name === `Tools ${RUN}`, 'the public product page shows the sub-category')
   // 2. delivery zones, 3. bank transfer
   await setSettings({ delivery_method: 'zones', delivery_unmatched: 'block', min_order_amount: 0, cod_max_amount: 0 })
+  for (const z of (await get('admin/delivery-zones', A)).json?.data || []) await del(`admin/delivery-zones/${z.id}`, A)   // the zones of the earlier sections would match first
   const zLahore = await post('admin/delivery-zones', { name: `FR Lahore ${RUN}`, match_type: 'city', match_values: ['Lahore'], fee: 8, free_above: 500, eta_text: 'Tomorrow' }, A)
   const zKhi = await post('admin/delivery-zones', { name: `FR Karachi ${RUN}`, match_type: 'city', match_values: ['Karachi'], fee: 15 }, A)
   check(zLahore.status === 201 && zKhi.status === 201, 'set two delivery zones (Lahore 8, Karachi 15)', [zLahore.status, zKhi.status])
@@ -1536,6 +1537,8 @@ try {
   check(ipStop > 0 && ipStop <= 31 && ipOk >= 1, 'the per-IP limit (30 an hour on these servers) stops a flood with 429 and a Retry-After', { createdBeforeStop: ipOk, stoppedAtRequest: ipStop })
   const ipRetry = await ws(wsBody(150))
   check(ipRetry.status === 429 && Number(ipRetry.headers.get('retry-after')) > 0, 'the refusal says when to try again (Retry-After)', ipRetry.headers.get('retry-after'))
+  // leave the allowance as it was: the browser script (flow-ui.mjs) uses the public wholesale form too
+  artisan("foreach (['127.0.0.1', '::1'] as $ip) { Illuminate\\Support\\Facades\\RateLimiter::clear(md5('wholesale'.'wholesale-ip|'.$ip)); }")
   }
 } catch (e) {
   failures++
