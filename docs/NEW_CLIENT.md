@@ -64,6 +64,8 @@ cd admin-frontend && npm install && npm run build && cd ..     # admin panel -> 
 
 The worker reads the same `.env` as the site, and a long-running worker keeps the settings it started with: after changing `MAIL_*`, `VAPID_*` or `APP_TIMEZONE` run `php artisan queue:restart`. A mail already in the queue remembers the mailer it was queued for.
 
+The panel's *Notification status* (Settings → Notifications) says whether a worker is running. It learns it from every job a worker finishes, and from `shop:queue-heartbeat`, a tiny job the scheduler (the `schedule:run` cron below) queues every minute; without the cron the card says "no activity seen yet" until the first job, and the *Send test notification* button settles it. **Push**: `php artisan shop:vapid` (on Windows set `OPENSSL_CONF` first), the three values in `.env`, the *Admin push* switch on in Settings → Notifications, HTTPS in production; test it with [PUSH_TEST.md](PUSH_TEST.md).
+
 Failed jobs are listed with `php artisan queue:failed`, retried with `php artisan queue:retry all` and cleared with `php artisan queue:flush`; Settings → Notifications shows how many failed (a count only). The sidebar badges for pending orders and new wholesale requests refresh every 30 seconds and work without a worker. The e-mails stay off until Settings → Notifications → *Send e-mails* is on.
 
 **Time zone.** `APP_TIMEZONE` decides what "today" is, the dates of orders, the dashboard ranges and the start and end of discounts, coupons and banners. Set it before the first order; the admin panel shows and accepts every date in that zone.
@@ -75,6 +77,8 @@ Failed jobs are listed with `php artisan queue:failed`, retried with `php artisa
 **Product videos** (uploaded mp4 / webm, at most 2 a product) are public files in `storage/app/public` (`php artisan storage:link`). Raise PHP `upload_max_filesize` and `post_max_size` to at least `PRODUCT_VIDEO_MAX_KB` (50 MB by default; also nginx `client_max_body_size` or Apache `LimitRequestBody`) and `max_execution_time` for slow uploads, otherwise the panel says the server refused the file. Nothing is converted: ask the client for small web-ready files, or use a YouTube / Vimeo link.
 
 ## 4. Configure the store (admin panel → Settings)
+
+**Who sees what (Phase C).** The client admin starts with the contact details (General), Store, Delivery, Payments and Notifications (which e-mails and push messages go out). Everything technical (store name, tagline, country, order number prefix, cash limit, currency, tax, footer and agency credit, SEO, branding, banners, the mail sender and owner address, the tracking link, delivery time and unmatched-address rule) is `advanced`: fill it yourself as the developer, and switch `settings.advanced` on in Access Control only for a technical client. See [ACCESS_CONTROL.md](ACCESS_CONTROL.md).
 
 Log in at `/admin` as the **developer** and set, in this order (see [SETTINGS.md](SETTINGS.md) for every field):
 
@@ -109,6 +113,7 @@ Give the storefront developer [STOREFRONT-API.md](STOREFRONT-API.md), `docs/open
 - [ ] the storefront has the hidden honeypot field (`website`) in its checkout form
 - [ ] `APP_URL`, `FRONTEND_URLS`, `SANCTUM_STATEFUL_DOMAINS` match the real domains
 - [ ] cron entry `schedule:run` added (tokens and carts are pruned by it)
+- [ ] the Notification status card is green: *Send test notification* works on the client's browser (see [PUSH_TEST.md](PUSH_TEST.md)); the logo and favicon are uploaded (the panel, login page and browser tab use them)
 - [ ] the queue is worked (supervisor `queue:work`, or the cron `queue:work --stop-when-empty`); `MAIL_*` set to the real mail server and a test e-mail received; `APP_TIMEZONE` correct
 - [ ] push (optional): `VAPID_*` in `.env`, switched on, one admin device subscribed; PHP / web server upload limits allow `PRODUCT_VIDEO_MAX_KB`
 - [ ] `php artisan migrate:fresh --seed` is never run on a live site (the baseline migration is edited in place: rebuild only development databases)

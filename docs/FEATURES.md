@@ -25,6 +25,8 @@ The product is **products, categories and orders** plus the admin settings that 
 | Access control | ✅ exactly two accounts (developer, admin) · ✅ permissions per section and per Settings tab, switched by the developer · ✅ the developer never sees orders (API, screens, dashboard, e-mails, push, exports) · ✅ enforced on every admin route and in the panel ([ACCESS_CONTROL.md](ACCESS_CONTROL.md)) |
 | Platform | ✅ audit log (including permission changes and every export) · ✅ rate limiting · ✅ expiring admin API tokens · ✅ generated OpenAPI docs (`/docs/api`, [openapi.json](openapi.json)) |
 
+- **Phase C**: setting tiers (client / advanced) with the `settings.advanced` permission and a Developer tag; a compact Settings page (two-column cards, sticky save bar, inline validation); Notifications as an events table (customer e-mail, owner alert, push per event); the Notification status card and *Send test notification*; queue worker status and `shop:queue-heartbeat`; push content (title, order number and total, logo, one tag per order, click opens the order); in-panel alert chime with mute; the store logo and favicon in the panel; the dashboard redesign (welcome line, soft KPI cards with the change against the previous period, smooth chart, best sellers with thumbnails, recent orders with quick links); a quieter sidebar.
+
 ## Possible later (not built)
 
 Online card payments (the stock model has `reserved_qty` for holds, `payments` is gateway-ready) · SMS notifications · shipping providers · a captcha on the public forms (a honeypot field and rate limits protect them now) · customer accounts, if a client ever needs them.

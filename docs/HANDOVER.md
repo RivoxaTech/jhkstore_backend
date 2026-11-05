@@ -24,7 +24,11 @@ Neutral Laravel 13 + Vue 3 store, **one deployment per client**, API first, sepa
 | Dashboard | `app/Domain/Support/Dashboard.php`, `DashboardController`, `DashboardView.vue`, `RevenueChart.vue` | `dashboard.view`; each section needs its own (`orders.view`, `products.view`, `wholesale.view`, `customers.view`) |
 | Sidebar badges (30 s) | `OrderController::pendingCount`, `WholesaleController::newCount`, `AdminLayout.vue` | `orders.view`, `wholesale.view` |
 | Wholesale requests | `app/Domain/Wholesale`, `Store\WholesaleController`, `Admin\WholesaleController`, `WholesaleView.vue` | `wholesale.view` / `.manage` (developer: off, switchable) |
-| Order e-mails and owner alerts | `app/Mail`, `resources/views/mail`, `app/Domain/Notification/Notifier.php`, `NotificationsPanel.vue` | `settings.notifications` |
+| Order e-mails and owner alerts | `app/Mail`, `resources/views/mail`, `app/Domain/Notification/Notifier.php`, `NotificationsPanel.vue` (events table: customer e-mail, owner alert, push per event) | `settings.notifications` |
+| Setting tiers (client / advanced) | `Settings::access()`, `ADVANCED_KEYS` / `ADVANCED_GROUPS`, `SettingController::mayUse()`, `SettingField.vue` (Developer tag) | tab permission **and** `settings.advanced` for advanced fields ([ACCESS_CONTROL.md](ACCESS_CONTROL.md)) |
+| Notification status, test push, queue worker state | `QueueHealth`, `PushLog`, `SendTestPush`, `NotificationStatusCard.vue`, `shop:queue-heartbeat`, [PUSH_TEST.md](PUSH_TEST.md) | `settings.notifications` / `orders.view` or `wholesale.view` |
+| Alert chime and mute | `utils/chime.js`, `AdminLayout.vue`, `public/admin-sw.js` | `orders.view` or `wholesale.view` |
+| Store logo in the panel | `BrandLogo.vue`, `stores/site.js` (favicon, document title) | public settings |
 | Queue | `QUEUE_CONNECTION=database`, `jobs` / `failed_jobs`, worker or cron ([NEW_CLIENT.md](NEW_CLIENT.md)) | counts in `GET /admin/notifications/status` |
 | Admin push | `SendPushNotification`, `WebPushSender`, `PushController`, `PushToggle.vue`, `public/admin-sw.js`, `php artisan shop:vapid` | `orders.view` or `wholesale.view` (recipients checked when the job runs) |
 | WhatsApp buttons | built in the panel: `whatsappUrl()` in `format.js` (order, wholesale, abandoned carts) | follows the screen |
@@ -45,7 +49,7 @@ Neutral Laravel 13 + Vue 3 store, **one deployment per client**, API first, sepa
 
 ## Add a setting, a tab, a permission
 
-- **Setting**: one line in `Settings::DEFINITIONS` (group, type, default, label, help); a rule override in `Settings::rules()` if the type is not enough; it shows up in the panel by itself. Public settings are listed in `Store\SettingController`.
+- **Setting**: one line in `Settings::DEFINITIONS` (group, type, default, label, help); a rule override in `Settings::rules()` if the type is not enough; its tier (`client` unless listed in `Settings::ADVANCED_KEYS` or its group in `ADVANCED_GROUPS`) and a row in the table of `docs/ACCESS_CONTROL.md`; it shows up in the panel by itself. Public settings are listed in `Store\SettingController`.
 - **Settings tab**: an entry in `SettingController::TABS` (+ `SECTIONS`), a `settings.<tab>` line in `AdminAccess::GROUPS`, the tab's keys in `DEFINITIONS`, and the permission in the `admin.can:` list of the two settings routes in `routes/api_admin.php`. Custom content below the fields = a component like `DeliveryZonesPanel.vue`.
 - **Permission**: a line in `AdminAccess::GROUPS`, the default in `ADMIN_DEFAULTS` (and `DEVELOPER_OPTIONAL` / `forbidden()` for the hard rules), `admin.can:<permission>` on the route (a test fails when a route has none), the matrix row in `tests/Feature/AccessControlTest.php`, a line in [ACCESS_CONTROL.md](ACCESS_CONTROL.md). Anything about orders is `orders.*`, so the developer is blocked by the hard rule.
 - **Every feature** ships with tests, OpenAPI / Postman / STOREFRONT-API updates and a CHANGELOG line.

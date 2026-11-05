@@ -33,7 +33,7 @@ const BASE = process.env.FLOW_BASE || 'http://127.0.0.1:8000'
 const BASE2 = process.env.FLOW_BASE2 || 'http://127.0.0.1:8001'
 const DEV = [process.env.FLOW_DEV_USER || 'developer', process.env.FLOW_DEV_PASSWORD || 'developer']
 const ADM = [process.env.FLOW_ADMIN_USER || 'admin', process.env.FLOW_ADMIN_PASSWORD || 'admin']
-const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.footer', 'settings.orders_delivery', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
+const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
 
 if (process.argv.includes('--fresh')) {
   execFileSync('php', ['artisan', 'migrate:fresh', '--seed', '--force'], { cwd: ROOT, stdio: 'ignore' })
@@ -189,7 +189,7 @@ try {
   check((await post('admin/categories', { name: 'Nope' }, A)).status === 403, 'admin cannot create a category by default (403)')
   const admSettings = await get('admin/settings', A)
   const tabKeys = (r) => (r.json?.tabs || []).map((t) => t.key ?? t.id ?? t)
-  check(JSON.stringify(tabKeys(admSettings).sort()) === JSON.stringify(['delivery', 'footer', 'general', 'notifications', 'orders_delivery', 'payments', 'store']), 'admin sees only the General, Footer, Orders & Delivery, Delivery, Payments, Store and Notifications tabs', tabKeys(admSettings))
+  check(JSON.stringify(tabKeys(admSettings).sort()) === JSON.stringify(['delivery', 'general', 'notifications', 'payments', 'store']), 'admin sees only the General, Delivery, Payments, Store and Notifications tabs (no technical tab)', tabKeys(admSettings))
   const meBefore = await get('admin/auth/me', A)
   check(!meBefore.json.admin.permissions.some((p) => p.startsWith('products.') || p.startsWith('categories.')), 'admin /me lists no products/categories permission', meBefore.json.admin.permissions)
 
@@ -793,15 +793,21 @@ try {
   // restricted admin
   const aTabs = tabKeys(await get('admin/settings', A))
   const tryPut = async (body) => (await put('admin/settings', body, A)).status
-  check(JSON.stringify(aTabs.sort()) === JSON.stringify(['delivery', 'footer', 'general', 'notifications', 'orders_delivery', 'payments', 'store']), 'restricted admin: GET settings lists only the 7 open tabs (no Theme: it is the developer\'s)', aTabs)
+  check(JSON.stringify(aTabs.sort()) === JSON.stringify(['delivery', 'general', 'notifications', 'payments', 'store']), 'restricted admin: GET settings lists only the 5 open tabs (no technical tab, no Theme: it is the developer\'s)', aTabs)
   check([await tryPut({ currency_code: 'EUR' }), await tryPut({ seo_meta_title: 'x' }), await tryPut({ store_name: 'Mixed', currency_code: 'EUR' })].every((s) => s === 403), 'restricted admin: Currency & Tax, SEO and a mixed request are all 403', 'currency_code, seo_meta_title, mixed')
   check((await call('POST', 'admin/settings/logo', { token: A, form: formOf({}, { logo: file('l.png', 200, 100, [1, 2, 3]) }) })).status === 403, 'restricted admin: the logo upload (Branding) is 403')
   check((await get('admin/banners', A)).status === 403 && (await post('admin/banners', {}, A)).status === 403, 'restricted admin: Banners are 403')
-  check((await put('admin/settings', { store_tagline: 'Set by the client' }, A)).status === 200 && (await pub()).store.tagline === 'Set by the client', 'restricted admin: can still edit an open tab (General) and it shows publicly')
+  check((await put('admin/settings', { store_phone: '+92 300 0000000' }, A)).status === 200 && (await pub()).store.phone === '+92 300 0000000', 'restricted admin: can still edit a client field of an open tab (the contact phone) and it shows publicly')
+  check((await put('admin/settings', { store_tagline: 'Set by the client' }, A)).status === 403 && (await put('admin/settings', { store_phone: '+92 300 1111111', store_tagline: 'Mixed' }, A)).status === 403 && (await pub()).store.phone === '+92 300 0000000', 'restricted admin: a technical field (the tagline) is 403, and a request mixing it with a client field changes nothing')
   check((await pub()).store.name === 'Acme Outlet', 'the refused mixed request changed nothing (store name unchanged)')
   await put('admin/access-control/admin', { permissions: [...ADMIN_DEFAULTS, 'settings.branding', 'settings.banners'] }, D)
+  const aTabsNoAdv = tabKeys(await get('admin/settings', A))
+  check(!aTabsNoAdv.includes('branding') && !aTabsNoAdv.includes('banners') && (await get('admin/banners', A)).status === 403, 'Branding and Banners are technical: switched on without settings.advanced they stay closed', aTabsNoAdv)
+  await put('admin/access-control/admin', { permissions: [...ADMIN_DEFAULTS, 'settings.branding', 'settings.banners', 'settings.advanced'] }, D)
   const aTabs2 = tabKeys(await get('admin/settings', A))
-  check(aTabs2.includes('branding') && aTabs2.includes('banners') && (await get('admin/banners', A)).status === 200, 'the developer switches Branding and Banners on -> they open', aTabs2)
+  check(aTabs2.includes('branding') && aTabs2.includes('banners') && (await get('admin/banners', A)).status === 200, 'with settings.advanced on, Branding and Banners open', aTabs2)
+  check((await put('admin/settings', { store_tagline: 'Set by a technical client' }, A)).status === 200 && (await put('admin/settings', { theme_primary: '#112233' }, A)).status === 403, 'with settings.advanced the admin may change technical fields, but never the theme')
+  await put('admin/settings', { store_tagline: 'Everything for home' }, D)
   await put('admin/access-control/admin', { permissions: ADMIN_DEFAULTS }, D)
   check(!tabKeys(await get('admin/settings', A)).includes('banners') && (await get('admin/banners', A)).status === 403, 'and off again -> closed')
   check(db("SELECT id FROM audit_logs WHERE action LIKE 'settings.%' OR action LIKE 'banner%'").length >= 5, 'settings and banner changes are in the audit log', db("SELECT DISTINCT action FROM audit_logs WHERE action LIKE 'settings.%' OR action LIKE 'banner%'").map((r) => r.action))
@@ -816,7 +822,7 @@ try {
     const full = await get(`admin/products/${idOf(r)}`, D)
     return { id: idOf(r), variant: full.json?.data?.variants?.[0]?.id, status: r.status }
   }
-  const setSettings = (body, token = A) => put('admin/settings', body, token)
+  const setSettings = (body, token = D) => put('admin/settings', body, token)   // the developer: most of these keys are technical (Phase C), which the client admin may not write
   const artisan = (code) => execFileSync('php', ['artisan', 'tinker', '--execute', code], { cwd: ROOT, encoding: 'utf8' })   // the app's own tinker: the flow script only SELECTs by itself
   const variantAdjust = (id, qty) => artisan(`App\\Domain\\Catalog\\Models\\ProductVariant::whereKey(${id})->update(['stock_qty' => ${qty}]);`)
   const money = (n) => Math.round(Number(n) * 100) / 100
@@ -1272,9 +1278,9 @@ try {
   const baseJobs = jobsLike('SendQueuedMailable')
   const off = await mailOrder(0)
   check(off.status === 201 && jobsLike('SendQueuedMailable') === baseJobs, 'e-mails are off by default (mail_enabled): placing an order queues no mail', status(off).slice(0, 80))
-  const setMail = await put('admin/settings', { mail_enabled: true, mail_from_name: 'Flow Shop', notify_admin_email: 'owner@flow.test', storefront_track_url: 'https://shop.flow.test/track', mail_on_placed: true, mail_on_confirmed: true, mail_on_shipped: true, mail_on_delivered: true, mail_on_cancelled: true, mail_on_payment_proof_rejected: true }, A)
+  const setMail = await put('admin/settings', { mail_enabled: true, mail_from_name: 'Flow Shop', notify_admin_email: 'owner@flow.test', storefront_track_url: 'https://shop.flow.test/track', mail_on_placed: true, mail_on_confirmed: true, mail_on_shipped: true, mail_on_delivered: true, mail_on_cancelled: true, mail_on_payment_proof_rejected: true }, D)
   check(setMail.status === 200, 'the admin (settings.notifications is a default) switches e-mails on in the Notifications tab', status(setMail).slice(0, 100))
-  check((await put('admin/settings', { notify_admin_email: 'not-an-address' }, A)).status === 422 && (await put('admin/settings', { storefront_track_url: 'javascript:alert(1)' }, A)).status === 422, 'a bad owner address and a bad tracking link are refused (422)')
+  check((await put('admin/settings', { notify_admin_email: 'not-an-address' }, D)).status === 422 && (await put('admin/settings', { storefront_track_url: 'javascript:alert(1)' }, D)).status === 422, 'a bad owner address and a bad tracking link are refused (422)')
   let pos = logPos()
   const m1 = await mailOrder(1)
   const no1 = m1.json?.data?.order_number
@@ -1504,7 +1510,7 @@ try {
   check(fullWs.status === 201 && fullWsRow?.status === 'new' && fullWsRow.quantity === 250 && fullWsRow.product_name.includes('Full Run Rake'), 'submit a wholesale request: the admin sees it as new with the product snapshot', fullWsRow && { ref: fullWsRow.reference, product: fullWsRow.product_name })
   check((await patch(`admin/wholesale/${fullWsRow.id}`, { status: 'contacted', admin_note: 'Full run: called back' }, A)).status === 200, 'the admin marks it contacted with a note')
   // 11. e-mail through the log mailer, 12. queued push
-  await put('admin/settings', { mail_enabled: true, notify_admin_email: 'owner@fullrun.test', storefront_track_url: 'https://shop.fullrun.test/track', push_enabled: true }, A)
+  await put('admin/settings', { mail_enabled: true, notify_admin_email: 'owner@fullrun.test', storefront_track_url: 'https://shop.fullrun.test/track', push_enabled: true }, D)
   const fullPos = logPos()
   const subKey = (() => { const e = crypto.createECDH('prime256v1'); e.generateKeys(); return { p256dh: e.getPublicKey().toString('base64url'), auth: crypto.randomBytes(16).toString('base64url') } })()
   await post('admin/push/subscribe', { endpoint: 'https://push.invalid/full-run', keys: subKey }, A)
@@ -1529,6 +1535,86 @@ try {
   check(couponRow.used_count === 1 && customerRow.orders_count === 0, 'the coupon is still counted once and the cancelled customer\'s totals are back to 0', { coupon: couponRow, cancelled: customerRow })
   // clean up what this run changed
   await setSettings({ delivery_method: 'free_above', delivery_unmatched: 'block', pay_bank_enabled: false, pay_bank_accounts: [], pay_bank_instructions: '' })
+
+  section('H33', 'Phase C: setting tiers (client / advanced), per-event switches, push content, test notification through the queue, queue worker status, dashboard comparison')
+  await put('admin/access-control/admin', { permissions: ADMIN_DEFAULTS }, D)
+  await put('admin/access-control/developer', { permissions: [] }, D)
+  const fieldsOf = (r) => (r.json?.tabs || []).flatMap((t) => t.sections).flatMap((sec) => sec.fields)
+  const aFields = fieldsOf(await get('admin/settings', A))
+  const aHas = (k) => aFields.some((fl) => fl.key === k)
+  check(['store_email', 'store_phone', 'whatsapp_number', 'delivery_fee', 'min_order_amount', 'delivery_eta_text', 'pay_cod_enabled', 'push_on_placed', 'owner_mail_on_placed', 'mail_on_fee_confirmed'].every(aHas) && ['store_name', 'store_tagline', 'currency_code', 'tax_rate', 'order_number_prefix', 'cod_max_amount', 'delivery_days', 'delivery_unmatched', 'notify_admin_email', 'mail_from_name', 'storefront_track_url', 'agency_name', 'seo_meta_title'].every((k) => !aHas(k)), 'the admin without settings.advanced is sent the client fields only (contact, delivery fee and text, payments, the event switches)', aFields.length)
+  check(aFields.every((fl) => fl.access === 'client'), 'every field the admin gets is tagged client')
+  const dFields = fieldsOf(await get('admin/settings', D))
+  check(dFields.find((fl) => fl.key === 'store_name')?.access === 'advanced' && dFields.find((fl) => fl.key === 'store_email')?.access === 'client' && dFields.every((fl) => ['client', 'advanced'].includes(fl.access)), 'the developer gets every field with its tier (store_name advanced, store_email client)')
+  const phoneBefore = (await store('settings')).json.store.phone
+  const mixedA = await put('admin/settings', { store_phone: '+92 311 9999999', store_name: 'Hijack' }, A)
+  const advA = await put('admin/settings', { notify_admin_email: 'x@example.test' }, A)
+  check(mixedA.status === 403 && advA.status === 403 && (await store('settings')).json.store.phone === phoneBefore && (await store('settings')).json.store.name !== 'Hijack', 'a technical key is 403 for the admin, and a request mixing it with a client key changes nothing', [mixedA.status, advA.status])
+  check((await get('admin/notifications/failed-jobs', A)).status === 403 && (await get('admin/notifications/failed-jobs', D)).status === 200, 'the failed jobs list needs settings.advanced (admin 403, developer 200)')
+  const stA = (await get('admin/notifications/status', A)).json
+  const stD = (await get('admin/notifications/status', D)).json
+  check(stA.queue && !('queue_connection' in stA) && !('mailer' in stA) && stD.queue_connection && stD.mailer && typeof stD.failed_jobs === 'number', 'the notification status hides the technical details (connection, mailer, sender address) from the client', Object.keys(stA))
+  const acc = (await get('admin/access-control', D)).json.roles.find((r) => r.role === 'admin').groups.flatMap((g) => g.permissions)
+  check(acc.every((p) => ['client', 'advanced'].includes(p.tier) && p.covers.length > 0) && acc.find((p) => p.key === 'settings.advanced').fields.length > 20 && acc.find((p) => p.key === 'settings.footer').tier === 'advanced' && acc.find((p) => p.key === 'settings.delivery').tier === 'client', 'Access Control: every permission has a tag and what it covers; settings.advanced lists the technical settings')
+  const devRow = (await get('admin/access-control', D)).json.roles.find((r) => r.role === 'developer').groups.flatMap((g) => g.permissions).find((p) => p.key === 'settings.advanced')
+  check(devRow?.locked === true && devRow?.enabled === true, 'the developer\'s settings.advanced is on and fixed')
+
+  // per-event switches and the push content
+  await setSettings({ mail_enabled: true, notify_admin_email: 'owner@example.test', push_enabled: true })
+  const hItem = await mk('Flow H33 Item', 'FH33-1', 30)
+  const subH = await post('admin/push/subscribe', subscription('https://push.invalid/h33'), A)
+  worker()
+  const ownerJobs = () => jobsLike('OwnerAlertMail')
+  const pushJobs = () => jobsLike('SendPushNotification')
+  const o1 = [ownerJobs(), pushJobs()]
+  const h1 = await placeOrder(orderBody([[hItem.variant, 1]], { name: 'H33 One', phone: phoneN(430) }))
+  const pushPayload = db("SELECT payload FROM jobs WHERE payload LIKE '%SendPushNotification%' ORDER BY id DESC LIMIT 1")[0]?.payload || ''
+  const pushCommand = (() => { try { return JSON.parse(pushPayload).data.command } catch { return '' } })()   // the job as stored: JSON around a PHP-serialized command
+  check(subH.status === 201 && h1.status === 201 && ownerJobs() === o1[0] + 1 && pushJobs() === o1[1] + 1 && pushCommand.includes('s:9:"New order"') && pushCommand.includes(h1.json.data.order_number) && pushCommand.includes('order-') && pushCommand.includes('/admin/orders/'), 'a new order queues the owner alert and a push titled "New order" with the order number, a tag per order and the link to the order', { owner: ownerJobs() - o1[0], push: pushJobs() - o1[1] })
+  await setSettings({ owner_mail_on_placed: false })
+  const o2 = [ownerJobs(), pushJobs()]
+  await placeOrder(orderBody([[hItem.variant, 1]], { name: 'H33 Two', phone: phoneN(431) }))
+  check(ownerJobs() === o2[0] && pushJobs() === o2[1] + 1, 'owner_mail_on_placed off: no owner alert, the push still goes')
+  await setSettings({ push_on_placed: false })
+  const o3 = pushJobs()
+  await placeOrder(orderBody([[hItem.variant, 1]], { name: 'H33 Three', phone: phoneN(432) }))
+  check(pushJobs() === o3, 'push_on_placed off: no push job')
+  await setSettings({ owner_mail_on_placed: true, push_on_placed: true })
+  worker()
+
+  // the test notification goes through the real queue
+  const t0 = await post('admin/push/test', { endpoint: 'https://push.invalid/h33' }, A)
+  const tQueued = await get(`admin/push/test/${t0.json?.id}`, A)
+  check(t0.status === 202 && tQueued.json?.status === 'queued', 'POST push/test answers 202 and the test waits in the queue until a worker takes it', status(tQueued).slice(0, 80))
+  check((await get(`admin/push/test/${t0.json?.id}`, D)).status === 403, 'another account cannot read the result (the developer has no push permission: 403)')
+  worker()
+  const tDone = await get(`admin/push/test/${t0.json?.id}`, A)
+  check(tDone.json?.status === 'failed' && String(tDone.json?.error || '').length > 5 && tDone.json?.sent === 0, 'the worker sends it for real: a push service that cannot be reached is reported with the exact error text', tDone.json)
+  check(dbOne("SELECT COUNT(*) n FROM push_subscriptions WHERE endpoint = 'https://push.invalid/h33'").n === 1, 'an unreachable service does not delete the subscription')
+  const lastPush = (await get('admin/push/status', A)).json.last
+  check(lastPush?.title === 'Test notification' && !JSON.stringify(lastPush).includes('ORD-'), 'push status: the last push and its result, without any order data', lastPush)
+  check((await post('admin/push/test', {}, D)).status === 403, 'the developer (no orders.view / wholesale.view) cannot send a test push (403)')
+
+  // queue worker status and heartbeat
+  const stAfter = (await get('admin/notifications/status', A)).json
+  check(stAfter.queue.state === 'running', 'after a worker handled jobs the status says the queue worker is running', stAfter.queue)
+  execFileSync('php', ['artisan', 'shop:queue-heartbeat'], { cwd: ROOT, env: process.env, stdio: 'ignore' })
+  execFileSync('php', ['artisan', 'shop:queue-heartbeat'], { cwd: ROOT, env: process.env, stdio: 'ignore' })
+  check(jobsLike('QueueHeartbeat') === 1, 'shop:queue-heartbeat queues one job and never piles up while no worker takes it')
+  worker()
+  check(jobsLike('QueueHeartbeat') === 0 && (await get('admin/notifications/status', D)).json.queue.heartbeat_at, 'a worker takes it and the heartbeat time is recorded')
+
+  // dashboard: the change against the previous period
+  const dh = (await get('admin/dashboard?range=7d', A)).json
+  const dhAll = (await get('admin/dashboard?range=all', A)).json
+  check(dh.orders.comparison && 'previous' in dh.orders.comparison && ['revenue', 'total_orders', 'average_order_value'].every((k) => k in dh.orders.comparison.change) && dhAll.orders.comparison === null, 'the dashboard compares with the previous period (not for all time)', dh.orders.comparison)
+  check(dh.orders.top_products.every((tp) => 'thumb_url' in tp && 'price' in tp), 'top sellers carry a thumbnail slot and the current price')
+  const dd = await get('admin/dashboard?range=7d', D)
+  check(dd.status === 200 && !('orders' in dd.json) && !JSON.stringify(dd.json).includes('comparison'), 'the developer dashboard has no order figures and no comparison')
+
+  // restore
+  await setSettings({ mail_enabled: false, notify_admin_email: '', push_enabled: false })
+  await put('admin/access-control/developer', { permissions: [] }, D)
 
   section('G32', 'Wholesale per-IP limit (run last: it uses up this IP\'s hourly allowance)')
   let ipStop = 0

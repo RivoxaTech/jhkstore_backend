@@ -153,6 +153,7 @@
                                                 "settings.delivery",
                                                 "settings.payments",
                                                 "settings.notifications",
+                                                "settings.advanced",
                                                 "discounts.view",
                                                 "discounts.manage",
                                                 "coupons.view",
@@ -2939,6 +2940,49 @@
                                                         "awaiting_proof_count"
                                                     ]
                                                 },
+                                                "comparison": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "from": {
+                                                            "type": "string"
+                                                        },
+                                                        "to": {
+                                                            "type": "string"
+                                                        },
+                                                        "previous": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "revenue": {
+                                                                    "type": "number"
+                                                                },
+                                                                "total_orders": {
+                                                                    "type": "integer",
+                                                                    "minimum": 0
+                                                                },
+                                                                "average_order_value": {
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "revenue",
+                                                                "total_orders",
+                                                                "average_order_value"
+                                                            ]
+                                                        },
+                                                        "change": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "from",
+                                                        "to",
+                                                        "previous",
+                                                        "change"
+                                                    ]
+                                                },
                                                 "series": {
                                                     "type": "object",
                                                     "properties": {
@@ -2993,13 +3037,27 @@
                                                             },
                                                             "revenue": {
                                                                 "type": "number"
+                                                            },
+                                                            "thumb_url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "price": {
+                                                                "type": [
+                                                                    "number",
+                                                                    "null"
+                                                                ]
                                                             }
                                                         },
                                                         "required": [
                                                             "product_id",
                                                             "name",
                                                             "qty",
-                                                            "revenue"
+                                                            "revenue",
+                                                            "thumb_url",
+                                                            "price"
                                                         ]
                                                     }
                                                 },
@@ -3013,6 +3071,7 @@
                                                 "revenue_today",
                                                 "pending",
                                                 "kpis",
+                                                "comparison",
                                                 "series",
                                                 "top_products",
                                                 "recent"
@@ -4152,7 +4211,7 @@
         "/v1/admin/notifications/status": {
             "get": {
                 "operationId": "notification.status",
-                "summary": "Counts only (never the content of a failed job, which could hold an order)",
+                "summary": "Everyone who may open the tab gets: whether a queue worker is running, the number of failed jobs, the mail switch and the push summary\n(switch, keys, devices, the last push and its result). The technical details (queue connection, mailer, sender address, jobs waiting, how long\nthe oldest has waited) need `settings.advanced`. Counts and names only, never the content of a job (it could hold an order)",
                 "tags": [
                     "Notification"
                 ],
@@ -4164,17 +4223,29 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "queue_connection": {
-                                            "type": "string"
-                                        },
-                                        "mailer": {
-                                            "type": "string"
-                                        },
-                                        "from_address": {
-                                            "type": "string"
-                                        },
-                                        "pending_jobs": {
-                                            "type": "integer"
+                                        "queue": {
+                                            "type": "object",
+                                            "properties": {
+                                                "state": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "sync",
+                                                        "stopped",
+                                                        "running",
+                                                        "idle"
+                                                    ]
+                                                },
+                                                "last_activity_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "state",
+                                                "last_activity_at"
+                                            ]
                                         },
                                         "failed_jobs": {
                                             "type": "integer"
@@ -4194,20 +4265,25 @@
                                                 "devices": {
                                                     "type": "integer",
                                                     "minimum": 0
+                                                },
+                                                "last": {
+                                                    "type": [
+                                                        "array",
+                                                        "null"
+                                                    ],
+                                                    "items": {}
                                                 }
                                             },
                                             "required": [
                                                 "enabled",
                                                 "configured",
-                                                "devices"
+                                                "devices",
+                                                "last"
                                             ]
                                         }
                                     },
                                     "required": [
-                                        "queue_connection",
-                                        "mailer",
-                                        "from_address",
-                                        "pending_jobs",
+                                        "queue",
                                         "failed_jobs",
                                         "mail_enabled",
                                         "push"
@@ -4303,6 +4379,73 @@
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/notifications/failed-jobs": {
+            "get": {
+                "operationId": "notification.failedJobs",
+                "summary": "GET notifications/failed-jobs: what failed and when (job name, queue, time, exception class). Never the content or the message. `settings.advanced`",
+                "tags": [
+                    "Notification"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "total": {
+                                            "type": "integer"
+                                        },
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "job": {
+                                                        "type": "string"
+                                                    },
+                                                    "queue": {
+                                                        "type": "string"
+                                                    },
+                                                    "exception": {
+                                                        "type": [
+                                                            "string",
+                                                            "object",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "failed_at": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "job",
+                                                    "queue",
+                                                    "exception",
+                                                    "failed_at"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "total",
+                                        "items"
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -6941,6 +7084,23 @@
                                         "devices": {
                                             "type": "integer",
                                             "minimum": 0
+                                        },
+                                        "queue": {
+                                            "type": "string",
+                                            "enum": [
+                                                "sync",
+                                                "stopped",
+                                                "running",
+                                                "idle"
+                                            ]
+                                        },
+                                        "last": {
+                                            "type": [
+                                                "array",
+                                                "null"
+                                            ],
+                                            "description": "running | stopped | idle | sync",
+                                            "items": {}
                                         }
                                     },
                                     "required": [
@@ -6948,7 +7108,9 @@
                                         "configured",
                                         "public_key",
                                         "subscribed",
-                                        "devices"
+                                        "devices",
+                                        "queue",
+                                        "last"
                                     ]
                                 }
                             }
@@ -7080,6 +7242,107 @@
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/push/test": {
+            "post": {
+                "operationId": "push.test",
+                "summary": "POST push/test { endpoint? }: queues a real test push to this admin's own device(s) (just the browser with `endpoint`, if given) and returns\na test id to poll with GET push/test/{id}. Needs the VAPID keys; it does not need the switch in Settings (so a new install can be tested first)",
+                "tags": [
+                    "Push"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "endpoint": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 500
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "queue": {
+                                            "type": "string",
+                                            "enum": [
+                                                "sync",
+                                                "stopped",
+                                                "running",
+                                                "idle"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "queue"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/push/test/{id}": {
+            "get": {
+                "operationId": "push.testResult",
+                "summary": "GET push/test/{id}: queued | sent | partial | failed | no_device, with the push service's own error text when it failed",
+                "tags": [
+                    "Push"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {}
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -7580,13 +7843,18 @@
                                             ],
                                             "minItems": 10,
                                             "maxItems": 10
+                                        },
+                                        "events": {
+                                            "type": "array",
+                                            "items": {}
                                         }
                                     },
                                     "required": [
                                         "tabs",
                                         "values",
                                         "files",
-                                        "link_platforms"
+                                        "link_platforms",
+                                        "events"
                                     ]
                                 }
                             }
@@ -7688,13 +7956,18 @@
                                             ],
                                             "minItems": 10,
                                             "maxItems": 10
+                                        },
+                                        "events": {
+                                            "type": "array",
+                                            "items": {}
                                         }
                                     },
                                     "required": [
                                         "tabs",
                                         "values",
                                         "files",
-                                        "link_platforms"
+                                        "link_platforms",
+                                        "events"
                                     ]
                                 }
                             }
@@ -7854,13 +8127,18 @@
                                             ],
                                             "minItems": 10,
                                             "maxItems": 10
+                                        },
+                                        "events": {
+                                            "type": "array",
+                                            "items": {}
                                         }
                                     },
                                     "required": [
                                         "tabs",
                                         "values",
                                         "files",
-                                        "link_platforms"
+                                        "link_platforms",
+                                        "events"
                                     ]
                                 }
                             }
@@ -7997,13 +8275,18 @@
                                             ],
                                             "minItems": 10,
                                             "maxItems": 10
+                                        },
+                                        "events": {
+                                            "type": "array",
+                                            "items": {}
                                         }
                                     },
                                     "required": [
                                         "tabs",
                                         "values",
                                         "files",
-                                        "link_platforms"
+                                        "link_platforms",
+                                        "events"
                                     ]
                                 }
                             }

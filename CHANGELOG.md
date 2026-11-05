@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-11-05 – Phase C (branch `lean-store`)
+
+Polish, a clean permission split of the settings and proof that push notifications work.
+
+### Added
+- **Setting tiers**: every setting is `client` or `advanced` (`Settings::access()`); the new permission `settings.advanced` (developer on and fixed, admin off) is needed for advanced fields on top of the tab permission. Enforced on `GET` (fields, values and empty tabs are not sent) and `PUT` / picture endpoints (403 for any forbidden key, a mixed request changes nothing); `settings.theme` stays developer only; the banner routes need `settings.banners` **and** `settings.advanced`. Table in `docs/ACCESS_CONTROL.md` (a test checks every setting has a row).
+- **Access Control screen**: every permission shows what it covers and a `Client` / `Developer / advanced` tag; settings permissions list the individual settings in a collapsible list (`tier`, `covers`, `fields` in `GET /admin/access-control`).
+- **Notifications**: settings per event and channel (`mail_on_fee_confirmed`, `owner_mail_on_placed|proof|wholesale`, `push_on_placed|proof|wholesale`); the tab is an events table, a sender card, a test e-mail and status.
+- **Push**: `PushMessage` (title "New order", order number and total, logo icon, tag per order, link), `requireInteraction`, the service worker tells open panel tabs; `POST /admin/push/test` + `GET /admin/push/test/{id}` (real push through the real queue, exact error); `PushLog` (last push); `QueueHealth` (`running` / `stopped` / `idle` / `sync`) and the scheduled `shop:queue-heartbeat`; `GET /admin/notifications/failed-jobs`; the *Notification status* card (tab and header popover). `docs/PUSH_TEST.md`.
+- **Panel**: alert chime (bundled `chime.wav`, no external request) with mute toggle and an autoplay hint, toast when the pending count rises; the store logo in the sidebar header and on the login page (favicon on the collapsed sidebar), favicon as tab icon, page title from the store name; dashboard redesign with `orders.comparison` (change against the previous period) and `thumb_url` / `price` of the top sellers; a quieter sidebar with section labels.
+- Tests: `SettingsAccessTest`, `NotificationStatusTest`, `DashboardComparisonTest`; flow-check section H33; smoke / flow-ui updated; `admin-frontend/e2e/screenshots.mjs`.
+
+### Changed
+- `support_hours`, `whatsapp_number` moved to the General group, `min_order_amount` and `delivery_eta_text` to the Delivery group (keys unchanged, so the public API is the same).
+- Admin defaults: ON General, Store, Delivery, Payments, Notifications; OFF Footer & Social, Branding, Banners, SEO, Currency & Tax, Orders & Delivery, Advanced, Theme. Existing databases keep what the developer switched (`AdminAccess::sync()` only adds the new permission and gives it to the developer).
+- The "delivery fee confirmed" e-mail has its own switch (it followed `mail_on_placed`).
+- `GET /admin/notifications/status` is restructured (`queue.state`, `push.last`); technical fields only with `settings.advanced`.
+- The Settings page, Access Control, Notifications and the dashboard layouts; colours and fonts are unchanged.
+
 ## 2026-11-03 – Phase B (branch `lean-store`)
 
 Dashboard, compact product screens, product video, wholesale requests, order e-mails, admin push and small extras ([docs/FEATURE_SPEC.md](docs/FEATURE_SPEC.md), sections 10 to 17), plus three fixes after the Phase A work. The baseline migration was edited directly again (no live database exists): **a database created from an earlier version must be rebuilt with `php artisan migrate:fresh --seed`**. 46 tables (45 created by the baseline migration plus `migrations`; was 44).
