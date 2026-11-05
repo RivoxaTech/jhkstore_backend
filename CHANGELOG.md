@@ -2,7 +2,7 @@
 
 ## 2026-11-03 – Phase B (branch `lean-store`)
 
-Dashboard, compact product screens, product video, wholesale requests, order e-mails, admin push and small extras ([docs/FEATURE_SPEC.md](docs/FEATURE_SPEC.md), sections 10 to 17), plus three fixes from the Phase A review. The baseline migration was edited directly again (no live database exists): **a database created from an earlier version must be rebuilt with `php artisan migrate:fresh --seed`**. 46 tables (45 created by the baseline migration plus `migrations`; was 44).
+Dashboard, compact product screens, product video, wholesale requests, order e-mails, admin push and small extras ([docs/FEATURE_SPEC.md](docs/FEATURE_SPEC.md), sections 10 to 17), plus three fixes after the Phase A work. The baseline migration was edited directly again (no live database exists): **a database created from an earlier version must be rebuilt with `php artisan migrate:fresh --seed`**. 46 tables (45 created by the baseline migration plus `migrations`; was 44).
 
 ### Fixed (Phase A follow-up)
 - **Bank transfer snapshot**: `payments.bank_snapshot` keeps the accounts and instructions the customer was shown when the order was placed; the admin order detail and the customer tracking answer now show that snapshot, not the current settings (a changed account no longer rewrites old orders).
@@ -34,6 +34,9 @@ Dashboard, compact product screens, product video, wholesale requests, order e-m
 - E-mails carry no logo (no external image, not even the store's own); the store name, address and phone are plain text. The "delivery fee confirmed" mail follows `mail_on_placed`.
 - Video files can only be uploaded after the product is saved (a link can be typed at once).
 - An abandoned cart counts as bought when an order by the same phone or e-mail was placed after the cart's last activity.
+
+### Tests and checks
+- PHPUnit: 384 → 476 tests, all pass. `scripts/flow-check.mjs` 457 assertions (A1 to G32, including a full run of the whole shop), `admin-frontend/e2e/flow-ui.mjs` 176 browser checks, `npm run e2e` 68 checks. Details in [docs/QA_REPORT.md](docs/QA_REPORT.md).
 
 ## 2026-11-03 – Phase A (branch `lean-store`)
 

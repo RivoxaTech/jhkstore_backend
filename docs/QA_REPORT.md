@@ -84,7 +84,7 @@ Other ports: `FLOW_BASE`, `FLOW_BASE2` (API script) and `E2E_BASE`, `E2E_BASE_TZ
 | Phase B | (found by the flow run) the wholesale per-IP flood left the IP blocked for an hour for the browser script; the flood now clears its own limit | G32 |
 | Phase B | (found by the browser run) a second `dialog` handler call made the script crash; handled | UI-G4 |
 
-The three Phase A review fixes have their regression tests: `BankTransferTest::test_the_order_keeps_a_snapshot_of_the_accounts_and_instructions_shown_when_it_was_placed`, `TimezoneTest` (14 tests in three non-UTC zones) and `DocsTest`.
+The three Phase A follow-up fixes have their regression tests: `BankTransferTest::test_the_order_keeps_a_snapshot_of_the_accounts_and_instructions_shown_when_it_was_placed`, `TimezoneTest` (14 tests in three non-UTC zones) and `DocsTest`.
 
 ## Found, not changed (your decision)
 
