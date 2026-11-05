@@ -1,23 +1,29 @@
 # QA report – full flow on the real app
 
-Every flow of the lean store was driven over **real HTTP against the running application** (MySQL `jhkstore_db`, `php artisan serve`, no test database, no mocks), and the admin screens were driven in **headless Chrome**. Run on the branch `lean-store` on 2026-11-03; the Phase A checks (F17 to F23) were added the same day and ran on a scratch database (`jhkstore_flow`, ports 8010 and 8011) so they could not clash with the admin-panel run.
+Every flow of the lean store was driven over **real HTTP against the running application** (MySQL `jhkstore_db`, `php artisan serve`, no test database, no mocks), and the admin screens were driven in **headless Chrome**. Run on the branch `lean-store` on 2026-11-03; the Phase A checks (F17 to F23) and the Phase B checks (G24 to G32, UI-G1 to UI-G7) were added the same day; Phase B ran on `jhkstore_db` itself (ports 8002 and 8003, a third server in another time zone on 8012), one script after the other.
 
 | Script | What it does | Result |
 |---|---|---|
-| [`scripts/flow-check.mjs`](../scripts/flow-check.mjs) | API flow A1–F23 (Node, plain `fetch`); database reads through [`scripts/flow-db.php`](../scripts/flow-db.php) (SELECT only) | **334 assertions, all PASS** (239 before Phase A, 95 for F17–F23) |
-| [`admin-frontend/e2e/flow-ui.mjs`](../admin-frontend/e2e/flow-ui.mjs) (`npm run flow-ui`) | the same flows through the admin panel in headless Chrome, now including the Phase A screens (Theme preview, delivery zones, payments accounts, discounts, coupons, bank-transfer verification, reject, delivery fee) | **123 checks, all PASS** (41 before Phase A) |
+| [`scripts/flow-check.mjs`](../scripts/flow-check.mjs) | API flow A1–G32 (Node, plain `fetch`); database reads through [`scripts/flow-db.php`](../scripts/flow-db.php) (SELECT only) | **457 of 457 assertions PASS** (A1 to G32; 334 before Phase B, the rest for G24 to G32) |
+| [`admin-frontend/e2e/flow-ui.mjs`](../admin-frontend/e2e/flow-ui.mjs) (`npm run flow-ui`) | the same flows through the admin panel in headless Chrome, including the Phase A screens (Theme preview, delivery zones, payments accounts, discounts, coupons, bank-transfer verification, reject, delivery fee) and the Phase B screens UI-G1 to UI-G7 (dashboard, badges polled every 30 s, wholesale, compact product list and form with sections, options table, bulk popover and video, exports, abandoned carts, WhatsApp, Notifications tab and push bell, time zone) | **176 checks, all PASS** (123 before Phase B; UI-G1 to UI-G7 are the Phase B screens) |
 
 ## How to run it again
 
 ```bash
-php artisan migrate:fresh --seed                 # base seeder only; the script leaves test data behind, reseed afterwards
-php artisan serve --port=8000                    # the real server
-php artisan serve --port=8001                    # a SECOND server process (needed for the "last unit" race, see below)
-node scripts/flow-check.mjs                      # add --fresh to let it run migrate:fresh --seed itself; ~8 minutes (it waits out rate-limit windows)
-cd admin-frontend && npm run build && npm run flow-ui
+php artisan migrate:fresh --seed                 # base seeder only; the scripts leave test data behind, reseed afterwards
+# the servers (a port other than 8000 if another project uses it); the same VAPID_* values go to the scripts
+CHECKOUT_PER_HOUR=1000 WHOLESALE_PER_HOUR=30 APP_URL=http://127.0.0.1:8002 VAPID_SUBJECT=... VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... php artisan serve --port=8002
+# the SECOND server (needed for the "last unit" race; here also a mail server that does not exist, see G28)
+MAIL_MAILER=smtp MAIL_HOST=127.0.0.1 MAIL_PORT=1 CHECKOUT_PER_HOUR=1000 WHOLESALE_PER_HOUR=30 APP_URL=http://127.0.0.1:8003 VAPID_* php artisan serve --port=8003
+# the THIRD server, another time zone, for UI-G7
+APP_TIMEZONE=Pacific/Auckland CHECKOUT_PER_HOUR=1000 APP_URL=http://127.0.0.1:8012 php artisan serve --port=8012
+FLOW_BASE=http://127.0.0.1:8002 FLOW_BASE2=http://127.0.0.1:8003 VAPID_* node scripts/flow-check.mjs     # ~25 minutes (it waits out rate-limit windows)
+cd admin-frontend && npm run build
+E2E_BASE=http://127.0.0.1:8002 E2E_BASE_TZ=http://127.0.0.1:8012 npm run flow-ui   # after flow-check: it works on the orders and products it left
+E2E_BASE=http://127.0.0.1:8002 npm run e2e                                           # the smoke test, on a freshly seeded database
 ```
 
-Other ports: `FLOW_BASE`, `FLOW_BASE2` (API script) and `E2E_BASE` (browser script); the server's `APP_URL` must match the port it serves (picture URLs are built from it) and the port must be in `SANCTUM_STATEFUL_DOMAINS` for the panel login. Credentials: `FLOW_DEV_*` / `FLOW_ADMIN_*`, `E2E_DEV_*` / `E2E_ADMIN_*` (defaults `developer` / `admin`, password = username).
+Other ports: `FLOW_BASE`, `FLOW_BASE2` (API script) and `E2E_BASE`, `E2E_BASE_TZ` (browser scripts). On Windows, `php artisan shop:vapid` and the push checks need `OPENSSL_CONF` to point at the `openssl.cnf` of the PHP install. The queue worker is started by the script (`php artisan queue:work --stop-when-empty`); e-mails are read from `storage/logs/laravel.log` (the log mailer); the server's `APP_URL` must match the port it serves (picture URLs are built from it) and the port must be in `SANCTUM_STATEFUL_DOMAINS` for the panel login. Credentials: `FLOW_DEV_*` / `FLOW_ADMIN_*`, `E2E_DEV_*` / `E2E_ADMIN_*` (defaults `developer` / `admin`, password = username).
 
 ## Result per check
 
@@ -46,6 +52,15 @@ Other ports: `FLOW_BASE`, `FLOW_BASE2` (API script) and `E2E_BASE` (browser scri
 | F21 | Persistent cart | PASS | token (40 characters) in `data.token` and `X-Cart-Token`; add / set / remove, priced on the server; contact; coupon refused (not saved) and applied; quote and order by `cart_token` (cart emptied in the order transaction, coupon used); an emptied cart cannot be ordered again; unknown token → new cart; a cart past 30 days → new cart; `shop:prune-carts` deletes it with its lines and is scheduled; 61st call in a minute → `429` |
 | F22 | Order changes | PASS | reject needs a reason, gives the stock back and reverses the customer totals, the customer sees the reason; rejected is final; only a pending order can be rejected; list filters `status=rejected`, `payment_method`, `payment_status`, `search` and the counts; **`PATCH note` without `admin_note` → 422 and the note is kept**; developer blocked from every new order endpoint and filter, dashboard still without order figures |
 | F23 | Rate limits and honeypot | PASS | `coupons/validate` 31st call in a minute → `429`; payment-proof uploads → `429` after 10 a minute; honeypot refused |
+| G24 | Dashboard (Phase B) | PASS (12/12) | `GET /admin/dashboard?range=` defaults to 30d and lists the five ranges; revenue = the orders that were not cancelled or rejected and equals the database sum, total orders = every order; the ranges nest (today ≤ 7 days ≤ 30 days ≤ all time); the seven KPI numbers, the chart series (one point per shop day, adds up to the revenue card), top 5 sellers, 8 recent orders; an unknown range → 422; the shop time zone is in `/admin/auth/me`; the developer gets `catalog` only (no `orders`, `customers`, `wholesale`, no order number); `orders/pending-count` = pending orders + payment proofs to check (database agrees), developer → 403; an admin with only `products.view` gets only the catalogue section, with only `wholesale.view` only the wholesale section |
+| G25 | Product switches, public flags, filters | PASS (12/12) | the admin without `products.manage` → 403 on both switches, a missing value → 422; sold out: still listed with `is_sold_out`, `in_stock` false, the page says so, the quote has the issue `sold_out`, the order → `422 cart_invalid`, nothing taken, no customer made; switched back → orderable; `?featured=1` lists only featured products; admin list `stock=low` / `out` and the dashboard low-stock widget find an option at or under its alert level; an unknown filter → 422 |
+| G26 | Product video | PASS (9/9) | an mp4 with a poster is accepted; a program renamed `.mp4`, a pdf and an empty upload → 422 (the content is checked); a webm is the second video, a third → 422; the public product lists `[{ url, poster_url, mime, source }]` and the file is served; reorder; delete; a YouTube link becomes a `youtube-nocookie` embed entry after the uploads; `http:`, a plain page and `javascript:` links → 422; the admin without `products.manage` → 403 |
+| G27 | Wholesale requests | PASS (15/15) | the public answer is the reference only; snapshot of the product name, lower-cased e-mail, customer found by phone (no duplicate); invalid input → 422; the honeypot saves nothing; the 6th request of one phone → 429; admin list newest first with per-status counts, status + note saved with who and when, tabs and search, CSV follows the filters; audit; the developer → 403 on list, count, detail, update, export; `wholesale.view` alone lists but cannot change; `orders.export` can never be given to the developer (422) |
+| G28 | Order e-mails and the queue | PASS (20/20) | off by default (no job); on: an order only QUEUES two mails (customer + owner alert), nothing is sent until the queue worker runs; the log mailer shows the subject, receiver, sender name, tracking link, items, payment method, no image or script; confirmed / shipped (courier + AWB) / delivered / cancelled / rejected each send their e-mail with the reason; a switched-off event sends nothing; an order without an e-mail queues only the owner alert; the test e-mail is sent at once; an order placed on a server whose mail server does not exist is still `201`, the mails fail in the queue, the Notifications tab shows the failed count only, the order stays pending |
+| G29 | Admin push | PASS (15/15) | `php artisan shop:vapid`; status never shows the private key; the developer cannot subscribe (403) until `wholesale.view` is switched on; http endpoints → 422; push off → no job; on: a new order queues ONE job for `orders.view`, the worker handles it, an unreachable push service neither fails the job nor deletes the subscription; a wholesale request queues a job for `wholesale.view`; unsubscribe removes only the caller's browser; `public/admin-sw.js` is served |
+| G30 | Exports and abandoned carts | PASS (10/10) | orders CSV: header, one row per order (the database agrees), the status filter, audit, formula injection made harmless, developer → 403, admin without `orders.export` → 403; abandoned carts: not listed for 2 hours, then listed with name, phone, e-mail, items, value (never the token), CSV with its own audit entry, developer → 403, gone once an order was placed |
+| G31 | FULL RUN of the whole shop | PASS (28/28) | two categories + a sub-category, three products, two delivery zones, bank transfer, a 10 % discount and a coupon, a persistent cart (contact, items, coupon), COD order from the cart (total = quoted total, coupon counted), bank-transfer order with proof (private file), verify, confirm, pack, ship, deliver both, reject one and cancel one (stock back), tracking by number + phone (wrong phone = the same 404), a wholesale request handled, e-mails in the log mailer and a queued push job, dashboard revenue = database |
+| G32 | Wholesale per-IP limit | PASS (2/2) | a flood from one IP is stopped with `429` and `Retry-After` (run last: it uses the IP's hourly allowance) |
 
 ## Bugs found and fixed
 
@@ -61,10 +76,24 @@ Other ports: `FLOW_BASE`, `FLOW_BASE2` (API script) and `E2E_BASE` (browser scri
 | Phase A | (found by the new tests) a blank entry in a zone's values failed validation instead of being dropped | same test |
 | Phase A | (found while writing the dashboard test) rejected orders would have counted as revenue today | `DashboardTest::test_the_dashboard_shows_todays_orders_revenue_pending_and_low_stock` |
 | Phase A | (found by the flow run) `scripts/flow-db.php` ignored real environment variables, so a run against another database read the wrong one | the F17–F23 run on `jhkstore_flow` |
+| Phase B | (found by the video tests) `CartPricing` loaded the product without `is_sold_out`, so a sold-out product could still be quoted and ordered | `ProductExtrasTest::test_a_sold_out_product_stays_visible_but_cannot_be_ordered` |
+| Phase B | (found by the push tests) the push job asked a model for lazy loading in a way Laravel does not allow (`Model::withoutPreventingLazyLoading` is not static) and the push sender was not bound in the container: every push failed silently | `PushTest` (new order, payment proof, wholesale, cleanup) |
+| Phase B | (found by the mail tests) a mailable cannot declare `public $afterCommit = true` next to the `Queueable` trait (fatal error): the property is set in the constructor | `OrderMailTest::test_all_mailables_are_queued_after_the_commit` |
+| Phase B | (found while building the options table) the low-stock alert level of an option could be read but never saved from the product form | `ProductExtrasTest::test_the_low_stock_alert_level_of_an_option_can_be_set_in_the_form` |
+| Phase B | (found by the flow run) a queued mail remembers the mailer of the process that queued it: a worker started with another `MAIL_*` still sends through the old one; documented in NEW_CLIENT and the failing-mail check was moved to the second server | G28 |
+| Phase B | (found by the flow run) the wholesale per-IP flood left the IP blocked for an hour for the browser script; the flood now clears its own limit | G32 |
+| Phase B | (found by the browser run) a second `dialog` handler call made the script crash; handled | UI-G4 |
+
+The three Phase A review fixes have their regression tests: `BankTransferTest::test_the_order_keeps_a_snapshot_of_the_accounts_and_instructions_shown_when_it_was_placed`, `TimezoneTest` (14 tests in three non-UTC zones) and `DocsTest`.
 
 ## Found, not changed (your decision)
 
 * (Phase A) A cart is created by `GET /store/cart` without a token, so a bot can create carts at 60 a minute per IP; empty carts are removed by the daily prune after 30 days. A smaller lifetime for empty carts was not added (the spec says 30 days).
+* (Phase B) The sidebar badge counts pending orders **plus** the payment proofs waiting to be checked, so a bank order with a screenshot counts twice (the spec's wording, read literally). `orders/pending-count` also returns the two numbers apart.
+* (Phase B) Video files can only be uploaded once the product is saved (the new-product page says so); the video link can be typed at once.
+* (Phase B) The e-mails carry the store name as text, not the logo: a remote image would be a request the shop can see (the spec says no external images).
+* (Phase B) The e-mail that follows the confirmed delivery fee is governed by `mail_on_placed` (the spec has no switch for it).
+* (Phase B) A push subscription may point at any https address the browser gives: the server will POST an encrypted message there. Only logged-in admins can subscribe; there is no allow-list of push services.
 * (Phase A) A bank transfer that was verified (paid) and is then cancelled stays `paid`: the shop refunds it by hand; there is no refund module.
 * A single-option product's option name starts as a copy of the product name in the product form (by design); the public detail of such a product shows the option name as `variants[0].name` and the parent's as `product_name`.
 
@@ -73,7 +102,8 @@ Other ports: `FLOW_BASE`, `FLOW_BASE2` (API script) and `E2E_BASE` (browser scri
 * **Real parallel requests on one server.** The PHP development server handles one request at a time (and `PHP_CLI_SERVER_WORKERS` does not exist on Windows). The race therefore runs against **two server processes** on one database, which exercises the same row locks a production process pool uses. A production stack (php-fpm) was not available.
 * **The operating system's print dialog.** `window.print()` is replaced by a counter; the invoice and packing slip are verified through Chrome's print media rules and a rendered PDF.
 * **Per-IP-per-hour and per-phone-per-hour checkout limits** were not run over HTTP (they would need an hour); `SecurityTest` covers them with lowered limits. The per-minute limits, the quote limit and the per-order lookup limit were run over HTTP.
-* **Online card payments, e-mail and SMS** do not exist in this product (cash on delivery and bank transfer only, no notifications). The bank transfer is only as good as the shop's eyes on the screenshot: no bank is contacted.
+* **Online card payments and SMS** do not exist in this product (cash on delivery and bank transfer only). The bank transfer is only as good as the shop's eyes on the screenshot: no bank is contacted.
+* **A real mail server and a real push service.** E-mails were checked in the log mailer (the full message is in `laravel.log`) and against a mail server that does not exist; push was checked up to the queue job (permission, payload, cleanup) with a fake push service in PHPUnit and a fake `PushManager` in the browser. A real SMTP delivery, a real browser permission prompt and a notification on a screen need a deployed site on https.
 * **A real production file server for payment proofs.** The proofs are on the `local` disk (`storage/app/private`); a deployment must keep that folder out of the web root (the default).
 * **Production error handling.** The local `.env` has `APP_DEBUG=true`, so error answers in this run carry a trace; production behaviour (`APP_DEBUG` forced off, no trace) is covered by `SecurityTest`.
 * The browser script fills fields with native `input` events instead of key presses: in this environment headless Chrome dropped key events after a page navigation while the machine's window focus was elsewhere. Vue's `v-model` receives the same events either way.
@@ -82,4 +112,11 @@ Other ports: `FLOW_BASE`, `FLOW_BASE2` (API script) and `E2E_BASE` (browser scri
 
 * PHPUnit: **384 tests, all pass** (238 before). `npm run build` and `npm run e2e` (60 checks) pass.
 * Found in the admin panel run and fixed: the orders list sent `user_id` / `q`, which the API ignores (now `customer_id` / `search`); the delete dialog of zones and discounts stayed disabled until the list reloaded.
-* Seen, not changed: `payment.bank_accounts` of an order in the admin detail are the accounts **now** in the settings, not the ones the customer saw when ordering; a rejected or cancelled bank-transfer order keeps `proof_status = submitted`; discount and coupon `starts_at` / `ends_at` are UTC ISO strings (the panel reads them as shop time, which is only right while `APP_TIMEZONE` is UTC).
+* Seen in Phase A and **fixed in Phase B**: the accounts of an order in the admin detail were the accounts now in the settings (now a snapshot taken when the order is placed); dates were UTC strings that the panel read as shop time (now the shop offset everywhere, see `TimezoneTest` and UI-G7).
+* Seen, not changed: a rejected or cancelled bank-transfer order keeps `proof_status = submitted`.
+
+## Phase B: other results
+
+* PHPUnit: **476 tests, all pass** (384 before Phase B). `npm run build` passes and `npm run e2e` (68 checks) passes on a freshly seeded database.
+* Table count after the baseline: 46 (45 tables plus `migrations`).
+* New tests per rule: sold-out and featured switches and filters, video validation (content, size, count, poster, link), dashboard ranges and per-permission sections (in a non-UTC zone too), wholesale (validation, honeypot, per-IP and per-phone limits, customer by phone, status and CSV), mails (one queued mailable per event, switches, content without images, a broken mail server or queue never failing an order), push (recipients by permission, the developer never an order recipient, 404 / 410 cleanup, a failing push never failing an order), exports (filters, formula safety, permissions, audit), abandoned carts, the access-control matrix with every new route, the developer defaults.

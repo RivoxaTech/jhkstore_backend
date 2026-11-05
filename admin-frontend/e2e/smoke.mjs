@@ -139,13 +139,17 @@ try {
   await goto(d.page, 'nothing-here')
   check(/not found/i.test(await d.page.title()), 'an unknown address shows "not found"')
 
-  // a product row opens its edit page (route pattern regression)
-  await goto(d.page, 'products')
-  if (await d.page.$('tbody tr')) {
-    await tap(d.page, 'tbody tr:nth-child(1)')
-    await d.page.waitForSelector('#basic', { timeout: 20000 }).catch(() => {})
-    check(/\/admin\/products\/\d+\/edit$/.test(d.page.url()) && (await d.page.title()).startsWith('Edit product'), 'a product row opens the edit form')
-  } else console.log('SKIP  no products (load the DemoSeeder to check the edit form)')
+  // a product row opens its edit page (route pattern regression); on a database without products the check makes one and removes it again
+  const smokeStamp = Date.now()
+  const smokeCat = (await send('POST', 'admin/categories', { name: `Smoke ${smokeStamp}` }, devToken)).json?.data?.id
+  const smokeProduct = (await send('POST', 'admin/products', { category_id: smokeCat, name: `Smoke Item ${smokeStamp}`, sku: `SMK-${smokeStamp}`, status: 'active', variants: [{ name: 'Smoke', sku: `SMK-${smokeStamp}-V`, mrp: 10, selling_price: 9, stock: 5, is_default: true }] }, devToken)).json?.data?.id
+  await goto(d.page, `products?q=Smoke Item ${smokeStamp}`)
+  await d.page.waitForSelector('tbody tr', { timeout: 15000 })
+  await tap(d.page, 'tbody tr:nth-child(1)')
+  await d.page.waitForSelector('#basics', { timeout: 20000 })
+  check(/\/admin\/products\/\d+\/edit$/.test(d.page.url()) && (await d.page.title()).startsWith('Edit product') && (await d.page.$$('.pf-card')).length === 8, 'a product row opens the edit form (eight sections)')
+  await send('DELETE', `admin/products/${smokeProduct}`, null, devToken)
+  await send('DELETE', `admin/categories/${smokeCat}`, null, devToken)
 
   // ---- settings: seven tabs, Banners inside, links editor
   await goto(d.page, 'settings')
