@@ -24,6 +24,6 @@ onUnauthorized((path) => {
 // Public store settings (name, logo, currency): loaded once before login to label the panel.
 const site = useSiteStore()
 site.load()
-watch(() => site.name, () => updateDocumentTitle())
+watch(() => site.rawName, () => updateDocumentTitle())
 
 app.mount('#app')

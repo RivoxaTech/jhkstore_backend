@@ -56,7 +56,7 @@ router.beforeEach(async (to) => {
 export function updateDocumentTitle(route = router.currentRoute.value) {
   const site = useSiteStore()
   const page = route.meta?.title
-  document.title = `${page ? page + ' | ' : ''}${site.name} Admin`
+  document.title = `${page ? page + ' | ' : ''}${site.rawName ? site.rawName + ' ' : ''}Admin`
 }
 
 router.afterEach((to) => updateDocumentTitle(to))

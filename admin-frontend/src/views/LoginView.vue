@@ -3,11 +3,9 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CheckCircle2, Eye, EyeOff, ShieldCheck } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
-import { useSiteStore } from '@/stores/site.js'
-import StoreMark from '@/components/StoreMark.vue'
+import BrandLogo from '@/components/BrandLogo.vue'
 
 const auth = useAuthStore()
-const site = useSiteStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -41,9 +39,8 @@ async function submit() {
 <template>
   <div class="login">
     <section class="login__art" aria-hidden="true">
-      <div class="sidebar__head" style="border: 0; padding: 0; position: relative">
-        <StoreMark on-dark />
-        <div class="store-text" style="color: #fff">{{ site.name }}<small style="color: rgba(255, 255, 255, .7)">Admin</small></div>
+      <div class="sidebar__head" style="border: 0; padding: 0; position: relative; height: auto">
+        <BrandLogo on-dark large />
       </div>
       <div>
         <h2>Manage your whole store in one place.</h2>
@@ -58,6 +55,7 @@ async function submit() {
 
     <section class="login__form-side">
       <form class="login__card" novalidate @submit.prevent="submit">
+        <div class="login__brand-small"><BrandLogo /></div>
         <h1>Welcome back</h1>
         <p class="sub">Sign in to manage your store</p>
 

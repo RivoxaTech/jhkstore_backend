@@ -58,7 +58,7 @@ class AdminAccess
             'customers.export' => 'Download the customers list as CSV',
         ]],
         'settings' => ['Settings', [
-            'settings.general' => 'Settings: General (store name and contact details)',
+            'settings.general' => 'Settings: General (contact details; the store name needs the advanced permission)',
             'settings.branding' => 'Settings: Branding (logo and favicon)',
             'settings.banners' => 'Settings: Banners (create, edit, reorder, delete)',
             'settings.footer' => 'Settings: Footer & Social',

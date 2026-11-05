@@ -1,14 +1,16 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { BadgePercent, Bell, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Store, Ticket, Users } from '@lucide/vue'
+import { Activity, BadgePercent, Bell, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Store, Ticket, Users, Volume2, VolumeX } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useCatalogStore } from '@/stores/catalog.js'
 import { useSiteStore } from '@/stores/site.js'
-import StoreMark from '@/components/StoreMark.vue'
+import BrandLogo from '@/components/BrandLogo.vue'
 import PushToggle from '@/components/PushToggle.vue'
+import NotificationStatusCard from '@/components/NotificationStatusCard.vue'
 import { api } from '@/api/client.js'
+import * as chime from '@/utils/chime.js'
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -20,31 +22,95 @@ const router = useRouter()
 const query = ref('')
 const menuOpen = ref(false)
 const menuEl = ref(null)
+const statusOpen = ref(false)
+const statusEl = ref(null)
 
 // Keeps the badges fresh: pending orders + payment proofs to check (sidebar + bell) and new wholesale requests. Two light calls every 30 seconds,
-// only for what this admin may see (also the fallback when browser push is not available).
+// only for what this admin may see (also the fallback when browser push is not available). When a number goes UP while the panel is open, the
+// panel chimes and shows a toast (unless sound is muted): that is the in-panel alert, because a site cannot change the sound of a push notification.
+const seen = { orders: null, wholesale: null }
+let quietUntil = 0   // a push message just alerted: the poll that follows must not alert a second time
+
+async function announce(kind, delta) {
+  if (Date.now() < quietUntil) return
+  ui.toast(kind === 'orders' ? `${delta} new order${delta === 1 ? '' : 's'} or payment proof${delta === 1 ? '' : 's'} waiting.` : `${delta} new wholesale request${delta === 1 ? '' : 's'}.`, 'info', 6000)
+  if (!ui.soundMuted) await playChime()
+}
+
+async function playChime() {
+  const ok = await chime.play()
+  if (!ok && !ui.soundReady) ui.soundReady = false   // keeps the "click once" hint visible: the browser refused
+}
+
+function track(kind, count) {
+  if (seen[kind] !== null && count > seen[kind]) announce(kind, count - seen[kind])
+  seen[kind] = count
+}
+
 async function refreshBadges() {
   if (document.hidden) return
   if (auth.can('orders.view')) {
-    try { ui.pendingOrders = (await api.get('admin/orders/pending-count')).count ?? 0 } catch { /* the badges are optional */ }
+    try { const n = (await api.get('admin/orders/pending-count')).count ?? 0; ui.pendingOrders = n; track('orders', n) } catch { /* the badges are optional */ }
   }
   if (auth.can('wholesale.view')) {
-    try { ui.newWholesale = (await api.get('admin/wholesale/new-count')).count ?? 0 } catch { /* the badges are optional */ }
+    try { const n = (await api.get('admin/wholesale/new-count')).count ?? 0; ui.newWholesale = n; track('wholesale', n) } catch { /* the badges are optional */ }
   }
 }
 const BADGE_POLL_MS = 30000
 let timer
+
+// The service worker tells open panel tabs about a push message (so the chime plays even while the system shows its own notification),
+// and asks the panel to open the order that was clicked.
+async function onWorkerMessage(event) {
+  const m = event.data || {}
+  if (m.type === 'push') {
+    quietUntil = Date.now() + 8000
+    ui.toast([m.title, m.body].filter(Boolean).join(': '), 'info', 6000)
+    if (!ui.soundMuted) await playChime()
+    refreshBadges()
+  } else if (m.type === 'navigate' && typeof m.url === 'string' && /^\/admin\//.test(m.url)) {
+    router.push(m.url.replace(/^\/admin/, '') || '/')
+  }
+}
+
+function unlockSound() {
+  chime.unlock().then((ok) => { if (ok) ui.soundReady = true })
+  document.removeEventListener('pointerdown', unlockSound)
+  document.removeEventListener('keydown', unlockSound)
+}
+
 onMounted(() => {
   if (auth.can('products.view') || auth.can('categories.view')) catalog.load().catch(() => { /* the features fall back to the public store settings */ })
   refreshBadges()
   timer = setInterval(refreshBadges, BADGE_POLL_MS)
-  document.addEventListener('click', closeMenu)
+  document.addEventListener('click', closeMenus)
   document.addEventListener('visibilitychange', refreshBadges)
+  document.addEventListener('pointerdown', unlockSound)
+  document.addEventListener('keydown', unlockSound)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', onWorkerMessage)
+    navigator.serviceWorker.startMessages?.()
+  }
 })
-onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('click', closeMenu); document.removeEventListener('visibilitychange', refreshBadges) })
-watch(() => route.fullPath, () => { ui.mobileSidebarOpen = false; menuOpen.value = false })
+onBeforeUnmount(() => {
+  clearInterval(timer)
+  document.removeEventListener('click', closeMenus)
+  document.removeEventListener('visibilitychange', refreshBadges)
+  document.removeEventListener('pointerdown', unlockSound)
+  document.removeEventListener('keydown', unlockSound)
+  if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', onWorkerMessage)
+})
+watch(() => route.fullPath, () => { ui.mobileSidebarOpen = false; menuOpen.value = false; statusOpen.value = false })
 
-const closeMenu = (e) => { if (menuEl.value && !menuEl.value.contains(e.target)) menuOpen.value = false }
+const closeMenus = (e) => {
+  if (menuEl.value && !menuEl.value.contains(e.target)) menuOpen.value = false
+  if (statusEl.value && !statusEl.value.contains(e.target)) statusOpen.value = false
+}
+
+function toggleSound() {
+  ui.setMuted(!ui.soundMuted)
+  if (!ui.soundMuted) playChime()   // a preview, and the click that lets the browser play sound
+}
 
 function search() {
   const q = query.value.trim()
@@ -52,6 +118,32 @@ function search() {
 }
 
 const roleLabel = computed(() => ({ developer: 'Developer', admin: 'Admin' })[auth.role] || auth.role)
+const canNotify = computed(() => auth.can('orders.view') || auth.can('wholesale.view'))
+const showSoundHint = computed(() => canNotify.value && !ui.soundMuted && !ui.soundReady)
+
+// The sidebar: the same items and permissions as always, grouped under small labels. Items without permission are left out, and so is a label without items.
+const named = (...names) => (r) => names.includes(r.name)
+const NAV = [
+  { label: '', items: [{ to: 'dashboard', text: 'Dashboard', icon: LayoutDashboard, can: 'dashboard.view', on: named('dashboard') }] },
+  { label: 'Sales', items: [{ to: 'orders', text: 'Orders', icon: ShoppingBag, can: 'orders.view', on: named('orders', 'order'), badge: 'pendingOrders', testid: 'orders-badge', title: (n) => `${n} orders or payment proofs waiting` }] },
+  { label: 'Catalogue', items: [
+    { to: 'products', text: 'Products', icon: Package, can: 'products.view', on: (r) => String(r.name).startsWith('product') },
+    { to: 'categories', text: 'Categories', icon: FolderTree, can: 'categories.view', on: named('categories') },
+  ] },
+  { label: 'People', items: [
+    { to: 'customers', text: 'Customers', icon: Users, can: 'customers.view', on: named('customers') },
+    { to: 'wholesale', text: 'Wholesale', icon: Store, can: 'wholesale.view', on: named('wholesale'), badge: 'newWholesale', testid: 'wholesale-badge', title: (n) => `${n} new requests` },
+  ] },
+  { label: 'Promotions', items: [
+    { to: 'discounts', text: 'Discounts', icon: BadgePercent, can: 'discounts.view', on: named('discounts') },
+    { to: 'coupons', text: 'Coupons', icon: Ticket, can: 'coupons.view', on: named('coupons') },
+  ] },
+  { label: 'System', items: [
+    { to: 'settings', text: 'Settings', icon: Settings, can: 'settings.*', on: named('settings') },
+    { to: 'access-control', text: 'Access Control', icon: KeyRound, can: 'access.manage', on: named('access-control') },
+  ] },
+]
+const sections = computed(() => NAV.map((s) => ({ ...s, items: s.items.filter((i) => auth.can(i.can)) })).filter((s) => s.items.length))
 
 async function logout() {
   await auth.logout()
@@ -63,42 +155,16 @@ async function logout() {
   <div class="app-shell" :class="{ 'is-collapsed': ui.sidebarCollapsed, 'mobile-open': ui.mobileSidebarOpen }">
     <aside class="sidebar" aria-label="Main navigation">
       <div class="sidebar__head">
-        <StoreMark />
-        <div class="store-text">{{ site.name }}<small>Admin</small></div>
+        <BrandLogo :collapsed="ui.sidebarCollapsed" />
       </div>
       <nav class="sidebar__nav">
-        <RouterLink v-if="auth.can('dashboard.view')" :to="{ name: 'dashboard' }" class="nav-item" :class="{ 'is-active': route.name === 'dashboard' }" exact-active-class="" active-class="">
-          <LayoutDashboard :size="19" /><span>Dashboard</span>
-        </RouterLink>
-        <RouterLink v-if="auth.can('orders.view')" :to="{ name: 'orders' }" class="nav-item" :class="{ 'is-active': route.name === 'orders' || route.name === 'order' }" exact-active-class="" active-class="">
-          <ShoppingBag :size="19" /><span>Orders</span>
-          <b v-if="ui.pendingOrders" class="nav-badge" data-testid="orders-badge" :title="`${ui.pendingOrders} orders or payment proofs waiting`">{{ ui.pendingOrders }}</b>
-        </RouterLink>
-        <RouterLink v-if="auth.can('products.view')" :to="{ name: 'products' }" class="nav-item" :class="{ 'is-active': String(route.name).startsWith('product') }" exact-active-class="" active-class="">
-          <Package :size="19" /><span>Products</span>
-        </RouterLink>
-        <RouterLink v-if="auth.can('categories.view')" :to="{ name: 'categories' }" class="nav-item" :class="{ 'is-active': route.name === 'categories' }" exact-active-class="" active-class="">
-          <FolderTree :size="19" /><span>Categories</span>
-        </RouterLink>
-        <RouterLink v-if="auth.can('customers.view')" :to="{ name: 'customers' }" class="nav-item" :class="{ 'is-active': route.name === 'customers' }" exact-active-class="" active-class="">
-          <Users :size="19" /><span>Customers</span>
-        </RouterLink>
-        <RouterLink v-if="auth.can('wholesale.view')" :to="{ name: 'wholesale' }" class="nav-item" :class="{ 'is-active': route.name === 'wholesale' }" exact-active-class="" active-class="">
-          <Store :size="19" /><span>Wholesale</span>
-          <b v-if="ui.newWholesale" class="nav-badge" data-testid="wholesale-badge" :title="`${ui.newWholesale} new requests`">{{ ui.newWholesale }}</b>
-        </RouterLink>
-        <RouterLink v-if="auth.can('discounts.view')" :to="{ name: 'discounts' }" class="nav-item" :class="{ 'is-active': route.name === 'discounts' }" exact-active-class="" active-class="">
-          <BadgePercent :size="19" /><span>Discounts</span>
-        </RouterLink>
-        <RouterLink v-if="auth.can('coupons.view')" :to="{ name: 'coupons' }" class="nav-item" :class="{ 'is-active': route.name === 'coupons' }" exact-active-class="" active-class="">
-          <Ticket :size="19" /><span>Coupons</span>
-        </RouterLink>
-        <RouterLink v-if="auth.can('settings.*')" :to="{ name: 'settings' }" class="nav-item" :class="{ 'is-active': route.name === 'settings' }" exact-active-class="" active-class="">
-          <Settings :size="19" /><span>Settings</span>
-        </RouterLink>
-        <RouterLink v-if="auth.can('access.manage')" :to="{ name: 'access-control' }" class="nav-item" :class="{ 'is-active': route.name === 'access-control' }" exact-active-class="" active-class="">
-          <KeyRound :size="19" /><span>Access Control</span>
-        </RouterLink>
+        <div v-for="s in sections" :key="s.label || 'top'" class="nav-group">
+          <div v-if="s.label" class="nav-label">{{ s.label }}</div>
+          <RouterLink v-for="i in s.items" :key="i.to" :to="{ name: i.to }" class="nav-item" :class="{ 'is-active': i.on(route) }" exact-active-class="" active-class="" :title="ui.sidebarCollapsed ? i.text : undefined">
+            <component :is="i.icon" :size="18" /><span>{{ i.text }}</span>
+            <b v-if="i.badge && ui[i.badge]" class="nav-badge" :data-testid="i.testid" :title="i.title(ui[i.badge])">{{ ui[i.badge] }}</b>
+          </RouterLink>
+        </div>
       </nav>
       <div class="sidebar__foot">
         <button class="collapse-btn" type="button" :title="ui.sidebarCollapsed ? 'Expand menu' : 'Collapse menu'" :aria-label="ui.sidebarCollapsed ? 'Expand menu' : 'Collapse menu'" @click="ui.toggleSidebar()">
@@ -118,7 +184,15 @@ async function logout() {
           <Search :size="18" />
         </form>
         <div class="topbar__space" />
-        <PushToggle v-if="auth.can('orders.view') || auth.can('wholesale.view')" />
+        <span v-if="showSoundHint" class="sound-hint" data-testid="sound-hint" role="status">Click anywhere once to enable sound</span>
+        <button v-if="canNotify" class="icon-btn" type="button" data-testid="sound-toggle" :aria-pressed="!ui.soundMuted" :title="ui.soundMuted ? 'Alert sound is off. Click to turn it on.' : 'Alert sound is on. Click to mute.'" :aria-label="ui.soundMuted ? 'Turn the alert sound on' : 'Mute the alert sound'" @click="toggleSound">
+          <VolumeX v-if="ui.soundMuted" :size="17" /><Volume2 v-else :size="17" />
+        </button>
+        <PushToggle v-if="canNotify" />
+        <div v-if="canNotify" ref="statusEl" class="status-menu">
+          <button class="icon-btn" type="button" data-testid="notification-status-btn" title="Notification status" aria-label="Notification status" :aria-expanded="statusOpen" @click.stop="statusOpen = !statusOpen"><Activity :size="17" /></button>
+          <div v-if="statusOpen" class="status-pop" role="dialog" aria-label="Notification status"><NotificationStatusCard compact bare /></div>
+        </div>
         <RouterLink v-if="auth.can('orders.view')" class="icon-btn" :to="{ name: 'orders', query: { status: 'pending' } }" :title="`${ui.pendingOrders} pending orders`" aria-label="Pending orders">
           <Bell :size="17" />
           <span v-if="ui.pendingOrders" class="dot">{{ ui.pendingOrders > 99 ? '99+' : ui.pendingOrders }}</span>
@@ -144,3 +218,10 @@ async function logout() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.sound-hint { font-size: 11.5px; color: var(--primary-dark); background: var(--primary-soft); border-radius: 12px; padding: 3px 10px; white-space: nowrap; }
+.status-menu { position: relative; }
+.status-pop { position: absolute; right: -40px; top: calc(100% + 8px); width: 360px; max-width: calc(100vw - 20px); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); z-index: 50; }
+@media (max-width: 720px) { .sound-hint { display: none; } .status-pop { right: -90px; } }
+</style>
