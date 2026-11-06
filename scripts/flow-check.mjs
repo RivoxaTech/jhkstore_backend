@@ -7,6 +7,7 @@
 //   node scripts/flow-check.mjs [--fresh]
 //
 // Start both servers (and this script) with the same environment:
+//   QUOTE_PER_MINUTE=20 (optional; the quote limit check reads the limit from the answer, a lower one keeps it inside a minute on a slow machine)
 //   CHECKOUT_PER_HOUR=1000 WHOLESALE_PER_HOUR=30     the run places far more than 60 orders, and floods the wholesale form on purpose (G32)
 //   APP_URL=http://127.0.0.1:<port>                  picture and video URLs are built from it
 //   VAPID_SUBJECT / VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY   from `php artisan shop:vapid` (push checks G29, G31); on Windows set OPENSSL_CONF too
@@ -553,9 +554,13 @@ try {
   const limited429 = burst.filter((r) => r.status === 429)
   check(limited429.length >= 2 && burst.slice(0, 10).every((r) => r.status === 422), 'checkout: the 11th request within a minute is 429 (first 10 answered 422)', burst.map((r) => r.status))
   check(limited429[0]?.headers.get('retry-after'), 'the 429 carries a Retry-After header', limited429[0]?.headers.get('retry-after'))
+  // start a fresh one-minute window: quotes made earlier in the run must not straddle it (a slow machine took more than a minute for the 61 requests)
+  execFileSync('php', ['artisan', 'tinker', '--execute', "foreach (['127.0.0.1', '::1'] as $ip) { Illuminate\\Support\\Facades\\RateLimiter::clear(md5('quote'.'quote|'.$ip)); }"], { cwd: ROOT, stdio: 'ignore' })
+  // the limit is read from the first answer (60 by default; QUOTE_PER_MINUTE=20 on both servers keeps the check inside one minute on a slow machine)
   const q429 = []
-  for (let i = 0; i < 62; i++) { const r = await quote([[mugB, 1]]); q429.push(r.status); if (r.status === 429) break }
-  check(q429.at(-1) === 429 && q429.length === 61, 'quote: the 61st request within a minute is 429', `${q429.length} requests, last ${q429.at(-1)}`)
+  let quoteLimit = 60
+  for (let i = 0; i < 70; i++) { const r = await quote([[mugB, 1]]); if (i === 0) quoteLimit = Number(r.headers.get('x-ratelimit-limit')) || 60; q429.push(r.status); if (r.status === 429) break }
+  check(q429.at(-1) === 429 && q429.length === quoteLimit + 1, `quote: the ${quoteLimit + 1}st request within a minute is 429 (limit ${quoteLimit})`, `${q429.length} requests, last ${q429.at(-1)}`)
   await sleep(61000)
 
   section('C11', 'Order lookup: the right phone works; a wrong phone looks exactly like an unknown order')
