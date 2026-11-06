@@ -573,4 +573,5 @@ table.table--dense { min-width: 760px; }
 .settings .hint { line-height: 1.35; }
 
 /* the brand picture on the collapsed sidebar: a small square (BrandLogo shows the favicon there when there is one) */
-.is-collapsed .brand__logo { height: 32px; width: 32px; max-width: 32px; }
+.app-shell.is-collapsed .brand .brand__logo { height: 32px; width: 32px; max-width: 32px; }
+@media (max-width: 959px) { .app-shell.is-collapsed .brand .brand__logo { height: 30px; width: auto; max-width: 150px; } }
