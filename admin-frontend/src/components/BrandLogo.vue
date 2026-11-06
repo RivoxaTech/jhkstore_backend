@@ -34,6 +34,4 @@ watch(src, () => { broken.value = false })
 .brand__logo { height: 30px; width: auto; max-width: 150px; object-fit: contain; }
 .is-large .brand__logo { height: 52px; max-width: 220px; }
 .on-dark.has-logo { background: #fff; padding: 8px 12px; border-radius: 12px; align-self: flex-start; }
-/* collapsed sidebar: a small square, the picture centred inside it */
-:global(.is-collapsed) .brand__logo { height: 32px; width: 32px; max-width: 32px; }
 </style>

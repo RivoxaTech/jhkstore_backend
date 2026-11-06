@@ -1617,6 +1617,7 @@ try {
   const dd = await get('admin/dashboard?range=7d', D)
   check(dd.status === 200 && !('orders' in dd.json) && !JSON.stringify(dd.json).includes('comparison'), 'the developer dashboard has no order figures and no comparison')
 
+  await post('admin/push/unsubscribe', { endpoint: 'https://push.invalid/h33' }, A)   // leave no subscription behind (the browser flows count them)
   // restore
   await setSettings({ mail_enabled: false, notify_admin_email: '', push_enabled: false })
   await put('admin/access-control/developer', { permissions: [] }, D)

@@ -571,3 +571,6 @@ table.table--dense { min-width: 760px; }
 .accounts-editor .acct-row { padding: 6px 8px; gap: 8px; }
 .accounts-editor .acct-list { gap: 6px; }
 .settings .hint { line-height: 1.35; }
+
+/* the brand picture on the collapsed sidebar: a small square (BrandLogo shows the favicon there when there is one) */
+.is-collapsed .brand__logo { height: 32px; width: 32px; max-width: 32px; }

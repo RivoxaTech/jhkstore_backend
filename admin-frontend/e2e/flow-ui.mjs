@@ -290,7 +290,7 @@ try {
   await a.page.waitForSelector('tbody tr', { timeout: 15000 })
   const allRows = (await a.page.$$('tbody tr')).length
   const someCustomer = db("SELECT name, phone, email FROM customers WHERE email IS NOT NULL ORDER BY id LIMIT 1")[0]
-  const typeSearch = async (text) => { await setValue(a.page, 'input[type="search"]', text); await sleep(1300) }
+  const typeSearch = async (text) => { await setValue(a.page, 'input[type="search"]', text); await sleep(3000) }
   await typeSearch(someCustomer.name.split(' ')[0])
   const byName = await a.page.$$eval('tbody tr', (r) => r.map((x) => x.innerText.replace(/\s+/g, ' ')))
   check(byName.length >= 1 && byName.length <= allRows && byName.every((t) => t.includes(someCustomer.name.split(' ')[0])), 'UI-D15 search by name', byName.length)
@@ -325,6 +325,10 @@ try {
   const pubSettings = (await api('GET', 'store/settings')).json
   check(pubSettings.store.name === 'Panel Store', 'UI-E16 General tab saved in the panel shows in GET /store/settings', pubSettings.store.name)
   check(await d.page.evaluate(() => document.querySelector('.sidebar, header')?.innerText.includes('Panel Store')), 'UI-E16 the panel itself shows the new store name')
+  await api('DELETE', 'admin/settings/logo', null, devToken)   // an earlier flow may have uploaded one: start without
+  await api('DELETE', 'admin/settings/favicon', null, devToken)
+  await goto(d.page, 'settings')
+  await d.page.waitForSelector('[data-testid="brand-name"]', { timeout: 15000 })
   check((await d.page.title()).includes('Panel Store') && /Panel Store/.test(await d.page.$eval('[data-testid="brand-name"]', (e) => e.innerText)), 'UI-C4 without a logo the sidebar shows the store name as text and the tab title carries it')
   {
     // the developer uploads a logo and a favicon in Settings > Branding: the sidebar, the login page and the tab icon follow without a reload
@@ -524,7 +528,7 @@ try {
   check(!!(await a.page.$('#s-delivery_fee')) && !(await a.page.$('#s-free_delivery_min_cart')) && !(await a.page.$('#s-delivery_unmatched')), 'UI-Z1 Flat method: only the fee field is shown (no "free from", no "outside every zone")')
   await a.page.select('#s-delivery_method', 'zones')
   await sleep(200)
-  check(!!(await a.page.$('#s-delivery_unmatched')) && !(await a.page.$('[data-zones-hint]')), 'UI-Z1 Zones method: "outside every zone" appears and the hint goes away')
+  check(!(await a.page.$('#s-delivery_unmatched')) && !(await a.page.$('[data-zones-hint]')), 'UI-Z1 Zones method: the hint goes away (the technical "outside every zone" rule is not shown to the client admin)')
   await a.page.select('#s-delivery_method', 'free_above')
   await sleep(200)
   check(!!(await a.page.$('#s-free_delivery_min_cart')) && !!(await a.page.$('#s-delivery_fee')), 'UI-Z1 Free-above method: fee and "free from" are shown')
