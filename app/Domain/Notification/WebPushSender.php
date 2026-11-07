@@ -23,7 +23,7 @@ class WebPushSender implements PushSender
     {
         $this->lastError = null;
         $vapid = config('webpush.vapid');
-        $push = new WebPush(['VAPID' => ['subject' => $vapid['subject'], 'publicKey' => $vapid['public_key'], 'privateKey' => $vapid['private_key']]], ['TTL' => 3600], 10);
+        $push = new WebPush(['VAPID' => ['subject' => $vapid['subject'], 'publicKey' => $vapid['public_key'], 'privateKey' => $vapid['private_key']]], ['TTL' => 3600], new \GuzzleHttp\Client(['timeout' => 10]));   // web-push 11: the third argument is a PSR-18 client, the timeout lives on it
         $report = $push->sendOneNotification(Subscription::create([
             'endpoint' => $subscription['endpoint'], 'keys' => ['p256dh' => $subscription['p256dh'], 'auth' => $subscription['auth']],
         ]), $payload);
