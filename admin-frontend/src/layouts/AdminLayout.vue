@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Activity, BadgePercent, Bell, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Store, Ticket, Users, Volume2, VolumeX } from '@lucide/vue'
+import { Activity, BadgePercent, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Store, Ticket, Users, Volume2, VolumeX } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useCatalogStore } from '@/stores/catalog.js'
@@ -193,10 +193,6 @@ async function logout() {
           <button class="icon-btn" type="button" data-testid="notification-status-btn" title="Notification status" aria-label="Notification status" :aria-expanded="statusOpen" @click.stop="statusOpen = !statusOpen"><Activity :size="17" /></button>
           <div v-if="statusOpen" class="status-pop" role="dialog" aria-label="Notification status"><NotificationStatusCard compact bare /></div>
         </div>
-        <RouterLink v-if="auth.can('orders.view')" class="icon-btn" :to="{ name: 'orders', query: { status: 'pending' } }" :title="`${ui.pendingOrders} pending orders`" aria-label="Pending orders">
-          <Bell :size="17" />
-          <span v-if="ui.pendingOrders" class="dot">{{ ui.pendingOrders > 99 ? '99+' : ui.pendingOrders }}</span>
-        </RouterLink>
         <div ref="menuEl" class="user-menu">
           <button class="user-btn" type="button" aria-haspopup="menu" :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen">
             <span class="avatar">{{ auth.initials }}</span>

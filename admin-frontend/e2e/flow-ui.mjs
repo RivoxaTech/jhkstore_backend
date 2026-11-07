@@ -766,7 +766,7 @@ try {
   await goto(a.page, '')
   await waitVal(a.page, '[data-kpi="revenue"]')
   const kpiCards = await a.page.$$eval('[data-kpi]', (els) => els.map((e) => e.dataset.kpi))
-  check(['revenue', 'orders', 'aov', 'pending', 'proof', 'wholesale'].every((k) => kpiCards.includes(k)), 'UI-G1 the admin dashboard shows the soft KPI cards (revenue, orders, average order, pending, awaiting proof, new wholesale)', kpiCards)
+  check(JSON.stringify(kpiCards) === JSON.stringify(['revenue', 'orders', 'aov', 'pending']), 'UI-G1 the admin dashboard shows exactly four soft KPI cards (revenue, orders, average order, pending)', kpiCards)
   check(/Pending \D*[\d.,]+/.test(await textOf(a.page, '[data-kpi="revenue"]')) && /^Welcome back/.test(await textOf(a.page, '.dash-head h1')), 'UI-C5 the revenue card shows the pending amount underneath, and the welcome line greets the user')
   const tabsDash = await a.page.$$eval('.dash-tabs [role="tab"]', (els) => els.map((e) => e.innerText.trim()))
   check(JSON.stringify(tabsDash) === JSON.stringify(['Today', '7 days', '30 days', 'This month', 'All time']), 'UI-G1 the date tabs: Today, 7 days, 30 days, This month, All time', tabsDash)

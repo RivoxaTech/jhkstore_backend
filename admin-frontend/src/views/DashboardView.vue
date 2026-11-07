@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { Activity, ArrowDownRight, ArrowUpRight, CircleDollarSign, Clock, ImageUp, PackageSearch, Plus, ReceiptText, ShoppingBag, Store, TrendingUp, Users, Wallet } from '@lucide/vue'
+import { Activity, ArrowDownRight, ArrowUpRight, Clock, PackageSearch, Plus, ReceiptText, ShoppingBag, TrendingUp, Wallet } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { api } from '@/api/client.js'
 import RevenueChart from '@/components/RevenueChart.vue'
@@ -67,12 +67,10 @@ const cards = computed(() => {
       { id: 'orders', label: 'Total orders', value: k.total_orders, under: 'Placed in this period', change: change('total_orders'), icon: ShoppingBag, tint: 'green', to: { name: 'orders', query: fromQuery.value } },
       { id: 'aov', label: 'Average order value', value: money(k.average_order_value), under: 'Revenue per order', change: change('average_order_value', money), icon: ReceiptText, tint: 'blue', to: { name: 'orders', query: fromQuery.value } },
       { id: 'pending', label: 'Pending orders', value: k.pending_count, under: 'Waiting to be confirmed', icon: Clock, tint: 'mint', to: { name: 'orders', query: { status: 'pending', ...fromQuery.value } } },
-      { id: 'proof', label: 'Awaiting payment proof', value: k.awaiting_proof_count, under: 'Bank transfers without a screenshot', icon: ImageUp, tint: 'pink', to: { name: 'orders', query: { status: 'pending', payment_method: 'bank_transfer', ...fromQuery.value } } },
     )
   }
-  if (data.value?.wholesale) list.push({ id: 'wholesale', label: 'New wholesale requests', value: data.value.wholesale.new, under: 'Nobody has answered yet', icon: Store, tint: 'lavender', to: { name: 'wholesale' } })
-  if (data.value?.customers) list.push({ id: 'customers', label: 'New customers', value: data.value.customers.new, under: 'In this period', icon: Users, tint: 'sky', to: { name: 'customers' } })
-  if (catalog.value) list.push({ id: 'low-stock', label: 'Low stock', value: catalog.value.low_stock, under: 'Options at or below their alert level', icon: PackageSearch, tint: 'pink', to: { name: 'products', query: { stock: 'low' } } })
+  // four cards for the orders (the sidebar badges already show pending orders and new wholesale requests); the developer, who has no orders, gets the low-stock card
+  if (!k && catalog.value) list.push({ id: 'low-stock', label: 'Low stock', value: catalog.value.low_stock, under: 'Options at or below their alert level', icon: PackageSearch, tint: 'pink', to: { name: 'products', query: { stock: 'low' } } })
   return list
 })
 
@@ -106,7 +104,7 @@ function describe(a) {
 
   <div v-if="cards.length || (loading && !data)" class="kpis" aria-label="Overview" data-testid="kpis">
     <template v-if="loading && !data">
-      <div v-for="n in 5" :key="n" class="kpi kpi--skeleton"><div class="skeleton" style="width: 60%; height: 12px" /><div class="skeleton" style="width: 80%; height: 26px; margin-top: 10px" /><div class="skeleton" style="width: 50%; height: 16px; margin-top: 12px" /></div>
+      <div v-for="n in 4" :key="n" class="kpi kpi--skeleton"><div class="skeleton" style="width: 60%; height: 12px" /><div class="skeleton" style="width: 80%; height: 26px; margin-top: 10px" /><div class="skeleton" style="width: 50%; height: 16px; margin-top: 12px" /></div>
     </template>
     <RouterLink v-for="s in cards" v-else :key="s.id" :to="s.to" class="kpi" :class="`kpi--${s.tint}`" :data-kpi="s.id" :style="{ opacity: loading ? 0.6 : 1 }">
       <div class="kpi__top"><span class="kpi__label">{{ s.label }}</span><component :is="s.icon" :size="16" class="kpi__icon" /></div>
