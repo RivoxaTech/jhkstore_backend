@@ -1,7 +1,7 @@
 // Browser smoke test of the admin panel (headless Chrome through puppeteer-core).
 //
-//   1. start the API on a freshly seeded database:  php artisan migrate:fresh --seed && php artisan db:seed --class=DemoSeeder && php artisan serve
-//   2. build the panel:                             npm run build
+//   1. start the API on a freshly seeded database:  cd backend && php artisan migrate:fresh --seed && php artisan db:seed --class=DemoSeeder && php artisan serve --port=8002
+//   2. build the panel:                             cd ../admin-frontend && npm run build
 //   3. run:                                         npm run e2e
 //
 // Environment: E2E_BASE (default http://127.0.0.1:8000), E2E_ADMIN_USER / E2E_ADMIN_PASSWORD (default admin / admin), E2E_DEV_USER / E2E_DEV_PASSWORD
@@ -13,7 +13,7 @@
 import puppeteer from 'puppeteer-core'
 import fs from 'node:fs'
 
-const BASE = process.env.E2E_BASE || 'http://127.0.0.1:8000'
+const BASE = process.env.E2E_BASE || 'http://127.0.0.1:8002'
 const ADMIN = [process.env.E2E_ADMIN_USER || 'admin', process.env.E2E_ADMIN_PASSWORD || 'admin']
 const DEV = [process.env.E2E_DEV_USER || 'developer', process.env.E2E_DEV_PASSWORD || 'developer']
 const CHROME = process.env.CHROME_PATH || ['C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => fs.existsSync(p))

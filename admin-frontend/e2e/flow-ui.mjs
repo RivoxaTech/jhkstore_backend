@@ -1,8 +1,8 @@
 // Browser side of the flow check (headless Chrome through puppeteer-core): the admin screens driven like a person would, on the REAL app.
 //
-//   php artisan migrate:fresh --seed && php artisan serve          (and run `node scripts/flow-check.mjs` first: it leaves orders to work on;
+//   cd backend && php artisan migrate:fresh --seed && php artisan serve --port=8002   (and run `node scripts/flow-check.mjs` first: it leaves orders to work on;
 //                                                                    without them this script places a few itself)
-//   npm run build                                                  (admin panel -> public/admin-assets)
+//   cd admin-frontend && npm run build                             (admin panel -> backend/public/admin-assets)
 //   npm run flow-ui
 //
 // Environment: E2E_BASE (default http://127.0.0.1:8000), E2E_ADMIN_USER / E2E_ADMIN_PASSWORD, E2E_DEV_USER / E2E_DEV_PASSWORD, CHROME_PATH.
@@ -20,8 +20,9 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const ROOT = path.resolve(HERE, '..', '..')
-const BASE = process.env.E2E_BASE || 'http://127.0.0.1:8000'
+const REPO = path.resolve(HERE, '..', '..')
+const ROOT = path.join(REPO, 'backend')   // the Laravel app: php artisan runs here
+const BASE = process.env.E2E_BASE || 'http://127.0.0.1:8002'
 const ADMIN = [process.env.E2E_ADMIN_USER || 'admin', process.env.E2E_ADMIN_PASSWORD || 'admin']
 const DEV = [process.env.E2E_DEV_USER || 'developer', process.env.E2E_DEV_PASSWORD || 'developer']
 const CHROME = process.env.CHROME_PATH || ['C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => fs.existsSync(p))
@@ -32,7 +33,7 @@ const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'order
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0
 const check = (ok, label, actual) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${actual === undefined ? '' : `  -> ${typeof actual === 'string' ? actual : JSON.stringify(actual)}`}`); if (!ok) failures++ }
-const db = (sql) => JSON.parse(execFileSync('php', [path.join(ROOT, 'scripts', 'flow-db.php'), sql], { cwd: ROOT, encoding: 'utf8' }))
+const db = (sql) => JSON.parse(execFileSync('php', [path.join(REPO, 'scripts', 'flow-db.php'), sql], { cwd: ROOT, encoding: 'utf8' }))
 
 // a flat PNG for the file inputs
 function crc32(buf) { let c = 0xffffffff; for (const b of buf) { c ^= b; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1 } return (c ^ 0xffffffff) >>> 0 }

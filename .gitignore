@@ -1,0 +1,12 @@
+# Root ignore file. Each folder has its own: backend/.gitignore (vendor, .env, storage, the built admin panel), admin-frontend/.gitignore,
+# frontend/.gitignore. This one catches what could appear anywhere.
+.env
+.env.*
+!.env.example
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+/shots/

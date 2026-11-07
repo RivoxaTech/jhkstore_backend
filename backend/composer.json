@@ -42,8 +42,7 @@
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
             "@php artisan key:generate",
             "@php artisan migrate --force",
-            "npm install --ignore-scripts",
-            "npm run build"
+            "@php -r \"echo 'Now build the admin panel: cd ../admin-frontend && npm install && npm run build', PHP_EOL;\""
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",

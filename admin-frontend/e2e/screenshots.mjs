@@ -1,7 +1,7 @@
 // Headless-Chrome screenshots of the admin panel for a visual check (Dashboard, Settings tab by tab as the developer and as the admin, Notifications,
 // Access Control, Orders, a collapsed sidebar and a phone width). Nothing is asserted: look at the pictures.
 //
-//   php artisan migrate:fresh --seed && php artisan db:seed --class=DemoSeeder && php artisan serve --port=8002
+//   cd backend && php artisan migrate:fresh --seed && php artisan db:seed --class=DemoSeeder && php artisan serve --port=8002
 //   E2E_BASE=http://127.0.0.1:8002 SHOTS_DIR=some/folder node e2e/screenshots.mjs
 //
 // It places a few orders through the storefront API (so the dashboard has numbers), uploads a logo with the developer, and writes PNG files.
@@ -10,7 +10,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
 
-const BASE = process.env.E2E_BASE || 'http://127.0.0.1:8000'
+const BASE = process.env.E2E_BASE || 'http://127.0.0.1:8002'
 const OUT = process.env.SHOTS_DIR || path.join(process.cwd(), 'shots')
 const ADMIN = [process.env.E2E_ADMIN_USER || 'admin', process.env.E2E_ADMIN_PASSWORD || 'admin']
 const DEV = [process.env.E2E_DEV_USER || 'developer', process.env.E2E_DEV_PASSWORD || 'developer']

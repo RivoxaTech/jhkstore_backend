@@ -1,10 +1,11 @@
 // End-to-end flow check of the REAL app over real HTTP (no test database, no mocks).
 //
+// (run these from backend/: cd backend)
 //   php artisan migrate:fresh --seed        (base seeder only; or pass --fresh to let this script do it)
 //   php artisan serve --port=8002           (the real server; use a port other than 8000 if another project uses it)
 //   php artisan serve --port=8003           (a SECOND server process: the "last unit" race needs two real PHP processes, because the
 //                                            PHP development server handles one request at a time)
-//   node scripts/flow-check.mjs [--fresh]
+//   node scripts/flow-check.mjs [--fresh]      (from the repository root)
 //
 // Start both servers (and this script) with the same environment:
 //   QUOTE_PER_MINUTE=20 (optional; the quote limit check reads the limit from the answer, a lower one keeps it inside a minute on a slow machine)
@@ -29,9 +30,10 @@ import zlib from 'node:zlib'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const BASE = process.env.FLOW_BASE || 'http://127.0.0.1:8000'
-const BASE2 = process.env.FLOW_BASE2 || 'http://127.0.0.1:8001'
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const ROOT = path.join(REPO, 'backend')   // the Laravel app: php artisan runs here, the log is here
+const BASE = process.env.FLOW_BASE || 'http://127.0.0.1:8002'
+const BASE2 = process.env.FLOW_BASE2 || 'http://127.0.0.1:8003'
 const DEV = [process.env.FLOW_DEV_USER || 'developer', process.env.FLOW_DEV_PASSWORD || 'developer']
 const ADM = [process.env.FLOW_ADMIN_USER || 'admin', process.env.FLOW_ADMIN_PASSWORD || 'admin']
 const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'settings.website', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
@@ -65,7 +67,7 @@ const del = (route, token) => call('DELETE', route, { token })
 const idOf = (r) => r.json?.data?.id ?? r.json?.id
 
 function db(sql) {
-  return JSON.parse(execFileSync('php', [path.join(ROOT, 'scripts', 'flow-db.php'), sql], { cwd: ROOT, encoding: 'utf8' }))
+  return JSON.parse(execFileSync('php', [path.join(REPO, 'scripts', 'flow-db.php'), sql], { cwd: ROOT, encoding: 'utf8' }))
 }
 const dbOne = (sql) => db(sql)[0]
 

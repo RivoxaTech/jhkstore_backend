@@ -5,9 +5,9 @@
 |   php scripts/flow-db.php "SELECT id, status FROM orders WHERE id = 1"
 */
 
-require __DIR__.'/../vendor/autoload.php';
+require __DIR__.'/../backend/vendor/autoload.php';
 
-Dotenv\Dotenv::createImmutable(dirname(__DIR__))->safeLoad();
+Dotenv\Dotenv::createImmutable(dirname(__DIR__).'/backend')->safeLoad();
 
 // a real environment variable wins over .env (so the run can point at another database: DB_DATABASE=... node scripts/flow-check.mjs)
 $env = fn (string $key, string $default = '') => getenv($key) !== false ? (string) getenv($key) : (string) ($_ENV[$key] ?? $default);
