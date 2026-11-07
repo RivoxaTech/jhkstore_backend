@@ -21,8 +21,10 @@ class StoreProductResource extends StoreProductCardResource
     {
         $images = collect(ProductImages::all($this->resource))->map(fn ($i) => [
             'variant_id' => $i['variant_id'], 'url' => $i['url'], 'medium_url' => $i['medium_url'], 'thumb_url' => $i['thumb_url'], 'is_primary' => $i['is_primary'],
+            'width' => $i['width'], 'height' => $i['height'], 'medium_width' => $i['medium_width'], 'medium_height' => $i['medium_height'],
         ]);
-        $strip = fn ($list) => $list->map(fn ($i) => ['url' => $i['url'], 'medium_url' => $i['medium_url'], 'thumb_url' => $i['thumb_url'], 'is_primary' => $i['is_primary']])->values();
+        $strip = fn ($list) => $list->map(fn ($i) => ['url' => $i['url'], 'medium_url' => $i['medium_url'], 'thumb_url' => $i['thumb_url'], 'is_primary' => $i['is_primary'],
+            'width' => $i['width'], 'height' => $i['height'], 'medium_width' => $i['medium_width'], 'medium_height' => $i['medium_height']])->values();
 
         $card = parent::toArray($request);
         $days = (int) app(Settings::class)->get('delivery_days');
@@ -43,6 +45,18 @@ class StoreProductResource extends StoreProductCardResource
             ],
             'meta_title' => $this->meta_title,
             'meta_description' => $this->meta_description,
+            // what a page title / description / share picture should be: the product's own SEO fields, else its name / short description / picture, else the store defaults
+            'seo' => [
+                'title' => $this->meta_title ?: $this->name,
+                'description' => $this->meta_description ?: ($this->short_description ?: (string) app(Settings::class)->get('seo_meta_description')),
+                'image_url' => $card['image_url'] ?? app(Settings::class)->fileUrl('seo_share_image'),
+            ],
+            // category > sub-category > product, as slugs (the storefront builds its own URLs and adds "Home")
+            'breadcrumbs' => array_values(array_filter([
+                ['type' => 'category', 'name' => $this->category->name, 'slug' => $this->category->slug],
+                $this->subCategory ? ['type' => 'sub_category', 'name' => $this->subCategory->name, 'slug' => $this->subCategory->slug, 'category_slug' => $this->category->slug] : null,
+                ['type' => 'product', 'name' => $this->name, 'slug' => $this->slug],
+            ])),
             'content_tabs' => $this->contentTabs->map(fn (ProductContentTab $t) => [
                 'key' => $t->tab_key, 'title' => $t->label(), 'format' => $t->format, 'content' => $t->content, 'manual_url' => $t->manual_url,
             ])->values(),

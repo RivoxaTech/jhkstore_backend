@@ -103,6 +103,9 @@ class AppServiceProvider extends ServiceProvider
         // The test push button: a handful a minute.
         RateLimiter::for('test-push', fn (Request $request) => Limit::perMinute(5)->by('test-push|'.$request->user()?->getAuthIdentifier()));
 
+        // The rebuild button: a call to the hosting, so a few a minute.
+        RateLimiter::for('rebuild', fn (Request $request) => Limit::perMinute(5)->by('rebuild|'.$request->user()?->getAuthIdentifier()));
+
         // The test e-mail button: a handful a minute.
         RateLimiter::for('test-email', fn (Request $request) => Limit::perMinute(5)->by('test-email|'.$request->user()?->getAuthIdentifier()));
 

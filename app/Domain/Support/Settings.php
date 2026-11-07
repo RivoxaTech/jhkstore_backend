@@ -4,8 +4,10 @@ namespace App\Domain\Support;
 
 use App\Domain\Support\Models\Setting;
 use App\Support\MediaUrl;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
@@ -14,7 +16,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  * Every setting is declared in DEFINITIONS with its group, type, default and label, so a missing row falls back to the default,
  * the admin Settings page can be built from the list, and writes are validated by type. Client values (store name, currency, tax, …)
  * live here, not in code. *
- * Types: string | text | bool | int | money | percent | file | links | accounts | color | choice
+ * Types: string | text | bool | int | money | percent | file | links | accounts | color | choice | secret
+ *  - `secret` a value stored ENCRYPTED that no API ever returns (the admin API only says whether it is set); `get()` decrypts for server-side use
  *  - `file`  a picture owned by the setting's row (medialibrary); the value is the media id, uploaded through the admin endpoints
  *  - `links` a JSON list of {platform, label, url, active}; the order of the list is the display order
  *  - `accounts` a JSON list of {bank, title, number, iban, active} (bank transfer accounts); the order of the list is the display order
@@ -53,6 +56,7 @@ class Settings
         'store_name', 'store_tagline', 'store_country', 'default_phone_country_code',
         'delivery_days', 'delivery_unmatched',
         'mail_from_name', 'mail_reply_to', 'notify_admin_email', 'storefront_track_url',
+        'rebuild_hook_url', 'rebuild_hook_secret', 'rebuild_debounce_seconds',
     ];
 
     /** Every setting of these groups is `advanced` (branding, footer and agency credit, SEO, currency, tax, order numbers and the cash limit, theme). */
@@ -172,6 +176,12 @@ class Settings
         'theme_radius' => ['theme', 'choice', '8px', 'Corner radius'],
         'theme_shadow' => ['theme', 'choice', 'soft', 'Shadow'],
 
+        // --- website: the rebuild of the static storefront (docs/NEW_CLIENT.md). Not public: the storefront never sees these.
+        'rebuild_enabled' => ['website', 'bool', false, 'Rebuild the website automatically', 'On: a change that customers can see (products, categories, banners, theme, ...) asks the hosting to rebuild the website, about two minutes after the last change.'],
+        'rebuild_hook_url' => ['website', 'string', '', 'Rebuild hook address', 'The deploy hook of the hosting (https only), e.g. the Cloudflare Pages deploy hook. It is called with an empty POST.'],
+        'rebuild_hook_secret' => ['website', 'secret', '', 'Rebuild hook secret', 'Optional. Sent as the header X-Rebuild-Secret. Stored encrypted; it is never shown again, only whether it is set.'],
+        'rebuild_debounce_seconds' => ['website', 'int', 120, 'Wait after the last change (seconds)', 'Edits made within this time cause a single rebuild.', 10, 3600],
+
     ];
 
     /** @var array<string,mixed>|null per-request copy of the stored values */
@@ -197,12 +207,20 @@ class Settings
         return array_key_exists($key, $stored) ? $this->cast($def[1], $stored[$key]) : $def[2];
     }
 
-    /** @return array<string,mixed> every setting, typed, by key */
+    /** Is a `secret` setting set? (the only thing an API may say about it) */
+    public function isSet(string $key): bool
+    {
+        return (string) $this->get($key) !== '';
+    }
+
+    /** @return array<string,mixed> every setting except the secrets, typed, by key */
     public function all(): array
     {
         $out = [];
-        foreach (array_keys(self::DEFINITIONS) as $key) {
-            $out[$key] = $this->get($key);
+        foreach (self::DEFINITIONS as $key => $def) {
+            if ($def[1] !== 'secret') {   // a secret is never part of a list: ask for it with get() where it is used, or isSet() to know whether it exists
+                $out[$key] = $this->get($key);
+            }
         }
 
         return $out;
@@ -216,7 +234,7 @@ class Settings
                 continue;
             }
             [$group, $type] = self::DEFINITIONS[$key];
-            Setting::query()->updateOrCreate(['key' => $key], ['group_key' => $group, 'value' => $this->cast($type, $value)]);
+            Setting::query()->updateOrCreate(['key' => $key], ['group_key' => $group, 'value' => $type === 'secret' ? $this->encryptSecret($value) : $this->cast($type, $value)]);
         }
         $this->flush();
     }
@@ -339,6 +357,9 @@ class Settings
             if ($key === 'storefront_track_url') {
                 $out["$key.url"] = 'Enter a full web address starting with https://.';
             }
+            if ($key === 'rebuild_hook_url') {
+                $out["$key.url"] = 'Enter a full web address starting with https://.';
+            }
             if ($key === 'agency_url') {
                 $out["$key.url"] = 'Enter a full web address starting with https://.';
             }
@@ -373,6 +394,7 @@ class Settings
                 'file' => ['prohibited'],                      // only through the upload endpoints
                 'links', 'accounts' => ['present', 'array'],
                 'color' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'secret' => ['nullable', 'string', 'max:200'],
                 'choice' => ['required', 'string', 'in:'.implode(',', self::CHOICES[$key])],
                 default => ['nullable', 'string', 'max:255'],
             };
@@ -412,6 +434,7 @@ class Settings
             'mail_reply_to' => ['nullable', 'email', 'max:190'],
             'notify_admin_email' => ['nullable', 'email', 'max:190'],
             'storefront_track_url' => ['nullable', 'url:http,https', 'max:255'],
+            'rebuild_hook_url' => ['nullable', 'url:https', 'max:500'],
         ];
 
         return array_intersect_key($overrides, $rules) + $rules;
@@ -481,12 +504,33 @@ class Settings
     {
         return match ($type) {
             'links' => $this->castLinks($value),
+            'secret' => $this->castSecret($value),
             'accounts' => $this->accountsFrom($value),
             'bool' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
             'int' => (int) $value,
             'money', 'percent' => round((float) $value, 2),
             default => $value === null ? '' : (string) $value,
         };
+    }
+
+    private function encryptSecret(mixed $value): string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? '' : Crypt::encryptString($value);
+    }
+
+    /** Decrypts a stored secret; a value that cannot be decrypted (the APP_KEY changed) counts as not set. */
+    private function castSecret(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+        try {
+            return Crypt::decryptString((string) $value);
+        } catch (DecryptException) {
+            return '';
+        }
     }
 
     /** Keeps only well-formed rows (a bank name and an account number or an IBAN), in the given order. */

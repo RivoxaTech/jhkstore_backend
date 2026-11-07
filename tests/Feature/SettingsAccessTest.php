@@ -42,9 +42,10 @@ class SettingsAccessTest extends TestCase
         $client = ['store_email', 'store_phone', 'store_address', 'support_hours', 'whatsapp_number', 'store_open', 'store_closed_message', 'checkout_notice', 'delivery_eta_text',
             'delivery_method', 'delivery_fee', 'free_delivery_min_cart', 'min_order_amount', 'pay_cod_enabled', 'pay_bank_enabled', 'pay_card_visible', 'pay_bank_instructions', 'pay_bank_accounts',
             'mail_enabled', 'mail_on_placed', 'mail_on_confirmed', 'mail_on_shipped', 'mail_on_delivered', 'mail_on_cancelled', 'mail_on_payment_proof_rejected', 'mail_on_fee_confirmed',
-            'owner_mail_on_placed', 'owner_mail_on_proof', 'owner_mail_on_wholesale', 'push_enabled', 'push_on_placed', 'push_on_proof', 'push_on_wholesale'];
+            'owner_mail_on_placed', 'owner_mail_on_proof', 'owner_mail_on_wholesale', 'push_enabled', 'push_on_placed', 'push_on_proof', 'push_on_wholesale', 'rebuild_enabled'];
         $advanced = ['store_name', 'store_tagline', 'store_country', 'default_phone_country_code', 'order_number_prefix', 'cod_max_amount', 'currency_code', 'currency_symbol', 'currency_decimals',
             'tax_rate', 'tax_inclusive', 'tax_label', 'delivery_unmatched', 'delivery_days', 'mail_from_name', 'mail_reply_to', 'notify_admin_email', 'storefront_track_url',
+            'rebuild_hook_url', 'rebuild_hook_secret', 'rebuild_debounce_seconds',
             'social_links', 'footer_text', 'footer_copyright', 'agency_name', 'agency_url', 'seo_meta_title', 'seo_meta_description', 'seo_share_image', 'store_logo', 'store_favicon'];
 
         foreach ($client as $key) {
@@ -76,7 +77,7 @@ class SettingsAccessTest extends TestCase
         foreach (['settings.footer', 'settings.branding', 'settings.banners', 'settings.seo', 'settings.currency_tax', 'settings.orders_delivery', 'settings.theme'] as $off) {
             $this->assertNotContains($off, AdminAccess::ADMIN_DEFAULTS);
         }
-        foreach (['settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications'] as $on) {
+        foreach (['settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'settings.website'] as $on) {
             $this->assertContains($on, AdminAccess::ADMIN_DEFAULTS);
         }
         $this->seed(DatabaseSeeder::class);

@@ -52,8 +52,8 @@ class SettingsTest extends TestCase
         $this->asAdmin();
 
         $res = $this->getJson(self::ADMIN.'/settings')->assertOk();
-        $this->assertSame(['general', 'branding', 'banners', 'footer', 'currency_tax', 'orders_delivery', 'delivery', 'payments', 'store', 'notifications', 'seo'], array_column($res->json('tabs'), 'key'));   // no Theme: it is the developer's
-        $this->assertSame(['General', 'Branding', 'Banners', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'Delivery', 'Payments', 'Store', 'Notifications', 'SEO'], array_column($res->json('tabs'), 'label'));
+        $this->assertSame(['general', 'branding', 'banners', 'footer', 'currency_tax', 'orders_delivery', 'delivery', 'payments', 'store', 'notifications', 'seo', 'website'], array_column($res->json('tabs'), 'key'));   // no Theme: it is the developer's
+        $this->assertSame(['General', 'Branding', 'Banners', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'Delivery', 'Payments', 'Store', 'Notifications', 'SEO', 'Website'], array_column($res->json('tabs'), 'label'));
         $this->assertSame(['currency', 'tax'], array_column($res->json('tabs.4.sections'), 'key'));
         $res->assertJsonPath('values.delivery_fee', 300)->assertJsonPath('values.currency_symbol', '$');
         $this->assertSame([], $res->json('tabs.2.sections'));   // Banners: managed through the banner endpoints

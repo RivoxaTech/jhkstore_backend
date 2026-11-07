@@ -19,6 +19,9 @@ class StoreCategoryResource extends JsonResource
             'is_top' => $this->is_top,
             'icon_url' => MediaUrl::of($this->resource, 'icon'),
             'image_url' => MediaUrl::of($this->resource, 'image'),
+            'meta_title' => $this->meta_title,                  // own SEO fields (the storefront falls back to the store defaults)
+            'meta_description' => $this->meta_description,
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 }

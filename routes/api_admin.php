@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\PushController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\SubCategoryController;
 use App\Http\Controllers\Admin\TagController;
+use App\Http\Controllers\Admin\WebsiteController;
 use App\Http\Controllers\Admin\WholesaleController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,7 +31,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 // `admin` = session cookie (admin panel), `sanctum` = bearer token (Postman / scripts)
-Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->group(function () {
+Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin', 'storefront.changes'])->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('auth/me', [AuthController::class, 'me']);
 
@@ -182,9 +183,15 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin'])->grou
         Route::get('test/{id}', [PushController::class, 'testResult'])->where('id', '[A-Za-z0-9]{8,40}');
     });
 
+    // The Website tab: the rebuild of the static storefront (status and the button; the hook address and secret are advanced settings)
+    Route::middleware('admin.can:settings.website')->prefix('website')->group(function () {
+        Route::get('status', [WebsiteController::class, 'status']);
+        Route::post('rebuild', [WebsiteController::class, 'rebuild'])->middleware('throttle:rebuild');
+    });
+
     // Settings: each tab has its own permission (settings.<tab>); the controller checks it per key, here any tab opens the page
-    Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.general,settings.branding,settings.banners,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications');
-    Route::put('settings', [SettingController::class, 'update'])->middleware('admin.can:settings.general,settings.branding,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications');
+    Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.general,settings.branding,settings.banners,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications,settings.website');
+    Route::put('settings', [SettingController::class, 'update'])->middleware('admin.can:settings.general,settings.branding,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications,settings.website');
     // pictures: logo, favicon (Branding tab) and share-image (SEO tab); the controller checks the tab of the picture
     Route::post('settings/{slot}', [SettingController::class, 'uploadFile'])->whereIn('slot', ['logo', 'favicon', 'share-image'])->middleware('admin.can:settings.branding,settings.seo');
     Route::delete('settings/{slot}', [SettingController::class, 'deleteFile'])->whereIn('slot', ['logo', 'favicon', 'share-image'])->middleware('admin.can:settings.branding,settings.seo');

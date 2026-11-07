@@ -34,6 +34,7 @@ Both accounts are created by the seeder from `.env`: `SEED_DEVELOPER_USERNAME` /
 | `settings.delivery` | Settings → Delivery (method, fee, free-delivery limit, minimum order, delivery text, the zones table). Delivery time in days and the unmatched-address rule need `settings.advanced` | ✔ | ✔ |
 | `settings.payments` | Settings → Payments (methods, bank accounts) | ✔ | ✔ |
 | `settings.notifications` | Settings → Notifications: the events table (customer e-mail, owner e-mail, admin push), test e-mail, notification status. Sender name, reply-to, owner address and tracking link need `settings.advanced` | ✔ | ✔ |
+| `settings.website` | Settings → Website: the status of the website rebuild (pending changes, last request, last result), the **Rebuild website now** button and the automatic-rebuild switch. The hook address, hook secret and the wait time are technical and need `settings.advanced` | ✔ | ✔ |
 | `settings.advanced` | The technical fields of every tab the user may open, see the map below. Also the failed-jobs list and the queue details of the notification status | **off**, can be switched on | ✔ (fixed) |
 | `access.manage` | the Access Control screen | **never** | ✔ (fixed) |
 
@@ -129,6 +130,10 @@ Generated from `Settings::DEFINITIONS` (a test checks that every setting has a r
 | `theme_font_body` | Body font | Theme | advanced | `settings.theme` + `settings.advanced` |
 | `theme_radius` | Corner radius | Theme | advanced | `settings.theme` + `settings.advanced` |
 | `theme_shadow` | Shadow | Theme | advanced | `settings.theme` + `settings.advanced` |
+| `rebuild_enabled` | Rebuild the website automatically | Website | client | `settings.website` |
+| `rebuild_hook_url` | Rebuild hook address | Website | advanced | `settings.website` + `settings.advanced` |
+| `rebuild_hook_secret` | Rebuild hook secret (stored encrypted, never returned, shown only as set / not set) | Website | advanced | `settings.website` + `settings.advanced` |
+| `rebuild_debounce_seconds` | Wait after the last change (seconds) | Website | advanced | `settings.website` + `settings.advanced` |
 
 
 ## Access Control screen (developer only)

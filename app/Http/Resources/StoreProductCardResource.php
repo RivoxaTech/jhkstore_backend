@@ -38,6 +38,8 @@ class StoreProductCardResource extends JsonResource
             'slug' => $this->slug,
             'short_description' => $this->short_description,
             'image_url' => $images['image_url'],
+            'image_width' => $images['image_width'],                           // size of image_url: reserve the space, no layout shift (null = unknown)
+            'image_height' => $images['image_height'],
             'thumb_url' => $images['thumb_url'],
             'category' => ['name' => $this->category->name, 'slug' => $this->category->slug],
             'options_count' => $variants->count(),
@@ -55,6 +57,8 @@ class StoreProductCardResource extends JsonResource
             'in_stock' => ! $this->is_sold_out && $variants->contains(fn ($v) => $v->available() > 0),
             'is_sold_out' => (bool) $this->is_sold_out,        // shown as "Sold out": visible, cannot be ordered
             'is_featured' => (bool) $this->is_featured,
+            'availability' => ! $this->is_sold_out && $variants->contains(fn ($v) => $v->available() > 0) ? 'in_stock' : 'out_of_stock',   // schema.org availability
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 

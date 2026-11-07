@@ -58,7 +58,7 @@ class AccessControlController extends Controller
                 $panel = SettingController::PANELS[$tab] ?? null;
                 $covers = array_values(array_filter([
                     SettingController::TABS[$tab][0].' tab',
-                    $panel ? ['banners' => 'The banner manager', 'delivery' => 'The delivery zones table', 'notifications' => 'The events table (customer e-mail, owner e-mail, push), test e-mail and notification status'][$tab] : null,
+                    $panel ? ['banners' => 'The banner manager', 'delivery' => 'The delivery zones table', 'notifications' => 'The events table (customer e-mail, owner e-mail, push), test e-mail and notification status', 'website' => 'The status of the website rebuild and the Rebuild website now button'][$tab] : null,
                     $tab === 'theme' ? 'Never available to the admin' : null,
                 ]));
                 $clientPanel = $panel === Settings::CLIENT;

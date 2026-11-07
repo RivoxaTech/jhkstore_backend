@@ -38,6 +38,13 @@ return [
         'max_files' => 2,
     ],
 
+    // Cache headers of the PUBLIC catalogue reads (settings, banners, categories, products, tags, sitemap) for Cloudflare and browsers. Everything else is no-store.
+    'cache' => [
+        'max_age' => (int) env('STORE_CACHE_MAX_AGE', 60),                  // browsers
+        's_maxage' => (int) env('STORE_CACHE_S_MAXAGE', 300),               // shared caches (Cloudflare)
+        'stale_while_revalidate' => (int) env('STORE_CACHE_SWR', 60),
+    ],
+
     // Bank transfer screenshot: kept on the PRIVATE disk (never a public URL), shown to the admin through an authenticated route only.
     'payment_proof' => [
         'max_kb' => (int) env('PAYMENT_PROOF_MAX_KB', 4096),

@@ -70,6 +70,7 @@ class AdminAccess
             'settings.delivery' => 'Settings: Delivery (method, fees, zones)',
             'settings.payments' => 'Settings: Payments (methods, bank accounts)',
             'settings.notifications' => 'Settings: Notifications (which e-mails and push messages are sent)',
+            'settings.website' => 'Settings: Website (rebuild the website, see when it was last rebuilt; the hook address and secret need the advanced permission)',
             'settings.advanced' => 'Settings: technical fields in every tab (store name, currency, tax, order numbers, mail sender, tracking link, ...)',
         ]],
         'discounts' => ['Discounts', [
@@ -98,7 +99,7 @@ class AdminAccess
     /** What the admin starts with: the dashboard, orders, the customers list, discounts and coupons and the store / delivery / payment settings. */
     public const ADMIN_DEFAULTS = [
         'dashboard.view', 'orders.view', 'orders.manage', 'customers.view', 'customers.export',
-        'settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications',
+        'settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'settings.website',
         'orders.export', 'wholesale.view', 'wholesale.manage',
         'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage',
     ];

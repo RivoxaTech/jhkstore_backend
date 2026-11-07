@@ -33,10 +33,11 @@ class SettingController extends Controller
         'notifications' => ['Notifications', ['notifications']],
         'theme' => ['Theme', ['theme']],
         'seo' => ['SEO', ['seo']],
+        'website' => ['Website', ['website']],
     ];
 
     /** Tabs that hold more than settings: the screen they show (and who may see it). A tab with no visible field and no panel is hidden. */
-    public const PANELS = ['banners' => Settings::ADVANCED, 'delivery' => Settings::CLIENT, 'notifications' => Settings::CLIENT];
+    public const PANELS = ['banners' => Settings::ADVANCED, 'delivery' => Settings::CLIENT, 'notifications' => Settings::CLIENT, 'website' => Settings::CLIENT];
 
     public const SECTIONS = [
         'general' => 'Store profile',
@@ -51,6 +52,7 @@ class SettingController extends Controller
         'notifications' => 'E-mails and admin notifications',
         'theme' => 'Colours, fonts and corners of the storefront',
         'seo' => 'Search engines and sharing',
+        'website' => 'Rebuild of the website',
     ];
 
     /** Upload slot (the URL segment) => [setting key, request field, accepted extensions, max size in KB, largest side in px (null = not checked)]. SVG is not accepted: it can carry scripts. The slot's tab (branding / seo) decides who may upload. */
@@ -82,7 +84,7 @@ class SettingController extends Controller
         $data = $request->validate($settings->rules($keys), $settings->messages($keys), $settings->attributes($keys));
         $this->checkCombination($settings, $data);
         $settings->set($data);
-        Audit::log($request->user(), 'settings.updated', null, $data);
+        Audit::log($request->user(), 'settings.updated', null, $this->forAudit($data));
 
         return response()->json($this->payload($settings, $request->user()));
     }
@@ -143,6 +145,24 @@ class SettingController extends Controller
         }
     }
 
+    /**
+     * What the audit log may keep of a settings write: a secret is never written (only that it changed), and the hook address is reduced to its host
+     * (a deploy hook address carries a token in its path).
+     */
+    private function forAudit(array $data): array
+    {
+        foreach ($data as $key => $value) {
+            if ((Settings::DEFINITIONS[$key][1] ?? '') === 'secret') {
+                $data[$key] = $value === null || $value === '' ? '[cleared]' : '[changed]';
+            }
+        }
+        if (array_key_exists('rebuild_hook_url', $data)) {
+            $data['rebuild_hook_url'] = (string) $data['rebuild_hook_url'] === '' ? '' : (parse_url((string) $data['rebuild_hook_url'], PHP_URL_HOST) ?: '[invalid]').'/...';
+        }
+
+        return $data;
+    }
+
     /** The tab a setting is shown in. */
     public static function tabOf(string $key): string
     {
@@ -190,8 +210,8 @@ class SettingController extends Controller
             $visible[$key] = true;
             $sections[$def[0]]['fields'][] = [
                 'key' => $key, 'type' => $def[1], 'label' => $def[3], 'help' => $def[4] ?? null, 'access' => Settings::access($key),
-                'min' => $def[5] ?? null, 'max' => $def[6] ?? null, 'value' => $def[1] === 'file' ? null : $settings->get($key),
-            ] + ($def[1] === 'file' ? ['upload' => $uploads[$key]] : []) + ($def[1] === 'choice' ? ['options' => Settings::CHOICES[$key]] : []);
+                'min' => $def[5] ?? null, 'max' => $def[6] ?? null, 'value' => \in_array($def[1], ['file', 'secret'], true) ? null : $settings->get($key),
+            ] + ($def[1] === 'secret' ? ['is_set' => $settings->isSet($key)] : []) + ($def[1] === 'file' ? ['upload' => $uploads[$key]] : []) + ($def[1] === 'choice' ? ['options' => Settings::CHOICES[$key]] : []);
         }
 
         $advanced = AdminAccess::allows($admin, AdminAccess::SETTINGS_ADVANCED);
