@@ -82,7 +82,7 @@ class Settings
     /** key => [group, type, default, label, help?, min?, max?] */
     public const DEFINITIONS = [
         // --- store profile
-        'store_name' => ['general', 'string', 'My Store', 'Store name'],
+        'store_name' => ['general', 'string', 'JHK Store', 'Store name'],
         'store_tagline' => ['general', 'string', '', 'Tagline'],
         'store_email' => ['general', 'string', '', 'Contact email'],
         'store_phone' => ['general', 'string', '', 'Contact phone'],
@@ -99,7 +99,7 @@ class Settings
         // --- footer and social links
         'social_links' => ['footer', 'links', [], 'Social and footer links', 'Any number of links, shown in this order.'],
         'footer_text' => ['footer', 'text', '', 'Footer text', 'A short text for the footer, e.g. what the store sells.'],
-        'footer_copyright' => ['footer', 'string', '', 'Copyright text', 'e.g. © 2026 My Store. All rights reserved.'],
+        'footer_copyright' => ['footer', 'string', '', 'Copyright text', 'e.g. © 2026 JHK Store. All rights reserved.'],
         'agency_name' => ['footer', 'string', '', 'Agency name', 'Shown as a credit in the footer, e.g. Built by Example Agency. Empty = no credit.'],
         'agency_url' => ['footer', 'string', '', 'Agency link', 'The agency website (https:// only).'],
 

@@ -1,7 +1,7 @@
 # Architecture
 
 An API-first **modular monolith**: one Laravel application, no microservices. The storefront is a separate app (any framework) that talks JSON to it;
-the admin panel is a Vue single-page app that talks to the same API. **One deployment per client** – no multi-tenancy; client values live in `.env` and the `settings` table.
+the admin panel is a Vue single-page app that talks to the same API. **One deployment per client** – no multi-tenancy; client values live in `backend/.env` and the `settings` table.
 
 ```
  Storefront (static site, CDN)──┐   public, no login, no token
@@ -24,7 +24,7 @@ the admin panel is a Vue single-page app that talks to the same API. **One deplo
 | Media | spatie/laravel-medialibrary (category icons, product pictures, product videos and their posters, banners, the logo / favicon / share image of the settings on the `public` disk; bank transfer payment proofs on the **private** `local` disk) |
 | Mail and push | Laravel mail (queued mailables, `MAIL_MAILER=log` in development) · minishlink/web-push (VAPID) · queue `database` |
 | API docs | dedoc/scramble → `/docs/api`, exported to `docs/openapi.json` |
-| Admin panel | Vue 3 + Vite + Pinia + Vue Router in `admin-frontend/` (builds into `public/admin-assets`, served at `/admin`) |
+| Admin panel | Vue 3 + Vite + Pinia + Vue Router in `admin-frontend/` (builds into `backend/public/admin-assets`, served at `/admin`) |
 | Tests | PHPUnit feature tests against a MySQL test database (`jhkstore_test`); a puppeteer browser smoke test (`npm run e2e`) |
 
 ## Code layout
@@ -41,12 +41,12 @@ app/
     Resources/               API response shapes
   Mail/                      the queued mailables (one per order event, the owner alert, the test e-mail)
   Support/                   Audit, Csv, FullTextSearch, GeneratesUniqueSlug, MediaUrl, ShopTime, TokenLifetime
-routes/api_store.php  routes/api_admin.php  routes/web.php (serves the admin SPA at /admin)  routes/console.php (the schedule)
-config/shop.php          checkout limits, honeypot field name, public rate limits, payment proof and video limits
-config/webpush.php       the VAPID keys (.env)
-resources/views/mail     the e-mail templates
-public/admin-sw.js       the service worker of the admin push notifications
-database/migrations  database/seeders (DatabaseSeeder = base, DemoSeeder = optional sample data)
+backend/routes/api_store.php  backend/routes/api_admin.php  backend/routes/web.php (serves the admin SPA at /admin)  backend/routes/console.php (the schedule)
+backend/config/shop.php          checkout limits, honeypot field name, public rate limits, payment proof and video limits
+backend/config/webpush.php       the VAPID keys (.env)
+backend/resources/views/mail     the e-mail templates
+backend/public/admin-sw.js       the service worker of the admin push notifications
+backend/database/migrations  backend/database/seeders (DatabaseSeeder = base, DemoSeeder = optional sample data)
 admin-frontend/          Vue admin panel
 ```
 
@@ -59,7 +59,7 @@ Rule: controller → FormRequest → **Action class** → Eloquent → Resource.
 
 ## Settings
 
-* `Settings` (`app/Domain/Support/Settings.php`) is the only reader/writer of store configuration (see [SETTINGS.md](SETTINGS.md)). Typed values include `file` (medialibrary picture owned by the setting row) and `links` (ordered JSON list), with validation rules by type in `Settings::rules()`.
+* `Settings` (`backend/app/Domain/Support/Settings.php`) is the only reader/writer of store configuration (see [SETTINGS.md](SETTINGS.md)). Typed values include `file` (medialibrary picture owned by the setting row) and `links` (ordered JSON list), with validation rules by type in `Settings::rules()`.
 * The admin Settings page is built from `SettingController::TABS`; each tab has its own permission, so the developer decides which tabs the client sees. A new tab is a new entry there (see [SETTINGS.md](SETTINGS.md)).
 * Setting types: `string`, `text`, `bool`, `int`, `money`, `percent`, `file`, `links`, `accounts` (ordered bank accounts), `color` (`#RRGGBB`) and `choice` (one value of a fixed list, `Settings::CHOICES`). Two rules need more than one key and are checked in `SettingController` (one payment method stays on; bank transfer needs an active account).
 * **Banners** (`Domain/Content`): one `banners` table, pictures with medialibrary (`desktop`, `mobile`). A placement is a key in `Banner::PLACEMENTS` (add a line for another spot). The public endpoint returns the `Banner::live()` ones in `sort_order`; one banner or a slider is the storefront's choice. Admin management is the *Banners* tab of Settings (`settings.banners`).
@@ -96,9 +96,9 @@ Rule: controller → FormRequest → **Action class** → Eloquent → Resource.
 ## Notifications and the queue
 
 * **One place**: `Notifier` is called by the actions (`PlaceOrder`, `ChangeOrderStatus`, `HandlePaymentProof`, `ConfirmDeliveryFee`, `SubmitWholesaleRequest`) **after their transaction has committed**. Each channel runs inside its own `try / catch` (the error is logged), so a mail server that is down, a missing queue table or a push service that refuses can never fail or roll back an order, a status change or an upload.
-* **E-mail**: one queued mailable per event in `app/Mail` (`ShouldQueue`, `afterCommit`), plain Blade templates in `resources/views/mail`, no images, no tracking pixels, only the store's own tracking link (`storefront_track_url?order=NUMBER`). Customer mails need `mail_enabled` (default off), the event's switch and an e-mail on the order; the owner alert (`notify_admin_email`) is not an account of the admin panel. The test e-mail button sends at once, not queued, so a wrong setup is reported. `GET /admin/notifications/status` shows counts only (waiting and failed jobs), never the content of a job.
-* **Push**: `SendPushNotification` is queued with a permission (`orders.view` for new orders and payment proofs, `wholesale.view` for wholesale requests). When the job runs it picks the subscribed, active admins who hold that permission **at that moment** through `AdminAccess::allows`, so the developer account never receives an order notification. A 404 / 410 answer deletes the subscription; other errors are logged. Push needs `push_enabled`, the three VAPID values in `.env` and HTTPS (or localhost).
-* **Push content (Phase C)**: title "New order" ("Payment proof to check", "New wholesale request"), body with the order number and total, the store logo as `icon`, a `tag` per order, `url` `/admin/orders/{id}`. `public/admin-sw.js` shows it with `requireInteraction` (it stays until clicked), tells every open panel tab (`postMessage`) so the panel can chime and show a toast, and on click focuses a panel tab that is already open and asks it to go to the order (otherwise opens a new window). The system plays its own notification sound, which a site cannot change: the panel plays a bundled chime itself (`src/assets/chime.wav`, `utils/chime.js`) when the polled pending count rises or a push message arrives, unless muted (header toggle, `localStorage`); browsers allow sound only after a click, so the first click unlocks it and the header shows a hint until then.
+* **E-mail**: one queued mailable per event in `backend/app/Mail` (`ShouldQueue`, `afterCommit`), plain Blade templates in `backend/resources/views/mail`, no images, no tracking pixels, only the store's own tracking link (`storefront_track_url?order=NUMBER`). Customer mails need `mail_enabled` (default off), the event's switch and an e-mail on the order; the owner alert (`notify_admin_email`) is not an account of the admin panel. The test e-mail button sends at once, not queued, so a wrong setup is reported. `GET /admin/notifications/status` shows counts only (waiting and failed jobs), never the content of a job.
+* **Push**: `SendPushNotification` is queued with a permission (`orders.view` for new orders and payment proofs, `wholesale.view` for wholesale requests). When the job runs it picks the subscribed, active admins who hold that permission **at that moment** through `AdminAccess::allows`, so the developer account never receives an order notification. A 404 / 410 answer deletes the subscription; other errors are logged. Push needs `push_enabled`, the three VAPID values in `backend/.env` and HTTPS (or localhost).
+* **Push content (Phase C)**: title "New order" ("Payment proof to check", "New wholesale request"), body with the order number and total, the store logo as `icon`, a `tag` per order, `url` `/admin/orders/{id}`. `backend/public/admin-sw.js` shows it with `requireInteraction` (it stays until clicked), tells every open panel tab (`postMessage`) so the panel can chime and show a toast, and on click focuses a panel tab that is already open and asks it to go to the order (otherwise opens a new window). The system plays its own notification sound, which a site cannot change: the panel plays a bundled chime itself (`src/assets/chime.wav`, `utils/chime.js`) when the polled pending count rises or a push message arrives, unless muted (header toggle, `localStorage`); browsers allow sound only after a click, so the first click unlocks it and the header shows a hint until then.
 * **Test notification and status**: `POST /admin/push/test` queues `SendTestPush` for the caller's own device(s); `GET /admin/push/test/{id}` reports `queued` / `sent` / `failed` / `no_device` with the push service's own error (addresses removed). `GET /admin/push/status` and `/admin/notifications/status` give the VAPID state, the switch, devices, the last push (`PushLog`) and the **queue worker state** from `QueueHealth`: `running` (a worker finished or failed a job in the last 10 minutes, or the scheduled `shop:queue-heartbeat` job ran in the last 3), `stopped` (a job has waited longer than 2 minutes and no worker was seen), `idle` (cannot be told), `sync`. The panel shows it in the *Notification status* card (Settings → Notifications and the header popover next to the bell).
 * **Queue**: `QUEUE_CONNECTION=database`. Run `php artisan queue:work --tries=3` under a process manager, or on shared hosting a cron job `* * * * * php artisan queue:work --stop-when-empty --max-time=55` ([NEW_CLIENT.md](NEW_CLIENT.md)). Without a worker the e-mails and push messages wait in the `jobs` table; the sidebar badges (polled every 30 seconds) work without it.
 
@@ -107,7 +107,7 @@ Rule: controller → FormRequest → **Action class** → Eloquent → Resource.
 The customer site is built as a **static site** (prerendered pages on a CDN), so the API has to give it three things: everything to prerender, headers a CDN may cache, and a way to ask for a new build.
 
 * **Sitemap**: `GET /store/sitemap` (`Domain/Catalog/Sitemap`) lists the slugs of every visible product, category and sub-category with `updated_at` and one picture; no prices. Cached 5 minutes, products read in chunks (a fixed number of queries per chunk), dropped on every storefront-relevant admin write.
-* **Cache headers**: the `store.cache` middleware wraps the whole store route group. A successful `GET` of a route named in `StoreCacheHeaders::PUBLIC_ROUTES` (settings, banners, categories, products, tags, sitemap) and without an `X-Cart-Token` gets `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60` and an ETag (304 on `If-None-Match`); everything else, errors included, gets `no-store`. The values are in `config/shop.php`. The decision is by route **name**, so a new route is private until it is listed.
+* **Cache headers**: the `store.cache` middleware wraps the whole store route group. A successful `GET` of a route named in `StoreCacheHeaders::PUBLIC_ROUTES` (settings, banners, categories, products, tags, sitemap) and without an `X-Cart-Token` gets `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60` and an ETag (304 on `If-None-Match`); everything else, errors included, gets `no-store`. The values are in `backend/config/shop.php`. The decision is by route **name**, so a new route is private until it is listed.
 * **Change tracking**: the `storefront.changes` middleware sits on the admin API group. After a successful write it looks at the route (not at the data): products, categories, sub-categories, tags, banners, discounts and the public settings (all groups except notifications and website) count; orders, customers, wholesale, coupons and delivery zones do not, and a sale never passes there at all. It drops the sitemap cache and calls `Rebuild::changed()`, inside a `try / catch`: it can never fail the admin action.
 * **Rebuild**: `Rebuild::changed()` counts the change and, when no window is open, schedules ONE `TriggerRebuild` job delayed by `rebuild_debounce_seconds` (the window is a cache key added atomically). The job (3 tries, 30 s then 120 s pause) calls `Rebuild::ping()`: an empty `POST` to the hook, 10 s timeout, header `X-Rebuild-Secret` when a secret is set. The result and a short error (the hook address and the secret are stripped from it) go to the cache for the Website tab. `POST /admin/website/rebuild` and `php artisan shop:rebuild` call the same `ping()` at once. Settings and the `secret` type: [SETTINGS.md](SETTINGS.md).
 * **SEO fields**: product cards and details carry `updated_at`, `availability` and the picture size (`MediaDimensions` reads it once and keeps it in the media row); the detail adds `seo`, `breadcrumbs` and the sizes of every picture; categories and sub-categories carry their meta fields. [STOREFRONT-API.md](STOREFRONT-API.md).

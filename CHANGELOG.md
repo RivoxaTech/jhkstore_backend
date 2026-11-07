@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-08 – Restructure into three folders and the store is called "JHK Store"
+
+### Changed
+- **Layout**: the Laravel app moved into `backend/` (history kept, one dedicated commit), the admin panel stays in `admin-frontend/` and builds into `backend/public/admin-assets`, the customer storefront lives in `frontend/`, `docs/` and `scripts/` stay at the root, the design images are in `design/`. New root `README.md` and `.gitignore`; each folder has its own ignore file.
+- Paths fixed everywhere: the admin Vite `outDir` and dev proxy (API on port 8002), the e2e and flow scripts (they run `php artisan` in `backend/`; `flow-db.php` finds `backend/vendor` and `backend/.env`), the tests that read the docs (`../docs`), `composer setup`, every command and path in the docs, `NEW_CLIENT.md` (a cPanel section: document root at `backend/public`).
+- **Name**: the default `store_name` (Settings and seeder) is **JHK Store** (it was "My Store"), `APP_NAME="JHK Store"` in `backend/.env` and `.env.example`, package names `jhkstore/backend` (composer) and `jhk-store-admin`. The name in the admin panel, login page, e-mails (sender name, subjects, templates), print views and the storefront always comes from the `store_name` setting; nothing is hard-coded. Database names are unchanged (`jhkstore_db`, `jhkstore_test`). Tests assert the new default.
 ## 2026-11-08 – Storefront preparation (branch `lean-store`, Stage 1 of the storefront work)
 
 The backend is made ready for a **static** customer storefront (prerendered pages on a CDN such as Cloudflare Pages). No table and no migration was added (46 tables).

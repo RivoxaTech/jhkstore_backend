@@ -246,7 +246,7 @@ Only what customers can see (active products with an active option, in active ca
 
 ## 11. Cache headers (Cloudflare and browsers)
 
-* **Public catalogue reads**: `GET /settings`, `/banners`, `/categories`, `/categories/{slug}`, `/products`, `/products/{slug}`, `/tags`, `/sitemap` answer `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60` and an `ETag`; a request with a matching `If-None-Match` gets `304` with no body. The values are in `config/shop.php` (`STORE_CACHE_MAX_AGE`, `STORE_CACHE_S_MAXAGE`, `STORE_CACHE_SWR`).
+* **Public catalogue reads**: `GET /settings`, `/banners`, `/categories`, `/categories/{slug}`, `/products`, `/products/{slug}`, `/tags`, `/sitemap` answer `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60` and an `ETag`; a request with a matching `If-None-Match` gets `304` with no body. The values are in `backend/config/shop.php` (`STORE_CACHE_MAX_AGE`, `STORE_CACHE_S_MAXAGE`, `STORE_CACHE_SWR`).
 * **Never cached** (`Cache-Control: no-store`): the cart, the quote, coupon checks, orders, order lookup, the payment proof, wholesale requests, every error answer (a product created after the build is never "404 for five minutes"), any request that carries `X-Cart-Token`, and every admin route. A test walks every store route and checks this: a new store route is private until it is added to the public list on purpose.
 * So **prices and stock are live within about a minute** on the product endpoints, but the catalogue endpoints are served from Cloudflare's cache for up to five minutes. For the cart and checkout the storefront must always call the uncached endpoints; the quote and the order re-price everything on the server.
 
@@ -256,7 +256,7 @@ The browser may call the API from every origin in `FRONTEND_URLS` (comma separat
 
 ## Rate limits
 
-Because nobody logs in, the public endpoints are protected by limits (`429` with a `Retry-After` header when exceeded; all can be changed per client in `.env`):
+Because nobody logs in, the public endpoints are protected by limits (`429` with a `Retry-After` header when exceeded; all can be changed per client in `backend/.env`):
 
 | Endpoint | Limit |
 |---|---|

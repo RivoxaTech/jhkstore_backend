@@ -1,6 +1,6 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "jhkstore/ecommerce-base",
+    "name": "jhkstore/backend",
     "type": "project",
     "description": "Neutral, API-driven e-commerce backend (Laravel) with a Vue admin panel. One deployment per client.",
     "keywords": ["laravel", "ecommerce", "api"],

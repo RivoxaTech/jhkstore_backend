@@ -7,18 +7,18 @@ name and logo of the store it manages: they come from the store settings, nothin
 ```bash
 npm install
 npm run dev        # http://localhost:5190   (the backend must run on http://localhost:8000)
-npm run build      # -> ../public/admin-assets, served by Laravel at http://localhost:8000/admin
+npm run build      # -> ../backend/public/admin-assets, served by Laravel at http://localhost:8002/admin
 ```
 
 ## Sign in
 
-There are exactly two accounts, seeded from the backend `.env` (`SEED_DEVELOPER_*` and `SEED_ADMIN_*`, see `.env.example`; run `php artisan db:seed`):
+There are exactly two accounts, seeded from the backend `backend/.env` (`SEED_DEVELOPER_*` and `SEED_ADMIN_*`, see `backend/.env.example`; run `php artisan db:seed`):
 the **developer** (everything except orders) and the **admin** (the client). Authentication is a cookie session (HttpOnly) plus CSRF; there are no tokens in the browser.
 
 ## How it talks to the API
 
 * Every call goes to `/api/v1` on the same origin. In dev the Vite server proxies `/api`, `/sanctum` and `/storage` to
-  `BACKEND_URL` (see `.env.example`), so the session cookie works without CORS tricks. In production Laravel serves the
+  `BACKEND_URL` (see `backend/.env.example`), so the session cookie works without CORS tricks. In production Laravel serves the
   built app at `/admin`.
 * `src/api/client.js` is the only place that calls `fetch` (CSRF handling, JSON errors, multipart uploads, file downloads).
 * At start the app reads the public `GET /api/v1/store/settings` (no login needed) to show the store name and logo and to

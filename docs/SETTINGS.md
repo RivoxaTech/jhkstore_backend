@@ -9,7 +9,7 @@ default below, so a fresh install works without any setup; `SettingsSeeder` writ
   **General**, **Branding**, **Banners**, **Footer & Social**, **Currency & Tax**, **Orders & Delivery**, **Delivery**, **Payments**, **Store**, **Notifications**, **Theme**, **SEO**, **Website** (the tab → section map is `SettingController::TABS`). **Banners** has no settings: it holds the banner manager (`/admin/banners` endpoints). **Delivery** has its settings and the delivery zone manager (`/admin/delivery-zones` endpoints). **Notifications** holds the e-mail and push switches and, below them, the mail / queue status (counts only) and a "send test e-mail" button. **Theme** is the developer's: the admin never gets it. Every tab has its own permission `settings.<tab>` (`settings.general`, `settings.branding`, `settings.banners`, `settings.footer`, `settings.currency_tax`, `settings.orders_delivery`, `settings.delivery`, `settings.payments`, `settings.store`, `settings.notifications`, `settings.theme`, `settings.seo`, `settings.website`): the developer switches them for the admin in Access Control ([ACCESS_CONTROL.md](ACCESS_CONTROL.md)), the API lists only the tabs the admin may open and answers 403 for the others. `settings.theme` can never be given to the admin.
   **Tiers (Phase C)**: every setting is `client` or `advanced` (technical); an advanced field also needs the permission `settings.advanced` (developer: always; admin: off until the developer switches it on). A field is visible and writable only with the permission of its tab **and** its tier; a tab with no visible field is hidden. The full table (setting, tab, tier, permission) is in [ACCESS_CONTROL.md](ACCESS_CONTROL.md). The panel shows a small "Developer" tag next to advanced fields.
   API: `GET/PUT /api/v1/admin/settings`; pictures: `POST/DELETE /api/v1/admin/settings/{logo|favicon|share-image}`.
-* **Time zone**: not a setting but `APP_TIMEZONE` in `.env` (default `UTC`, set it before the first order). Dates are stored as shop time, the API sends them with the shop's offset, and the panel gets the zone name as `timezone` in `GET /admin/auth/me`. Every date typed in a settings form (banner, discount and coupon windows) is shop time.
+* **Time zone**: not a setting but `APP_TIMEZONE` in `backend/.env` (default `UTC`, set it before the first order). Dates are stored as shop time, the API sends them with the shop's offset, and the panel gets the zone name as `timezone` in `GET /admin/auth/me`. Every date typed in a settings form (banner, discount and coupon windows) is shop time.
 * **Storefront**: `GET /api/v1/store/settings` – the public subset (store profile and branding, open / closed, checkout notice, footer, social links and agency credit, SEO defaults, currency, tax, delivery, payment methods, order limits, theme). See [STOREFRONT-API.md](STOREFRONT-API.md).
 * **Add a setting**: add one line to `Settings::DEFINITIONS` (group, type, default, label, help), decide its tier (`Settings::ADVANCED_KEYS` / `ADVANCED_GROUPS`; the default is `client`), add its row to the table in [ACCESS_CONTROL.md](ACCESS_CONTROL.md) (a test fails without it) and regenerate the tables below.
 * **Add a tab**: add the entry to `SettingController::TABS` (and a section label in `SECTIONS`), the settings with that group to `Settings::DEFINITIONS`, and a `settings.<tab>` permission to `AdminAccess::GROUPS`; the admin panel renders the tab from the API; nothing else changes. (The Delivery, Payments, Store, Notifications and Theme tabs were added this way.)
@@ -44,7 +44,7 @@ Tier: contact e-mail, phone, address, support hours and WhatsApp are `client`; s
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
-| `store_name` | string | `My Store` | Store name |
+| `store_name` | string | `JHK Store` | Store name |
 | `store_tagline` | string | `(empty)` | Tagline |
 | `store_email` | string | `(empty)` | Contact email |
 | `store_phone` | string | `(empty)` | Contact phone |
@@ -136,7 +136,7 @@ The zones themselves are rows of `delivery_zones`, managed in this tab (`/admin/
 
 ### Notifications (Notifications tab)
 
-E-mails are queued: a queue worker (or the cron variant) must run, see [NEW_CLIENT.md](NEW_CLIENT.md). The mail server itself (`MAIL_*`) is in `.env`, the switches are here. These settings are not public.
+E-mails are queued: a queue worker (or the cron variant) must run, see [NEW_CLIENT.md](NEW_CLIENT.md). The mail server itself (`MAIL_*`) is in `backend/.env`, the switches are here. These settings are not public.
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
@@ -158,7 +158,7 @@ E-mails are queued: a queue worker (or the cron variant) must run, see [NEW_CLIE
 | `push_on_proof` | bool | `on` | Admin push for a payment proof to check |
 | `push_on_wholesale` | bool | `on` | Admin push for a new wholesale request |
 | `storefront_track_url` | string | `(empty)` | The storefront's tracking page (`http(s)://`); e-mails link to it as `?order=NUMBER`, the customer is asked for the phone number. No token in the link |
-| `push_enabled` | bool | `off` | Admin browser push (needs the three `VAPID_*` values in `.env`: `php artisan shop:vapid`) |
+| `push_enabled` | bool | `off` | Admin browser push (needs the three `VAPID_*` values in `backend/.env`: `php artisan shop:vapid`) |
 
 **The tab (Phase C)** is one compact page: a table of events (`Settings::EVENTS`) with a switch per channel (customer e-mail, owner e-mail alert, admin push; `-` where the channel does not exist for the event), a sender card (`mail_from_name`, `mail_reply_to`, `notify_admin_email`, `storefront_track_url`: `advanced`, so the client does not see it), a test e-mail, a status line (queue worker running / not running / idle, failed jobs, with a "view" list for `settings.advanced`) and the **Notification status** card for push (browser support, permission, subscription, VAPID, switch, queue worker, last push, and a *Send test notification* button). A message goes only when the master switch (`mail_enabled`, `push_enabled`) **and** the event's switch are on; every switch is `client`. Nine events: order placed, confirmed, shipped, delivered, cancelled or rejected, payment proof uploaded (owner and push only), payment proof rejected, delivery fee confirmed, new wholesale request (owner and push only).
 

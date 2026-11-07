@@ -30,7 +30,7 @@ class SettingsTest extends TestCase
         $this->seed(\Database\Seeders\SettingsSeeder::class);
         $s = app(Settings::class);
 
-        $this->assertSame('My Store', $s->get('store_name'));
+        $this->assertSame('JHK Store', $s->get('store_name'));
         $this->assertSame('USD', $s->currencyCode());
         $this->assertSame('$', $s->currencySymbol());
         $this->assertSame(2, $s->decimals());

@@ -7,7 +7,7 @@ There are exactly **two admin accounts** and **two roles**. Nobody else can log 
 | `developer` | the team that builds and runs the site | everything **except orders** (no orders screen, no order API, no order number, total or customer detail anywhere, dashboard included). The customers list and the wholesale requests are off by default (personal data) but can be switched on |
 | `admin` | the client | the dashboard, orders (with the CSV export), the customers list (with export and abandoned carts), wholesale requests, discounts, coupons and five Settings tabs: General (contact details only), Store, Delivery, Payments, Notifications (which e-mails and push messages go out). **No technical settings**: those need `settings.advanced`, which the developer can switch on for a technical client. The developer switches the rest on or off (the Theme tab can never be switched on for the admin) |
 
-Both accounts are created by the seeder from `.env`: `SEED_DEVELOPER_USERNAME` / `SEED_DEVELOPER_PASSWORD` and `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD` (optional `_NAME` and `_EMAIL`). In production the seeder refuses a password shorter than 12 characters or equal to the username, and refuses identical usernames. Running the seeder again never changes an existing password or the permissions the developer set.
+Both accounts are created by the seeder from `backend/.env`: `SEED_DEVELOPER_USERNAME` / `SEED_DEVELOPER_PASSWORD` and `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD` (optional `_NAME` and `_EMAIL`). In production the seeder refuses a password shorter than 12 characters or equal to the username, and refuses identical usernames. Running the seeder again never changes an existing password or the permissions the developer set.
 
 ## Permissions
 

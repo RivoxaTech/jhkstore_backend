@@ -14,11 +14,11 @@ What a test in code can prove (`php artisan test`, `scripts/flow-check.mjs`) is 
    ```
 
    (PowerShell: `$env:OPENSSL_CONF = '...'`.) It prints three lines.
-2. **`.env`.** Paste them in, set `VAPID_SUBJECT` to a real contact (`mailto:you@example.com`), and keep `QUEUE_CONNECTION=database`. Then `php artisan config:clear`.
+2. **`backend/.env`.** Paste them in, set `VAPID_SUBJECT` to a real contact (`mailto:you@example.com`), and keep `QUEUE_CONNECTION=database`. Then `php artisan config:clear`.
 3. **Run the app on localhost** (a port other than 8000 if another project uses it):
 
    ```
-   php artisan serve --port=8002
+   cd backend && php artisan serve --port=8002
    ```
 
    Chrome allows push on `http://localhost` and `http://127.0.0.1`; any other address needs https.
@@ -64,16 +64,16 @@ Sound: the browser and the operating system play their own default notification 
 | The bell is grey and says it cannot show notifications | The address is not https and not localhost, or the browser has no push support. Use `http://localhost:…` for the test; production needs https. |
 | "Notifications are blocked for this site" | Chrome: the lock icon next to the address → Site settings → Notifications → Allow. Then press the bell again. |
 | Permission "Not asked yet" and nothing happens on the bell | The bell asks only when pressed; a blocked pop-up setting for the site can hide the prompt. |
-| Status: "Push keys (VAPID): Missing" | `php artisan shop:vapid`, put the three lines in `.env`, `php artisan config:clear` (and restart `queue:work`: a running worker keeps the old config). Changing the keys later invalidates every subscribed browser: press the bell off and on again. |
+| Status: "Push keys (VAPID): Missing" | `php artisan shop:vapid`, put the three lines in `backend/.env`, `php artisan config:clear` (and restart `queue:work`: a running worker keeps the old config). Changing the keys later invalidates every subscribed browser: press the bell off and on again. |
 | "Push switched on in Settings: Off" | Settings → Notifications → Admin push → Save changes. |
-| Test stays "Waiting for the queue worker…" and then "no queue worker took the job" | `php artisan queue:work` is not running (or runs against another database / `.env`). Start it; it picks the job up and the test finishes. |
+| Test stays "Waiting for the queue worker…" and then "no queue worker took the job" | `php artisan queue:work` is not running (or runs against another database / `backend/.env`). Start it; it picks the job up and the test finishes. |
 | Test says "Could not resolve host" / a cURL error | This computer cannot reach the browser vendor's push service (Chrome uses `fcm.googleapis.com`, Edge `wns2-…notify.windows.com`, Firefox `updates.push.services.mozilla.com`). Check the internet connection, proxy and firewall. Push needs outbound https from the **server**. |
 | Test says 401 / 403 / "VAPID" error | The key pair does not match the one the browser subscribed with: press the bell off and on again; check `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` were not truncated. |
 | Test says "no longer subscribed" | The subscription expired (the browser data was cleared). The status card removes it; press the bell again. |
 | "Sent" but nothing appears | The operating system hides it: Windows **Focus Assist / Do Not Disturb** is on (Settings → System → Notifications), or Chrome is not allowed to notify in Windows (Settings → System → Notifications → Google Chrome → On). macOS: System Settings → Notifications → Chrome → Allow, and turn Focus off. |
 | Chrome is closed and nothing arrives | Chrome must be allowed to run in the background (Settings → System → "Continue running background apps when Google Chrome is closed"), or at least be open. |
 | Works in Chrome, not in Safari | Safari on macOS 13+ supports web push for sites opened normally; on iPhone/iPad the site must be added to the Home Screen first. Safari asks for permission only after a click and needs https. |
-| An order was placed but nothing was sent | Check, in order: Settings → Notifications → the **New order** row has Admin push on; the account holds `orders.view`; `jobs` / `failed_jobs` tables (`php artisan queue:failed`); `storage/logs/laravel.log` ("Web push failed: …"). |
+| An order was placed but nothing was sent | Check, in order: Settings → Notifications → the **New order** row has Admin push on; the account holds `orders.view`; `jobs` / `failed_jobs` tables (`php artisan queue:failed`); `backend/storage/logs/laravel.log` ("Web push failed: …"). |
 | The developer does not get order notifications | By design: the developer role can never hold `orders.view`. A developer with `wholesale.view` switched on gets wholesale-request notifications only. |
 
 ## 5. What is verified automatically and what is not
