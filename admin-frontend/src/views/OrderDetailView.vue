@@ -390,16 +390,6 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
             </div>
           </section>
 
-          <section class="card">
-            <div class="card__head"><h2>Status timeline</h2></div>
-            <ol class="timeline">
-              <li v-for="(s, idx) in o.timeline" :key="idx" :class="stepClass(s)">
-                <strong>{{ s.label }}</strong> <small style="display: inline">· {{ formatDate(s.at, true) }} · {{ s.by.name || s.by.type }}</small>
-                <span v-if="s.note" class="note" style="display: block">{{ s.note }}</span>
-              </li>
-            </ol>
-          </section>
-
           <section v-if="o.shipment" class="card">
             <div class="card__head"><h2>Shipment</h2></div>
             <div class="kv-list">
@@ -423,6 +413,16 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
                 <button v-if="canManage" class="btn btn-outline btn-sm" type="button" style="margin-top: 6px" :disabled="noteBusy || adminNote === (o.admin_note || '')" @click="saveNote"><Save :size="14" /> Save note</button>
               </div>
             </div>
+          </section>
+
+          <section class="card">
+            <div class="card__head"><h2>Status timeline</h2></div>
+            <ol class="timeline">
+              <li v-for="(s, idx) in o.timeline" :key="idx" :class="stepClass(s)">
+                <strong>{{ s.label }}</strong> <small style="display: inline">· {{ formatDate(s.at, true) }} · {{ s.by.name || s.by.type }}</small>
+                <span v-if="s.note" class="note" style="display: block">{{ s.note }}</span>
+              </li>
+            </ol>
           </section>
         </div>
       </div>
