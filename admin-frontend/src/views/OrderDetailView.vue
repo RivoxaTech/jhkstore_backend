@@ -544,7 +544,8 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
 
 <style scoped>
 .proof-thumb { position: relative; display: block; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--muted-soft); cursor: zoom-in; padding: 0; max-width: 100%; }
-.proof-thumb img { display: block; max-width: 100%; max-height: 200px; margin: 0 auto; object-fit: contain; }
+.proof-thumb { aspect-ratio: 3 / 4; width: 168px; }   /* a phone screenshot is 3:4 portrait: the frame has that shape, the picture is shown whole inside it */
+.proof-thumb img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .proof-zoom { position: absolute; right: 6px; bottom: 6px; background: rgba(15, 23, 42, .65); color: #fff; border-radius: 6px; padding: 3px; display: grid; }
 .acct-show { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .acct-show li { padding: 6px 9px; border: 1px solid var(--border-light); border-radius: 8px; background: #f8fafc; }

@@ -575,3 +575,6 @@ table.table--dense { min-width: 760px; }
 /* the brand picture on the collapsed sidebar: a small square (BrandLogo shows the favicon there when there is one) */
 .app-shell.is-collapsed .brand .brand__logo { height: 32px; width: 32px; max-width: 32px; }
 @media (max-width: 959px) { .app-shell.is-collapsed .brand .brand__logo { height: 30px; width: auto; max-width: 150px; } }
+
+/* the items table of an order has only four columns: it never needs the 900px minimum of the wide tables (no scrollbar) */
+table.table.od-items { min-width: 0; }
