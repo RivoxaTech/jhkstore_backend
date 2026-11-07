@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-11-08 – Storefront preparation (branch `lean-store`, Stage 1 of the storefront work)
+
+The backend is made ready for a **static** customer storefront (prerendered pages on a CDN such as Cloudflare Pages). No table and no migration was added (46 tables).
+
+### Added
+- **`GET /store/sitemap`**: slugs, `updated_at` and one picture of every visible product, category and sub-category; no prices; cached 5 minutes, dropped on every storefront-relevant admin write; a fixed number of queries.
+- **Cache headers**: the public catalogue reads (settings, banners, categories, products, tags, sitemap) send `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60` and an `ETag` (304 on `If-None-Match`); values in `config/shop.php`. Everything else (cart, quote, coupons, orders, lookup, proof, wholesale, errors, anything with `X-Cart-Token`, all admin routes) is `no-store`. A test walks every store route.
+- **Settings → Website** and the permission `settings.website` (admin: on by default): a deploy hook rebuilds the static site after a change customers can see. Settings `rebuild_enabled` (client), `rebuild_hook_url` (https only), `rebuild_hook_secret` (new type `secret`: stored encrypted, never returned), `rebuild_debounce_seconds` (default 120) (all advanced). One debounced queued job (`TriggerRebuild`: empty POST, 10 s timeout, 3 tries with 30 s / 120 s backoff) however many edits; orders, customers, carts, wholesale and sales never trigger it; a failing hook never fails the admin action. The tab shows the changes waiting, last request, last result and a warning, with a **Rebuild website now** button; `php artisan shop:rebuild`; manual rebuilds and hook changes are audited (the secret never, the hook address reduced to its host).
+- **SEO fields**: `updated_at`, `availability`, `image_width` / `image_height` on product cards; `seo { title, description, image_url }`, `breadcrumbs` and the size of every picture on the detail; `meta_title`, `meta_description`, `updated_at` on categories and sub-categories.
+- **CORS**: `http://localhost:3000` in `FRONTEND_URLS`, `FRONTEND_URL_PATTERNS` for preview sites (`*.pages.dev`), `X-Cart-Token` exposed (a test).
+- **DemoSeeder** rewritten for the storefront developer: 6 toy categories (one without sub-categories), 40 products with options, bulk prices, the tags best-seller / new-arrival / featured, generated local pictures (GD), 3 banners, a discount, the coupon `WELCOME10`, two delivery zones, bank transfer on. Still separate from the base seeder.
+- Banner title help: *words between asterisks are shown in the accent colour*.
+- Docs: `docs/STOREFRONT_BRIEF.md` (new), STOREFRONT-API sections 10 to 12, SETTINGS (Website), ACCESS_CONTROL, ARCHITECTURE, NEW_CLIENT 6b (how to create the deploy hook, the queue, the 1 to 3 minutes), Postman sitemap request.
+
+### Changed
+- The Settings page has 13 tabs (Website last); the default admin gets `settings.website`.
+- Existing shape tests list the new card and category fields.
 ## 2026-11-05 – Phase C (branch `lean-store`)
 
 Polish, a clean permission split of the settings and proof that push notifications work.

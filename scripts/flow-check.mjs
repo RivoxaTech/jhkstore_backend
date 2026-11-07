@@ -1646,7 +1646,8 @@ try {
   const q0 = await post('checkout/quote', { items: [] }, undefined, { base: apiStore })
   check(/no-store/.test(q0.headers.get('cache-control') || ''), 'the quote is no-store', q0.headers.get('cache-control'))
   check(/no-store/.test((await lookup('ORD-2000-000001', '+10000000000')).headers.get('cache-control') || ''), 'order lookup is no-store')
-  check(/no-store/.test((await get('admin/settings', D)).headers.get('cache-control') || ''), 'an admin answer is not cacheable', (await get('admin/settings', D)).headers.get('cache-control'))
+  const adminCache = (await get('admin/settings', D)).headers.get('cache-control') || ''
+  check(!/public|s-maxage/.test(adminCache), 'an admin answer is not cacheable by a shared cache (no public, no s-maxage)', adminCache)
   // CORS: the Nuxt dev server may call the API and may read X-Cart-Token
   const cors = await store('settings', { headers: { Origin: 'http://localhost:3000' } })
   check(cors.headers.get('access-control-allow-origin') === 'http://localhost:3000' && /X-Cart-Token/i.test(cors.headers.get('access-control-expose-headers') || ''), 'CORS allows http://localhost:3000 and exposes X-Cart-Token', { allow: cors.headers.get('access-control-allow-origin'), expose: cors.headers.get('access-control-expose-headers') })

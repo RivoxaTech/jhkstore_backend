@@ -60,6 +60,10 @@ async function open() {
   page.on('pageerror', (e) => problems.push(`page error: ${e.message}`))
   page.on('console', (m) => { if (m.type() === 'error' && !/40[0-9]|422|429/.test(m.text())) problems.push(`console: ${m.text()}`) })
   page.on('dialog', (d) => d.accept().catch(() => { /* already handled */ }))
+  page.__pending = new Set()   // requests still in flight: printed when a navigation times out
+  page.on('request', (r) => page.__pending.add(r.url()))
+  page.on('requestfinished', (r) => page.__pending.delete(r.url()))
+  page.on('requestfailed', (r) => page.__pending.delete(r.url()))
   return { browser, page, problems }
 }
 async function login(page, [user, pass]) {
@@ -70,7 +74,10 @@ async function login(page, [user, pass]) {
 }
 const nav = (page) => page.$$eval('.sidebar__nav a', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').replace(/\d+$/, '').trim()))
 const tabsOf = (page) => page.$$eval('[role="tab"]', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').replace(/[•!]$/, '').trim()))
-const goto = async (page, p) => { await page.goto(`${BASE}/admin/${p}`, { waitUntil: 'networkidle0' }); await sleep(400) }
+const goto = async (page, p) => {
+  try { await page.goto(`${BASE}/admin/${p}`, { waitUntil: 'networkidle0' }) } catch (e) { console.log(`  (navigation to /admin/${p} did not go idle; requests in flight: ${JSON.stringify([...(page.__pending || [])])})`); throw e }
+  await sleep(400)
+}
 // toasts that are already on the screen are marked as seen before every click, so a wait for "saved" only matches the toast of THIS action
 const markToasts = (page) => page.evaluate(() => document.querySelectorAll('.toast').forEach((t) => t.setAttribute('data-seen', '1')))
 const tap = async (page, selector) => { await markToasts(page); await page.$eval(selector, (el) => el.click()) }

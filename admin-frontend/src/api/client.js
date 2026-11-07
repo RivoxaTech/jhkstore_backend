@@ -58,7 +58,7 @@ async function request(method, path, { query, json, form, raw, retried } = {}) {
 
   let res
   try {
-    res = await fetch(buildUrl(path, query), { method, headers, body, credentials: 'include' })
+    res = await fetch(buildUrl(path, query), { method, headers, body, credentials: 'include', cache: 'no-store' })   // the panel never reads a cached answer (the public settings are cacheable for the storefront)
   } catch {
     throw new ApiError(0, { message: 'Cannot reach the server. Check that the backend is running.' })
   }
