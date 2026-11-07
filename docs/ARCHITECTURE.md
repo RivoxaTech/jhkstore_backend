@@ -4,7 +4,7 @@ An API-first **modular monolith**: one Laravel application, no microservices. Th
 the admin panel is a Vue single-page app that talks to the same API. **One deployment per client** – no multi-tenancy; client values live in `.env` and the `settings` table.
 
 ```
- Storefront (any framework) ──┐   public, no login, no token
+ Storefront (static site, CDN)──┐   public, no login, no token
  Admin panel (Vue 3)          ├──►  Laravel API  /api/v1
                               │        ├─ /store/*   public: settings, banners, catalogue, quote, coupons, cart, guest orders, wholesale requests
                               │        └─ /admin/*   admin session cookie (panel) or bearer token (scripts), a permission per route
@@ -32,11 +32,11 @@ the admin panel is a Vue single-page app that talks to the same API. **One deplo
 ```
 app/
   Domain/                    business logic, one folder per module
-    Auth  Cart  Catalog  Content  Customer  Delivery  Notification  Order  Promotion  Support  Wholesale
+    Auth  Cart  Catalog  Content  Customer  Delivery  Notification  Order  Promotion  Support  Website  Wholesale
       Models/  Actions/  Enums/  (+ module services)
   Http/
     Controllers/Store|Admin  thin controllers
-    Middleware/              EnsureActor (`actor`), EnsureAdminPermission (`admin.can`), RejectHoneypot (`honeypot`)
+    Middleware/              EnsureActor (`actor`), EnsureAdminPermission (`admin.can`), RejectHoneypot (`honeypot`), StoreCacheHeaders (`store.cache`), TrackStorefrontChanges (`storefront.changes`)
     Requests/                FormRequest validation
     Resources/               API response shapes
   Mail/                      the queued mailables (one per order event, the owner alert, the test e-mail)
@@ -52,6 +52,7 @@ admin-frontend/          Vue admin panel
 
 `Domain/Cart` holds `CartPricing` (the one price calculator) with its `PricedCart` / `PricedLine` / `PricingContext`, used by the quote, the coupon check, the persistent cart and checkout, and the persistent cart itself (`Cart`, `CartItem`, `Actions/ManageCart`, `Actions/QuoteCheckout`).
 `Domain/Notification` has `Notifier` (the one place that tells people about an event: customer mail, owner mail, push; every step isolated; one switch per event and channel, `Settings::EVENTS`), `PushMessage` (the payloads: title, body, logo icon, tag, link), `SendPushNotification` (the queued push job), `SendTestPush` (the test notification), `PushSender` / `WebPushSender`, `PushSubscription`, `PushLog` (last push and test results, cache) and `QueueHealth` / `QueueHeartbeat` (is a queue worker running). `Domain/Wholesale` has `WholesaleRequest` and the submit / update actions. `Domain/Support/Dashboard` holds the dashboard queries, `Domain/Cart/AbandonedCarts` the abandoned cart query.
+`Domain/Website` has `Rebuild` (the debounce, the call to the hosting's deploy hook and its status) and `TriggerRebuild` (the queued job); `Domain/Catalog/Sitemap` builds the storefront sitemap.
 `Domain/Promotion` has `Discount`, `Coupon` (+ targets, `CouponUsage`), the `Promotions` reader (live discounts, loaded once per request) and the save actions. `Domain/Delivery` has `DeliveryZone`, the `ZoneMatcher` and `SaveDeliveryZone`.
 
 Rule: controller → FormRequest → **Action class** → Eloquent → Resource. Business rules live in `Domain/*/Actions` (`PlaceOrder`, `ChangeOrderStatus`, `SaveProduct`, `UpsertCustomer`, …) and `CartPricing`, never in controllers.
@@ -100,6 +101,17 @@ Rule: controller → FormRequest → **Action class** → Eloquent → Resource.
 * **Push content (Phase C)**: title "New order" ("Payment proof to check", "New wholesale request"), body with the order number and total, the store logo as `icon`, a `tag` per order, `url` `/admin/orders/{id}`. `public/admin-sw.js` shows it with `requireInteraction` (it stays until clicked), tells every open panel tab (`postMessage`) so the panel can chime and show a toast, and on click focuses a panel tab that is already open and asks it to go to the order (otherwise opens a new window). The system plays its own notification sound, which a site cannot change: the panel plays a bundled chime itself (`src/assets/chime.wav`, `utils/chime.js`) when the polled pending count rises or a push message arrives, unless muted (header toggle, `localStorage`); browsers allow sound only after a click, so the first click unlocks it and the header shows a hint until then.
 * **Test notification and status**: `POST /admin/push/test` queues `SendTestPush` for the caller's own device(s); `GET /admin/push/test/{id}` reports `queued` / `sent` / `failed` / `no_device` with the push service's own error (addresses removed). `GET /admin/push/status` and `/admin/notifications/status` give the VAPID state, the switch, devices, the last push (`PushLog`) and the **queue worker state** from `QueueHealth`: `running` (a worker finished or failed a job in the last 10 minutes, or the scheduled `shop:queue-heartbeat` job ran in the last 3), `stopped` (a job has waited longer than 2 minutes and no worker was seen), `idle` (cannot be told), `sync`. The panel shows it in the *Notification status* card (Settings → Notifications and the header popover next to the bell).
 * **Queue**: `QUEUE_CONNECTION=database`. Run `php artisan queue:work --tries=3` under a process manager, or on shared hosting a cron job `* * * * * php artisan queue:work --stop-when-empty --max-time=55` ([NEW_CLIENT.md](NEW_CLIENT.md)). Without a worker the e-mails and push messages wait in the `jobs` table; the sidebar badges (polled every 30 seconds) work without it.
+
+## The static storefront (Stage 1 of the storefront work)
+
+The customer site is built as a **static site** (prerendered pages on a CDN), so the API has to give it three things: everything to prerender, headers a CDN may cache, and a way to ask for a new build.
+
+* **Sitemap**: `GET /store/sitemap` (`Domain/Catalog/Sitemap`) lists the slugs of every visible product, category and sub-category with `updated_at` and one picture; no prices. Cached 5 minutes, products read in chunks (a fixed number of queries per chunk), dropped on every storefront-relevant admin write.
+* **Cache headers**: the `store.cache` middleware wraps the whole store route group. A successful `GET` of a route named in `StoreCacheHeaders::PUBLIC_ROUTES` (settings, banners, categories, products, tags, sitemap) and without an `X-Cart-Token` gets `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60` and an ETag (304 on `If-None-Match`); everything else, errors included, gets `no-store`. The values are in `config/shop.php`. The decision is by route **name**, so a new route is private until it is listed.
+* **Change tracking**: the `storefront.changes` middleware sits on the admin API group. After a successful write it looks at the route (not at the data): products, categories, sub-categories, tags, banners, discounts and the public settings (all groups except notifications and website) count; orders, customers, wholesale, coupons and delivery zones do not, and a sale never passes there at all. It drops the sitemap cache and calls `Rebuild::changed()`, inside a `try / catch`: it can never fail the admin action.
+* **Rebuild**: `Rebuild::changed()` counts the change and, when no window is open, schedules ONE `TriggerRebuild` job delayed by `rebuild_debounce_seconds` (the window is a cache key added atomically). The job (3 tries, 30 s then 120 s pause) calls `Rebuild::ping()`: an empty `POST` to the hook, 10 s timeout, header `X-Rebuild-Secret` when a secret is set. The result and a short error (the hook address and the secret are stripped from it) go to the cache for the Website tab. `POST /admin/website/rebuild` and `php artisan shop:rebuild` call the same `ping()` at once. Settings and the `secret` type: [SETTINGS.md](SETTINGS.md).
+* **SEO fields**: product cards and details carry `updated_at`, `availability` and the picture size (`MediaDimensions` reads it once and keeps it in the media row); the detail adds `seo`, `breadcrumbs` and the sizes of every picture; categories and sub-categories carry their meta fields. [STOREFRONT-API.md](STOREFRONT-API.md).
+* **CORS**: `FRONTEND_URLS` plus the optional `FRONTEND_URL_PATTERNS` (regular expressions, e.g. for `*.pages.dev` previews); `X-Cart-Token` is exposed.
 
 ## Security and limits
 

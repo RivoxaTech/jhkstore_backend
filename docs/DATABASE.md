@@ -9,6 +9,8 @@ The database name comes from `DB_DATABASE` in `.env` (`jhkstore_db`; tests use `
 The whole schema is ONE baseline migration, `database/migrations/0001_01_01_000000_create_baseline_schema.php` (tables first, foreign keys afterwards). A fresh install runs it with `php artisan migrate --seed`. Every later change is a new migration file after it.
 No live database existed when the lean store was cut from the earlier project, and none existed when Phase A (delivery zones, discounts, coupons, persistent cart, bank transfer, reject) and Phase B (wholesale requests, push subscriptions, product video and switches, bank transfer snapshot) were added, so the baseline was edited directly each time: a database created from an earlier version of the file cannot be upgraded in place, rebuild it with `php artisan migrate:fresh --seed`.
 
+The static-storefront work added **no table and no migration**: the rebuild status (changes waiting, last request, last result) lives in the cache, the sitemap is a cached query, the settings of the Website tab are four more rows of `settings` (one of them, `rebuild_hook_secret`, is stored encrypted), picture sizes are a custom property of the `media` row. The table count is still **46**.
+
 ## Relationships (ERD)
 
 ```

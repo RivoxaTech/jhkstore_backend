@@ -349,8 +349,8 @@ class CategoryFlowTest extends TestCase
         $data = $res->json('data');
 
         $this->assertCount(1, $data);
-        $this->assertSame(['id', 'name', 'slug', 'description', 'is_top', 'icon_url', 'image_url', 'sub_categories'], array_keys($data[0]));
-        $this->assertSame(['id', 'name', 'slug', 'icon_url', 'image_url'], array_keys($data[0]['sub_categories'][0]));
+        $this->assertSame(['id', 'name', 'slug', 'description', 'is_top', 'icon_url', 'image_url', 'meta_title', 'meta_description', 'updated_at', 'sub_categories'], array_keys($data[0]));
+        $this->assertSame(['id', 'name', 'slug', 'icon_url', 'image_url', 'meta_title', 'meta_description', 'updated_at'], array_keys($data[0]['sub_categories'][0]));
         $this->assertSame(['Speakers', 'Rotary Knobs'], array_column($data[0]['sub_categories'], 'name'));
         $this->assertNull($data[0]['icon_url']);
         $this->assertNull($data[0]['sub_categories'][0]['image_url']);

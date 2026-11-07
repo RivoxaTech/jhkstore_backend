@@ -1076,6 +1076,29 @@
         },
         "description": "Answers 201 { data: { reference: \"WS-2026-000001\" } }. name, phone and quantity are required; send product_id + variant_id (a product and one of its options) or product_name as free text. 5 an hour per IP and per phone number (429 with Retry-After). Leave the honeypot field website empty."
       }
+    },
+    {
+      "name": "31. Sitemap (everything to prerender: slugs, dates, one picture, no prices)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/sitemap",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "sitemap"
+          ],
+          "query": []
+        },
+        "description": "products[{slug, category_slug, updated_at, image_url}], categories[{slug, updated_at}], sub_categories[{slug, category_slug, updated_at}]. Only what customers can see. Cached 5 minutes. For a static build and sitemap.xml."
+      }
     }
   ]
 }

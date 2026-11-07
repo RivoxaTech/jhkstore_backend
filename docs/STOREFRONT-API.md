@@ -53,10 +53,13 @@ A spot can hold **one banner or many**: the API always answers a list and **the 
 | Call | Notes |
 |---|---|
 | `GET /categories` (`?top=1`) | tree: `data[]` category `{id,name,slug,description,is_top,icon_url,image_url,sub_categories:[{id,name,slug,icon_url,image_url}]}`. Only active items, already ordered, cached 10 min. **Two levels** |
-| `GET /categories/{slug}` | one category (404 when inactive) |
+| `GET /categories/{slug}` | one category (404 when inactive). Categories and sub-categories also carry `meta_title`, `meta_description` (their own SEO fields, may be `null`) and `updated_at` |
 | `GET /products` | filters `tag`, `category`, `sub_category` (slugs; add `category` to disambiguate), `q`, `min_price`, `max_price`, `in_stock=1`, `featured=1` (only the products the shop marked as featured), `sort` (`popularity`,`newest`,`price_asc`,`price_desc`,`discount`), `page`, `per_page` ≤ 100. Home page sections = the list with a tag, e.g. `?tag=best-seller&per_page=10` |
 | `GET /products/{slug}` | detail: options (`variants[]` with price, stock `qty`, `low_stock`, bulk `price_tiers`, own pictures), images, `videos`, content tabs, `delivery.arrives_by`, related products |
 | `GET /tags` | active tags |
+| `GET /sitemap` | every visible product, category and sub-category as slugs, for a static build and `sitemap.xml` (section 10) |
+
+**SEO and layout fields (static pages).** Every card and detail has `updated_at` (ISO date), `availability` (`in_stock` / `out_of_stock`, the schema.org value), `image_url` with `image_width` and `image_height` (the size of that picture, so the page can reserve the space; `null` when unknown). The detail adds: `seo { title, description, image_url }` (the product's own `meta_title` / `meta_description`, else its name / short description, else the store defaults of `GET /settings` `seo.*`; the image is the product picture, else the store share image), `breadcrumbs` (`[{type:'category',name,slug},{type:'sub_category',name,slug,category_slug}?,{type:'product',name,slug}]`: add "Home" and build the URLs yourself), `category`, `sub_category`, `sku`, and for every picture of `images[]` and `variants[].images[]` the sizes `width`, `height` (the original) and `medium_width`, `medium_height` (the `medium_url` picture). Nothing else needs to be fetched to render a page for search engines.
 
 A product is the parent of its **options**; only an option (`variant_id`) can be ordered. A product with one option is shown as that option (`has_single_option`).
 Card/detail fields such as `badge_label`, `show_starting_at` and `display_mode` are hints for the layout; images are absolute URLs or `null`.
@@ -229,13 +232,35 @@ POST /wholesale-requests
 
 Limits: **5 an hour per IP and 5 an hour per phone number** (`WHOLESALE_PER_HOUR`, `WHOLESALE_PER_PHONE_HOUR`); beyond that `429` with `Retry-After`.
 
+## 10. The sitemap and the static build: `GET /sitemap`
+
+Built for a static storefront (Nuxt `generate`, Astro, Next export…): one call lists everything to prerender, and is the source of `sitemap.xml`.
+
+```json
+{ "products":       [{ "slug", "category_slug", "updated_at", "image_url" }],
+  "categories":     [{ "slug", "updated_at" }],
+  "sub_categories": [{ "slug", "category_slug", "updated_at" }] }
+```
+
+Only what customers can see (active products with an active option, in active categories and sub-categories). **No prices**, no stock, no SKU. `updated_at` is the latest change of the product or of one of its options. The answer is cached for 5 minutes on the server (dropped on every admin write that touches the storefront) and by the CDN (below). The number of database queries does not grow with the number of products.
+
+## 11. Cache headers (Cloudflare and browsers)
+
+* **Public catalogue reads**: `GET /settings`, `/banners`, `/categories`, `/categories/{slug}`, `/products`, `/products/{slug}`, `/tags`, `/sitemap` answer `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60` and an `ETag`; a request with a matching `If-None-Match` gets `304` with no body. The values are in `config/shop.php` (`STORE_CACHE_MAX_AGE`, `STORE_CACHE_S_MAXAGE`, `STORE_CACHE_SWR`).
+* **Never cached** (`Cache-Control: no-store`): the cart, the quote, coupon checks, orders, order lookup, the payment proof, wholesale requests, every error answer (a product created after the build is never "404 for five minutes"), any request that carries `X-Cart-Token`, and every admin route. A test walks every store route and checks this: a new store route is private until it is added to the public list on purpose.
+* So **prices and stock are live within about a minute** on the product endpoints, but the catalogue endpoints are served from Cloudflare's cache for up to five minutes. For the cart and checkout the storefront must always call the uncached endpoints; the quote and the order re-price everything on the server.
+
+## 12. CORS
+
+The browser may call the API from every origin in `FRONTEND_URLS` (comma separated; add `http://localhost:3000` for the Nuxt dev server and the real storefront domain). Cloudflare Pages preview sites live on `*.pages.dev`: allow them with `FRONTEND_URL_PATTERNS` (a regular expression such as `#^https://[a-z0-9-]+\.my-store\.pages\.dev$#`). `X-Cart-Token` and `Idempotency-Replayed` are exposed to the browser. The answers vary by `Origin`, so a shared cache keeps one copy per origin.
+
 ## Rate limits
 
 Because nobody logs in, the public endpoints are protected by limits (`429` with a `Retry-After` header when exceeded; all can be changed per client in `.env`):
 
 | Endpoint | Limit |
 |---|---|
-| public reads (settings, banners, categories, products, tags) | 240 / minute per IP (`PUBLIC_PER_MINUTE`) |
+| public reads (settings, banners, categories, products, tags, sitemap) | 240 / minute per IP (`PUBLIC_PER_MINUTE`) |
 | `POST /checkout/quote` | 60 / minute per IP (`QUOTE_PER_MINUTE`) |
 | `POST /coupons/validate` | 30 / minute per IP (`COUPON_PER_MINUTE`) |
 | every `/cart` call | 60 / minute per IP (`CART_PER_MINUTE`) |

@@ -105,6 +105,22 @@ To try the shop first, load the neutral sample data: `php artisan db:seed --clas
 Give the storefront developer [STOREFRONT-API.md](STOREFRONT-API.md), `docs/openapi.json` and the Postman collection in `docs/postman/`. The first call a storefront should make is
 `GET /api/v1/store/settings` – it returns the store name, logo, currency and tax rules, so one storefront build adapts to each client. There is no customer login: the storefront keeps the cart itself or uses the token-based server cart (`/cart`), calls `POST /checkout/quote` and `POST /orders`, and for bank transfer uploads the payment proof. It paints itself with the `theme` object of the settings. Optional storefront pieces: a wholesale request form (`POST /store/wholesale-requests`), a tracking page that reads `?order=` and asks for the phone number (its URL goes into the `storefront_track_url` setting so e-mails can link to it), and `GET /products?featured=1` for a featured section.
 
+## 6b. The static storefront and its rebuild hook
+
+The customer storefront is a **static site** (built once, served from a CDN: Cloudflare Pages is the plan, cPanel, Netlify and Vercel work too). What a visitor sees first (products, categories, pictures, texts, theme) is baked into the pages at build time, which is what search engines read. **Prices, stock, the cart, coupons, checkout, order tracking and search stay live**: the browser asks this API for them, so they never wait for a rebuild.
+
+So when the shop owner adds a product or changes a banner, the website must be **built again**. This backend does that by itself, through a *deploy hook*:
+
+1. **Create the hook.** Cloudflare Pages: your project → *Settings* → *Builds & deployments* → *Deploy hooks* → *Add deploy hook* (name it `admin-panel`, branch `main`) → copy the URL (`https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/…`). Netlify (*Build hooks*) and Vercel (*Deploy Hooks*) give the same kind of URL. Anyone with the URL can start a build, so treat it as a secret.
+2. **Paste it in the admin panel.** Log in as the developer → *Settings* → *Website*: *Rebuild hook address* (https only), switch on *Rebuild the website automatically*, leave the wait time at 120 seconds. The optional *Rebuild hook secret* is sent as the header `X-Rebuild-Secret` and is only needed for a hook of your own (a relay); it is stored encrypted and never shown again. Press *Rebuild website now* once: the card must say *Last result: OK*.
+3. **Run the queue.** The rebuild is a queued job (`TriggerRebuild`), like the e-mails: it needs `php artisan queue:work --tries=3` under a process manager, **or** on shared hosting the cron `* * * * * php artisan queue:work --stop-when-empty --max-time=55`, plus the usual cron `schedule:run`. Without a worker the automatic rebuild waits in the `jobs` table (the *Rebuild website now* button and `php artisan shop:rebuild` still work, they call the hook directly).
+4. **What triggers it.** Anything customers can see changes the website: products, options and their prices or stock set in the panel, pictures, tags, categories, sub-categories, banners, discounts, public settings (name, logo, footer, SEO, currency, delivery, payments, store open/closed), the theme. Twenty quick edits make **one** call: the first change opens a wait window (*Wait after the last change*, default 120 s) and the job runs when it ends. Orders, customers, carts, wholesale requests, coupons, delivery zones, notification settings and the stock a sale takes **never** trigger a rebuild.
+5. **What the owner sees.** The *Website* tab shows the changes waiting, when the hosting was last asked, the last result (OK, or Failed with a short message) and a warning when the last attempt failed. A failing hook never breaks the save that caused it.
+
+A **new product shows on the website after the rebuild, 1 to 3 minutes** later. Until then its page address still opens (the static site falls back to loading it from the API in the browser) and every price, stock level and the cart are already live. Changing the price of an existing product is live at once on the product page and in the cart; the baked-in price in the page source and in search results updates with the next rebuild.
+
+Tell the client: *the website updates itself about two minutes after you change something; if you are in a hurry, press Rebuild website now.*
+
 ## 7. Go-live checklist
 
 - [ ] `APP_ENV=production`, `APP_DEBUG=false` (it is forced off in production anyway), HTTPS, `SESSION_SECURE_COOKIE=true` (the default in production)
@@ -122,6 +138,7 @@ Give the storefront developer [STOREFRONT-API.md](STOREFRONT-API.md), `docs/open
 - [ ] `php artisan config:cache route:cache` after the final `.env`
 - [ ] backups of the database, `storage/app/public` and `storage/app/private`
 - [ ] demo data removed
+- [ ] the storefront's deploy hook is pasted in *Settings → Website*, *Rebuild website now* says OK, and `FRONTEND_URLS` holds the storefront's domain (`FRONTEND_URL_PATTERNS` for preview sites)
 
 ## Keeping clients up to date
 
