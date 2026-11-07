@@ -65,7 +65,7 @@ class AdminOrderTest extends TestCase
 
         $this->assertSame($orders->pluck('order_number')->reverse()->values()->take(3)->all(), collect($res->json('data'))->pluck('order_number')->all());
         $res->assertJsonPath('meta.total', 4)->assertJsonPath('meta.per_page', 3)->assertJsonPath('counts.pending', 2)->assertJsonPath('counts.confirmed', 1)->assertJsonPath('counts.cancelled', 1);
-        $this->assertSame(['id', 'order_number', 'placed_at', 'customer', 'items_count', 'grand_total', 'payment_method', 'payment_method_label', 'payment_status', 'delivery_fee_pending', 'status', 'status_label'], array_keys($res->json('data.0')));
+        $this->assertSame(['id', 'order_number', 'placed_at', 'customer', 'items_count', 'grand_total', 'payment_method', 'payment_method_label', 'payment_status', 'delivery_fee_pending', 'status', 'status_label', 'next_statuses', 'blocked_reason'], array_keys($res->json('data.0')));
         $this->assertSame(['id', 'name', 'email', 'phone'], array_keys($res->json('data.0.customer')));
         $this->assertSame(2, $res->json('data.0.items_count'));
 

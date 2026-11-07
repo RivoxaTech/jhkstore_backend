@@ -598,3 +598,13 @@ table.table.od-items { min-width: 0; }
 .pay__proof { padding: 10px 14px; border-left: 1px solid var(--border-light); display: grid; gap: 8px; align-content: start; min-width: 200px; }
 .pay__proof .act-bar { flex-direction: column; align-items: stretch; }
 @media (max-width: 720px) { .pay--bank { grid-template-columns: minmax(0, 1fr); } .pay__proof { border-left: 0; border-top: 1px solid var(--border-light); } }
+
+/* ---------- the status dropdown of the orders list: a coloured pill like the badges ---------- */
+.status-select.s-order { width: 124px; border-color: transparent; font-weight: 500; }
+.status-select.s-pending { background: var(--warning-soft); color: var(--warning); }
+.status-select.s-confirmed { background: var(--primary-soft); color: var(--primary); }
+.status-select.s-packed { background: #efe9fd; color: #6d3fd1; }
+.status-select.s-shipped { background: #e1f3fb; color: #0b7ba6; }
+.status-select.s-delivered { background: var(--success-soft); color: var(--success); }
+.status-select.s-cancelled, .status-select.s-rejected { background: var(--danger-soft); color: var(--danger); }
+.status-select.s-order option { color: var(--text); background: #fff; }

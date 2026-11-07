@@ -2,6 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Domain\Order\Enums\OrderStatus;
+use App\Domain\Order\Enums\PaymentMethod;
+use App\Domain\Order\Enums\PaymentStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -23,6 +26,11 @@ class AdminOrderListResource extends JsonResource
             'delivery_fee_pending' => (bool) $this->delivery_fee_pending,
             'status' => $this->status->value,
             'status_label' => OrderPresenter::statusLabel($this->status),
+            // what the status dropdown of the list may offer (the same rules as the order page: ChangeOrderStatus decides in the end)
+            'next_statuses' => array_map(fn (OrderStatus $s) => $s->value, $this->status->next()),
+            'blocked_reason' => $this->status === OrderStatus::Pending
+                ? ($this->delivery_fee_pending ? 'delivery_fee_pending' : ($this->payment_method === PaymentMethod::BankTransfer->value && $this->payment_status !== PaymentStatus::Paid ? 'payment_not_verified' : null))
+                : null,
         ];
     }
 }

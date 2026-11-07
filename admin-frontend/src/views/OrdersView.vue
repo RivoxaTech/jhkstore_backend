@@ -10,6 +10,7 @@ import RowsPerPage from '@/components/RowsPerPage.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import OrderStatusModal from '@/components/OrderStatusModal.vue'
 import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 import { formatDate, money } from '@/utils/format.js'
 
@@ -24,6 +25,44 @@ const route = useRoute()
 const router = useRouter()
 const ui = useUiStore()
 const auth = useAuthStore()
+
+// ---- change the status straight from the list (orders.manage): a dropdown of the moves the order may make now
+const canManage = computed(() => auth.can('orders.manage'))
+const statusModal = ref(null)          // { order, status } while the courier / reason form is open
+const rowBusy = ref(0)                 // id of the order being changed
+const NEEDS_FORM = ['shipped', 'delivered', 'cancelled', 'rejected']
+const BLOCKED = { delivery_fee_pending: 'set the delivery fee first', payment_not_verified: 'verify the payment first' }
+const capital = (v) => v.charAt(0).toUpperCase() + v.slice(1)
+const canChange = (o) => canManage.value && o.next_statuses?.length > 0
+const optionText = (o, s) => (s === 'confirmed' && o.blocked_reason ? `Confirmed (${BLOCKED[o.blocked_reason]})` : capital(s))
+
+async function refreshBadge() {
+  try { ui.pendingOrders = (await api.get('admin/orders/pending-count')).count ?? 0 } catch { /* the badge catches up within 30 seconds */ }
+}
+
+async function pick(o, event) {
+  const to = event.target.value
+  event.target.value = o.status          // the row shows the new status only after the server agreed
+  if (!to || to === o.status) return
+  if (NEEDS_FORM.includes(to)) { statusModal.value = { order: o, status: to }; return }
+  rowBusy.value = o.id
+  try {
+    await api.post(`admin/orders/${o.id}/status`, { status: to })
+    ui.toast(`Order ${o.order_number} is now ${to}.`)
+    await Promise.all([load(), refreshBadge()])
+  } catch (e) {
+    ui.toast(e.message, 'error')
+  } finally {
+    rowBusy.value = 0
+  }
+}
+
+async function statusDone(order) {
+  const number = statusModal.value?.order.order_number
+  statusModal.value = null
+  ui.toast(`Order ${number} is now ${order.status}.`)
+  await Promise.all([load(), refreshBadge()])
+}
 
 const rows = ref([])
 const meta = ref(null)
@@ -173,7 +212,13 @@ async function exportCsv() {
               <div>{{ o.payment_method_label }}</div>
               <StatusBadge :status="o.payment_status" />
             </td>
-            <td><StatusBadge :status="o.status" /></td>
+            <td @click.stop>
+              <select v-if="canChange(o)" class="status-select s-order" :class="`s-${o.status}`" :value="o.status" :disabled="rowBusy === o.id" :aria-label="`Status of ${o.order_number}`" :data-status-select="o.order_number" @change="pick(o, $event)">
+                <option :value="o.status">{{ capital(o.status) }}</option>
+                <option v-for="s in o.next_statuses" :key="s" :value="s" :disabled="s === 'confirmed' && !!o.blocked_reason">{{ optionText(o, s) }}</option>
+              </select>
+              <StatusBadge v-else :status="o.status" />
+            </td>
           </tr>
         </tbody>
       </table>
@@ -181,4 +226,6 @@ async function exportCsv() {
 
     <PaginationBar :meta="meta" @page="go({ page: $event })" />
   </section>
+
+  <OrderStatusModal v-if="statusModal" :order="statusModal.order" :status="statusModal.status" @close="statusModal = null" @done="statusDone" />
 </template>
