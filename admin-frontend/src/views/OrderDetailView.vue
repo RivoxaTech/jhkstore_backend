@@ -252,6 +252,54 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
 
       <div class="od-layout">
         <div>
+          <section class="card" data-section="payment">
+            <div class="card__head"><h2>Payment</h2><StatusBadge :status="o.payment.status" /></div>
+            <div class="pay" :class="{ 'pay--bank': isBank }">
+              <div class="pay__main">
+                <div class="kv-list">
+                  <div><span class="k">Method</span><span class="v">{{ o.payment.method_label }}</span></div>
+                  <div><span class="k">Amount</span><span class="v">{{ money(o.payment.amount) }}</span></div>
+                  <div v-if="o.payment.collect_on_delivery"><span class="k">To collect on delivery</span><span class="v">{{ money(o.payment.collect_on_delivery) }}</span></div>
+                  <div v-if="o.payment.paid_at"><span class="k">Paid on</span><span class="v">{{ formatDate(o.payment.paid_at, true) }}</span></div>
+                  <template v-if="isBank">
+                    <div><span class="k">Proof</span><span class="v"><span class="badge" :class="`badge--${o.payment.proof_status}`" data-proof-status>{{ proofLabel }}</span></span></div>
+                    <div v-if="o.payment.proof_reference"><span class="k">Reference</span><span class="v" data-proof-reference>{{ o.payment.proof_reference }}</span></div>
+                    <div v-if="o.payment.verified_at"><span class="k">Verified on</span><span class="v">{{ formatDate(o.payment.verified_at, true) }}</span></div>
+                  </template>
+                </div>
+                <p v-if="o.payment.method === 'cod' && o.payment.status === 'cod_pending'" class="muted pay__note">Cash on delivery is marked as paid when the order is marked delivered.</p>
+                <div v-if="isBank" class="pay__accounts">
+                  <div class="muted">Accounts shown to the customer</div>
+                  <p v-if="!o.payment.bank_accounts.length" class="muted" style="margin: 0">None (no active account).</p>
+                  <ul v-else class="acct-show">
+                    <li v-for="(a, i) in o.payment.bank_accounts" :key="i">
+                      <strong>{{ a.bank }}</strong><span v-if="a.title"> · {{ a.title }}</span>
+                      <div v-if="a.number" class="muted">Account {{ a.number }}</div>
+                      <div v-if="a.iban" class="muted">IBAN {{ a.iban }}</div>
+                    </li>
+                  </ul>
+                  <p v-if="o.payment.bank_instructions" class="muted" style="margin: 4px 0 0; white-space: pre-line">{{ o.payment.bank_instructions }}</p>
+                </div>
+              </div>
+
+              <div v-if="isBank" class="pay__proof" data-bank-panel>
+                <p v-if="o.payment.proof_reject_reason && o.payment.proof_status === 'rejected'" class="alert alert--error" style="margin: 0" data-proof-reject-reason>Proof rejected: {{ o.payment.proof_reject_reason }}</p>
+                <div v-if="o.payment.has_proof">
+                  <div class="muted" style="margin-bottom: 4px">Payment proof (customer's screenshot)</div>
+                  <button v-if="proofUrl" class="proof-thumb" type="button" title="Click to enlarge" data-proof-thumb @click="zoom = true">
+                    <img :src="proofUrl" alt="Payment proof" data-proof-img /><span class="proof-zoom"><ZoomIn :size="16" /></span>
+                  </button>
+                  <p v-else-if="proofState === 'loading'" class="muted" style="margin: 0">Loading the picture...</p>
+                  <p v-else-if="proofState === 'error'" class="err" style="margin: 0">The picture could not be loaded. <button class="btn btn-outline btn-sm" type="button" @click="loadProof">Retry</button></p>
+                </div>
+                <p v-else class="muted" style="margin: 0" data-no-proof>The customer has not uploaded a proof yet.</p>
+                <div v-if="canManage && o.actions.can_verify_payment" class="act-bar">
+                  <button class="btn btn-success" type="button" :disabled="payBusy" data-verify-payment @click="verifyPayment"><span v-if="payBusy" class="spinner" /><ShieldCheck v-else :size="16" /> Verify payment</button>
+                  <button class="btn btn-soft-danger" type="button" :disabled="payBusy" data-reject-proof @click="openRejectProof"><CircleX :size="16" /> Reject proof</button>
+                </div>
+              </div>
+            </div>
+          </section>
           <section class="card">
             <div class="card__head"><h2>Items ({{ o.items.length }})</h2></div>
             <div class="table-wrap">
@@ -295,15 +343,6 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
             </div>
           </section>
 
-          <section class="card">
-            <div class="card__head"><h2>Status timeline</h2></div>
-            <ol class="timeline">
-              <li v-for="(s, idx) in o.timeline" :key="idx" :class="stepClass(s)">
-                <strong>{{ s.label }}</strong> <small style="display: inline">· {{ formatDate(s.at, true) }} · {{ s.by.name || s.by.type }}</small>
-                <span v-if="s.note" class="note" style="display: block">{{ s.note }}</span>
-              </li>
-            </ol>
-          </section>
         </div>
 
         <div>
@@ -339,64 +378,26 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
               <div v-for="line in addressLines(o.shipping_address)" :key="line">{{ line }}</div>
               <div>Phone: {{ o.shipping_address.phone }}</div>
             </div>
+            <div v-if="sameAddress" class="addr-same muted">Billing address: same as the shipping address.</div>
           </section>
 
-          <section class="card">
+          <section v-if="!sameAddress" class="card">
             <div class="card__head"><h2>Billing address</h2></div>
-            <div v-if="sameAddress" class="addr muted">Same as the shipping address.</div>
-            <div v-else-if="o.billing_address" class="addr">
+            <div v-if="o.billing_address" class="addr">
               <strong>{{ o.billing_address.name }}<span v-if="o.billing_address.type" class="tag">{{ o.billing_address.type }}</span></strong>
               <div v-for="line in addressLines(o.billing_address)" :key="line">{{ line }}</div>
               <div>Phone: {{ o.billing_address.phone }}</div>
             </div>
           </section>
 
-          <section class="card" data-section="payment">
-            <div class="card__head"><h2>Payment</h2><StatusBadge :status="o.payment.status" /></div>
-            <div class="kv-list">
-              <div><span class="k">Method</span><span class="v">{{ o.payment.method_label }}</span></div>
-              <div><span class="k">Amount</span><span class="v">{{ money(o.payment.amount) }}</span></div>
-              <div v-if="o.payment.collect_on_delivery"><span class="k">To collect on delivery</span><span class="v">{{ money(o.payment.collect_on_delivery) }}</span></div>
-              <div v-if="o.payment.paid_at"><span class="k">Paid on</span><span class="v">{{ formatDate(o.payment.paid_at, true) }}</span></div>
-              <template v-if="isBank">
-                <div><span class="k">Proof</span><span class="v"><span class="badge" :class="`badge--${o.payment.proof_status}`" data-proof-status>{{ proofLabel }}</span></span></div>
-                <div v-if="o.payment.proof_reference"><span class="k">Reference</span><span class="v" data-proof-reference>{{ o.payment.proof_reference }}</span></div>
-                <div v-if="o.payment.verified_at"><span class="k">Verified on</span><span class="v">{{ formatDate(o.payment.verified_at, true) }}</span></div>
-              </template>
-            </div>
-            <p v-if="o.payment.method === 'cod' && o.payment.status === 'cod_pending'" class="muted" style="padding: 0 14px 12px">Cash on delivery is marked as paid when the order is marked delivered.</p>
-
-            <div v-if="isBank" class="card__body" style="display: grid; gap: 10px; border-top: 1px solid var(--border-light)" data-bank-panel>
-              <p v-if="o.payment.proof_reject_reason && o.payment.proof_status === 'rejected'" class="alert alert--error" style="margin: 0" data-proof-reject-reason>Proof rejected: {{ o.payment.proof_reject_reason }}</p>
-
-              <div v-if="o.payment.has_proof">
-                <div class="muted" style="margin-bottom: 4px">Payment proof (screenshot from the customer)</div>
-                <button v-if="proofUrl" class="proof-thumb" type="button" title="Click to enlarge" data-proof-thumb @click="zoom = true">
-                  <img :src="proofUrl" alt="Payment proof" data-proof-img /><span class="proof-zoom"><ZoomIn :size="16" /></span>
-                </button>
-                <p v-else-if="proofState === 'loading'" class="muted" style="margin: 0">Loading the picture...</p>
-                <p v-else-if="proofState === 'error'" class="err" style="margin: 0">The picture could not be loaded. <button class="btn btn-outline btn-sm" type="button" @click="loadProof">Retry</button></p>
-              </div>
-              <p v-else class="muted" style="margin: 0" data-no-proof>The customer has not uploaded a proof yet.</p>
-
-              <div v-if="canManage && o.actions.can_verify_payment" class="act-bar">
-                <button class="btn btn-success" type="button" :disabled="payBusy" data-verify-payment @click="verifyPayment"><span v-if="payBusy" class="spinner" /><ShieldCheck v-else :size="16" /> Verify payment</button>
-                <button class="btn btn-soft-danger" type="button" :disabled="payBusy" data-reject-proof @click="openRejectProof"><CircleX :size="16" /> Reject proof</button>
-              </div>
-
-              <div>
-                <div class="muted" style="margin-bottom: 3px">Accounts shown to the customer</div>
-                <p v-if="!o.payment.bank_accounts.length" class="muted" style="margin: 0">None (no active account).</p>
-                <ul v-else class="acct-show">
-                  <li v-for="(a, i) in o.payment.bank_accounts" :key="i">
-                    <strong>{{ a.bank }}</strong><span v-if="a.title"> · {{ a.title }}</span>
-                    <div v-if="a.number" class="muted">Account {{ a.number }}</div>
-                    <div v-if="a.iban" class="muted">IBAN {{ a.iban }}</div>
-                  </li>
-                </ul>
-                <p v-if="o.payment.bank_instructions" class="muted" style="margin: 6px 0 0; white-space: pre-line">{{ o.payment.bank_instructions }}</p>
-              </div>
-            </div>
+          <section class="card">
+            <div class="card__head"><h2>Status timeline</h2></div>
+            <ol class="timeline">
+              <li v-for="(s, idx) in o.timeline" :key="idx" :class="stepClass(s)">
+                <strong>{{ s.label }}</strong> <small style="display: inline">· {{ formatDate(s.at, true) }} · {{ s.by.name || s.by.type }}</small>
+                <span v-if="s.note" class="note" style="display: block">{{ s.note }}</span>
+              </li>
+            </ol>
           </section>
 
           <section v-if="o.shipment" class="card">

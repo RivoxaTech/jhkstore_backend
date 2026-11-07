@@ -578,3 +578,23 @@ table.table--dense { min-width: 760px; }
 
 /* the items table of an order has only four columns: it never needs the 900px minimum of the wide tables (no scrollbar) */
 table.table.od-items { min-width: 0; }
+
+/* ---------- order detail: tighter, payment on top ---------- */
+.od-layout, .od-layout > div { gap: 8px; }
+.od-layout .kv-list { gap: 4px; padding: 8px 14px 10px; }
+.od-layout .addr { padding: 8px 14px; line-height: 1.45; }
+.od-layout .addr-same { padding: 0 14px 9px; font-size: 12px; }
+.od-layout .timeline { padding: 8px 14px; }
+.od-layout .timeline li { padding-bottom: 8px; }
+.od-layout .totals { gap: 3px; padding: 8px 14px 10px; }
+.od-layout .od-items td, .od-layout .od-items th { padding-top: 6px; padding-bottom: 6px; }
+.od-layout .card__head { padding: 8px 14px; }
+.od-layout .card__body { padding: 10px 14px; }
+.pay { display: grid; grid-template-columns: minmax(0, 1fr); }
+.pay--bank { grid-template-columns: minmax(0, 1fr) auto; }
+.pay__main { min-width: 0; }
+.pay__note { padding: 0 14px 10px; }
+.pay__accounts { padding: 8px 14px 10px; border-top: 1px solid var(--border-light); display: grid; gap: 3px; }
+.pay__proof { padding: 10px 14px; border-left: 1px solid var(--border-light); display: grid; gap: 8px; align-content: start; min-width: 200px; }
+.pay__proof .act-bar { flex-direction: column; align-items: stretch; }
+@media (max-width: 720px) { .pay--bank { grid-template-columns: minmax(0, 1fr); } .pay__proof { border-left: 0; border-top: 1px solid var(--border-light); } }
