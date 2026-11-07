@@ -133,3 +133,24 @@ The three Phase A follow-up fixes have their regression tests: `BankTransferTest
 ### What only a real browser can confirm
 
 The permission prompt, the subscription with the real push service, that Windows shows the notification and keeps it until clicked, the click opening the right order, the system sound, Focus Assist, and the chime being audible. The server half (message, recipients, queue, error reporting, status card, chime wiring with a stubbed audio element) is tested. Steps for your machine: [PUSH_TEST.md](PUSH_TEST.md).
+
+
+## Storefront preparation (Stage 1 of the storefront work): results
+
+Run on the scratch database `jhkstore_shots` (ports 8002 and 8003, log mailer on 8002), one script after the other, on 2026-11-07 / 08.
+
+| Script | Result |
+|---|---|
+| PHPUnit | **551 tests** (514 before the work; +37: `WebsiteRebuildTest` 22, `StorefrontPrepTest` 15, the demo seeder test now checks the whole toy catalogue) |
+| `scripts/flow-check.mjs` | **553 of 553 assertions PASS** (A1 to G33). New section **G33**: sitemap shape and no prices; `Cache-Control` and `ETag` on every public catalogue read, 304 on `If-None-Match`, `no-store` on the cart, a cart-token read, a 404, the quote, order lookup; an admin answer is never `public`; CORS for `http://localhost:3000` with `X-Cart-Token` exposed and none for a stranger; the Website tab for the default admin shows only the switch; the admin cannot write the hook address, secret or wait time (403); a non-https hook is refused; the secret is in no answer and encrypted in the database; three quick edits = 3 pending changes and ONE queued job; a notification setting and an order note are not storefront changes; *Rebuild now* with an unreachable hook answers 200 with `ok:false`, a warning and no address or secret; `php artisan shop:rebuild` exits 1; the audit log holds neither the secret nor the hook token; the developer holds `settings.website` and no `orders.*` |
+| `admin-frontend/e2e/flow-ui.mjs` | UI-H1 (the Website tab in the browser: hook and secret fields, the https message, "Set" after saving, the secret nowhere in the page, Rebuild now with a failing hook shows the warning without the address, Clear) passes; screenshots of the tab were checked. Run once from a fresh seed: **all checks pass except two timing races in the scripts** (UI-B1 "accounts listed" and UI-H1 "button is on" read the page before it had filled in): both now wait for the page; re-checked in the Stage 2 gate |
+| `admin-frontend/e2e/smoke.mjs` | **79 checks PASS** (Website tab for the admin and the developer included) |
+
+### Bugs found by these runs and fixed
+- The admin panel's own call of `GET /store/settings` became cacheable (the storefront headers) and Chrome kept a background revalidation open: pages never went idle and a stale store name could show after saving. **The panel now sends `cache: 'no-store'` on every API call.**
+- A cURL error message in the Website card ended with a pointer URL; it is removed (the hook address was already stripped).
+- The shape tests of the product card and the category tree list the new fields.
+
+### Found, not changed
+- The Website card status (changes waiting, last result) is kept in the cache. With `CACHE_STORE=array` or `file` on a host with several PHP processes the status can differ between requests; the production setting `database` (the default of this project) is shared.
+- `rebuild_enabled` switches the **automatic** rebuild only; the button and `shop:rebuild` work whenever a hook address is set.

@@ -153,6 +153,7 @@
                                                 "settings.delivery",
                                                 "settings.payments",
                                                 "settings.notifications",
+                                                "settings.website",
                                                 "settings.advanced",
                                                 "discounts.view",
                                                 "discounts.manage",
@@ -566,7 +567,7 @@
         },
         "/v1/store/banners": {
             "get": {
-                "operationId": "store.banner.index",
+                "operationId": "store.banners",
                 "summary": "Banners to show right now: active, inside their start / end dates, in the order set in the admin panel.\n`?placement=home_hero` (home_hero, home_secondary, promo_strip) returns one spot; without it every live banner is returned (each has its `placement`).\nA spot can hold one banner or several - show a single banner or a slider as you like. `data` is empty when nothing is live",
                 "tags": [
                     "Banner"
@@ -996,7 +997,7 @@
         },
         "/v1/store/cart": {
             "get": {
-                "operationId": "cart.show",
+                "operationId": "store.cart.show",
                 "summary": "GET cart (optional ?city=&area=&postcode= to get the delivery fee of a zone)",
                 "tags": [
                     "Cart"
@@ -1061,7 +1062,7 @@
                 }
             },
             "delete": {
-                "operationId": "cart.clear",
+                "operationId": "store.cart.clear",
                 "summary": "DELETE cart: empties the cart (items and coupon)",
                 "tags": [
                     "Cart"
@@ -1090,7 +1091,7 @@
         },
         "/v1/store/cart/items": {
             "post": {
-                "operationId": "cart.add",
+                "operationId": "store.cart.add",
                 "summary": "POST cart/items { variant_id, qty }: adds the quantity to the option",
                 "tags": [
                     "Cart"
@@ -1132,7 +1133,7 @@
         },
         "/v1/store/cart/items/{variantId}": {
             "put": {
-                "operationId": "cart.update",
+                "operationId": "store.cart.update",
                 "summary": "PUT cart/items/{variantId} { qty }: sets the quantity of a line",
                 "tags": [
                     "Cart"
@@ -1182,7 +1183,7 @@
                 }
             },
             "delete": {
-                "operationId": "cart.remove",
+                "operationId": "store.cart.remove",
                 "summary": "DELETE cart/items/{variantId}",
                 "tags": [
                     "Cart"
@@ -1221,7 +1222,7 @@
         },
         "/v1/store/cart/contact": {
             "put": {
-                "operationId": "cart.contact",
+                "operationId": "store.cart.contact",
                 "summary": "PUT cart/contact { name?, phone?, email? }: kept so the shop can follow up an abandoned cart",
                 "tags": [
                     "Cart"
@@ -1262,7 +1263,7 @@
         },
         "/v1/store/cart/coupon": {
             "put": {
-                "operationId": "cart.setCoupon",
+                "operationId": "store.cart.coupon.set",
                 "summary": "PUT cart/coupon { code }: a code that does not work answers 422 `coupon_invalid` and is not saved",
                 "tags": [
                     "Cart"
@@ -1302,7 +1303,7 @@
                 }
             },
             "delete": {
-                "operationId": "cart.removeCoupon",
+                "operationId": "store.cart.coupon.remove",
                 "summary": "DELETE cart/coupon",
                 "tags": [
                     "Cart"
@@ -1331,7 +1332,7 @@
         },
         "/v1/store/categories": {
             "get": {
-                "operationId": "store.category.index",
+                "operationId": "store.categories.index",
                 "summary": "Active categories with their active sub-categories. Cached 10 minutes.\n`?top=1` = only the top categories (home screen)",
                 "tags": [
                     "Category"
@@ -1374,7 +1375,7 @@
         },
         "/v1/store/categories/{slug}": {
             "get": {
-                "operationId": "store.category.show",
+                "operationId": "store.categories.show",
                 "summary": "One active category by slug, with its active sub-categories",
                 "tags": [
                     "Category"
@@ -1908,7 +1909,7 @@
         },
         "/v1/store/checkout/quote": {
             "post": {
-                "operationId": "checkout.quote",
+                "operationId": "store.quote",
                 "summary": "Price a cart: body { items: [{variant_id, qty}] | cart_token, coupon_code?, address?: {city, area, postcode}, phone? }. Answers the\nserver-priced lines (bulk prices and discounts applied), the totals (tax, delivery fee, savings, coupon), the next bulk offer per line and the\nwarnings (out of stock, quantity limits, minimum order). Nothing is stored or reserved. A refused coupon is reported in\n`summary.coupon_error`; it does not block the quote",
                 "tags": [
                     "Checkout"
@@ -1949,7 +1950,7 @@
         },
         "/v1/store/coupons/validate": {
             "post": {
-                "operationId": "checkout.validateCoupon",
+                "operationId": "store.coupons.validate",
                 "summary": "POST coupons/validate { code, items | cart_token, address?, phone? }: the quote with the coupon applied (the same engine as the quote and\nthe order). A coupon that does not work answers 422 `coupon_invalid` with `coupon_error { code, message }`",
                 "tags": [
                     "Checkout"
@@ -4455,7 +4456,7 @@
         },
         "/v1/store/orders": {
             "post": {
-                "operationId": "order.store",
+                "operationId": "store.orders.store",
                 "summary": "Place an order. Body: customer { name, phone, email? }, address { line1, city, area?, landmark?, state?, postcode?, country?, name?, phone? },\nitems [{ variant_id, qty }] or cart_token, payment_method? (cod | bank_transfer), coupon_code?, customer_note?, expected_total?. Send an `Idempotency-Key` header (any unique string, max 64) so a double tap or\na retry returns the same order (200 + `Idempotency-Replayed: true`) instead of a second one. 201 = new order; 409 `price_changed` = the\ntotal the customer saw is no longer right",
                 "tags": [
                     "Order"
@@ -4489,7 +4490,7 @@
         },
         "/v1/store/orders/{orderNumber}": {
             "get": {
-                "operationId": "store.order.show",
+                "operationId": "store.orders.show",
                 "summary": "Order status and timeline: GET orders/{orderNumber}?phone=... The phone must be the one of the order; a wrong phone answers 404, exactly\nlike an order that does not exist, so order numbers cannot be probed",
                 "tags": [
                     "Order"
@@ -4543,7 +4544,7 @@
         },
         "/v1/store/orders/{orderNumber}/payment-proof": {
             "post": {
-                "operationId": "order.paymentProof",
+                "operationId": "store.orders.payment-proof",
                 "summary": "Bank transfer: upload the screenshot of the payment. POST orders/{orderNumber}/payment-proof?phone=... (multipart `proof`, optional `reference`).\nA wrong phone answers the same 404 as an unknown order. Allowed while the order is pending, and again after the shop rejected a proof",
                 "tags": [
                     "Order"
@@ -5258,7 +5259,7 @@
         },
         "/v1/store/products": {
             "get": {
-                "operationId": "store.product.index",
+                "operationId": "store.products.index",
                 "summary": "Product cards. Homepage sections are this endpoint with a tag, e.g. ?tag=best-seller&per_page=10.\nQuery: ?tag ?category ?sub_category (slugs) ?q ?min_price ?max_price ?in_stock=1 ?featured=1 (the products the shop marked as featured)\n?sort=popularity|newest|price_asc|price_desc|discount ?page ?per_page (max 100)",
                 "tags": [
                     "Product"
@@ -5529,7 +5530,7 @@
         },
         "/v1/store/products/{slug}": {
             "get": {
-                "operationId": "store.product.show",
+                "operationId": "store.products.show",
                 "summary": "Product page: card fields + description, content tabs, variants (with stock), images and related products",
                 "tags": [
                     "Product"
@@ -6714,6 +6715,30 @@
                                                     },
                                                     "is_primary": {
                                                         "type": "boolean"
+                                                    },
+                                                    "width": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "height": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "medium_width": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "medium_height": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
                                                     }
                                                 },
                                                 "required": [
@@ -6723,7 +6748,11 @@
                                                     "url",
                                                     "medium_url",
                                                     "thumb_url",
-                                                    "is_primary"
+                                                    "is_primary",
+                                                    "width",
+                                                    "height",
+                                                    "medium_width",
+                                                    "medium_height"
                                                 ]
                                             }
                                         }
@@ -6814,6 +6843,30 @@
                                                     },
                                                     "is_primary": {
                                                         "type": "boolean"
+                                                    },
+                                                    "width": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "height": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "medium_width": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "medium_height": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
                                                     }
                                                 },
                                                 "required": [
@@ -6823,7 +6876,11 @@
                                                     "url",
                                                     "medium_url",
                                                     "thumb_url",
-                                                    "is_primary"
+                                                    "is_primary",
+                                                    "width",
+                                                    "height",
+                                                    "medium_width",
+                                                    "medium_height"
                                                 ]
                                             }
                                         }
@@ -6912,6 +6969,30 @@
                                                     },
                                                     "is_primary": {
                                                         "type": "boolean"
+                                                    },
+                                                    "width": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "height": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "medium_width": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "medium_height": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
                                                     }
                                                 },
                                                 "required": [
@@ -6921,7 +7002,11 @@
                                                     "url",
                                                     "medium_url",
                                                     "thumb_url",
-                                                    "is_primary"
+                                                    "is_primary",
+                                                    "width",
+                                                    "height",
+                                                    "medium_width",
+                                                    "medium_height"
                                                 ]
                                             }
                                         }
@@ -7007,6 +7092,30 @@
                                                     },
                                                     "is_primary": {
                                                         "type": "boolean"
+                                                    },
+                                                    "width": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "height": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "medium_width": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "medium_height": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
                                                     }
                                                 },
                                                 "required": [
@@ -7016,7 +7125,11 @@
                                                     "url",
                                                     "medium_url",
                                                     "thumb_url",
-                                                    "is_primary"
+                                                    "is_primary",
+                                                    "width",
+                                                    "height",
+                                                    "medium_width",
+                                                    "medium_height"
                                                 ]
                                             }
                                         }
@@ -7352,7 +7465,7 @@
         },
         "/v1/store/settings": {
             "get": {
-                "operationId": "store.setting.show",
+                "operationId": "store.settings",
                 "summary": "Public store configuration: profile and branding, open / closed, footer, social links and the agency credit, SEO defaults, currency, tax,\ndelivery, payment methods, order rules and the theme (colours, fonts, corners) the storefront paints itself with",
                 "tags": [
                     "Setting"
@@ -8320,6 +8433,54 @@
                 }
             }
         },
+        "/v1/store/sitemap": {
+            "get": {
+                "operationId": "store.sitemap",
+                "summary": "Every visible product, category and sub-category (slug, date, one picture), for the static build and for sitemap.xml.\n`{products: [{slug, category_slug, updated_at, image_url}], categories: [{slug, updated_at}], sub_categories: [{slug, category_slug, updated_at}]}`.\nNo prices. Cached 5 minutes on the server and by the CDN",
+                "tags": [
+                    "Sitemap"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "products": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "minItems": 0,
+                                            "maxItems": 0
+                                        },
+                                        "categories": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "sub_categories": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "products",
+                                        "categories",
+                                        "sub_categories"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/admin/sub-categories/{subCategory}": {
             "get": {
                 "operationId": "subCategory.show",
@@ -8508,7 +8669,7 @@
         },
         "/v1/store/tags": {
             "get": {
-                "operationId": "store.tag.index",
+                "operationId": "store.tags",
                 "summary": "Active tags, e.g. to build the homepage sections (slug is what `?tag=` expects)",
                 "tags": [
                     "Tag"
@@ -8907,9 +9068,126 @@
                 }
             }
         },
+        "/v1/admin/website/status": {
+            "get": {
+                "operationId": "website.status",
+                "summary": "Pending changes, last request, last result. Never the hook address or the secret (those are advanced settings)",
+                "tags": [
+                    "Website"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "enabled": {
+                                            "type": "boolean"
+                                        },
+                                        "hook_configured": {
+                                            "type": "boolean"
+                                        },
+                                        "secret_set": {
+                                            "type": "boolean"
+                                        },
+                                        "debounce_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "pending_changes": {
+                                            "type": "integer"
+                                        },
+                                        "waiting": {
+                                            "type": "boolean"
+                                        },
+                                        "last_requested_at": {},
+                                        "last_result": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "ok": {
+                                                    "type": "boolean"
+                                                },
+                                                "error": {
+                                                    "type": "string"
+                                                },
+                                                "at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "ok",
+                                                "error",
+                                                "at"
+                                            ]
+                                        },
+                                        "warning": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "enabled",
+                                        "hook_configured",
+                                        "secret_set",
+                                        "debounce_seconds",
+                                        "pending_changes",
+                                        "waiting",
+                                        "last_requested_at",
+                                        "last_result",
+                                        "warning"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/admin/website/rebuild": {
+            "post": {
+                "operationId": "website.rebuild",
+                "summary": "Calls the hook now (a failure is an answer, not an error: the panel shows it)",
+                "tags": [
+                    "Website"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {}
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {}
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/store/wholesale-requests": {
             "post": {
-                "operationId": "wholesale.store",
+                "operationId": "store.wholesale.store",
                 "summary": "A guest asks for a wholesale price. Answers only the reference (WS-2026-000001): nothing about other requests or customers.\nLimits: 5 an hour per IP and 5 an hour per phone number; the honeypot field must stay empty",
                 "tags": [
                     "Wholesale"
@@ -9426,6 +9704,22 @@
                     },
                     "status_label": {
                         "type": "string"
+                    },
+                    "next_statuses": {
+                        "type": "array",
+                        "description": "what the status dropdown of the list may offer (the same rules as the order page: ChangeOrderStatus decides in the end)",
+                        "items": {}
+                    },
+                    "blocked_reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "delivery_fee_pending",
+                            "payment_not_verified",
+                            null
+                        ]
                     }
                 },
                 "required": [
@@ -9440,7 +9734,9 @@
                     "payment_status",
                     "delivery_fee_pending",
                     "status",
-                    "status_label"
+                    "status_label",
+                    "next_statuses",
+                    "blocked_reason"
                 ],
                 "title": "AdminOrderListResource"
             },
@@ -10995,6 +11291,30 @@
                                 },
                                 "is_primary": {
                                     "type": "boolean"
+                                },
+                                "width": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "height": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "medium_width": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "medium_height": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
                                 }
                             },
                             "required": [
@@ -11004,7 +11324,11 @@
                                 "url",
                                 "medium_url",
                                 "thumb_url",
-                                "is_primary"
+                                "is_primary",
+                                "width",
+                                "height",
+                                "medium_width",
+                                "medium_height"
                             ]
                         }
                     },
@@ -12001,7 +12325,7 @@
             },
             "Settings": {
                 "type": "object",
-                "description": "The one place that reads and writes store settings (table `settings`, key/value, cached).\n\nEvery setting is declared in DEFINITIONS with its group, type, default and label, so a missing row falls back to the default,\nthe admin Settings page can be built from the list, and writes are validated by type. Client values (store name, currency, tax, \u2026)\nlive here, not in code. *\nTypes: string | text | bool | int | money | percent | file | links | accounts | color | choice\n - `file`  a picture owned by the setting's row (medialibrary); the value is the media id, uploaded through the admin endpoints\n - `links` a JSON list of {platform, label, url, active}; the order of the list is the display order\n - `accounts` a JSON list of {bank, title, number, iban, active} (bank transfer accounts); the order of the list is the display order\n - `color` a #RRGGBB colour       `choice` one value of a fixed list (CHOICES)",
+                "description": "The one place that reads and writes store settings (table `settings`, key/value, cached).\n\nEvery setting is declared in DEFINITIONS with its group, type, default and label, so a missing row falls back to the default,\nthe admin Settings page can be built from the list, and writes are validated by type. Client values (store name, currency, tax, \u2026)\nlive here, not in code. *\nTypes: string | text | bool | int | money | percent | file | links | accounts | color | choice | secret\n - `secret` a value stored ENCRYPTED that no API ever returns (the admin API only says whether it is set); `get()` decrypts for server-side use\n - `file`  a picture owned by the setting's row (medialibrary); the value is the media id, uploaded through the admin endpoints\n - `links` a JSON list of {platform, label, url, active}; the order of the list is the display order\n - `accounts` a JSON list of {bank, title, number, iban, active} (bank transfer accounts); the order of the list is the display order\n - `color` a #RRGGBB colour       `choice` one value of a fixed list (CHOICES)",
                 "title": "Settings"
             },
             "StoreBannerResource": {
@@ -12427,6 +12751,19 @@
                             "null"
                         ]
                     },
+                    "image_width": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "image_height": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "size of image_url: reserve the space, no layout shift (null = unknown)"
+                    },
                     "thumb_url": {
                         "type": [
                             "string",
@@ -12527,6 +12864,20 @@
                     "is_featured": {
                         "type": "boolean",
                         "description": "shown as \"Sold out\": visible, cannot be ordered"
+                    },
+                    "availability": {
+                        "type": "string",
+                        "enum": [
+                            "in_stock",
+                            "out_of_stock"
+                        ]
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "schema.org availability"
                     }
                 },
                 "required": [
@@ -12535,6 +12886,8 @@
                     "slug",
                     "short_description",
                     "image_url",
+                    "image_width",
+                    "image_height",
                     "thumb_url",
                     "category",
                     "options_count",
@@ -12551,7 +12904,9 @@
                     "tags",
                     "in_stock",
                     "is_sold_out",
-                    "is_featured"
+                    "is_featured",
+                    "availability",
+                    "updated_at"
                 ],
                 "title": "StoreProductCardResource"
             },

@@ -153,6 +153,7 @@ class Rebuild
     private function clean(string $message, string $url, string $secret): string
     {
         $message = str_replace(array_filter([$url, $secret, parse_url($url, PHP_URL_HOST) ?: null]), '[hook]', $message);
+        $message = preg_replace('/\s*\(see https?:\/\/\S+\)/', '', $message);   // cURL's "(see https://curl.se/...)" pointer
         $message = trim((string) preg_replace('/\s+/', ' ', $message));
 
         return mb_substr($message !== '' ? $message : 'The hook could not be reached.', 0, 160);

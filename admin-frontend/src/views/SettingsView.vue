@@ -149,8 +149,8 @@ async function save() {
     // the answer normally carries the fresh settings; fall back to reading them
     fill(res?.tabs ? res : await api.get('admin/settings'))
     ui.toast('Settings saved.')
-    await refreshCaches()
     websiteCard.value?.load()
+    await refreshCaches()
   } catch (e) {
     if (e instanceof ApiError && Object.keys(e.errors).length) {
       errors.value = e.errors

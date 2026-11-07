@@ -645,6 +645,7 @@ try {
   await a.page.waitForFunction(() => { const i = document.querySelector('[data-proof-img]'); return i && i.complete && i.naturalWidth >= 100 }, { timeout: 15000 })
   check(await a.page.$eval('[data-proof-img]', (i) => i.src.startsWith('blob:')), 'UI-B1 the proof picture is shown from a blob (fetched through the authenticated route)')
   check((await a.page.$eval('[data-proof-reference]', (e) => e.innerText)) === 'UI-REF-123' && await a.page.$eval('[data-proof-status]', (e) => /to check/i.test(e.innerText)), 'UI-B1 the reference and the "Proof to check" badge show')
+  await a.page.waitForFunction((bank) => document.querySelector('[data-bank-panel]')?.innerText.includes(bank), { timeout: 15000 }, `UI Bank ${RUN}`).catch(() => {})   // the panel fills in after the order is read
   check(await a.page.$eval('[data-bank-panel]', (p, bank) => p.innerText.includes(bank) && p.innerText.includes('payment reference'), `UI Bank ${RUN}`), 'UI-B1 the accounts and instructions shown to the customer are listed')
   const plainProof = await fetch(`${BASE}/api/v1/admin/orders/${bank1.id}/payment/proof`, { headers: { Accept: 'application/json' } })
   check(plainProof.status === 401, 'UI-B1 the proof URL is not public (401 without the login)')
@@ -1065,6 +1066,7 @@ try {
     await sleep(500)
     check((await textOf(d.page, '[data-field="rebuild_hook_secret"] [data-testid="secret-state"]')) === 'Set' && (await d.page.$eval('#s-rebuild_hook_secret', (e) => e.value)) === '', 'UI-H1 after saving, the secret box is empty and says "Set": the secret is never shown again')
     check(!(await d.page.evaluate(() => document.documentElement.outerHTML)).includes(SECRET), 'UI-H1 the secret is nowhere in the page')
+    await d.page.waitForFunction(() => document.querySelector('[data-testid="rebuild-now"]') && !document.querySelector('[data-testid="rebuild-now"]').disabled, { timeout: 15000 }).catch(() => {})   // the status card reloads after the save
     check(!(await d.page.$eval('[data-testid="rebuild-now"]', (e) => e.disabled)), 'UI-H1 with a hook set, the button is on')
     // the client admin presses the button: the hook does not exist, so the failure shows (and no address leaks)
     await goto(a.page, 'settings?tab=website')

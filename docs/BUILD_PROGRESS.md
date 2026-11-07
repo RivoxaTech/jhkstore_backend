@@ -3,12 +3,12 @@
 Branch: lean-store. Never merge / push. Baseline before the work: 514 PHPUnit tests (1 skipped), HEAD 04ed208.
 
 ## Stages
-- Stage 1 (backend prep): code + docs done and committed (a870ef5, afa7747); GATE 1 runs in progress (full PHPUnit, flow-check, flow-ui, smoke, Website tab screenshots)
-- Stage 2 (restructure + rename): not started
+- Stage 1 (backend prep): DONE, GATE 1 green (PHPUnit 551 tests / 550 passed + 1 skipped, flow-check 553/553 incl. G33, smoke 79, flow-ui UI-H1 ok; two flow-ui timing checks fixed, re-verify in Gate 2)
+- Stage 2 (restructure + rename): IN PROGRESS
 - Stage 3 (storefront): not started
 
 ## Step in progress
-Gate 1: run flow-check (A1..G33) then flow-ui (UI-H1) on the scratch database, full PHPUnit, smoke on a freshly seeded DB; look at the Website tab screenshots; finish CHANGELOG / QA_REPORT numbers; commit.
+Stage 2: tag pre-restructure, one restructure commit, fix paths, rename to JHK Store, gate 2.
 
 ## Decisions (Stage 1)
 - Rebuild state (pending, window, last result) lives in the cache, no new table (46 tables stay).
