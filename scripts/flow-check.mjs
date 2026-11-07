@@ -17,10 +17,10 @@
 // Environment: FLOW_BASE (default http://127.0.0.1:8000), FLOW_BASE2 (default http://127.0.0.1:8001),
 // FLOW_DEV_USER / FLOW_DEV_PASSWORD (developer / developer), FLOW_ADMIN_USER / FLOW_ADMIN_PASSWORD (admin / admin).
 //
-// It covers checks A1 to G32 (see docs/QA_REPORT.md), prints PASS / FAIL with the actual answer for every assertion and exits with 1 when
+// It covers checks A1 to G33 (see docs/QA_REPORT.md), prints PASS / FAIL with the actual answer for every assertion and exits with 1 when
 // something fails. Database reads (stock, inventory movements, audit log, payments, jobs) go through scripts/flow-db.php (SELECT only), e-mails are
 // read from storage/logs/laravel.log (the log mailer). Phase B: G24 dashboard, G25 product switches, G26 product video, G27 wholesale, G28 e-mails and
-// the queue, G29 admin push, G30 exports and abandoned carts, G31 a FULL RUN of the whole shop, G32 the wholesale per-IP limit (last on purpose).
+// the queue, G29 admin push, G30 exports and abandoned carts, G31 a FULL RUN of the whole shop, G33 storefront preparation (sitemap, cache headers, CORS, the Website tab and rebuild hook), G32 the wholesale per-IP limit (last on purpose).
 // The browser side of the same checks (sidebar, buttons, print pages) is admin-frontend/e2e/flow-ui.mjs.
 import { execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
@@ -34,7 +34,7 @@ const BASE = process.env.FLOW_BASE || 'http://127.0.0.1:8000'
 const BASE2 = process.env.FLOW_BASE2 || 'http://127.0.0.1:8001'
 const DEV = [process.env.FLOW_DEV_USER || 'developer', process.env.FLOW_DEV_PASSWORD || 'developer']
 const ADM = [process.env.FLOW_ADMIN_USER || 'admin', process.env.FLOW_ADMIN_PASSWORD || 'admin']
-const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
+const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'settings.website', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
 
 if (process.argv.includes('--fresh')) {
   execFileSync('php', ['artisan', 'migrate:fresh', '--seed', '--force'], { cwd: ROOT, stdio: 'ignore' })
@@ -190,7 +190,7 @@ try {
   check((await post('admin/categories', { name: 'Nope' }, A)).status === 403, 'admin cannot create a category by default (403)')
   const admSettings = await get('admin/settings', A)
   const tabKeys = (r) => (r.json?.tabs || []).map((t) => t.key ?? t.id ?? t)
-  check(JSON.stringify(tabKeys(admSettings).sort()) === JSON.stringify(['delivery', 'general', 'notifications', 'payments', 'store']), 'admin sees only the General, Delivery, Payments, Store and Notifications tabs (no technical tab)', tabKeys(admSettings))
+  check(JSON.stringify(tabKeys(admSettings).sort()) === JSON.stringify(['delivery', 'general', 'notifications', 'payments', 'store', 'website']), 'admin sees only the General, Delivery, Payments, Store, Notifications and Website tabs (no technical tab)', tabKeys(admSettings))
   const meBefore = await get('admin/auth/me', A)
   check(!meBefore.json.admin.permissions.some((p) => p.startsWith('products.') || p.startsWith('categories.')), 'admin /me lists no products/categories permission', meBefore.json.admin.permissions)
 
@@ -798,7 +798,7 @@ try {
   // restricted admin
   const aTabs = tabKeys(await get('admin/settings', A))
   const tryPut = async (body) => (await put('admin/settings', body, A)).status
-  check(JSON.stringify(aTabs.sort()) === JSON.stringify(['delivery', 'general', 'notifications', 'payments', 'store']), 'restricted admin: GET settings lists only the 5 open tabs (no technical tab, no Theme: it is the developer\'s)', aTabs)
+  check(JSON.stringify(aTabs.sort()) === JSON.stringify(['delivery', 'general', 'notifications', 'payments', 'store', 'website']), 'restricted admin: GET settings lists only the 5 open tabs (no technical tab, no Theme: it is the developer\'s)', aTabs)
   check([await tryPut({ currency_code: 'EUR' }), await tryPut({ seo_meta_title: 'x' }), await tryPut({ store_name: 'Mixed', currency_code: 'EUR' })].every((s) => s === 403), 'restricted admin: Currency & Tax, SEO and a mixed request are all 403', 'currency_code, seo_meta_title, mixed')
   check((await call('POST', 'admin/settings/logo', { token: A, form: formOf({}, { logo: file('l.png', 200, 100, [1, 2, 3]) }) })).status === 403, 'restricted admin: the logo upload (Branding) is 403')
   check((await get('admin/banners', A)).status === 403 && (await post('admin/banners', {}, A)).status === 403, 'restricted admin: Banners are 403')
@@ -1621,6 +1621,90 @@ try {
   // restore
   await setSettings({ mail_enabled: false, notify_admin_email: '', push_enabled: false })
   await put('admin/access-control/developer', { permissions: [] }, D)
+
+  section('G33', 'Storefront preparation: sitemap, cache headers, CORS, the Website tab and the rebuild hook')
+  const apiStore = `${BASE}/api/v1/store`
+  // the sitemap: only what customers see, no prices
+  const sm = await store('sitemap')
+  check(sm.status === 200 && Array.isArray(sm.json?.products) && Array.isArray(sm.json?.categories) && Array.isArray(sm.json?.sub_categories), 'GET store/sitemap answers products, categories and sub_categories', `${sm.status} products=${sm.json?.products?.length}`)
+  check(sm.json.products.every((p) => ['slug', 'category_slug', 'updated_at', 'image_url'].every((k) => k in p)) && !/price|stock|sku/i.test(sm.text), 'sitemap rows carry slug, category_slug, updated_at, image_url and no price, stock or SKU', short(sm.json.products[0]))
+  // cache headers over real HTTP: public catalogue reads are cacheable with an ETag, everything else is no-store
+  for (const route of ['settings', 'banners', 'categories', 'products', 'tags', 'sitemap']) {
+    const r = await store(route)
+    const cc = r.headers.get('cache-control') || ''
+    check(r.status === 200 && /public/.test(cc) && /s-maxage=300/.test(cc) && /max-age=60/.test(cc) && /stale-while-revalidate=60/.test(cc) && r.headers.get('etag'), `GET store/${route}: public Cache-Control and an ETag`, cc)
+  }
+  const etagged = await store('settings')
+  const notModified = await store('settings', { headers: { 'If-None-Match': etagged.headers.get('etag') } })
+  check(notModified.status === 304 && notModified.text === '', 'a matching If-None-Match gets 304 with no body', `HTTP ${notModified.status}`)
+  const cartRead = await store('cart')
+  check(/no-store/.test(cartRead.headers.get('cache-control') || ''), 'the cart is never cached (no-store)', cartRead.headers.get('cache-control'))
+  const withToken = await store('products', { headers: { 'X-Cart-Token': 'a'.repeat(40) } })
+  check(/no-store/.test(withToken.headers.get('cache-control') || '') && !/public/.test(withToken.headers.get('cache-control') || ''), 'a catalogue read that carries X-Cart-Token is no-store', withToken.headers.get('cache-control'))
+  const missing = await store('products/no-such-product-slug')
+  check(missing.status === 404 && /no-store/.test(missing.headers.get('cache-control') || ''), 'a 404 is not cached (a product created after the build shows at once)', missing.headers.get('cache-control'))
+  const q0 = await post('checkout/quote', { items: [] }, undefined, { base: apiStore })
+  check(/no-store/.test(q0.headers.get('cache-control') || ''), 'the quote is no-store', q0.headers.get('cache-control'))
+  check(/no-store/.test((await lookup('ORD-2000-000001', '+10000000000')).headers.get('cache-control') || ''), 'order lookup is no-store')
+  check(/no-store/.test((await get('admin/settings', D)).headers.get('cache-control') || ''), 'an admin answer is not cacheable', (await get('admin/settings', D)).headers.get('cache-control'))
+  // CORS: the Nuxt dev server may call the API and may read X-Cart-Token
+  const cors = await store('settings', { headers: { Origin: 'http://localhost:3000' } })
+  check(cors.headers.get('access-control-allow-origin') === 'http://localhost:3000' && /X-Cart-Token/i.test(cors.headers.get('access-control-expose-headers') || ''), 'CORS allows http://localhost:3000 and exposes X-Cart-Token', { allow: cors.headers.get('access-control-allow-origin'), expose: cors.headers.get('access-control-expose-headers') })
+  check(!(await store('settings', { headers: { Origin: 'https://evil.example.org' } })).headers.get('access-control-allow-origin'), 'a stranger origin gets no CORS header')
+
+  // the Website tab: the client admin (default access) sees it, but not the technical fields; the developer sets the hook
+  const adminWeb = await get('admin/settings', A)
+  const adminWebTab = (adminWeb.json?.tabs || []).find((t) => t.key === 'website')
+  const adminWebKeys = (adminWebTab?.sections || []).flatMap((s) => s.fields).map((f) => f.key)
+  check(adminWebTab && JSON.stringify(adminWebKeys) === JSON.stringify(['rebuild_enabled']), 'the admin sees the Website tab with only the automatic-rebuild switch', adminWebKeys)
+  for (const [k, v] of [['rebuild_hook_url', 'https://hook.invalid/deploy'], ['rebuild_hook_secret', 'nope'], ['rebuild_debounce_seconds', 30]]) {
+    const r = await put('admin/settings', { [k]: v }, A)
+    check(r.status === 403, `the admin cannot write ${k} (advanced) -> 403`, status(r))
+  }
+  const httpHook = await put('admin/settings', { rebuild_hook_url: 'http://insecure.example/hook' }, D)
+  check(httpHook.status === 422 && httpHook.json?.errors?.rebuild_hook_url, 'a hook address that is not https is refused', status(httpHook))
+  const SECRET = 'flow-secret-value-123'
+  const hookSet = await put('admin/settings', { rebuild_hook_url: 'https://127.0.0.1:9/flow-hook-token-xyz', rebuild_hook_secret: SECRET, rebuild_enabled: true, rebuild_debounce_seconds: 10 }, D)
+  const secretField = (hookSet.json?.tabs || []).flatMap((t) => t.sections).flatMap((s) => s.fields).find((f) => f.key === 'rebuild_hook_secret')
+  check(hookSet.status === 200 && secretField?.is_set === true && secretField.value === null && !hookSet.text.includes(SECRET), 'the developer sets the hook; the answer says "set", never the secret', secretField)
+  const webStatus = await get('admin/website/status', A)
+  check(webStatus.status === 200 && webStatus.json.hook_configured && webStatus.json.secret_set && !webStatus.text.includes(SECRET) && !webStatus.text.includes('flow-hook-token-xyz'), 'the status API for the admin says set / not set and never shows the address or the secret', status(webStatus))
+  for (const [label, r] of [['store settings', await store('settings')], ['admin settings', await get('admin/settings', D)], ['access-control', await get('admin/access-control', D)]]) {
+    check(!r.text.includes(SECRET), `the secret is in no answer: ${label}`)
+  }
+  const dbSecret = dbOne("SELECT value FROM settings WHERE `key` = 'rebuild_hook_secret'")
+  check(dbSecret && dbSecret.value && !String(dbSecret.value).includes(SECRET), 'the secret is stored encrypted in the database', short(dbSecret?.value, 40))
+
+  // a change that customers see counts as pending and schedules ONE job; an order does not
+  artisan("Illuminate\\Support\\Facades\\Cache::forget('website.rebuild.pending'); Illuminate\\Support\\Facades\\Cache::forget('website.rebuild.scheduled'); Illuminate\\Support\\Facades\\DB::table('jobs')->where('payload', 'like', '%TriggerRebuild%')->delete();")
+  const pend0 = (await get('admin/website/status', A)).json.pending_changes
+  for (let i = 0; i < 3; i++) await put('admin/settings', { footer_text: `Flow edit ${i}` }, D)
+  const pend1 = (await get('admin/website/status', A)).json
+  const waitingJobs = dbOne("SELECT COUNT(*) n FROM jobs WHERE payload LIKE '%TriggerRebuild%'")
+  check(pend1.pending_changes === pend0 + 3 && Number(waitingJobs.n) === 1 && pend1.waiting, 'three quick edits: 3 pending changes, ONE queued job', { pending: pend1.pending_changes, jobs: waitingJobs.n })
+  await put('admin/settings', { mail_enabled: false }, D)   // a notification setting does not reach the storefront
+  check((await get('admin/website/status', A)).json.pending_changes === pend0 + 3, 'a notification setting does not count as a storefront change')
+
+  // the button: the hook does not exist here, so the failure is shown, never thrown
+  const press = await post('admin/website/rebuild', {}, A)
+  check(press.status === 200 && press.json?.result?.ok === false && press.json?.warning === true && !press.text.includes('flow-hook-token-xyz') && !press.text.includes(SECRET), 'Rebuild now with an unreachable hook: HTTP 200, result failed + warning, no address or secret in the answer', status(press))
+  const pressed = (await get('admin/website/status', A)).json
+  check(pressed.last_requested_at && pressed.last_result?.ok === false && String(pressed.last_result.error || '').length <= 160, 'the status keeps the last request and a short error', pressed.last_result)
+  const auditRows = db("SELECT action, changes FROM audit_logs WHERE action IN ('website.rebuild_requested','settings.updated') ORDER BY id DESC LIMIT 12")
+  check(auditRows.some((r) => r.action === 'website.rebuild_requested') && !JSON.stringify(auditRows).includes(SECRET) && !JSON.stringify(auditRows).includes('flow-hook-token-xyz'), 'the manual rebuild is audited; the audit log holds neither the secret nor the hook token', auditRows.length)
+  const consoleRun = (() => { try { execFileSync('php', ['artisan', 'shop:rebuild'], { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' }); return 0 } catch (e) { return e.status } })()
+  check(consoleRun === 1, 'php artisan shop:rebuild reports the failure with exit code 1', consoleRun)
+  // orders and wholesale are not storefront changes
+  const pBefore = (await get('admin/website/status', A)).json.pending_changes
+  const probe = (await get('admin/orders?per_page=1', A)).json
+  await patch(`admin/orders/${probe?.data?.[0]?.id ?? 1}/note`, { admin_note: 'rebuild probe' }, A)
+  check((await get('admin/website/status', A)).json.pending_changes === pBefore, 'an order note is not a storefront change')
+  // the developer still has no order access, and holds the Website permission
+  const devMe = await get('admin/auth/me', D)
+  check(devMe.json.admin.permissions.includes('settings.website') && !devMe.json.admin.permissions.some((p) => p.startsWith('orders.')), 'the developer holds settings.website and no orders.* permission', devMe.json.admin.permissions.filter((p) => p.startsWith('orders.') || p === 'settings.website'))
+  // restore
+  await put('admin/settings', { rebuild_enabled: false, rebuild_hook_url: '', rebuild_hook_secret: '', rebuild_debounce_seconds: 120, footer_text: '' }, D)
+  artisan("Illuminate\\Support\\Facades\\DB::table('jobs')->where('payload', 'like', '%TriggerRebuild%')->delete(); Illuminate\\Support\\Facades\\Cache::forget('website.rebuild.pending'); Illuminate\\Support\\Facades\\Cache::forget('website.rebuild.scheduled'); Illuminate\\Support\\Facades\\Cache::forget('website.rebuild.last_result'); Illuminate\\Support\\Facades\\Cache::forget('website.rebuild.last_requested_at');")
 
   section('G32', 'Wholesale per-IP limit (run last: it uses up this IP\'s hourly allowance)')
   let ipStop = 0

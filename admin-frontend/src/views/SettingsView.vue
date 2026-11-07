@@ -13,6 +13,7 @@ import BannersPanel from '@/components/BannersPanel.vue'
 import DeliveryZonesPanel from '@/components/DeliveryZonesPanel.vue'
 import NotificationsPanel from '@/components/NotificationsPanel.vue'
 import ThemePreview from '@/components/ThemePreview.vue'
+import WebsiteStatusCard from '@/components/WebsiteStatusCard.vue'
 
 // Generic settings screen: the API describes the tabs the admin may open (each is guarded by its own permission), their sections and fields
 // (key, type, label, help, tier, min, max, options, value); only fields the admin may use are sent (technical ones need `settings.advanced`).
@@ -43,6 +44,8 @@ let keySeq = 0
 const visibleTabs = computed(() => tabs.value)
 const isBanners = computed(() => activeKey.value === 'banners')
 const isNotifications = computed(() => activeKey.value === 'notifications')
+const isWebsite = computed(() => activeKey.value === 'website')
+const websiteCard = ref(null)
 const activeKey = computed(() => (visibleTabs.value.some(t => t.key === route.query.tab) ? route.query.tab : visibleTabs.value[0]?.key))
 const activeTab = computed(() => visibleTabs.value.find(t => t.key === activeKey.value))
 
@@ -77,6 +80,7 @@ onMounted(load)
 const isNumber = (f) => NUMBER_TYPES.includes(f.type)
 const empty = (v) => v === null || v === undefined || v === ''
 function same(field, a, b) {
+  if (field.type === 'secret') return !(field.key in form) || form[field.key] === undefined   // only typed (or cleared) secrets are sent
   if (field.type === 'bool') return Boolean(a) === Boolean(b)
   if (field.type === 'links') return JSON.stringify(bareLinks(a)) === JSON.stringify(bareLinks(b))
   if (field.type === 'accounts') return JSON.stringify(bareAccounts(a)) === JSON.stringify(bareAccounts(b))
@@ -86,6 +90,7 @@ function same(field, a, b) {
 }
 function valueOf(field) {
   const v = form[field.key]
+  if (field.type === 'secret') return String(v ?? '')
   if (field.type === 'bool') return Boolean(v)
   if (field.type === 'links') return bareLinks(v)
   if (field.type === 'accounts') return bareAccounts(v)
@@ -100,7 +105,7 @@ const dirtyTabs = computed(() => new Set(changed.value.map(f => tabOfKey.value[f
 
 // ---- inline validation of edited fields (the server checks everything again on save)
 const EMAIL_KEYS = ['store_email', 'notify_admin_email', 'mail_reply_to']
-const URL_KEYS = ['storefront_track_url', 'agency_url']
+const URL_KEYS = ['storefront_track_url', 'agency_url', 'rebuild_hook_url']
 function problem(f) {
   const v = form[f.key]
   if (isNumber(f)) {
@@ -115,6 +120,7 @@ function problem(f) {
   const text = String(v ?? '').trim()
   if (EMAIL_KEYS.includes(f.key) && text && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) return 'Enter a valid e-mail address.'
   if (URL_KEYS.includes(f.key) && text && !/^https?:\/\/\S+\.\S+/i.test(text)) return 'Enter a full web address starting with https://.'
+  if (f.key === 'rebuild_hook_url' && text && !/^https:\/\//i.test(text)) return 'The rebuild hook must start with https://.'
   if (f.type === 'color' && !/^#[0-9a-f]{6}$/i.test(text)) return 'Enter a colour as #RRGGBB.'
   return ''
 }
@@ -144,6 +150,7 @@ async function save() {
     fill(res?.tabs ? res : await api.get('admin/settings'))
     ui.toast('Settings saved.')
     await refreshCaches()
+    websiteCard.value?.load()
   } catch (e) {
     if (e instanceof ApiError && Object.keys(e.errors).length) {
       errors.value = e.errors
@@ -231,6 +238,7 @@ const full = (f) => ['text', 'links', 'accounts', 'file'].includes(f.type) || f.
         <NotificationsPanel v-if="isNotifications" :form="form" :fields="fieldsByKey" :events="events" :errors="errors" style="grid-column: 1 / -1" />
 
         <template v-else>
+          <WebsiteStatusCard v-if="isWebsite" ref="websiteCard" style="grid-column: 1 / -1" />
           <section v-for="s in activeTab.sections" v-show="shown(s).length" :key="s.key" class="card set-card" :class="{ 'set-card--wide': wide(s) }" :data-section="s.key">
             <div class="card__head"><h2>{{ s.label }}</h2></div>
             <div class="card__body set-fields" :class="{ 'set-fields--cols': wide(s) }">

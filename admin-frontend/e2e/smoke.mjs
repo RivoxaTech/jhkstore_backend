@@ -19,7 +19,7 @@ const DEV = [process.env.E2E_DEV_USER || 'developer', process.env.E2E_DEV_PASSWO
 const CHROME = process.env.CHROME_PATH || ['C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => fs.existsSync(p))
 if (!CHROME) { console.error('Chrome not found: set CHROME_PATH'); process.exit(2) }
 
-const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
+const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'settings.website', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0
@@ -81,7 +81,7 @@ try {
   check(await a.page.evaluate(() => document.body.innerText.includes('Revenue') && document.body.innerText.includes('Average order')), 'the admin dashboard shows the order figures (revenue, orders, average order)')
 
   await goto(a.page, 'settings')
-  check(JSON.stringify(await tabsOf(a.page)) === JSON.stringify(['General', 'Delivery', 'Payments', 'Store', 'Notifications']), `admin sees General, Delivery, Payments, Store and Notifications (no technical tabs, no Theme) (${(await tabsOf(a.page)).join(', ')})`)
+  check(JSON.stringify(await tabsOf(a.page)) === JSON.stringify(['General', 'Delivery', 'Payments', 'Store', 'Notifications', 'Website']), `admin sees General, Delivery, Payments, Store, Notifications and Website (no technical tabs, no Theme) (${(await tabsOf(a.page)).join(', ')})`)
   // the new tabs render their fields from the API (colour / choice / accounts are the new field types)
   await goto(a.page, 'settings?tab=delivery')
   await a.page.waitForSelector('#s-delivery_method', { timeout: 15000 })
@@ -98,6 +98,10 @@ try {
   await a.page.waitForSelector('#s-mail_enabled', { timeout: 15000 })
   check((await Promise.all(['[data-testid="events-table"]', '[data-switch="mail_on_placed"]', '[data-switch="owner_mail_on_placed"]', '[data-switch="push_on_placed"]', '[data-switch="mail_on_fee_confirmed"]', '#s-push_enabled', '[data-testid="send-test-email"]', '[data-testid="notification-status"]'].map((sel) => a.page.$(sel)))).every(Boolean), 'Notifications tab: the events table (customer e-mail, owner alert, push), master switches, the test e-mail button and the notification status card')
   check((await a.page.$$('[data-event]')).length === 9 && !(await a.page.$('#s-mail_from_name')) && !(await a.page.$('#s-notify_admin_email')) && !(await a.page.$('#s-storefront_track_url')) && !(await a.page.$('[data-testid="queue-tech"]')), 'Notifications tab: nine events; the sender, owner address and tracking link (technical) are not shown to the client')
+  await goto(a.page, 'settings?tab=website')
+  await a.page.waitForSelector('[data-testid="website-status"]', { timeout: 15000 })
+  check(!!(await a.page.$('#s-rebuild_enabled')) && !!(await a.page.$('[data-testid="rebuild-now"]')) && !(await a.page.$('#s-rebuild_hook_url')) && !(await a.page.$('#s-rebuild_hook_secret')) && !(await a.page.$('#s-rebuild_debounce_seconds')), 'Website tab: the client sees the status card, the Rebuild website now button and the automatic switch; the hook address, secret and wait time (technical) are not shown')
+  check(await a.page.$eval('[data-testid="rebuild-now"]', (e) => e.disabled), 'Website tab: the button is off while no hook is set')
   await a.page.waitForSelector('[data-testid="failed-jobs"]', { timeout: 15000 })
   check(/^\d+/.test(await a.page.$eval('[data-testid="failed-jobs"]', (e) => e.innerText)), 'Notifications tab: the queue status shows the failed jobs count')
   await goto(a.page, 'settings?tab=footer')
@@ -158,7 +162,7 @@ try {
   // ---- settings: seven tabs, Banners inside, links editor
   await goto(d.page, 'settings')
   const tabs = await tabsOf(d.page)
-  check(JSON.stringify(tabs) === JSON.stringify(['General', 'Branding', 'Banners', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'Delivery', 'Payments', 'Store', 'Notifications', 'Theme', 'SEO']), `the developer sees all twelve tabs, Theme included (${tabs.join(', ')})`)
+  check(JSON.stringify(tabs) === JSON.stringify(['General', 'Branding', 'Banners', 'Footer & Social', 'Currency & Tax', 'Orders & Delivery', 'Delivery', 'Payments', 'Store', 'Notifications', 'Theme', 'SEO', 'Website']), `the developer sees all thirteen tabs, Theme included (${tabs.join(', ')})`)
 
   // ---- Theme tab (developer only): colour inputs stay in sync and the live preview follows the form; the admin panel's own look does not change
   await tap(d.page, '#tab-theme')

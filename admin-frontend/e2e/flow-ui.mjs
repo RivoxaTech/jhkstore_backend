@@ -27,7 +27,7 @@ const DEV = [process.env.E2E_DEV_USER || 'developer', process.env.E2E_DEV_PASSWO
 const CHROME = process.env.CHROME_PATH || ['C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => fs.existsSync(p))
 if (!CHROME) { console.error('Chrome not found: set CHROME_PATH'); process.exit(2) }
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'flow-ui-'))
-const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
+const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'orders.export', 'customers.view', 'customers.export', 'settings.general', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'settings.website', 'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'wholesale.view', 'wholesale.manage']
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0
@@ -1034,6 +1034,52 @@ try {
     check((await a.page.evaluate(() => localStorage.getItem('admin_sound_muted'))) === '0', 'UI-C3 unmuting switches the sound back on')
   }
   check(!(await d.page.$('[data-testid="sound-toggle"]')) && !(await d.page.$('[data-testid="notification-status-btn"]')), 'UI-C3 the developer header has neither the sound toggle nor the status button')
+
+  // ---- UI-H1 Settings > Website: the developer sets the hook (address + secret), the client presses Rebuild website now, the failure is shown, the secret never is
+  {
+    const HOOK = 'https://127.0.0.1:9/ui-hook-token-abc'
+    const SECRET = 'ui-secret-value-789'
+    await goto(d.page, 'settings?tab=website')
+    await d.page.waitForSelector('[data-testid="website-status"]', { timeout: 15000 })
+    check(!!(await d.page.$('#s-rebuild_hook_url')) && !!(await d.page.$('#s-rebuild_hook_secret')) && !!(await d.page.$('#s-rebuild_debounce_seconds')) && !!(await d.page.$('#s-rebuild_enabled')), 'UI-H1 the developer sees the hook address, secret, wait time and the switch in the Website tab')
+    check(await d.page.$eval('[data-testid="rebuild-now"]', (e) => e.disabled), 'UI-H1 Rebuild website now is off while no hook is set')
+    await setValue(d.page, '#s-rebuild_hook_url', 'http://not-secure.example/hook')
+    await sleep(150)
+    await tap(d.page, '[data-testid="save-settings"]')
+    await d.page.waitForSelector('.has-error, .err', { timeout: 10000 })
+    check(/https:\/\//.test(await d.page.$eval('[data-field="rebuild_hook_url"]', (e) => e.innerText)), 'UI-H1 a hook address that is not https shows a message under the field')
+    await setValue(d.page, '#s-rebuild_hook_url', HOOK)
+    await setValue(d.page, '#s-rebuild_hook_secret', SECRET)
+    await sleep(150)
+    check((await textOf(d.page, '[data-field="rebuild_hook_secret"] [data-testid="secret-state"]')).includes('replaced'), 'UI-H1 typing a secret says it will be saved')
+    check(await d.page.$eval('#s-rebuild_hook_secret', (e) => e.type === 'password'), 'UI-H1 the secret is typed into a password box')
+    await tap(d.page, '[data-testid="save-settings"]')
+    await toast(d.page, /settings saved/)
+    await sleep(500)
+    check((await textOf(d.page, '[data-field="rebuild_hook_secret"] [data-testid="secret-state"]')) === 'Set' && (await d.page.$eval('#s-rebuild_hook_secret', (e) => e.value)) === '', 'UI-H1 after saving, the secret box is empty and says "Set": the secret is never shown again')
+    check(!(await d.page.evaluate(() => document.documentElement.outerHTML)).includes(SECRET), 'UI-H1 the secret is nowhere in the page')
+    check(!(await d.page.$eval('[data-testid="rebuild-now"]', (e) => e.disabled)), 'UI-H1 with a hook set, the button is on')
+    // the client admin presses the button: the hook does not exist, so the failure shows (and no address leaks)
+    await goto(a.page, 'settings?tab=website')
+    await a.page.waitForSelector('[data-testid="rebuild-now"]', { timeout: 15000 })
+    await tap(a.page, '[data-testid="rebuild-now"]')
+    await a.page.waitForSelector('[data-testid="website-warning"]', { timeout: 30000 })
+    const warn = await textOf(a.page, '[data-testid="website-warning"]')
+    check(/last rebuild failed/i.test(warn) && !warn.includes('ui-hook-token-abc'), 'UI-H1 an unreachable hook: the warning says the last rebuild failed, without the hook address', warn)
+    check(/Failed/.test(await textOf(a.page, '[data-row="result"]')) && !/Never/.test(await textOf(a.page, '[data-row="requested"]')), 'UI-H1 the status rows show the last request and the failed result')
+    await a.page.screenshot({ path: path.join(OUT, 'website-tab-admin.png') })
+    await d.page.screenshot({ path: path.join(OUT, 'website-tab-developer.png') })
+    // clear the secret with the Clear button
+    await tap(d.page, '[data-testid="secret-clear"]')
+    await sleep(150)
+    check((await textOf(d.page, '[data-field="rebuild_hook_secret"] [data-testid="secret-state"]')).includes('cleared'), 'UI-H1 Clear marks the secret to be removed')
+    await tap(d.page, '[data-testid="save-settings"]')
+    await toast(d.page, /settings saved/)
+    await sleep(400)
+    check((await textOf(d.page, '[data-field="rebuild_hook_secret"] [data-testid="secret-state"]')) === 'Not set', 'UI-H1 after saving, the secret is "Not set"')
+    await api('PUT', 'admin/settings', { rebuild_hook_url: '', rebuild_enabled: false }, devToken)
+    console.log(`  (screenshots of the Website tab: ${OUT})`)
+  }
 
   // ---- UI-G7 time zone: a discount ending 23:59 shop time is typed, saved, shown and ended in the SHOP zone (a server in Pacific/Auckland)
   if (process.env.E2E_BASE_TZ) {

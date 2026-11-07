@@ -168,6 +168,7 @@ async function save() {
           <label for="btitle">Title</label>
           <input id="btitle" v-model="form.title" class="input" maxlength="160" :class="{ 'has-error': err('title') }" @input="clear('title')" />
           <p v-if="err('title')" class="err">{{ err('title') }}</p>
+          <p v-else class="hint" data-testid="title-hint">Put words between *asterisks* to show them in the accent colour on the website, e.g. <em>Toys that make *learning* fun</em>.</p>
         </div>
         <div class="field full">
           <label for="bsub">Subtitle</label>

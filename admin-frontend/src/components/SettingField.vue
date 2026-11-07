@@ -32,6 +32,12 @@ const HEX = /^#[0-9a-f]{6}$/i
 const swatch = computed(() => (HEX.test(String(props.form[f.value.key] ?? '')) ? String(props.form[f.value.key]).toLowerCase() : '#000000'))
 const setColour = (value) => { props.form[f.value.key] = String(value).toUpperCase() }
 
+// secret: never shown. Nothing typed = the key stays out of the form (nothing is sent); typed = replaces it; Clear = an empty value removes it
+function setSecret(value) {
+  if (value === '') delete props.form[f.value.key]
+  else props.form[f.value.key] = value
+}
+
 // choice: readable names for the values of a few selects
 const OPTION_LABELS = {
   delivery_method: { flat: 'Flat fee', free: 'Always free', free_above: 'Free above an amount', zones: 'By delivery zone', owner_confirms: 'The owner confirms the fee' },
@@ -78,6 +84,11 @@ const bankWarning = computed(() => {
         <input class="color-swatch" type="color" :value="swatch" :aria-label="`${f.label} picker`" @input="setColour($event.target.value)" />
         <input :id="id" v-model="form[f.key]" class="input" type="text" maxlength="7" spellcheck="false" placeholder="#RRGGBB" :class="{ 'has-error': fe }" />
       </div>
+      <div v-else-if="f.type === 'secret'" class="secret-field">
+        <input :id="id" class="input" type="password" autocomplete="new-password" spellcheck="false" :value="form[f.key] ?? ''" :placeholder="f.is_set ? 'Set. Type a new value to replace it' : 'Not set'" :class="{ 'has-error': fe }" @input="setSecret($event.target.value)" />
+        <span class="secret-state" :class="{ 'is-set': f.is_set && form[f.key] === undefined }" data-testid="secret-state">{{ form[f.key] === '' ? 'Will be cleared' : form[f.key] ? 'Will be replaced' : f.is_set ? 'Set' : 'Not set' }}</span>
+        <button v-if="f.is_set && form[f.key] !== ''" class="btn btn-outline btn-sm" type="button" data-testid="secret-clear" @click="form[f.key] = ''">Clear</button>
+      </div>
       <select v-else-if="f.type === 'choice'" :id="id" v-model="form[f.key]" class="select" :class="{ 'has-error': fe }">
         <option v-for="o in f.options" :key="o" :value="o">{{ optionLabel(o) }}</option>
       </select>
@@ -103,6 +114,9 @@ const bankWarning = computed(() => {
 .sf .hint { font-size: 11.5px; color: var(--text-3); margin-top: 3px; line-height: 1.35; }
 .sf .err { font-size: 11.5px; color: var(--danger); margin-top: 3px; }
 .dev-tag { font-size: 9.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: #6d3fd1; background: #efe9fd; border-radius: 4px; padding: 0 5px; line-height: 15px; flex: none; }
+.secret-field { display: flex; align-items: center; gap: 8px; }
+.secret-state { font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+.secret-state.is-set { color: var(--success); font-weight: 600; }
 .color-field { display: flex; align-items: center; gap: 8px; }
 .color-swatch { width: 40px; height: 34px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: #fff; cursor: pointer; flex: none; }
 .color-field .input { max-width: 130px; font-variant-numeric: tabular-nums; text-transform: uppercase; }
