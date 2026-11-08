@@ -37,6 +37,7 @@ const product = ref(null)          // the saved product (edit mode)
 const images = ref([])             // the server's pictures of the product and of its options (edit mode)
 const videos = ref([])             // the uploaded videos (edit mode)
 const pendingProduct = ref([])     // pictures chosen for the product gallery before it is saved: [{ key, file, preview }]
+const pendingVideos = ref([])      // video files chosen before the product is saved: [{ key, file, poster }] (uploaded right after the save)
 const related = ref([])            // [{ id, name, sku, thumb_url }]
 
 const form = reactive({
@@ -94,6 +95,13 @@ const stockSummary = computed(() => {
     low: list.filter(v => v.is_active && (Number(v.stock) || 0) - (Number(v.reserved) || 0) <= (Number(v.low_stock_threshold) || 0)).length,
   }
 })
+
+// The SKU of a new product is made from its name (SNAKE-TRAIN) until the admin types one; an empty SKU is made by the server, which also keeps it unique.
+const skuTyped = ref(false)
+const skuFromName = (name) => String(name).normalize('NFKD').replace(/[^\x00-\x7F]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 70)
+const autoSku = computed(() => !isEdit.value && !skuTyped.value)
+watch(() => form.name, (now) => { if (autoSku.value) form.sku = skuFromName(now) })
+const typeSku = () => { skuTyped.value = form.sku.trim() !== ''; clearError('sku', 'variants.0.sku') }
 
 // A product with a single option: that option follows the product name and SKU until the admin types its own.
 watch(() => form.name, (now, before) => {
@@ -187,13 +195,13 @@ const tabFilled = (key) => Boolean(tabs[key]?.content?.trim() || tabs[key]?.manu
 function clientValidate() {
   const e = {}
   const need = (key, label) => { if (!String(form[key]).trim()) e[key] = [`${label} is required.`] }
-  need('category_id', 'Category'); need('name', 'Product name'); need('sku', 'SKU')
+  need('category_id', 'Category'); need('name', 'Product name')
   if (Number(form.max_order_qty) < Number(form.min_order_qty)) e.max_order_qty = ['The maximum cannot be lower than the minimum.']
   if (form.video_url.trim() && !/^https:\/\//i.test(form.video_url.trim())) e.video_url = ['Enter an https link to a YouTube or Vimeo video, or to an .mp4 / .webm file.']
 
   const checkRow = (row, prefix) => {
     if (!row.name.trim()) e[`${prefix}.name`] = ['Name the option (for example "Blue, 500 ml").']
-    if (!row.sku.trim()) e[`${prefix}.sku`] = ['Enter a SKU.']
+    if (!row.sku.trim() && variants.value.length > 1) e[`${prefix}.sku`] = ['Enter a SKU.']
     if (!(num(row.mrp) > 0)) e[`${prefix}.mrp`] = ['Enter the regular price.']
     if (Number.isNaN(num(row.selling_price))) e[`${prefix}.selling_price`] = ['Enter the selling price.']
     else if (num(row.selling_price) > num(row.mrp)) e[`${prefix}.selling_price`] = ['The selling price cannot be higher than the regular price.']
@@ -230,7 +238,7 @@ function clientValidate() {
 
 function variantPayload(v, index) {
   return {
-    id: v.id, name: v.name.trim(), sku: v.sku.trim() || undefined, is_default: Boolean(v.is_default), mrp: v.mrp, selling_price: v.selling_price,
+    id: v.id, name: v.name.trim(), sku: (autoSku.value && variants.value.length === 1 ? '' : v.sku.trim()) || undefined, is_default: Boolean(v.is_default), mrp: v.mrp, selling_price: v.selling_price,
     weight_grams: String(v.weight_grams).trim() === '' ? null : Number(v.weight_grams),
     is_active: v.is_active, sort_order: index, stock: Number(v.stock) || 0,
     low_stock_threshold: v.low_stock_threshold === '' ? 0 : Number(v.low_stock_threshold),
@@ -245,7 +253,7 @@ function buildPayload() {
   return {
     category_id: Number(form.category_id),
     sub_category_id: form.sub_category_id ? Number(form.sub_category_id) : null,
-    name: form.name.trim(), sku: form.sku.trim(), short_description: text(form.short_description), description: text(form.description),
+    name: form.name.trim(), sku: autoSku.value ? '' : form.sku.trim(), short_description: text(form.short_description), description: text(form.description),
     badge_text: text(form.badge_text), tax_rate: form.tax_rate === '' || form.tax_rate === null ? null : Number(form.tax_rate),
     min_order_qty: Number(form.min_order_qty) || 1, max_order_qty: Number(form.max_order_qty) || 1,
     is_cod_available: form.is_cod_available, is_sold_out: form.is_sold_out, is_featured: form.is_featured, video_url: text(form.video_url),
@@ -283,6 +291,25 @@ async function runUploads(productId, jobs) {
   return { list, failed: '' }
 }
 
+/** Videos chosen before the product existed: uploaded one by one once it is saved. @returns {Promise<string>} an error text, '' when all went well */
+async function uploadVideos(productId) {
+  for (const v of pendingVideos.value) {
+    try {
+      const fd = new FormData()
+      fd.append('video', v.file)
+      if (v.poster) fd.append('poster', v.poster)
+      await api.postFormProgress(`admin/products/${productId}/videos`, fd, (p) => { videoProgress.value = p })
+    } catch (e) {
+      return e.status === 422 ? Object.values(e.errors).flat()[0] || e.message : e.message
+    } finally {
+      videoProgress.value = null
+    }
+  }
+  pendingVideos.value = []
+  return ''
+}
+const videoProgress = ref(null)
+
 async function submit() {
   formError.value = ''
   errors.value = clientValidate()
@@ -301,9 +328,14 @@ async function submit() {
     } else {
       const res = await api.post('admin/products', buildPayload())
       const { failed } = await runUploads(res.data.id, collectUploads(res.data))
-      if (failed) ui.toast(`Product added, but some pictures were not uploaded (${failed}). Add them from the edit page.`, 'error', 7000)
-      else ui.toast('Product added. You can add video files on its edit page.')
-      router.replace({ name: 'products' })
+      const videoFailed = await uploadVideos(res.data.id)
+      if (failed || videoFailed) {
+        ui.toast(`Product added, but ${failed ? `some pictures were not uploaded (${failed})` : `a video was not uploaded (${videoFailed})`}. Add ${failed ? 'them' : 'it'} here.`, 'error', 8000)
+        router.replace({ name: 'product-edit', params: { id: res.data.id } })   // the edit page lets the admin try again
+      } else {
+        ui.toast('Product added.')
+        router.replace({ name: 'products' })
+      }
     }
   } catch (e) {
     if (e.status === 422) {
@@ -374,9 +406,10 @@ function showErrors(message) {
             <p v-else-if="product" class="hint">Page address: /product/{{ product.slug }} (stays the same when you rename).</p>
           </div>
           <div class="field">
-            <label for="sku">SKU <span class="req">*</span></label>
-            <input id="sku" v-model="form.sku" class="input" maxlength="80" :class="{ 'has-error': err('sku') }" @input="clearError('sku', 'variants.0.sku')" />
+            <label for="sku">SKU</label>
+            <input id="sku" v-model="form.sku" class="input" maxlength="80" :placeholder="isEdit ? '' : 'Made from the name'" :class="{ 'has-error': err('sku') }" @input="typeSku" />
             <p v-if="err('sku') || err('variants.0.sku')" class="err">{{ err('sku') || err('variants.0.sku') }}</p>
+            <p v-else-if="!isEdit" class="hint">Made from the product name; you can type your own.</p>
           </div>
           <div class="field">
             <label for="badge">Badge text</label>
@@ -462,7 +495,7 @@ function showErrors(message) {
 
       <!-- ================= Video ================= -->
       <CollapsibleSection id="video" title="Video" hint="An uploaded file, a YouTube or Vimeo link, or both." :always-open="!isEdit" :has-error="sectionErrors.video">
-        <VideoManager v-model="videos" :product-id="id" :limits="videoLimits" />
+        <VideoManager v-model="videos" v-model:pending="pendingVideos" :product-id="id" :limits="videoLimits" />
         <div class="field">
           <label for="video_url">Video link</label>
           <input id="video_url" v-model="form.video_url" class="input" type="url" placeholder="https://www.youtube.com/watch?v=..." :class="{ 'has-error': err('video_url') }" @input="clearError('video_url')" />
@@ -524,7 +557,7 @@ function showErrors(message) {
       <span v-if="formError" class="msg">{{ formError }}</span>
       <RouterLink class="btn btn-outline" :to="{ name: 'products' }">{{ canManage ? 'Cancel' : 'Back' }}</RouterLink>
       <button v-if="canManage" class="btn btn-primary" type="submit" data-testid="save-product" :disabled="saving">
-        <span v-if="saving" class="spinner" /> {{ isEdit ? 'Save product' : 'Add product' }}
+        <span v-if="saving" class="spinner" /> {{ videoProgress !== null ? `Uploading the video ${videoProgress}%` : isEdit ? 'Save product' : 'Add product' }}
       </button>
     </div>
   </form>

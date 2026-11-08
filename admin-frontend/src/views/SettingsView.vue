@@ -193,6 +193,7 @@ onBeforeRouteLeave(() => (dirty.value ? window.confirm('You have unsaved setting
 // ---- Delivery tab: show only the fee fields the chosen method uses
 const method = computed(() => String(form.delivery_method ?? ''))
 function showField(f) {
+  if (f.key === 'pay_bank_proof_required') return Boolean(form.pay_bank_enabled)   // asked only once bank transfer is on
   if (!('delivery_method' in form)) return true
   if (f.key === 'free_delivery_min_cart') return method.value === 'free_above'
   if (f.key === 'delivery_unmatched') return method.value === 'zones'

@@ -31,8 +31,7 @@ export const useSiteStore = defineStore('site', () => {
   const faviconUrl = computed(() => store.value.favicon_url || '')
   /** The name as the client typed it; empty until the settings are loaded (the document title then says just "Admin"). */
   const rawName = computed(() => (store.value.name || '').trim())
-  /** "Developed by": the agency credit of Settings → Footer & Social. */
-  const agency = computed(() => ({ name: '', url: '', logo_url: null, ...(data.value?.footer?.agency || {}) }))
+
   const tax = computed(() => data.value?.tax || { rate: null, inclusive: true, label: 'Tax' })
 
   function load(force = false) {
@@ -44,5 +43,5 @@ export const useSiteStore = defineStore('site', () => {
     return loading
   }
 
-  return { data, loaded, store, name, rawName, logoUrl, faviconUrl, agency, tax, load, reload: () => load(true) }
+  return { data, loaded, store, name, rawName, logoUrl, faviconUrl, tax, load, reload: () => load(true) }
 })
