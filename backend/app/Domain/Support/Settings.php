@@ -110,7 +110,7 @@ class Settings
         'seo_share_image' => ['seo', 'file', '', 'Default share image', 'Shown when a page is shared (PNG, JPG or WEBP, up to 4 MB; 1200x630 is ideal).'],
 
         // --- currency and tax
-        'currency_code' => ['currency', 'string', 'USD', 'Currency code', 'ISO code, e.g. USD, EUR, GBP.'],
+        'currency_code' => ['currency', 'string', 'USD', 'Currency code', 'Any short code, e.g. USD, EUR, PKR or Rs (1 to 10 letters).'],
         'currency_symbol' => ['currency', 'string', '$', 'Currency symbol'],
         'currency_decimals' => ['currency', 'int', 2, 'Decimals', 'Decimal places shown and calculated (0, 1 or 2).', 0, 2],
         'tax_rate' => ['tax', 'percent', 0, 'Default tax rate (%)', 'Used for products without their own rate. 0 = no tax.'],
@@ -138,6 +138,7 @@ class Settings
         // --- payments
         'pay_cod_enabled' => ['payments', 'bool', true, 'Cash on delivery', 'Customers can pay the courier when the order arrives.'],
         'pay_bank_enabled' => ['payments', 'bool', false, 'Bank transfer', 'Customers pay into one of the accounts below and upload a screenshot of the transfer.'],
+        'pay_bank_proof_required' => ['payments', 'bool', true, 'Require the payment screenshot', 'On: the customer must upload the screenshot of the transfer at checkout, or the order is not placed. Off: the screenshot is optional at checkout and can be added later from the order page.'],
         'pay_card_visible' => ['payments', 'bool', false, 'Show "Card payment, coming soon"', 'Only a label: card payments are not available and can never be chosen.'],
         'pay_bank_instructions' => ['payments', 'text', '', 'Bank transfer instructions', 'Shown to the customer next to the accounts, e.g. Use your order number as the reference.'],
         'pay_bank_accounts' => ['payments', 'accounts', [], 'Bank accounts', 'Any number of accounts, shown in this order.'],
@@ -416,7 +417,7 @@ class Settings
         $overrides = [
             'store_name' => ['required', 'string', 'max:120'],
             'store_email' => ['nullable', 'email', 'max:190'],
-            'currency_code' => ['required', 'string', 'size:3', 'alpha'],
+            'currency_code' => ['required', 'string', 'min:1', 'max:10', 'regex:/^[A-Za-z.]+$/'],
             'currency_symbol' => ['required', 'string', 'max:8'],
             'order_number_prefix' => ['required', 'string', 'max:12', 'regex:/^[A-Za-z0-9]+$/'],
             'tax_label' => ['required', 'string', 'max:30'],
@@ -454,6 +455,12 @@ class Settings
     public function deliveryMethod(): string
     {
         return (string) $this->get('delivery_method');
+    }
+
+    /** Bank transfer is on and the customer has to upload the screenshot to place the order. */
+    public function bankProofRequired(): bool
+    {
+        return (bool) $this->get('pay_bank_enabled') && (bool) $this->get('pay_bank_proof_required');
     }
 
     /** The accounts a customer may pay into: the active ones, in order. */

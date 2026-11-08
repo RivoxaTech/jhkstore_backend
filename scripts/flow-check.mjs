@@ -778,6 +778,10 @@ try {
   check(p.currency.code === 'PKR' && p.currency.symbol === 'Rs' && p.currency.decimals === 0 && p.tax.rate === 17 && p.tax.inclusive === false && p.tax.label === 'Sales tax', 'Currency & Tax tab -> public currency and tax', { currency: p.currency, tax: p.tax })
   const qCur = (await quote([[mugB, 1]])).json.data.summary
   check(qCur.tax_label === 'Sales tax' && qCur.tax_inclusive === false && Number.isInteger(qCur.grand_total), 'the quote follows (Sales tax, exclusive, 0 decimals)', qCur)
+  const shortCode = await put('admin/settings', { currency_code: 'Rs' }, D)   // a currency code is any short code, not only three letters
+  p = await pub()
+  check(shortCode.status === 200 && p.currency.code === 'Rs', 'the currency code can be any short code ("Rs"), not only three letters', [shortCode.status, p.currency.code])
+  check((await put('admin/settings', { currency_code: 'WAYTOOLONGCODE' }, D)).status === 422, 'a currency code longer than 10 characters is refused')
   await put('admin/settings', { currency_code: 'USD', currency_symbol: '$', currency_decimals: 2, tax_rate: 10, tax_inclusive: true, tax_label: 'VAT' }, D)
   await put('admin/settings', { order_number_prefix: 'ZED', delivery_fee: 7.5, free_delivery_min_cart: 150, delivery_days: 3, min_order_amount: 15, cod_max_amount: 100 }, D)
   p = await pub()
@@ -867,10 +871,13 @@ try {
   const bankNoAccount = await setSettings({ pay_bank_enabled: true })
   const badAccount = await setSettings({ pay_bank_accounts: [{ bank: 'X', number: '', iban: '' }] })
   check(noMethod.status === 422 && bankNoAccount.status === 422 && badAccount.status === 422, 'payments: at least one method stays on, bank needs an active account, an account needs a number or IBAN (all 422)', [noMethod.status, bankNoAccount.status, badAccount.status])
-  const bankOn = await setSettings({ pay_bank_enabled: true, pay_card_visible: true, pay_bank_instructions: 'Use your order number as the reference.', pay_bank_accounts: [{ bank: 'Flow Bank', title: 'Flow Shop', number: '0123456789', iban: 'PK36SCBL0000001123456702', active: true }, { bank: 'Hidden Bank', number: '999', active: false }] })
+  const bankOn = await setSettings({ pay_bank_enabled: true, pay_bank_proof_required: false, pay_card_visible: true, pay_bank_instructions: 'Use your order number as the reference.', pay_bank_accounts: [{ bank: 'Flow Bank', title: 'Flow Shop', number: '0123456789', iban: 'PK36SCBL0000001123456702', active: true }, { bank: 'Hidden Bank', number: '999', active: false }] })
   const payPub = (await pub()).payment
   check(bankOn.status === 200 && payPub.cod.enabled === true && payPub.bank_transfer.enabled === true && payPub.bank_transfer.accounts.length === 1 && payPub.bank_transfer.accounts[0].bank === 'Flow Bank' && payPub.card.visible === true && payPub.card.coming_soon === true, 'bank transfer on: public payment block with the active account only; card only a "coming soon" label', payPub)
 
+  const proofOn = await setSettings({ pay_bank_proof_required: true })
+  check(proofOn.status === 200 && (await pub()).payment.bank_transfer.proof_required === true && payPub.bank_transfer.proof_required === false, 'bank transfer: the admin can require the payment screenshot at checkout (public proof_required follows)')
+  await setSettings({ pay_bank_proof_required: false })
   section('F18', 'Delivery methods, zones (matching, order, free-above, minimum), unmatched address, pending fee')
   const dz = await mk('Flow Zone Item', 'FZ-1', 100)
   const lahore = await post('admin/delivery-zones', { name: 'Lahore', match_type: 'city', match_values: ['lahore', ' Faisalabad '], fee: 6, free_above: 150, min_order: 10, eta_text: 'Tomorrow' }, A)
@@ -1450,7 +1457,7 @@ try {
   const zLahore = await post('admin/delivery-zones', { name: `FR Lahore ${RUN}`, match_type: 'city', match_values: ['Lahore'], fee: 8, free_above: 500, eta_text: 'Tomorrow' }, A)
   const zKhi = await post('admin/delivery-zones', { name: `FR Karachi ${RUN}`, match_type: 'city', match_values: ['Karachi'], fee: 15 }, A)
   check(zLahore.status === 201 && zKhi.status === 201, 'set two delivery zones (Lahore 8, Karachi 15)', [zLahore.status, zKhi.status])
-  const frBankOn = await setSettings({ pay_bank_enabled: true, pay_bank_instructions: 'Full run: pay and upload the screenshot.', pay_bank_accounts: [{ bank: 'Full Run Bank', title: 'Full Run Shop', number: '1234567890', iban: 'PK00FULL000000001234', active: true }] })
+  const frBankOn = await setSettings({ pay_bank_enabled: true, pay_bank_proof_required: false, pay_bank_instructions: 'Full run: pay and upload the screenshot.', pay_bank_accounts: [{ bank: 'Full Run Bank', title: 'Full Run Shop', number: '1234567890', iban: 'PK00FULL000000001234', active: true }] })
   check(frBankOn.status === 200, 'enable bank transfer with one account', status(frBankOn).slice(0, 100))
   // 4. discount and coupon
   const gDisc = await post('admin/discounts', { name: `FR Garden ${RUN}`, type: 'percent', value: 10, scope: 'categories', target_ids: [idOf(gCat)] }, A)

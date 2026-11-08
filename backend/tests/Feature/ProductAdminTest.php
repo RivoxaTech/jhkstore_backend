@@ -72,6 +72,24 @@ class ProductAdminTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'product.created', 'actor_id' => $admin->id]);
     }
 
+    public function test_a_product_without_a_sku_gets_one_made_from_its_name(): void
+    {
+        $this->actingAsAdmin();
+        $category = $this->makeCategory();
+        $payload = fn (string $name) => collect($this->simplePayload($category, ['name' => $name]))->except('sku')->all();
+
+        $first = $this->create($payload('Snake Train'))->assertCreated();
+        $first->assertJsonPath('data.sku', 'SNAKE-TRAIN')->assertJsonPath('data.variants.0.sku', 'SNAKE-TRAIN');
+
+        // the same name again: the SKU is made unique, the first product is untouched
+        $this->create($payload('Snake Train'))->assertCreated()->assertJsonPath('data.sku', 'SNAKE-TRAIN-2');
+        $this->create($payload('Snake  Train!!'))->assertCreated()->assertJsonPath('data.sku', 'SNAKE-TRAIN-3');
+
+        // an empty string counts as no SKU; a SKU the admin typed is never changed
+        $this->create(['sku' => ''] + $payload('Blue Bear'))->assertCreated()->assertJsonPath('data.sku', 'BLUE-BEAR');
+        $this->create(['sku' => 'my-own-1'] + $payload('Red Fox'))->assertCreated()->assertJsonPath('data.sku', 'my-own-1');
+    }
+
     public function test_a_product_is_a_draft_by_default(): void
     {
         $this->actingAsAdmin();

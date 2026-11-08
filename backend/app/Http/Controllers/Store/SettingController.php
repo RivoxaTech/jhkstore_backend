@@ -69,6 +69,7 @@ class SettingController extends Controller
                 'cod' => ['enabled' => (bool) $settings->get('pay_cod_enabled')],
                 'bank_transfer' => [
                     'enabled' => (bool) $settings->get('pay_bank_enabled'),
+                    'proof_required' => $settings->bankProofRequired(),                  // the screenshot must be uploaded at checkout
                     'instructions' => (string) $settings->get('pay_bank_instructions'),
                     'accounts' => $settings->publicAccounts(),                            // active accounts, in order
                 ],

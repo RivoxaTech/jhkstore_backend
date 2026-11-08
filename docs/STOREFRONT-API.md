@@ -21,7 +21,7 @@ The OpenAPI reference is in [openapi.json](openapi.json) (and generated live at 
   "tax": {"rate","inclusive","label"},
   "delivery": {"method","fee","free_delivery_min_cart","days"},
   "orders": {"min_order_amount","cod_max_amount"},
-  "payment": {"cod":{"enabled"}, "bank_transfer":{"enabled","instructions","accounts":[{"bank","title","number","iban"}]}, "card":{"visible","coming_soon":true}},
+  "payment": {"cod":{"enabled"}, "bank_transfer":{"enabled","proof_required","instructions","accounts":[{"bank","title","number","iban"}]}, "card":{"visible","coming_soon":true}},
   "theme": {"primary","primary_contrast","accent","bg","surface","text","muted","border","font_heading","font_body","radius","shadow"} }
 ```
 
@@ -33,7 +33,7 @@ Prices in all responses are plain numbers in the store currency.
 
 * **Open / closed**: `store.open` = `false` means customers can still browse and get a quote, but `POST /orders` answers `422 { code: "store_closed", message }` (the message is `store.closed_message`, or a default). Show `store.closed_message` instead of the checkout button. `checkout.notice` is a short notice for the checkout page; `checkout.eta_text` (e.g. "2 to 4 days") is the delivery estimate to show when the quote has no zone estimate.
 * **Delivery**: `delivery.method` is `flat`, `free`, `free_above`, `zones` or `owner_confirms` (see the quote below); `fee`, `free_delivery_min_cart` (0 = never free) and `days` are the store values.
-* **Payment**: offer a method only when it is `enabled`; `accounts` are the active bank accounts in display order, `instructions` the text to show next to them. `card.visible` only means "show a *card payment, coming soon* label": card can never be chosen (`payment_method: "card"` is a `422`).
+* **Payment**: offer a method only when it is `enabled`; `accounts` are the active bank accounts in display order, `instructions` the text to show next to them. `bank_transfer.proof_required` (Settings → Payments) says whether the customer has to attach the screenshot of the transfer to the order: show the accounts, the amount and an upload box at checkout, and send the order as **multipart** with the file in `proof` (and an optional `reference`); without it the order is refused with `422` and `errors.proof`. `card.visible` only means "show a *card payment, coming soon* label": card can never be chosen (`payment_method: "card"` is a `422`).
 * **Theme**: paint the storefront with these values. `primary_contrast` is the text colour on the primary colour. Colours are `#RRGGBB`; `font_heading` / `font_body` is one of `Inter, Poppins, Playfair Display, Plus Jakarta Sans, Roboto, Lato, system-ui` (load the font yourself, no font is served); `radius` one of `0px, 4px, 8px, 12px, 16px, 999px`; `shadow` one of `none, soft, medium`.
 
 ### Banners

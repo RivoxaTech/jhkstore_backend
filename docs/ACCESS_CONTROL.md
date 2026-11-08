@@ -97,6 +97,7 @@ Generated from `Settings::DEFINITIONS` (a test checks that every setting has a r
 | `delivery_eta_text` | Delivery estimate text | Delivery | client | `settings.delivery` |
 | `pay_cod_enabled` | Cash on delivery | Payments | client | `settings.payments` |
 | `pay_bank_enabled` | Bank transfer | Payments | client | `settings.payments` |
+| `pay_bank_proof_required` | Require the payment screenshot | Payments | client | `settings.payments` |
 | `pay_card_visible` | Show "Card payment, coming soon" | Payments | client | `settings.payments` |
 | `pay_bank_instructions` | Bank transfer instructions | Payments | client | `settings.payments` |
 | `pay_bank_accounts` | Bank accounts | Payments | client | `settings.payments` |

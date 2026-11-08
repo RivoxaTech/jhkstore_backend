@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Store;
 use App\Domain\Customer\Phone;
 use App\Domain\Order\Actions\HandlePaymentProof;
 use App\Domain\Order\Actions\PlaceOrder;
+use App\Domain\Order\Enums\PaymentMethod;
 use App\Domain\Order\Models\Order;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Store\PaymentProofRequest;
@@ -24,7 +25,7 @@ class OrderController extends Controller
      * a retry returns the same order (200 + `Idempotency-Replayed: true`) instead of a second one. 201 = new order; 409 `price_changed` = the
      * total the customer saw is no longer right.
      */
-    public function store(PlaceOrderRequest $request, PlaceOrder $place): JsonResponse
+    public function store(PlaceOrderRequest $request, PlaceOrder $place, HandlePaymentProof $proofs): JsonResponse
     {
         $key = trim((string) $request->header('Idempotency-Key', ''));
         if ($key !== '' && ! preg_match('/^[A-Za-z0-9._\-:]{8,64}$/', $key)) {
@@ -32,6 +33,10 @@ class OrderController extends Controller
         }
 
         [$order, $replayed] = $place->handle($request->orderData(), $key ?: null);
+        // a bank transfer order placed together with the screenshot of the transfer (already validated by the request)
+        if (! $replayed && $request->hasFile('proof') && $order->payment_method === PaymentMethod::BankTransfer->value) {
+            $order = $proofs->submit($order, $request->file('proof'), $request->input('reference'));
+        }
         $order->loadMissing(self::DETAIL);
 
         $response = (new StoreOrderResource($order))->response()->setStatusCode($replayed ? 200 : 201);

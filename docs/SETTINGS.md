@@ -84,7 +84,7 @@ Tier: contact e-mail, phone, address, support hours and WhatsApp are `client`; s
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
-| `currency_code` | string | `USD` | Currency code. ISO code, e.g. USD, EUR, GBP |
+| `currency_code` | string | `USD` | Currency code. Any short code of 1 to 10 letters (USD, PKR, Rs, Rs.): it does not have to be three letters |
 | `currency_symbol` | string | `$` | Currency symbol |
 | `currency_decimals` | int | `2` | Decimals. Decimal places shown and calculated (0, 1 or 2) |
 
@@ -131,6 +131,7 @@ The zones themselves are rows of `delivery_zones`, managed in this tab (`/admin/
 |---|---|---|---|
 | `pay_cod_enabled` | bool | `on` | Cash on delivery (the `cod_max_amount` limit applies to it only) |
 | `pay_bank_enabled` | bool | `off` | Bank transfer: needs an active account |
+| `pay_bank_proof_required` | bool | `on` | Asked in the admin panel only once bank transfer is on: the customer must upload the screenshot of the transfer at checkout, or the order is refused (`422 proof`). Off: the screenshot is optional at checkout and can be added later from the order page |
 | `pay_card_visible` | bool | `off` | Shows a "card payment, coming soon" label; card can never be chosen |
 | `pay_bank_instructions` | text | `(empty)` | Shown to the customer next to the accounts (≤ 1000 characters) |
 | `pay_bank_accounts` | accounts | `[]` | The accounts the customer may pay into, in display order |

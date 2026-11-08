@@ -4464,7 +4464,7 @@
                 "requestBody": {
                     "required": true,
                     "content": {
-                        "application/json": {
+                        "multipart/form-data": {
                             "schema": {
                                 "$ref": "#/components/schemas/PlaceOrderRequest"
                             }
@@ -7737,8 +7737,12 @@
                                                         "enabled": {
                                                             "type": "boolean"
                                                         },
+                                                        "proof_required": {
+                                                            "type": "boolean"
+                                                        },
                                                         "instructions": {
-                                                            "type": "string"
+                                                            "type": "string",
+                                                            "description": "the screenshot must be uploaded at checkout"
                                                         },
                                                         "accounts": {
                                                             "type": "array",
@@ -7769,6 +7773,7 @@
                                                     },
                                                     "required": [
                                                         "enabled",
+                                                        "proof_required",
                                                         "instructions",
                                                         "accounts"
                                                     ]
@@ -10777,8 +10782,24 @@
             },
             "PlaceOrderRequest": {
                 "type": "object",
-                "description": "POST /store/orders: a guest order. Contact (name, phone, optional e-mail), a delivery address and the items. Nobody logs in, so the\ninput is validated strictly: phone shape, field lengths, the number of items and quantities (config/shop.php).\nThe items come in the body or from the persistent cart (`cart_token`); `payment_method` is cod (default) or bank_transfer; `coupon_code` is optional.",
+                "description": "POST /store/orders: a guest order. Contact (name, phone, optional e-mail), a delivery address and the items. Nobody logs in, so the\ninput is validated strictly: phone shape, field lengths, the number of items and quantities (config/shop.php).\nThe items come in the body or from the persistent cart (`cart_token`); `payment_method` is cod (default) or bank_transfer; `coupon_code` is optional.\nA bank transfer order may carry the screenshot of the transfer as `proof` (multipart, plus an optional `reference`); when the shop requires it\n(setting `pay_bank_proof_required`) the order is refused without it.",
                 "properties": {
+                    "proof": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "binary",
+                        "contentMediaType": "application/octet-stream",
+                        "description": "Maximum file size: 4096 kilobytes."
+                    },
+                    "reference": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 120
+                    },
                     "customer": {
                         "type": "object",
                         "properties": {

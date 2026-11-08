@@ -84,6 +84,13 @@ class SettingsTest extends TestCase
         $this->putJson(self::ADMIN.'/settings', ['loyalty_enabled' => true])->assertStatus(422)->assertJsonValidationErrors('loyalty_enabled');   // an unknown setting is refused
         $this->putJson(self::ADMIN.'/settings', ['return_window_days' => 5])->assertStatus(422)->assertJsonValidationErrors('return_window_days');
         $this->putJson(self::ADMIN.'/settings', ['currency_decimals' => 3])->assertStatus(422)->assertJsonValidationErrors('currency_decimals');
+        foreach (['', 'TOOLONGCODE1', 'R5', 'A B'] as $bad) {   // a currency code is 1 to 10 letters, not necessarily three
+            $this->putJson(self::ADMIN.'/settings', ['currency_code' => $bad])->assertStatus(422)->assertJsonValidationErrors('currency_code');
+        }
+        foreach (['Rs', 'PKR', 'R', 'Rs.', 'USD'] as $good) {
+            $this->putJson(self::ADMIN.'/settings', ['currency_code' => $good])->assertOk();
+            $this->assertSame($good, app(\App\Domain\Support\Settings::class)->currencyCode());
+        }
         $this->putJson(self::ADMIN.'/settings', ['order_number_prefix' => 'A B!'])->assertStatus(422)->assertJsonValidationErrors('order_number_prefix');
         foreach (['92', '+0', '+92 3', '0300', '+12345', 'abc'] as $bad) {
             $this->putJson(self::ADMIN.'/settings', ['default_phone_country_code' => $bad])->assertStatus(422)->assertJsonValidationErrors('default_phone_country_code');

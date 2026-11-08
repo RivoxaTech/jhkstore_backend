@@ -40,7 +40,7 @@ class SettingsAccessTest extends TestCase
     public function test_every_setting_has_a_tier_and_the_map_matches_the_spec(): void
     {
         $client = ['store_email', 'store_phone', 'store_address', 'support_hours', 'whatsapp_number', 'store_open', 'store_closed_message', 'checkout_notice', 'delivery_eta_text',
-            'delivery_method', 'delivery_fee', 'free_delivery_min_cart', 'min_order_amount', 'pay_cod_enabled', 'pay_bank_enabled', 'pay_card_visible', 'pay_bank_instructions', 'pay_bank_accounts',
+            'delivery_method', 'delivery_fee', 'free_delivery_min_cart', 'min_order_amount', 'pay_cod_enabled', 'pay_bank_enabled', 'pay_bank_proof_required', 'pay_card_visible', 'pay_bank_instructions', 'pay_bank_accounts',
             'mail_enabled', 'mail_on_placed', 'mail_on_confirmed', 'mail_on_shipped', 'mail_on_delivered', 'mail_on_cancelled', 'mail_on_payment_proof_rejected', 'mail_on_fee_confirmed',
             'owner_mail_on_placed', 'owner_mail_on_proof', 'owner_mail_on_wholesale', 'push_enabled', 'push_on_placed', 'push_on_proof', 'push_on_wholesale', 'rebuild_enabled'];
         $advanced = ['store_name', 'store_tagline', 'store_country', 'default_phone_country_code', 'order_number_prefix', 'cod_max_amount', 'currency_code', 'currency_symbol', 'currency_decimals',

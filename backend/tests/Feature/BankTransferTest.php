@@ -124,6 +124,57 @@ class BankTransferTest extends TestCase
         $this->placeOrder($this->orderBody([$noCod => 1], ['payment_method' => 'bank_transfer']))->assertCreated();
     }
 
+    // ------------------------------------------------------------------ the screenshot at checkout
+
+    private function bankBody(): array
+    {
+        $this->setSetting('pay_bank_enabled', true);
+        $this->setSetting('pay_bank_accounts', [['bank' => 'Test Bank', 'title' => 'Test Shop', 'number' => '123456', 'iban' => '', 'active' => true]]);
+
+        return $this->orderBody([$this->variantOf($this->shopProduct()) => 1], ['payment_method' => 'bank_transfer']);
+    }
+
+    public function test_the_shop_can_require_the_screenshot_to_place_a_bank_transfer_order(): void
+    {
+        $body = $this->bankBody();
+        $this->setSetting('pay_bank_proof_required', true);
+
+        $this->getJson(self::STORE.'/settings')->assertOk()->assertJsonPath('payment.bank_transfer.proof_required', true);
+
+        // no screenshot: refused, no order exists
+        $this->placeOrderWithFile($body, [])->assertStatus(422)->assertJsonValidationErrors('proof');
+        $this->placeOrder($body)->assertStatus(422)->assertJsonValidationErrors('proof');
+        $this->assertSame(0, DB::table('orders')->count());
+
+        // not a picture: refused
+        $this->placeOrderWithFile($body, ['proof' => UploadedFile::fake()->create('proof.pdf', 20, 'application/pdf')])->assertStatus(422)->assertJsonValidationErrors('proof');
+        $this->assertSame(0, DB::table('orders')->count());
+
+        // with the screenshot: the order is placed and the proof is already submitted
+        $res = $this->placeOrderWithFile($body, ['proof' => $this->proofFile(), 'reference' => 'TX-1'])->assertCreated();
+        $res->assertJsonPath('data.payment.proof_status', 'submitted')->assertJsonPath('data.payment.can_upload_proof', false);
+        $order = Order::query()->where('order_number', $res->json('data.order_number'))->firstOrFail();
+        $this->assertSame('TX-1', $this->payment($order)->proof_reference);
+        $this->assertCount(1, $this->payment($order)->getMedia('proof'));
+    }
+
+    public function test_cash_on_delivery_never_needs_a_screenshot(): void
+    {
+        $body = $this->bankBody();
+        $this->setSetting('pay_bank_proof_required', true);
+
+        $this->placeOrder(['payment_method' => 'cod'] + $body)->assertCreated();
+    }
+
+    public function test_when_the_screenshot_is_optional_the_order_can_be_placed_without_it(): void
+    {
+        $body = $this->bankBody();   // the test shop starts with the screenshot optional
+        $this->getJson(self::STORE.'/settings')->assertJsonPath('payment.bank_transfer.proof_required', false);
+
+        $this->placeOrder($body)->assertCreated()->assertJsonPath('data.payment.proof_status', 'none')->assertJsonPath('data.payment.can_upload_proof', true);
+        $this->placeOrderWithFile($this->bankBody(), ['proof' => $this->proofFile()])->assertCreated()->assertJsonPath('data.payment.proof_status', 'submitted');
+    }
+
     // ------------------------------------------------------------------ the upload
 
     public function test_the_proof_is_stored_on_the_private_disk_with_no_public_url(): void

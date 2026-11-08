@@ -4,6 +4,7 @@ namespace App\Http\Requests\Store;
 
 use App\Domain\Customer\Phone;
 use App\Domain\Order\Enums\PaymentMethod;
+use App\Domain\Support\Settings;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -12,6 +13,8 @@ use Illuminate\Validation\Rule;
  * POST /store/orders: a guest order. Contact (name, phone, optional e-mail), a delivery address and the items. Nobody logs in, so the
  * input is validated strictly: phone shape, field lengths, the number of items and quantities (config/shop.php).
  * The items come in the body or from the persistent cart (`cart_token`); `payment_method` is cod (default) or bank_transfer; `coupon_code` is optional.
+ * A bank transfer order may carry the screenshot of the transfer as `proof` (multipart, plus an optional `reference`); when the shop requires it
+ * (setting `pay_bank_proof_required`) the order is refused without it.
  */
 class PlaceOrderRequest extends FormRequest
 {
@@ -38,7 +41,13 @@ class PlaceOrderRequest extends FormRequest
             }
         }];
 
+        $px = config('shop.payment_proof');
+        $proofRequired = $this->input('payment_method') === PaymentMethod::BankTransfer->value && app(Settings::class)->bankProofRequired();
+
         return [
+            'proof' => [$proofRequired ? 'required' : 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.(int) $px['max_kb'],
+                "dimensions:min_width={$px['min_px']},min_height={$px['min_px']},max_width={$px['max_px']},max_height={$px['max_px']}"],
+            'reference' => ['nullable', 'string', 'max:120'],
             'customer' => ['required', 'array'],
             'customer.name' => ['required', 'string', 'min:2', 'max:120'],
             'customer.phone' => ['required', ...$phone],
@@ -91,6 +100,12 @@ class PlaceOrderRequest extends FormRequest
             'address.postcode.regex' => 'Enter a valid postcode (3 to 20 letters or digits).',
             'customer_note.max' => 'The note can be at most 500 characters.',
             'payment_method.in' => 'Choose cash on delivery or bank transfer.',
+            'proof.required' => 'Upload the screenshot of your bank transfer to place the order.',
+            'proof.image' => 'The screenshot must be a picture (JPG, PNG or WEBP).',
+            'proof.mimes' => 'The screenshot must be a JPG, PNG or WEBP picture.',
+            'proof.max' => 'The screenshot can be at most '.round(config('shop.payment_proof.max_kb') / 1024).' MB.',
+            'proof.dimensions' => 'The screenshot must be between '.config('shop.payment_proof.min_px').' and '.config('shop.payment_proof.max_px').' pixels wide and high.',
+            'proof.uploaded' => 'The screenshot could not be uploaded. It may be larger than the server accepts.',
         ] + CheckoutItemsRules::messages();
     }
 
@@ -98,6 +113,7 @@ class PlaceOrderRequest extends FormRequest
     public function orderData(): array
     {
         $data = $this->validated();
+        unset($data['proof'], $data['reference']);   // the screenshot is stored after the order exists (OrderController)
         $customer = $data['customer'];
         foreach (['address', 'billing_address'] as $key) {
             if (isset($data[$key])) {

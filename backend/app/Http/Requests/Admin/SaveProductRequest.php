@@ -34,6 +34,11 @@ class SaveProductRequest extends FormRequest
     {
         $product = $this->route('product');
 
+        // a new product without a SKU gets one made from its name (SNAKE-TRAIN, then SNAKE-TRAIN-2 when that is taken)
+        if (! $product && blank($this->input('sku')) && filled($this->input('name'))) {
+            $this->merge(['sku' => $this->makeSku((string) $this->input('name'))]);
+        }
+
         if (! $this->has('variants') && ($this->has('mrp') || $this->has('selling_price'))) {
             $this->flat = true;
             $default = $product?->variants()->orderByDesc('is_default')->orderBy('id')->first();
@@ -213,6 +218,18 @@ class SaveProductRequest extends FormRequest
                 $validator->errors()->add("variants.$i.sku", 'This SKU is already used by another variant.');
             }
         }
+    }
+
+    /** A SKU from the product name that no product or option uses yet. */
+    private function makeSku(string $name): string
+    {
+        $base = mb_substr(strtoupper(trim((string) preg_replace('/[^A-Za-z0-9]+/', '-', \Illuminate\Support\Str::ascii($name)), '-')), 0, 70) ?: 'PRODUCT';
+        $sku = $base;
+        for ($n = 2; DB::table('products')->where('sku', $sku)->exists() || DB::table('product_variants')->where('sku', $sku)->exists(); $n++) {
+            $sku = $base.'-'.$n;
+        }
+
+        return $sku;
     }
 
     /** Quantity prices must be cheaper than the selling price, and cheaper again for every higher quantity. */
