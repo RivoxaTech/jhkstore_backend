@@ -135,6 +135,7 @@ class SettingsTest extends TestCase
         $this->assertSame($url, $this->getJson(self::STORE.'/settings')->json('store.logo_url'));   // now cached
 
         // the address of the site changes (APP_URL edited, server restarted): the cached link must not keep pointing at the old host
+        config(['app.url' => 'http://shop.example']);
         \Illuminate\Support\Facades\URL::forceRootUrl('http://shop.example');
         app()->forgetInstance(Settings::class);
 
@@ -178,6 +179,23 @@ class SettingsTest extends TestCase
 
         $this->asAdmin();
         $this->deleteJson(self::ADMIN.'/settings/favicon')->assertOk()->assertJsonPath('files.store_favicon', null)->assertJsonPath('files.seo_share_image', $share);
+    }
+
+    public function test_the_agency_credit_defaults_to_rivoxa_and_its_logo_is_uploaded_shown_and_removed(): void
+    {
+        $this->asAdmin();
+        // the defaults of a fresh install: Rivoxa Tech, linked, no logo yet
+        $this->getJson(self::STORE.'/settings')->assertJsonPath('footer.agency', ['name' => 'Rivoxa Tech', 'url' => 'https://rivoxa.tech', 'logo_url' => null]);
+
+        $logo = $this->upload('agency-logo', 'agency_logo', UploadedFile::fake()->image('rivoxa.png', 600, 130))->assertOk()->json('files.agency_logo');
+        $this->assertStringStartsWith('http', $logo);
+        $this->getJson(self::STORE.'/settings')->assertJsonPath('footer.agency.logo_url', $logo)->assertJsonPath('footer.agency.name', 'Rivoxa Tech');
+
+        $this->upload('agency-logo', 'agency_logo', UploadedFile::fake()->image('big.png', 100, 100)->size(1500))->assertStatus(422)->assertJsonValidationErrors('agency_logo');   // > 1 MB
+        $this->upload('agency-logo', 'agency_logo', UploadedFile::fake()->create('x.svg', 5, 'image/svg+xml'))->assertStatus(422)->assertJsonValidationErrors('agency_logo');
+
+        $this->deleteJson(self::ADMIN.'/settings/agency-logo')->assertOk()->assertJsonPath('files.agency_logo', null);
+        $this->getJson(self::STORE.'/settings')->assertJsonPath('footer.agency.logo_url', null);
     }
 
     // ------------------------------------------------------------------ footer, social links, SEO
@@ -271,7 +289,7 @@ class SettingsTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->getJson(self::STORE.'/settings')->assertOk()
             ->assertJsonPath('footer', ['text' => 'Quality goods, fast delivery.', 'copyright' => '© 2026 Acme', 'support_hours' => 'Mon-Fri 9-18',
-                'whatsapp_number' => '+49 170 1234567', 'whatsapp_url' => 'https://wa.me/491701234567', 'agency' => ['name' => '', 'url' => '']])
+                'whatsapp_number' => '+49 170 1234567', 'whatsapp_url' => 'https://wa.me/491701234567', 'agency' => ['name' => 'Rivoxa Tech', 'url' => 'https://rivoxa.tech', 'logo_url' => null]])
             ->assertJsonPath('seo', ['meta_title' => 'Acme Store', 'meta_description' => 'Everything you need.', 'share_image_url' => null]);
 
         $this->asAdmin();

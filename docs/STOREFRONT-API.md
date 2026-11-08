@@ -15,7 +15,7 @@ The OpenAPI reference is in [openapi.json](openapi.json) (and generated live at 
 { "store": {"name","tagline","logo_url","favicon_url","email","phone","address","country","open","closed_message"},
   "checkout": {"notice","eta_text"},
   "social_links": [{"platform","label","url"}],
-  "footer": {"text","copyright","support_hours","whatsapp_number","whatsapp_url","agency":{"name","url"}},
+  "footer": {"text","copyright","support_hours","whatsapp_number","whatsapp_url","agency":{"name","url","logo_url"}},
   "seo": {"meta_title","meta_description","share_image_url"},
   "currency": {"code","symbol","decimals"},
   "tax": {"rate","inclusive","label"},
@@ -27,7 +27,7 @@ The OpenAPI reference is in [openapi.json](openapi.json) (and generated live at 
 
 `logo_url`, `favicon_url` and `seo.share_image_url` are absolute URLs or `null`. `social_links` holds only the **active** links, **already in the order the store owner set** (render them as they come);
 `platform` is one of `facebook, instagram, linkedin, x, youtube, tiktok, whatsapp, pinterest, website, custom` (pick an icon from it), `label` is never empty. `footer.whatsapp_url` is `https://wa.me/<digits>` or `null`.
-`footer.agency` is the agency credit (`name` and an `https://` `url`, both empty = show nothing).
+`footer.agency` is the "Developed by" credit (`name`, an `https://` `url` and an optional `logo_url`; name empty = show nothing; the default is Rivoxa Tech, https://rivoxa.tech).
 The settings answer has no new required field in this release; `store.open`, `store.closed_message`, `checkout`, `payment`, `delivery` and `theme` behave as described below. The `seo` values are site-wide defaults for pages that have no title / description of their own (products and categories carry their own `meta_title` / `meta_description`).
 Prices in all responses are plain numbers in the store currency.
 

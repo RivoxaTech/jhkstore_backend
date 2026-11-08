@@ -34,7 +34,8 @@ class SeedersTest extends TestCase
         $this->assertTrue($settings->get('pay_cod_enabled'));
         $this->assertFalse($settings->get('pay_bank_enabled'));
         $this->assertSame([], $settings->get('pay_bank_accounts'));
-        $this->assertSame('', $settings->get('agency_name'));
+        $this->assertSame('Rivoxa Tech', $settings->get('agency_name'));
+        $this->assertSame('https://rivoxa.tech', $settings->get('agency_url'));
     }
 
     public function test_the_demo_seeder_makes_a_toy_catalogue_for_the_storefront_and_can_run_again(): void

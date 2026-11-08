@@ -158,10 +158,10 @@ class SettingsPhaseATest extends TestCase
 
         $this->putJson(self::ADMIN.'/settings', ['agency_name' => 'Example Agency', 'agency_url' => 'https://agency.example'])->assertOk();
 
-        $this->publicSettings()->assertJsonPath('footer.agency', ['name' => 'Example Agency', 'url' => 'https://agency.example']);
+        $this->publicSettings()->assertJsonPath('footer.agency', ['name' => 'Example Agency', 'url' => 'https://agency.example', 'logo_url' => null]);
         $this->actingAsAdmin('admin');
         $this->putJson(self::ADMIN.'/settings', ['agency_name' => '', 'agency_url' => ''])->assertOk();   // empty = no credit
-        $this->publicSettings()->assertJsonPath('footer.agency', ['name' => '', 'url' => '']);
+        $this->publicSettings()->assertJsonPath('footer.agency', ['name' => '', 'url' => '', 'logo_url' => null]);
     }
 
     // ------------------------------------------------------------------ payments

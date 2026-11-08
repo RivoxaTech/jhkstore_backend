@@ -38,7 +38,7 @@ class SettingController extends Controller
                 'support_hours' => (string) $settings->get('support_hours'),
                 'whatsapp_number' => (string) $settings->get('whatsapp_number'),
                 'whatsapp_url' => ($digits = preg_replace('/\D+/', '', (string) $settings->get('whatsapp_number'))) !== '' ? 'https://wa.me/'.$digits : null,
-                'agency' => ['name' => (string) $settings->get('agency_name'), 'url' => (string) $settings->get('agency_url')],
+                'agency' => ['name' => (string) $settings->get('agency_name'), 'url' => (string) $settings->get('agency_url'), 'logo_url' => $settings->fileUrl('agency_logo')],
             ],
             'seo' => [
                 'meta_title' => (string) $settings->get('seo_meta_title'),

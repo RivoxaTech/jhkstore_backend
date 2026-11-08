@@ -100,8 +100,9 @@ class Settings
         'social_links' => ['footer', 'links', [], 'Social and footer links', 'Any number of links, shown in this order.'],
         'footer_text' => ['footer', 'text', '', 'Footer text', 'A short text for the footer, e.g. what the store sells.'],
         'footer_copyright' => ['footer', 'string', '', 'Copyright text', 'e.g. © 2026 JHK Store. All rights reserved.'],
-        'agency_name' => ['footer', 'string', '', 'Agency name', 'Shown as a credit in the footer, e.g. Built by Example Agency. Empty = no credit.'],
-        'agency_url' => ['footer', 'string', '', 'Agency link', 'The agency website (https:// only).'],
+        'agency_name' => ['footer', 'string', 'Rivoxa Tech', 'Agency name', 'Shown as "Developed by" at the very bottom of the storefront and in the admin panel. Empty = no credit.'],
+        'agency_url' => ['footer', 'string', 'https://rivoxa.tech', 'Agency link', 'The agency website (https:// only).'],
+        'agency_logo' => ['footer', 'file', '', 'Agency logo', 'PNG, JPG or WEBP, up to 1 MB. Shown next to "Developed by" (the name is shown when there is no logo).'],
 
         // --- search engines and sharing
         'seo_meta_title' => ['seo', 'string', '', 'Default meta title', 'Used by pages that have no title of their own.'],
@@ -492,16 +493,17 @@ class Settings
         return $this->stored ??= Cache::rememberForever(self::CACHE_KEY, fn () => Setting::query()->pluck('value', 'key')->all());
     }
 
-    /** @return array<int,string> */
     /**
      * The picture URLs are absolute, so the cache entry belongs to the address they were built with: a changed APP_URL (or a picture
-     * disk URL) must not keep serving links to the old host (a logo that is uploaded but never shows).
+     * disk URL) must not keep serving links to the old host (a logo that is uploaded but never shows). Only configuration goes into the key,
+     * never the host of the current request: an upload through one address must clear the entry that every other address reads.
      */
     private static function filesCacheKey(): string
     {
-        return self::FILES_CACHE_KEY.'.'.md5(url('/').'|'.config('filesystems.disks.public.url'));
+        return self::FILES_CACHE_KEY.'.'.md5(config('app.url').'|'.config('filesystems.disks.public.url'));
     }
 
+    /** @return array<int,string> */
     private function fileUrls(): array
     {
         return $this->fileUrls ??= Cache::rememberForever(self::filesCacheKey(), fn () => Media::query()

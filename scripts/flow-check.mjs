@@ -860,7 +860,7 @@ try {
 
   const badAgency = await setSettings({ agency_name: 'Example Agency', agency_url: 'http://agency.example' })
   const goodAgency = await setSettings({ agency_name: 'Example Agency', agency_url: 'https://agency.example' })
-  check(badAgency.status === 422 && goodAgency.status === 200 && JSON.stringify((await pub()).footer.agency) === JSON.stringify({ name: 'Example Agency', url: 'https://agency.example' }), 'agency credit: https only (422 for http), then public footer.agency', (await pub()).footer.agency)
+  check(badAgency.status === 422 && goodAgency.status === 200 && JSON.stringify((await pub()).footer.agency) === JSON.stringify({ name: 'Example Agency', url: 'https://agency.example', logo_url: null }), 'agency credit: https only (422 for http), then public footer.agency', (await pub()).footer.agency)
   await setSettings({ agency_name: '', agency_url: '' })
 
   const noMethod = await setSettings({ pay_cod_enabled: false })

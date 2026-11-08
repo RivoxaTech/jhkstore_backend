@@ -73,6 +73,7 @@ Generated from `Settings::DEFINITIONS` (a test checks that every setting has a r
 | `footer_copyright` | Copyright text | Footer & Social | advanced | `settings.footer` + `settings.advanced` |
 | `agency_name` | Agency name | Footer & Social | advanced | `settings.footer` + `settings.advanced` |
 | `agency_url` | Agency link | Footer & Social | advanced | `settings.footer` + `settings.advanced` |
+| `agency_logo` | Agency logo | Footer & Social | advanced | `settings.footer` + `settings.advanced` |
 | `seo_meta_title` | Default meta title | SEO | advanced | `settings.seo` + `settings.advanced` |
 | `seo_meta_description` | Default meta description | SEO | advanced | `settings.seo` + `settings.advanced` |
 | `seo_share_image` | Default share image | SEO | advanced | `settings.seo` + `settings.advanced` |

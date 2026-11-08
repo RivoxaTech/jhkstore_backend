@@ -7599,11 +7599,18 @@
                                                         },
                                                         "url": {
                                                             "type": "string"
+                                                        },
+                                                        "logo_url": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
                                                         "name",
-                                                        "url"
+                                                        "url",
+                                                        "logo_url"
                                                     ]
                                                 }
                                             },
@@ -8120,7 +8127,7 @@
         "/v1/admin/settings/{slot}": {
             "post": {
                 "operationId": "setting.uploadFile",
-                "summary": "POST settings/{logo|favicon|share-image}: replaces the picture (image type and size are validated)",
+                "summary": "POST settings/{logo|favicon|share-image|agency-logo}: replaces the picture (image type and size are validated)",
                 "tags": [
                     "Setting"
                 ],
@@ -8289,7 +8296,7 @@
             },
             "delete": {
                 "operationId": "setting.deleteFile",
-                "summary": "DELETE settings/{logo|favicon|share-image}",
+                "summary": "DELETE settings/{logo|favicon|share-image|agency-logo}",
                 "tags": [
                     "Setting"
                 ],
@@ -12788,6 +12795,16 @@
                     "options_count": {
                         "type": "string"
                     },
+                    "variant_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "min_order_qty": {
+                        "type": "integer",
+                        "description": "the option the shown price belongs to: what \"Add to Cart\" on a card adds (a one-option product)"
+                    },
                     "has_single_option": {
                         "type": "boolean"
                     },
@@ -12891,6 +12908,8 @@
                     "thumb_url",
                     "category",
                     "options_count",
+                    "variant_id",
+                    "min_order_qty",
                     "has_single_option",
                     "offers_count",
                     "show_starting_at",

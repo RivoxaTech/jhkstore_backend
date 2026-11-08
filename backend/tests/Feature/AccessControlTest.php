@@ -125,6 +125,7 @@ class AccessControlTest extends TestCase
             ['settings.branding', 'POST', '/settings/logo', []],
             ['settings.branding', 'DELETE', '/settings/favicon', []],
             ['settings.seo', 'POST', '/settings/share-image', []],
+            ['settings.footer', 'POST', '/settings/agency-logo', []],
             ['access.manage', 'GET', '/access-control', []],
             ['access.manage', 'PUT', '/access-control/admin', ['permissions' => []]],
         ];

@@ -192,9 +192,9 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin', 'store
     // Settings: each tab has its own permission (settings.<tab>); the controller checks it per key, here any tab opens the page
     Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.general,settings.branding,settings.banners,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications,settings.website');
     Route::put('settings', [SettingController::class, 'update'])->middleware('admin.can:settings.general,settings.branding,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications,settings.website');
-    // pictures: logo, favicon (Branding tab) and share-image (SEO tab); the controller checks the tab of the picture
-    Route::post('settings/{slot}', [SettingController::class, 'uploadFile'])->whereIn('slot', ['logo', 'favicon', 'share-image'])->middleware('admin.can:settings.branding,settings.seo');
-    Route::delete('settings/{slot}', [SettingController::class, 'deleteFile'])->whereIn('slot', ['logo', 'favicon', 'share-image'])->middleware('admin.can:settings.branding,settings.seo');
+    // pictures: logo, favicon (Branding tab), share-image (SEO tab) and agency-logo (Footer & Social tab); the controller checks the tab of the picture
+    Route::post('settings/{slot}', [SettingController::class, 'uploadFile'])->whereIn('slot', ['logo', 'favicon', 'share-image', 'agency-logo'])->middleware('admin.can:settings.branding,settings.seo,settings.footer');
+    Route::delete('settings/{slot}', [SettingController::class, 'deleteFile'])->whereIn('slot', ['logo', 'favicon', 'share-image', 'agency-logo'])->middleware('admin.can:settings.branding,settings.seo,settings.footer');
 
     // Access Control (developer only): what the admin may see
     Route::middleware('admin.can:access.manage')->group(function () {

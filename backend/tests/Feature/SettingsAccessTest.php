@@ -46,7 +46,7 @@ class SettingsAccessTest extends TestCase
         $advanced = ['store_name', 'store_tagline', 'store_country', 'default_phone_country_code', 'order_number_prefix', 'cod_max_amount', 'currency_code', 'currency_symbol', 'currency_decimals',
             'tax_rate', 'tax_inclusive', 'tax_label', 'delivery_unmatched', 'delivery_days', 'mail_from_name', 'mail_reply_to', 'notify_admin_email', 'storefront_track_url',
             'rebuild_hook_url', 'rebuild_hook_secret', 'rebuild_debounce_seconds',
-            'social_links', 'footer_text', 'footer_copyright', 'agency_name', 'agency_url', 'seo_meta_title', 'seo_meta_description', 'seo_share_image', 'store_logo', 'store_favicon'];
+            'social_links', 'footer_text', 'footer_copyright', 'agency_name', 'agency_url', 'agency_logo', 'seo_meta_title', 'seo_meta_description', 'seo_share_image', 'store_logo', 'store_favicon'];
 
         foreach ($client as $key) {
             $this->assertSame(Settings::CLIENT, Settings::access($key), "$key should be client");

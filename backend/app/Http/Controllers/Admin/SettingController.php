@@ -60,6 +60,7 @@ class SettingController extends Controller
         'logo' => ['store_logo', 'logo', ['png', 'jpg', 'jpeg', 'webp'], 2048, 4000],
         'favicon' => ['store_favicon', 'favicon', ['png', 'ico', 'jpg', 'jpeg', 'webp'], 512, null],
         'share-image' => ['seo_share_image', 'share_image', ['png', 'jpg', 'jpeg', 'webp'], 4096, 6000],
+        'agency-logo' => ['agency_logo', 'agency_logo', ['png', 'jpg', 'jpeg', 'webp'], 1024, 3000],
     ];
 
     /** Every setting, by tab and section, with its type, label, help text and current value (the Settings page is built from this). */
@@ -89,7 +90,7 @@ class SettingController extends Controller
         return response()->json($this->payload($settings, $request->user()));
     }
 
-    /** POST settings/{logo|favicon|share-image}: replaces the picture (image type and size are validated). */
+    /** POST settings/{logo|favicon|share-image|agency-logo}: replaces the picture (image type and size are validated). */
     public function uploadFile(Request $request, Settings $settings): JsonResponse
     {
         [$key, $field, $extensions, $maxKb, $maxSide] = self::FILES[$request->route('slot')];
@@ -108,7 +109,7 @@ class SettingController extends Controller
         return response()->json($this->payload($settings, $request->user()));
     }
 
-    /** DELETE settings/{logo|favicon|share-image} */
+    /** DELETE settings/{logo|favicon|share-image|agency-logo} */
     public function deleteFile(Request $request, Settings $settings): JsonResponse
     {
         [$key] = self::FILES[$request->route('slot')];
