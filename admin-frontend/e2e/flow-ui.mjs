@@ -646,8 +646,8 @@ try {
   await a.page.waitForFunction(() => { const i = document.querySelector('[data-proof-img]'); return i && i.complete && i.naturalWidth >= 100 }, { timeout: 15000 })
   check(await a.page.$eval('[data-proof-img]', (i) => i.src.startsWith('blob:')), 'UI-B1 the proof picture is shown from a blob (fetched through the authenticated route)')
   check((await a.page.$eval('[data-proof-reference]', (e) => e.innerText)) === 'UI-REF-123' && await a.page.$eval('[data-proof-status]', (e) => /to check/i.test(e.innerText)), 'UI-B1 the reference and the "Proof to check" badge show')
-  await a.page.waitForFunction((bank) => document.querySelector('[data-bank-panel]')?.innerText.includes(bank), { timeout: 15000 }, `UI Bank ${RUN}`).catch(() => {})   // the panel fills in after the order is read
-  check(await a.page.$eval('[data-bank-panel]', (p, bank) => p.innerText.includes(bank) && p.innerText.includes('payment reference'), `UI Bank ${RUN}`), 'UI-B1 the accounts and instructions shown to the customer are listed')
+  await a.page.waitForFunction((bank) => document.querySelector('.pay__accounts')?.innerText.includes(bank), { timeout: 15000 }, `UI Bank ${RUN}`).catch(() => {})   // the panel fills in after the order is read
+  check(await a.page.$eval('.pay__accounts', (p, bank) => p.innerText.includes(bank) && /payment reference/i.test(p.innerText), `UI Bank ${RUN}`), 'UI-B1 the accounts and instructions shown to the customer are listed (the snapshot of the order)')
   const plainProof = await fetch(`${BASE}/api/v1/admin/orders/${bank1.id}/payment/proof`, { headers: { Accept: 'application/json' } })
   check(plainProof.status === 401, 'UI-B1 the proof URL is not public (401 without the login)')
   check(await a.page.$eval('[data-blocked]', (e) => e.dataset.reason) === 'payment_not_verified' && (await confirmBtn(a.page)).disabled, 'UI-B1 before verification: a message and a disabled Confirm button', await confirmBtn(a.page))

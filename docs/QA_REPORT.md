@@ -156,3 +156,18 @@ Run on the scratch database `jhkstore_shots` (ports 8002 and 8003, log mailer on
 ### Found, not changed
 - The Website card status (changes waiting, last result) is kept in the cache. With `CACHE_STORE=array` or `file` on a host with several PHP processes the status can differ between requests; the production setting `database` (the default of this project) is shared.
 - `rebuild_enabled` switches the **automatic** rebuild only; the button and `shop:rebuild` work whenever a hook address is set.
+
+## Restructure and rename (Stage 2): results
+
+Run from the new layout (`backend/`, `admin-frontend/`, `scripts/` at the root), on 2026-11-08.
+
+| Check | Result |
+|---|---|
+| PHPUnit, same number of tests before and after the move | **551 before, 551 after** (550 passed, 1 skipped, 6914 assertions); the three tests that read the docs follow `../docs` |
+| `migrate:fresh --seed` (base seeder only), `route:list` (132 routes), `schedule:list` (3 jobs), `queue:work --stop-when-empty` | run; `GET /store/settings` answers `store.name = "JHK Store"` |
+| `php artisan serve --port=8002` from `backend/` | `/api/v1/store/*`, `/admin` and `/admin/login` (200, the built panel), `/admin-sw.js` (200, `application/javascript`), `/admin-assets/...` and `/storage/...` media (200 through the recreated `public/storage` link) |
+| `scripts/flow-check.mjs` with the new paths | **553 of 553 PASS** |
+| `admin-frontend` `npm run build` (into `backend/public/admin-assets`), `npm run e2e` | build ok, **79 checks PASS** |
+| `admin-frontend/e2e/flow-ui.mjs` | **202 checks**: 201 passed in the full run; the one that failed (UI-B1, the accounts shown to the customer) looked for the accounts in a block that the earlier *payment first* layout change had split off: it now reads `.pay__accounts` and was checked against the real page (account, IBAN and the instructions are there) |
+| Search for the old names (Dr. Cart, Dentalkart, My Store, dental) | only the banned-word line of `docs/FEATURE_SPEC.md` and the rename note of the CHANGELOG remain |
+| `jhkstore_db` | left base-seeded (2 admins, no products, no orders, `store_name = JHK Store`) |
