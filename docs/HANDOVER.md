@@ -31,6 +31,7 @@ Neutral Laravel 13 + Vue 3 store, **one deployment per client**, API first, sepa
 | Store logo in the panel | `BrandLogo.vue`, `stores/site.js` (favicon, document title) | public settings |
 | Static storefront: sitemap, cache headers, SEO fields | `Domain/Catalog/Sitemap`, `StoreCacheHeaders`, `MediaDimensions`, `StoreProductResource` (`seo`, `breadcrumbs`), [STOREFRONT-API.md](STOREFRONT-API.md) | public |
 | Website rebuild hook | `Domain/Website/Rebuild`, `TriggerRebuild`, `TrackStorefrontChanges`, `WebsiteController`, `WebsiteStatusCard.vue`, `php artisan shop:rebuild`, Settings → Website | `settings.website` (hook address, secret, wait time: `settings.advanced`) |
+| Customer storefront (static Nuxt site) | `frontend/` ([STOREFRONT.md](STOREFRONT.md)): `nuxt.config.ts`, `app/config/site.ts`, `app/content/*.ts`, `app/pages`, `app/components`, `app/composables`; built with `npm run generate`, tested with `npm run test:e2e` | none (public) |
 | Queue | `QUEUE_CONNECTION=database`, `jobs` / `failed_jobs`, worker or cron ([NEW_CLIENT.md](NEW_CLIENT.md)) | counts in `GET /admin/notifications/status` |
 | Admin push | `SendPushNotification`, `WebPushSender`, `PushController`, `PushToggle.vue`, `backend/public/admin-sw.js`, `php artisan shop:vapid` | `orders.view` or `wholesale.view` (recipients checked when the job runs) |
 | WhatsApp buttons | built in the panel: `whatsappUrl()` in `format.js` (order, wholesale, abandoned carts) | follows the screen |

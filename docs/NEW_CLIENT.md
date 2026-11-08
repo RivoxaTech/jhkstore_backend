@@ -117,6 +117,8 @@ To try the shop first, load the neutral sample data: `php artisan db:seed --clas
 
 ## 6. Connect the storefront
 
+The storefront of this repository is the Nuxt site in `frontend/` ([STOREFRONT.md](STOREFRONT.md): environment, Cloudflare Pages step by step, the same build on cPanel, the launch checklist). Set its `NUXT_PUBLIC_API_BASE` to this API, put its address in `FRONTEND_URLS`, enter the theme values of STOREFRONT.md in Settings → Theme and create the two banners (`home_hero`, `home_secondary`). What follows is for anyone who builds a different storefront.
+
 Give the storefront developer [STOREFRONT-API.md](STOREFRONT-API.md), `docs/openapi.json` and the Postman collection in `docs/postman/`. The first call a storefront should make is
 `GET /api/v1/store/settings` – it returns the store name, logo, currency and tax rules, so one storefront build adapts to each client. There is no customer login: the storefront keeps the cart itself or uses the token-based server cart (`/cart`), calls `POST /checkout/quote` and `POST /orders`, and for bank transfer uploads the payment proof. It paints itself with the `theme` object of the settings. Optional storefront pieces: a wholesale request form (`POST /store/wholesale-requests`), a tracking page that reads `?order=` and asks for the phone number (its URL goes into the `storefront_track_url` setting so e-mails can link to it), and `GET /products?featured=1` for a featured section.
 

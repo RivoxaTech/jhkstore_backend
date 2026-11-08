@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-11-08 – The customer storefront (branch `lean-store`, Stage 3)
+
+A **static Nuxt 3 website** in `frontend/`, built to match the reference design. Documentation: [docs/STOREFRONT.md](docs/STOREFRONT.md).
+
+### Added
+- `frontend/` (own `package.json`, `jhk-store-frontend`): Nuxt 3.21 with the `app/` folder layout, Vue 3, TypeScript, Tailwind CSS 4, self-hosted fonts (`@nuxt/fonts`), `@nuxtjs/sitemap` 7 and `@nuxtjs/robots` 5 (the Nuxt 3 lines of these modules), a small icon set (`@lucide/vue`). `nuxt generate` with the static preset: 138 prerendered pages for the demo catalogue (home, shop, every category and sub-category, every product, the static pages, contact), the client-only pages as shells, `200.html` / `404.html`, `_redirects`, `_headers`, `.htaccess.example`. Nothing host-specific, no server routes.
+- Pages: home, shop, category and sub-category, product (gallery with video and zoom, options, quantity, bulk hints, delivery date, tabs, related, sticky bar), cart drawer and page, one-page checkout (cash on delivery, bank transfer with the proof upload, every error code), order and tracking pages, About, Shipping, Returns, Terms, Privacy (static content in `app/content`, filled from the settings), contact with the bulk and wholesale form, 404.
+- The theme of the API becomes CSS variables (baked into the HTML); buttons, pills and badges get a darker shade automatically when the theme colour is below 4.5:1 with its text colour.
+- Admin panel: the banner title help says that *words between asterisks* are shown in the accent colour (the two-colour hero heading).
+- `design/logo.png` (redrawn from the reference screenshot: no separate logo file was provided).
+- Backend (one small change, tested): product **cards** carry `variant_id` and `min_order_qty`, so "Add to Cart" works straight from a card.
+- Tests: `frontend/tests/e2e.mjs` (119 browser checks over the generated site), `frontend/tests/shots.mjs` (screenshots at 390, 768 and 1440 px).
+
+### Decisions
+- Nuxt **3** (the brief), with `future.compatibilityVersion: 4` for the `app/` folder layout; the current sitemap / robots modules need Nuxt 4, so their Nuxt 3 lines are used.
+- The "1 Option" / "N Options" badge of the API is not shown on cards (it would be on every picture); the shop's `badge_text` and "N Offers" are.
+- No heart, star, review or account icon anywhere (the reference has them; the brief forbids them).
+
 ## 2026-11-08 – Restructure into three folders and the store is called "JHK Store"
 
 ### Changed

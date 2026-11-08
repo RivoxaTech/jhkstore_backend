@@ -4,7 +4,7 @@ An API-first **modular monolith**: one Laravel application, no microservices. Th
 the admin panel is a Vue single-page app that talks to the same API. **One deployment per client** – no multi-tenancy; client values live in `backend/.env` and the `settings` table.
 
 ```
- Storefront (static site, CDN)──┐   public, no login, no token
+ Storefront (frontend/, static) ──┐   public, no login, no token
  Admin panel (Vue 3)          ├──►  Laravel API  /api/v1
                               │        ├─ /store/*   public: settings, banners, catalogue, quote, coupons, cart, guest orders, wholesale requests
                               │        └─ /admin/*   admin session cookie (panel) or bearer token (scripts), a permission per route

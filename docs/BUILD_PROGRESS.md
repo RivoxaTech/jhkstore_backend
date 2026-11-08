@@ -4,11 +4,11 @@ Branch: lean-store. Never merge / push. Baseline before the work: 514 PHPUnit te
 
 ## Stages
 - Stage 1 (backend prep): DONE, GATE 1 green (PHPUnit 551 tests / 550 passed + 1 skipped, flow-check 553/553 incl. G33, smoke 79, flow-ui UI-H1 ok; two flow-ui timing checks fixed, re-verify in Gate 2)
-- Stage 2 (restructure + rename): code done (commits e23069d move, 767a9f5 paths, 7f38a98 rename+docs); GATE 2 in progress: PHPUnit 551 tests (same as before the move) green, route:list / schedule:list / queue:work / serve+/admin+sw+media ok, store.name 'JHK Store' ok; flow-check + flow-ui from the new layout running; smoke + base reseed of jhkstore_db still to do
-- Stage 3 (storefront): not started
+- Stage 2 (restructure + rename): DONE, GATE 2 green (PHPUnit 551 = 551 tests before/after the move, flow-check 553/553, smoke 79, flow-ui 201 + the fixed UI-B1 check, route/schedule/queue/serve/admin/sw/media ok, store.name JHK Store)
+- Stage 3 (storefront): DONE: frontend/ built, generate = 138 routes, e2e 119/119, Lighthouse a11y/BP/SEO 100, final PHPUnit + admin build re-run, docs written (STOREFRONT.md)
 
 ## Step in progress
-Gate 2: wait for flow-check and flow-ui (scratchpad runflows.sh, ROOT=backend), then smoke (reseed shots + DemoSeeder), then reseed jhkstore_db base, commit, Stage 3.
+All three stages are done; only the final report to the user is left (nothing merged or pushed).
 
 ## Decisions (Stage 1)
 - Rebuild state (pending, window, last result) lives in the cache, no new table (46 tables stay).
@@ -27,10 +27,17 @@ Gate 2: wait for flow-check and flow-ui (scratchpad runflows.sh, ROOT=backend), 
 - Admin: `cd admin-frontend && npm run build && npm run e2e`
 
 ## Left
-Gate 1 results -> Stage 2 -> Stage 3.
+Nothing. To re-run the Stage 3 gate: start the API (scratch DB with the DemoSeeder) on 8002, `cd frontend && npm run generate && npm run test:e2e`.
 
 ## Stage 2 notes
 - Tag pre-restructure = 204ce3e. Move done with git mv (history kept); public/storage symlink recreated with storage:link.
 - Docs: every backend path prefixed with backend/ by a script; README rewritten; NEW_CLIENT has a cPanel section (3b).
 - Rename: only 'My Store' existed (Settings default, .env.example); FEATURE_SPEC banned-word line and the CHANGELOG rename entry are the allowed leftovers.
 - Reference images are now in design/ (3 files; no separate logo file exists).
+
+## Stage 3 notes
+- Nuxt 3.21.11 + future.compatibilityVersion 4 (app/ layout); sitemap 7.x / robots 5.x (the 9.x / 7.x lines need Nuxt 4).
+- API CORS needs the test origin: the e2e/serve use http://127.0.0.1:3000 (in FRONTEND_URLS).
+- Each e2e run uses a random phone number (orders are limited to 10 an hour per phone) and the API server needs WHOLESALE_PER_HOUR >= 30.
+- Dev DB (jhkstore_shots) has the theme, logo, 2 design banners, a YouTube video on wooden-castle-builder; jhkstore_db is base-seeded.
+- Backend change for the storefront: product cards carry variant_id and min_order_qty (commit 720db64, test in StorefrontPrepTest + ProductStoreTest).

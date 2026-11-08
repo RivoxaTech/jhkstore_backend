@@ -171,3 +171,44 @@ Run from the new layout (`backend/`, `admin-frontend/`, `scripts/` at the root),
 | `admin-frontend/e2e/flow-ui.mjs` | **202 checks**: 201 passed in the full run; the one that failed (UI-B1, the accounts shown to the customer) looked for the accounts in a block that the earlier *payment first* layout change had split off: it now reads `.pay__accounts` and was checked against the real page (account, IBAN and the instructions are there) |
 | Search for the old names (Dr. Cart, Dentalkart, My Store, dental) | only the banned-word line of `docs/FEATURE_SPEC.md` and the rename note of the CHANGELOG remain |
 | `jhkstore_db` | left base-seeded (2 admins, no products, no orders, `store_name = JHK Store`) |
+
+
+## The customer storefront (Stage 3): results
+
+Run on 2026-11-08 against the real API with the demo catalogue (scratch database `jhkstore_shots`, API on port 8002; `jhkstore_db` stays base-seeded), the site generated with `npm run generate` and served by `frontend/scripts/serve-static.mjs` on port 3000 (it behaves like the hosts: files first, `200.html` for `/product/*`, `/category/*`, `/order/*`, else `404.html`).
+
+| Check | Result |
+|---|---|
+| `npm run generate` | succeeds, **138 prerendered routes** (home, shop, 6 categories, 11 sub-categories, 40 products, the static pages, the client-only shells), about 65 s; it fails on purpose when the API cannot be reached |
+| `frontend/tests/e2e.mjs` (headless Chrome, a fresh browser profile per scenario) | **119 of 119 PASS** |
+| Backend PHPUnit and admin build | see the last line of this section |
+
+What the 119 checks cover (S1 to S16): the home page with the first 12 of 40 products, the View all button, the hero and its two-colour title, the eyebrow with dots, the trust bar, Featured / category row / gift banner, no stars, reviews, hearts or account icon, the sticky header, no horizontal scroll at 1440, 390 and 360 px; **one product per row on a phone, the 1 / 2 toggle, saved in localStorage and kept after a reload**, 2 to 3 columns at 768 px, 4 at 1440 px; the product page (the HTML file has the name, price, pictures, Product and BreadcrumbList JSON-LD, canonical and Open Graph without JavaScript; gallery, thumbnails, full-size view, option and price change, quantity, bulk hint, delivery estimate, related, the product video that was added after the build appearing live, the sticky bar on a phone); Add to Cart from a card (toast, drawer, badge, token in localStorage, quantity, remove, a multi-option product opens its page); the coupon (a wrong code explains itself, WELCOME10 takes money off, calculated by the server); checkout with cash on delivery (the empty form is refused with messages, the zone is quoted from the address, the request carries an Idempotency-Key UUID, the empty honeypot, `expected_total` and the cart token, the cart is emptied, the last order number is remembered, no token in the address); checkout with bank transfer (accounts and instructions of the order, a preview, a picture over 4 MB refused, upload, "we will verify your payment"); tracking (`?order=` fills the number, a wrong phone and an unknown order give the same neutral message, the right phone shows status and timeline, noindex); the wholesale form (validation, reference, honeypot); **the closed shop** (banner on every page, Add to Cart and the order button disabled); **price_changed** (the new total is shown and has to be confirmed, then the order is placed); **a product created after the build opens through the app shell fallback**, an unknown product and an unknown page give the friendly 404; live search suggestions and Enter to `/shop?q=`, "Load more", category, sort, price and in-stock filters, the five static pages (content with the store name, in the HTML file too); robots.txt, sitemap.xml (65 addresses), noindex on cart / checkout / track, Organization and WebSite JSON-LD, the hero picture preloaded, self-hosted fonts with `font-display: swap`, no request to Google Fonts, picture sizes, no analytics; accessibility (landmarks, alt text, named buttons, labelled inputs, one h1, the skip link) and **button contrast of at least 4.5:1**.
+
+### SEO check of the generated HTML (`.output/public/product/rainbow-stacking-blocks/index.html`)
+
+`<title>Rainbow Stacking Blocks | JHK Store</title>`, `<link rel="canonical" href="…/product/rainbow-stacking-blocks">`, `og:image`, `twitter:card`, `lang="en"`, the product name (9 times), the price (`Rs. 28`), 9 `<img>` tags with width and height, and two `application/ld+json` blocks: `Product` (name, images, description, sku, an `AggregateOffer` with price range, currency and availability) and `BreadcrumbList`. `robots.txt` disallows /cart, /checkout, /track and /order/ and names the sitemap; `sitemap.xml` lists 8 static pages, 40 products, 6 categories and 11 sub-categories.
+
+### Lighthouse (`npx lighthouse`, simulated mobile throttling, against the local static server)
+
+| Page | Performance | Accessibility | Best practices | SEO | LCP | CLS | TBT |
+|---|---|---|---|---|---|---|---|
+| Home, mobile | 75 | 100 | 100 | 100 | 5.7 s | 0 | 210 ms |
+| Home, desktop | 96 | 100 | 100 | 100 | 1.3 s | 0 | 20 ms |
+| Product, mobile | 78 | 100 | 100 | 100 | 5.0 s | 0 | 220 ms |
+| Product, desktop | 99 | 100 | 100 | 100 | 1.0 s | 0 | 20 ms |
+
+The first run found real problems that were fixed: white text on the brand teal was 3.5:1 (now an automatic readable shade, at least 4.5:1), the muted text colour was 4.1:1 on the tint (the dev theme uses `#4B6B71`), and visible button texts were missing from their accessible names. The mobile performance numbers are limited by the simulated slow network and CPU, a plain static server without compression and CDN caching, and the 200 KB JavaScript bundle of Nuxt and Vue; below-the-fold sections are hydrated lazily. A real CDN (Brotli, HTTP/2, cached pictures) will do better; this was not measured here.
+
+### Screenshots and the comparison with the reference
+
+Pictures at 390, 768 and 1440 px of home, shop, product, cart, checkout, about and contact (21 files) are in `frontend/tests/shots/` (not committed; `node tests/shots.mjs` makes them again). The desktop home page was compared with `design/refrence ui.jpeg` and corrected until the layout matched: sticky translucent header over the hero, logo size, hero heading size and weight, the two-colour heading, the eyebrow with its line, the Shop Now pill, the white rounded trust bar overlapping the hero (the container is 1400 px wide like the design), the pill label and centred heading, the four-column cards with a 5:4 picture, name, two-line description, price and the small Add to Cart pill, the soft gift banner, and the dark teal footer with four columns and dividers.
+
+Remaining differences, honestly:
+- The **product pictures** of the design are photographs; the demo catalogue uses generated shapes (data, not layout).
+- The reference shows a **user icon, heart icons and star ratings**: left out on purpose (the brief forbids them). The footer has no FAQ link and no heart (same reason).
+- The small **doodles** (strokes near the hero title, stars, the sparkle strokes beside "Top 8 Toys") are part of the reference render, not of the hero picture; the heading strokes are approximated with two curved lines.
+- The **logo** was redrawn (no separate logo file existed; it is a close copy of the mark and the wordmark); the real logo is uploaded in Settings → Branding and replaces it.
+- The footer colour is derived from the primary colour (`#04494C`); the design's sampled value is `#024850`.
+- "Top 8 Toys" in the design: the demo catalogue has 40 products, so the heading says "Top 12" (the shop's own count; the client has 8, which gives "Top 8").
+- Fonts: Poppins like the design; letter spacing and sizes were matched by eye, not measured.
