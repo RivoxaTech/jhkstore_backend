@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-08 – Fix: an uploaded logo did not show; the Settings tab strip had two scrollbars (branch `lean-store`)
+
+### Fixed
+- **Logo / favicon / share picture not showing after an upload.** Picture links are absolute and were cached forever (`settings.files`) with the address they were built with; a changed `APP_URL` kept serving links to the old host (here `localhost:8000` while the API runs on 8002), so the browser could not load the picture and the panel fell back to the initials. The cache key now includes the site address and the picture disk URL (`Settings::filesCacheKey()`), so a changed `APP_URL` takes effect without clearing the cache. Test: `SettingsTest::test_picture_links_follow_a_changed_app_url`.
+- `backend/.env.example` (and the local `.env`): `APP_URL` is `http://localhost:8002` (the port every README command and the admin dev proxy use) and `SANCTUM_STATEFUL_DOMAINS` includes `localhost:8002` / `127.0.0.1:8002`; `admin-frontend/README.md` says 8002 too.
+- Admin Settings: the tab row (which scrolls sideways when there are many tabs) showed a vertical **and** a horizontal scrollbar with arrow buttons. It now has a slim horizontal bar only; the tabs no longer overlap the bottom line.
+
+### Note
+- A logo, favicon or share picture is saved the moment it is chosen (toast "Logo updated."); the *Save changes* button stays grey because there is nothing left to save. That is by design.
+
 ## 2026-11-08 – Storefront moved to Nuxt 4 (branch `lean-store`)
 
 Nuxt 3 reached its end of life on 31 July 2026, and the current `@nuxtjs/sitemap` (9.x) and `@nuxtjs/robots` (7.x) need Nuxt 4.6 or newer. This replaces the "Nuxt 3 with the Nuxt 4 folder layout" decision of the storefront entry below. Documentation: [docs/STOREFRONT.md](docs/STOREFRONT.md), section *Framework version and support*.

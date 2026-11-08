@@ -6,7 +6,7 @@ name and logo of the store it manages: they come from the store settings, nothin
 
 ```bash
 npm install
-npm run dev        # http://localhost:5190   (the backend must run on http://localhost:8000)
+npm run dev        # http://localhost:5190   (the backend must run on http://localhost:8002, and `APP_URL` in `backend/.env` must be that address: picture links are built from it)
 npm run build      # -> ../backend/public/admin-assets, served by Laravel at http://localhost:8002/admin
 ```
 
@@ -25,7 +25,7 @@ the **developer** (everything except orders) and the **admin** (the client). Aut
   know the currency. `GET admin/auth/me` returns the admin's role and effective permissions.
 * Money is formatted from the currency symbol and decimals of the store settings with the browser's locale
   (`src/utils/format.js`). Nothing is hard-coded to a country or currency.
-* Backend requirements: `SANCTUM_STATEFUL_DOMAINS` must include the admin host (`localhost:5190` and `localhost:8000` locally).
+* Backend requirements: `SANCTUM_STATEFUL_DOMAINS` must include the admin host (`localhost:5190` and `localhost:8002` locally).
   Production: HTTPS, `SESSION_SECURE_COOKIE=true`, the real admin domain in `SANCTUM_STATEFUL_DOMAINS` and strong passwords.
 
 ## Pages (sidebar)

@@ -256,7 +256,7 @@ class Settings
         $this->stored = null;
         $this->fileUrls = null;
         Cache::forget(self::CACHE_KEY);
-        Cache::forget(self::FILES_CACHE_KEY);
+        Cache::forget(self::filesCacheKey());
     }
 
     // ------------------------------------------------------------------ money (whole minor units, so there are no float surprises)
@@ -493,9 +493,18 @@ class Settings
     }
 
     /** @return array<int,string> */
+    /**
+     * The picture URLs are absolute, so the cache entry belongs to the address they were built with: a changed APP_URL (or a picture
+     * disk URL) must not keep serving links to the old host (a logo that is uploaded but never shows).
+     */
+    private static function filesCacheKey(): string
+    {
+        return self::FILES_CACHE_KEY.'.'.md5(url('/').'|'.config('filesystems.disks.public.url'));
+    }
+
     private function fileUrls(): array
     {
-        return $this->fileUrls ??= Cache::rememberForever(self::FILES_CACHE_KEY, fn () => Media::query()
+        return $this->fileUrls ??= Cache::rememberForever(self::filesCacheKey(), fn () => Media::query()
             ->where('model_type', (new Setting)->getMorphClass())->get()
             ->mapWithKeys(fn (Media $m) => [$m->id => MediaUrl::media($m)])->all());
     }

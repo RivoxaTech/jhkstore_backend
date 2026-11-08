@@ -273,8 +273,14 @@ const full = (f) => ['text', 'links', 'accounts', 'file'].includes(f.type) || f.
 </template>
 
 <style scoped>
-.tabs--scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
-.tabs--scroll .tab { white-space: nowrap; flex: none; }
+/* Many tabs: one row that scrolls sideways. Only a slim horizontal bar (no vertical bar, no arrow buttons): the bottom line is drawn as an inset
+   shadow and the tabs do not overlap it, so nothing sticks out of the box (the -1px overlap of the normal tabs made a vertical scrollbar). */
+.tabs--scroll { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--border) transparent; border-bottom: 0; box-shadow: inset 0 -1px 0 var(--border-light); overscroll-behavior-x: contain; }
+.tabs--scroll .tab { white-space: nowrap; flex: none; margin-bottom: 0; }
+.tabs--scroll::-webkit-scrollbar { height: 6px; }
+.tabs--scroll::-webkit-scrollbar-track { background: transparent; }
+.tabs--scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.tabs--scroll::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
 .set-card--wide { grid-column: 1 / -1; }
 .set-fields { display: grid; gap: 9px; padding: 10px 14px 12px; }

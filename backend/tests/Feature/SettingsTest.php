@@ -127,6 +127,21 @@ class SettingsTest extends TestCase
         $this->getJson(self::STORE.'/settings')->assertJsonPath('store.logo_url', null);
     }
 
+    public function test_picture_links_follow_a_changed_app_url(): void
+    {
+        $this->asAdmin();
+        $url = $this->upload('logo', 'logo', UploadedFile::fake()->image('logo.png', 200, 80))->assertOk()->json('files.store_logo');
+        $this->assertStringStartsWith('http://localhost', $url);
+        $this->assertSame($url, $this->getJson(self::STORE.'/settings')->json('store.logo_url'));   // now cached
+
+        // the address of the site changes (APP_URL edited, server restarted): the cached link must not keep pointing at the old host
+        \Illuminate\Support\Facades\URL::forceRootUrl('http://shop.example');
+        app()->forgetInstance(Settings::class);
+
+        $this->assertStringStartsWith('http://shop.example', $this->getJson(self::STORE.'/settings')->json('store.logo_url'));
+        $this->assertStringStartsWith('http://shop.example', app(Settings::class)->logoUrl());
+    }
+
     public function test_pictures_are_validated_by_type_and_size(): void
     {
         $this->asAdmin();
