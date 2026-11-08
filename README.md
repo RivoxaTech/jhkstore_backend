@@ -27,6 +27,7 @@ php artisan migrate --seed              # tables + default settings + the two ad
 php artisan db:seed --class=DemoSeeder  # optional: a toy catalogue with pictures for the storefront
 php artisan storage:link
 php artisan serve --port=8002           # API: http://127.0.0.1:8002/api/v1/store/settings
+# Windows, much faster while developing (OPcache on, 4 workers; see backend/serve-fast.cmd):   serve-fast.cmd
 
 # 2. admin panel (built into backend/public/admin-assets, served at http://127.0.0.1:8002/admin)
 cd ../admin-frontend

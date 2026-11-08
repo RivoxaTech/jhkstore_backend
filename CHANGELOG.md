@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-11-09 – Product form, bank transfer at checkout, wholesale page, new shop / product / about layouts, a much faster storefront (branch `lean-store`)
+
+### Added
+- **Bank transfer at checkout.** Choosing bank transfer now shows the bank details (with copy buttons), the amount to transfer and a screenshot upload right on the checkout page. New admin setting `pay_bank_proof_required` (Settings → Payments, asked only once bank transfer is on, default **on**): when on, the order is not placed without the screenshot (`422 proof`, checked by the server too). The order and the screenshot travel together (`POST /orders` as multipart, `proof` + optional `reference`); public settings carry `payment.bank_transfer.proof_required`.
+- **Automatic SKU.** A new product's SKU is made from its name (`SNAKE-TRAIN`) while the admin has not typed one; the server also makes a unique SKU (`SNAKE-TRAIN-2`) when none is sent.
+- **Video files before the product exists.** The Video section of a new product takes video files at once (they wait in the form and are uploaded with the save, with a progress figure); no more "save first".
+- **Wholesale page** (`/wholesale`) replaces Contact: the enquiry form with the contact details beside it; menu and footer say Wholesale; `/contact` redirects to it.
+- `backend/serve-fast.cmd`: starts the API for local development with OPcache and 4 workers (about 8 times faster than `php artisan serve` on Windows: 0.45 s became 0.06 s per request).
+
+### Changed
+- **Currency code** is any short code of 1 to 10 letters ("Rs", "PKR"), no longer exactly three (migration widens `payments.currency`). Search-engine data (JSON-LD) only names the currency when it is a three-letter code.
+- **Admin:** the Bulk price button and popover are gone from the options table; the "Developed by" credit is gone from the admin panel (sidebar and login); it stays at the bottom of the website. The Rivoxa logo is a transparent PNG now (no black badge).
+- **Storefront:** the header is see-through on the home page and the hero runs under it (solid after a scroll); product page has the pictures and one details panel side by side (name, option, price, quantity, buttons, delivery, trust points); the product card shows a one-line description and a warm-coloured corner tag (badge text, else "Featured"); the shop has category chips, a search box and a toolbar with price / stock / sort; About and the policy pages have a header band, headings on the left and text on the right; the cart drawer shows Subtotal, Delivery and Total (no explaining sentence); the Shop now button on the About page was unreadable (the page's link colour overrode the button's) and is fixed.
+- **Speed.** The home page fetched the whole catalogue to show 12 products (now one request for 12 and the total), every visit repeated its calls (now a minute of memory: `useFastData`), the cart was read again each time the drawer opened (now skipped within 15 s of the last answer), checkout read the cart and the quote one after the other (now together).
+
+### Tests
+- PHPUnit: required / optional screenshot at checkout, automatic SKU, short currency codes. Storefront browser tests: bank panel and required screenshot, wholesale page, see-through header, one-line card descriptions, shop layout. flow-check / flow-ui: currency code, proof setting, no Bulk button, video chosen before saving, automatic SKU.
+
 ## 2026-11-08 – Rivoxa Tech credit, everything the admin controls comes from the admin, theme from the logo (branch `lean-store`)
 
 ### Added

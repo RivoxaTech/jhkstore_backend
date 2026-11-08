@@ -19,7 +19,7 @@ frontend/
     content/*.ts          the static pages (about, shipping, returns, terms, privacy): EDIT PER CLIENT
     assets/css/main.css   the design tokens (CSS variables), buttons, form controls
     layouts/default.vue   header, footer, cart drawer, toasts
-    pages/                index, shop, category/[slug], category/[slug]/[sub], product/[slug], cart, checkout, order/[number], track, contact, about, ...
+    pages/                index, shop, category/[slug], category/[slug]/[sub], product/[slug], cart, checkout, order/[number], track, wholesale (the old /contact redirects to it), about, ...
     components/           header, footer, hero, trust bar, product card and grid, gallery, cart drawer, order view, forms
     composables/          useApi, useSettings (+ theme), useCart, useSeo, useMoney, useGrid, useToast, useOrderMemory
     plugins/settings.ts   loads GET /settings before the first page renders
@@ -42,7 +42,7 @@ frontend/
 | home: banners, every product (most popular first), featured products, categories | the product cards ask for fresh prices once the page is shown |
 | shop and category pages (first 24 products), the category tree | filters, sort, price range, in-stock, search `?q=`, "Load more" |
 | every product page: name, description, options, pictures with sizes, videos, tabs, related products, `seo`, JSON-LD | the product is read again: price, stock, delivery date, a video added after the build |
-| the static pages, contact (details, product list of the wholesale form), `sitemap.xml`, `robots.txt` | the wholesale enquiry, the cart, the quote, coupons, orders, the payment proof, order tracking |
+| the static pages, wholesale (details, product list of the wholesale form), `sitemap.xml`, `robots.txt` | the wholesale enquiry, the cart, the quote, coupons, orders, the payment proof, order tracking |
 
 Client-only pages (`/cart`, `/checkout`, `/track`, `/order/*`) are a prerendered **empty shell**, `noindex`, that the browser fills in.
 
