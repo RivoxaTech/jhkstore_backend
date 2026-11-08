@@ -212,3 +212,5 @@ Remaining differences, honestly:
 - The footer colour is derived from the primary colour (`#04494C`); the design's sampled value is `#024850`.
 - "Top 8 Toys" in the design: the demo catalogue has 40 products, so the heading says "Top 12" (the shop's own count; the client has 8, which gives "Top 8").
 - Fonts: Poppins like the design; letter spacing and sizes were matched by eye, not measured.
+
+Final re-run after the storefront work: **PHPUnit 552 tests, all pass** (551 passed + 1 skipped, 6918 assertions; 551 before the storefront change, +1 for the card fields), `admin-frontend` `npm run build` ok.
