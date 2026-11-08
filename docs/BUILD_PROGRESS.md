@@ -4,11 +4,11 @@ Branch: lean-store. Never merge / push. Baseline before the work: 514 PHPUnit te
 
 ## Stages
 - Stage 1 (backend prep): DONE, GATE 1 green (PHPUnit 551 tests / 550 passed + 1 skipped, flow-check 553/553 incl. G33, smoke 79, flow-ui UI-H1 ok; two flow-ui timing checks fixed, re-verify in Gate 2)
-- Stage 2 (restructure + rename): IN PROGRESS
+- Stage 2 (restructure + rename): code done (commits e23069d move, 767a9f5 paths, 7f38a98 rename+docs); GATE 2 in progress: PHPUnit 551 tests (same as before the move) green, route:list / schedule:list / queue:work / serve+/admin+sw+media ok, store.name 'JHK Store' ok; flow-check + flow-ui from the new layout running; smoke + base reseed of jhkstore_db still to do
 - Stage 3 (storefront): not started
 
 ## Step in progress
-Stage 2: tag pre-restructure, one restructure commit, fix paths, rename to JHK Store, gate 2.
+Gate 2: wait for flow-check and flow-ui (scratchpad runflows.sh, ROOT=backend), then smoke (reseed shots + DemoSeeder), then reseed jhkstore_db base, commit, Stage 3.
 
 ## Decisions (Stage 1)
 - Rebuild state (pending, window, last result) lives in the cache, no new table (46 tables stay).
@@ -28,3 +28,9 @@ Stage 2: tag pre-restructure, one restructure commit, fix paths, rename to JHK S
 
 ## Left
 Gate 1 results -> Stage 2 -> Stage 3.
+
+## Stage 2 notes
+- Tag pre-restructure = 204ce3e. Move done with git mv (history kept); public/storage symlink recreated with storage:link.
+- Docs: every backend path prefixed with backend/ by a script; README rewritten; NEW_CLIENT has a cPanel section (3b).
+- Rename: only 'My Store' existed (Settings default, .env.example); FEATURE_SPEC banned-word line and the CHANGELOG rename entry are the allowed leftovers.
+- Reference images are now in design/ (3 files; no separate logo file exists).
