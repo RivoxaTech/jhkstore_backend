@@ -43,6 +43,8 @@ class StoreProductCardResource extends JsonResource
             'thumb_url' => $images['thumb_url'],
             'category' => ['name' => $this->category->name, 'slug' => $this->category->slug],
             'options_count' => $variants->count(),
+            'variant_id' => $cheapest?->id,                                   // the option the shown price belongs to: what "Add to Cart" on a card adds (a one-option product)
+            'min_order_qty' => (int) $this->min_order_qty,
             'has_single_option' => $single,
             'offers_count' => $offers,
             'show_starting_at' => ! $single,                                    // "Starting at $ 265" vs a direct price

@@ -309,6 +309,18 @@ class StorefrontPrepTest extends TestCase
         $this->assertNull($b['image_url']);
     }
 
+    public function test_a_card_carries_the_option_to_add_and_the_minimum_quantity(): void
+    {
+        $toys = $this->makeCategory('Toys');
+        $product = $this->makeProduct($toys, ['name' => 'Pair pack', 'min_order_qty' => 2, 'max_order_qty' => 6]);
+
+        $card = $this->getJson(self::STORE.'/products')->assertOk()->json('data.0');
+        $this->assertSame($product->variants()->value('id'), $card['variant_id']);
+        $this->assertSame(2, $card['min_order_qty']);
+        // a card's option can be added to the cart as it is
+        $this->postJson(self::STORE.'/cart/items', ['variant_id' => $card['variant_id'], 'qty' => $card['min_order_qty']])->assertSuccessful();
+    }
+
     public function test_a_sold_out_product_says_so_in_its_availability(): void
     {
         $toys = $this->makeCategory('Toys');
