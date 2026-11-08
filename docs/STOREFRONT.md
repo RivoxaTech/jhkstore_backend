@@ -1,6 +1,6 @@
 # The storefront (`frontend/`)
 
-The customer website of JHK Store: a **Nuxt 3** app (Vue 3, TypeScript, Tailwind CSS 4) that is **generated into plain static files** (`nuxt generate`). What search engines read (products, categories, texts, the theme, titles, canonical links, Open Graph, JSON-LD) is fetched from the Laravel API at **build time** and baked into the HTML. What must be current (price, stock, the cart, coupons, checkout, order tracking, search) is fetched from the API **in the browser**. The brief it follows is [STOREFRONT_BRIEF.md](STOREFRONT_BRIEF.md); the API it talks to is [STOREFRONT-API.md](STOREFRONT-API.md).
+The customer website of JHK Store: a **Nuxt 4** app (Vue 3, TypeScript, Tailwind CSS 4) that is **generated into plain static files** (`nuxt generate`). What search engines read (products, categories, texts, the theme, titles, canonical links, Open Graph, JSON-LD) is fetched from the Laravel API at **build time** and baked into the HTML. What must be current (price, stock, the cart, coupons, checkout, order tracking, search) is fetched from the API **in the browser**. The brief it follows is [STOREFRONT_BRIEF.md](STOREFRONT_BRIEF.md); the API it talks to is [STOREFRONT-API.md](STOREFRONT-API.md).
 
 There are **no Nuxt server routes, no server middleware, no API routes, no server actions and nothing host-specific**, so the same `.output/public` folder runs on Cloudflare Pages, a cPanel folder, Netlify or Vercel.
 
@@ -89,6 +89,12 @@ Read from `design/refrence ui.jpeg` and entered in the **dev database** (Setting
 
 The dark footer is `#024850` in the design; it is **derived** (the primary colour mixed with 48 % black = `#04494C`), so it follows any theme. The design's soft gift-banner colour is `#CFEBEE`, the "Our Collection" pill is the primary colour.
 
+## Framework version and support
+
+The storefront runs on **Nuxt 4** (4.6.x, Vue 3.5, `@nuxtjs/sitemap` 9, `@nuxtjs/robots` 7, `zod` 4 as the modules' peer). Nuxt 3 reached its end of life on 31 July 2026 and the current SEO modules require Nuxt 4.6 or newer, so the site was moved to Nuxt 4 on 2026-11-08. The `app/` folder layout is the default of Nuxt 4 (no `future.compatibilityVersion` flag any more). It still is a **pure static build**: `nuxt generate` writes `.output/public` and nothing else (no `server/` folder, no Nitro server output). Node 22.22.3+ or 24.15+ is required by the modules.
+
+Harmless messages of `npm run generate`: *"url ... should not be localhost"* (set `NUXT_PUBLIC_SITE_URL` for a real build), a Rollup note about an unresolved Nitro cache driver that a static build never uses, and an annotation comment warning. A Nuxt 4 page that does not exist (for example `/no-such-page`) logs a bare `[NUXT_E1005]` in the browser console while the friendly 404 page is shown; that is Nuxt's own message and the browser tests expect it for that one case.
+
 ## Run it locally
 
 ```bash
@@ -108,7 +114,7 @@ npm run test:e2e     # the browser tests (the API on 8002 with the demo data and
 
 1. Cloudflare dashboard → *Workers & Pages* → *Create* → *Pages* → connect the Git repository.
 2. **Production branch**: the branch you deploy (for example `main`). **Root directory**: `frontend`. **Framework preset**: Nuxt.js (or None). **Build command**: `npm run generate`. **Build output directory**: `.output/public`.
-3. **Environment variables** (Production and Preview): `NUXT_PUBLIC_API_BASE` = `https://api.example.com/api/v1/store`, `NUXT_PUBLIC_SITE_URL` = `https://www.example.com`, and `NODE_VERSION` = `22` (or `24`).
+3. **Environment variables** (Production and Preview): `NUXT_PUBLIC_API_BASE` = `https://api.example.com/api/v1/store`, `NUXT_PUBLIC_SITE_URL` = `https://www.example.com`, and `NODE_VERSION` = `24` (Nuxt 4 and its modules need Node 22.22.3 or newer, or 24.15 or newer).
 4. Save and deploy. The first build must reach the API from Cloudflare's build machines (the API domain has to be public; behind Cloudflare's proxy it is fine).
 5. **Custom domain**: *Custom domains* → add `www.example.com` (and redirect the bare domain to it). Then update `NUXT_PUBLIC_SITE_URL` and rebuild once.
 6. **The API behind Cloudflare**: give the Laravel app its own sub-domain, for example `api.example.com`, proxied (orange cloud) through Cloudflare. The catalogue endpoints already send `Cache-Control: public, s-maxage=300` and an `ETag`; everything else (cart, quote, orders, admin) is `no-store`, so the proxy can sit in front safely.

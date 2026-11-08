@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-08 – Storefront moved to Nuxt 4 (branch `lean-store`)
+
+Nuxt 3 reached its end of life on 31 July 2026, and the current `@nuxtjs/sitemap` (9.x) and `@nuxtjs/robots` (7.x) need Nuxt 4.6 or newer. This replaces the "Nuxt 3 with the Nuxt 4 folder layout" decision of the storefront entry below. Documentation: [docs/STOREFRONT.md](docs/STOREFRONT.md), section *Framework version and support*.
+
+### Changed
+- `frontend/`: Nuxt 3.21.11 → **4.6.4**, `@nuxtjs/sitemap` 7 → **9.1**, `@nuxtjs/robots` 5 → **7.0**, `vue-router` 4 → 5, `zod` 4 added (peer of both modules). `future.compatibilityVersion` removed (the `app/` layout is the default). Still a static `nuxt generate` build with **no server routes** (`.output` holds only `public/` and `nitro.json`).
+- Node 22.22.3+ or 24.15+ is required by the modules (README, Cloudflare `NODE_VERSION` = 24 in STOREFRONT.md).
+- Browser tests: Nuxt 4 logs a bare `[NUXT_E1005]` in the console for an unknown page (the friendly 404 page still shows); the test expects it for that one step only.
+- Admin `flow-ui` script: a navigation is retried once when Chrome reports "Navigating frame was detached" (a Chrome flake, not an app fault).
+
+### Checked after the upgrade
+- `npm run generate`: 138 routes (as before), `sitemap.xml` (65 addresses) and `robots.txt` as before; a product page has its title, canonical link, Open Graph tags, description, `Product` and `BreadcrumbList` JSON-LD in the HTML; browser tests 119 / 119.
+
 ## 2026-11-08 – The customer storefront (branch `lean-store`, Stage 3)
 
 A **static Nuxt 3 website** in `frontend/`, built to match the reference design. Documentation: [docs/STOREFRONT.md](docs/STOREFRONT.md).

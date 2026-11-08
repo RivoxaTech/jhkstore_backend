@@ -14,7 +14,7 @@ Also at the root: [`docs/`](docs) (the guides, start with [HANDOVER.md](docs/HAN
 
 ## Run it locally
 
-Requirements: PHP 8.3 with the usual Laravel extensions (plus `gd`), Composer, MySQL 8, Node 20+. Port 8000 may belong to another project on your machine, so these commands use **8002**.
+Requirements: PHP 8.3 with the usual Laravel extensions (plus `gd`), Composer, MySQL 8, Node 22.22.3+ or 24.15+ (the Nuxt 4 storefront needs it). Port 8000 may belong to another project on your machine, so these commands use **8002**.
 
 ```bash
 # 1. backend

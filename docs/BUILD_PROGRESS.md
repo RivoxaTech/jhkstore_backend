@@ -36,8 +36,12 @@ Nothing. To re-run the Stage 3 gate: start the API (scratch DB with the DemoSeed
 - Reference images are now in design/ (3 files; no separate logo file exists).
 
 ## Stage 3 notes
-- Nuxt 3.21.11 + future.compatibilityVersion 4 (app/ layout); sitemap 7.x / robots 5.x (the 9.x / 7.x lines need Nuxt 4).
+- Nuxt: first built on 3.21.11 + compatibilityVersion 4; moved to Nuxt 4.6.4 on 2026-11-08 (Nuxt 3 end of life 31 July 2026; sitemap 9.x and robots 7.x need Nuxt 4.6+): generate 138 routes, e2e 119/119.
 - API CORS needs the test origin: the e2e/serve use http://127.0.0.1:3000 (in FRONTEND_URLS).
 - Each e2e run uses a random phone number (orders are limited to 10 an hour per phone) and the API server needs WHOLESALE_PER_HOUR >= 30.
 - Dev DB (jhkstore_shots) has the theme, logo, 2 design banners, a YouTube video on wooden-castle-builder; jhkstore_db is base-seeded.
 - Backend change for the storefront: product cards carry variant_id and min_order_qty (commit 720db64, test in StorefrontPrepTest + ProductStoreTest).
+
+## Follow-up (2026-11-08, after Stage 3)
+- Step 1: full flow-check 553/553 and flow-ui 202/202 re-run on fresh seeds (one flow-ui run died with a Chrome "frame detached" flake, the helper now retries once; one flow-check run failed the timing-sensitive coupon rate-limit check F23 while the machine was busy and passed on the clean rerun).
+- Step 2: frontend upgraded to Nuxt 4.6.4 (see CHANGELOG, STOREFRONT.md "Framework version and support").
