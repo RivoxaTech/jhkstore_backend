@@ -76,7 +76,15 @@ async function login(page, [user, pass]) {
 const nav = (page) => page.$$eval('.sidebar__nav a', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').replace(/\d+$/, '').trim()))
 const tabsOf = (page) => page.$$eval('[role="tab"]', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').replace(/[•!]$/, '').trim()))
 const goto = async (page, p) => {
-  try { await page.goto(`${BASE}/admin/${p}`, { waitUntil: 'networkidle0' }) } catch (e) { console.log(`  (navigation to /admin/${p} did not go idle; requests in flight: ${JSON.stringify([...(page.__pending || [])])})`); throw e }
+  for (let attempt = 1; ; attempt++) {
+    try { await page.goto(`${BASE}/admin/${p}`, { waitUntil: 'networkidle0' }); break } catch (e) {
+      console.log(`  (navigation to /admin/${p} did not go idle; requests in flight: ${JSON.stringify([...(page.__pending || [])])})`)
+      // Chrome now and then swaps the page's frame during a full reload ("Navigating frame was detached"): the page itself is fine, so the
+      // navigation is tried once more. Any other error, or a second failure, still fails the run.
+      if (attempt === 1 && /frame was detached/i.test(String(e?.message))) { await sleep(1000); continue }
+      throw e
+    }
+  }
   await sleep(400)
 }
 // toasts that are already on the screen are marked as seen before every click, so a wait for "saved" only matches the toast of THIS action
