@@ -104,7 +104,7 @@ Log in at `/admin` as the **developer** and set, in this order (see [SETTINGS.md
 5. **Payments** – cash on delivery on / off, **bank transfer** (add at least one active account first; instructions such as "use the order number as the reference"), and whether to show the "card, coming soon" label.
 6. **Store** – open / closed (a closed store takes no orders), the closed message, a checkout notice and the delivery estimate text.
 7. **Theme** (developer only) – colours, fonts, corner radius and shadow of the storefront; the storefront reads them from `GET /store/settings`.
-8. **Footer & Social** (including the agency credit), **SEO**, and the **Banners** tab (home hero, secondary banners, promo strip).
+8. **Footer & Social** (including the agency credit: the name and link default to Rivoxa Tech / https://rivoxa.tech; upload the logo `design/rivoxa-logo.png` as the *Agency logo* so "Developed by [logo]" shows at the bottom of the website and of the admin panel), **SEO**, and the **Banners** tab (home hero, secondary banners, promo strip).
 9. **Notifications** – switch e-mails on, set the sender name, the owner address for alerts and the storefront's tracking page URL (`https://shop.example/track`), choose which events send an e-mail, press *Send test e-mail*; switch push on once the VAPID keys are in `backend/.env`.
 10. Optional: **Discounts** and **Coupons** (sidebar) once the catalogue exists.
 

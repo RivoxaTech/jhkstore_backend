@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui.js'
 import { useCatalogStore } from '@/stores/catalog.js'
 import { useSiteStore } from '@/stores/site.js'
 import BrandLogo from '@/components/BrandLogo.vue'
+import AgencyCredit from '@/components/AgencyCredit.vue'
 import PushToggle from '@/components/PushToggle.vue'
 import NotificationStatusCard from '@/components/NotificationStatusCard.vue'
 import { api } from '@/api/client.js'
@@ -167,6 +168,7 @@ async function logout() {
         </div>
       </nav>
       <div class="sidebar__foot">
+        <div v-if="!ui.sidebarCollapsed" class="sidebar__credit"><AgencyCredit /></div>
         <button class="collapse-btn" type="button" :title="ui.sidebarCollapsed ? 'Expand menu' : 'Collapse menu'" :aria-label="ui.sidebarCollapsed ? 'Expand menu' : 'Collapse menu'" @click="ui.toggleSidebar()">
           <ChevronsRight v-if="ui.sidebarCollapsed" :size="18" /><ChevronsLeft v-else :size="18" />
           <span>Collapse</span>

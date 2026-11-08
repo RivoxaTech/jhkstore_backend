@@ -10,12 +10,12 @@ There are **no Nuxt server routes, no server middleware, no API routes, no serve
 frontend/
   nuxt.config.ts          static preset, modules, fonts and prerender routes (read from the API at build time), routeRules
   .env.example            NUXT_PUBLIC_API_BASE, NUXT_PUBLIC_SITE_URL
-  public/                 _redirects, _headers (Cloudflare Pages / Netlify), .htaccess.example (cPanel), images/ (logo, hero and gift fallbacks)
+  public/                 _redirects, _headers (Cloudflare Pages / Netlify), .htaccess.example (cPanel). No pictures: logo, banners and the agency logo come from the admin panel
   scripts/serve-static.mjs   a tiny static server that behaves like the hosts (files, then the app shell for /product/*, then 404.html)
   tests/e2e.mjs           browser tests of the generated site; tests/shots.mjs takes the screenshots
   app/
     app.vue, error.vue    the theme as CSS variables, the layout; the 404 page
-    config/site.ts        menu, hero / gift fallbacks, the trust bar, footer texts: EDIT PER CLIENT
+    config/site.ts        menu, the trust bar, footer link lists, home headings: only what the admin panel does NOT control. EDIT PER CLIENT
     content/*.ts          the static pages (about, shipping, returns, terms, privacy): EDIT PER CLIENT
     assets/css/main.css   the design tokens (CSS variables), buttons, form controls
     layouts/default.vue   header, footer, cart drawer, toasts
@@ -50,7 +50,7 @@ A product or category that is created **after** the last build has no HTML file.
 
 ## Editing a client's texts
 
-* **`app/config/site.ts`**: the menu, the hero and gift-banner fallback texts (used while the admin panel has no banner), the four trust-bar items (Safe & Non-Toxic, Fast Delivery, 24/7 Support, Easy Returns), the footer links and tagline (right side), the "Our Collection" heading (`{count}` = products shown; `*words*` = accent colour) and how many products the home page shows (`homeLimit`, 12).
+* **`app/config/site.ts`**: the menu, the label of the hero button while the admin panel has no hero banner, the four trust-bar items (Safe & Non-Toxic, Fast Delivery, 24/7 Support, Easy Returns), the footer link lists, the "Our Collection" heading (`{count}` = products shown; `*words*` = accent colour) and how many products the home page shows (`homeLimit`, 12).
 * **`app/content/*.ts`**: the five static pages. Plain TypeScript objects (title, description, blocks: headings, paragraphs, lists, a note, features, a call to action). `{store}`, `{email}`, `{phone}`, `{address}` and `{hours}` are filled from the store settings. Sections that clients usually change are marked `EDIT PER CLIENT`; the policies are **generic templates, not legal advice**: the client must review them.
 * **No analytics, advertising or tracking script of any kind** is in the site; do not add one without updating the privacy policy.
 
@@ -59,30 +59,34 @@ A product or category that is created **after** the last build has no HTML file.
 | In the admin panel | On the website |
 |---|---|
 | Settings → Theme: primary, primary contrast, accent, background, surface, text, muted, border, fonts, corner radius, shadow | CSS variables `--c-primary`, `--c-accent`, ... (`app.vue`); the dark footer is the primary colour darkened; buttons get a readable shade automatically (see below) |
-| Settings → Branding: logo, favicon | header and footer logo (the footer shows it in white), browser tab icon |
-| Settings → General: tagline | the eyebrow above the hero title (`Play. Learn. Grow.` becomes `PLAY • LEARN • GROW`) and the line under the footer logo |
+| Settings → Branding: logo, favicon | header and footer logo (the footer shows it in white; no logo = the store name as text), browser tab icon |
+| Settings → General: tagline | the eyebrow above the hero title (`Play. Learn. Grow.` becomes `PLAY • LEARN • GROW`) and the line under the footer logo. Empty tagline = neither is shown (nothing is fixed in the storefront) |
 | Banners → `home_hero` | the hero (title, subtitle, button, link, picture; a mobile picture on phones). **Several banners = a slider** (autoplay, dots, swipe), one = static. **Words between `*asterisks*` in the title are shown in the accent colour** (the two-colour heading) |
-| Banners → `home_secondary` | the "Perfect Gift" strip at the bottom of the home page (first banner; same rules) |
+| Banners → `home_secondary` | the gift strip at the bottom of the home page (first banner; same rules). No banner = no strip |
 | Products: name, short description, badge text, tags, featured, sold out, options, bulk prices, videos, SEO fields | cards, product pages, the Featured section, "Sold out", bulk price hints, the video in the gallery, titles and descriptions |
-| Settings → Footer & Social | the footer social icons and copyright |
+| Settings → Footer & Social | the footer social icons, footer text and copyright, and the **"Developed by [logo]"** credit at the very bottom (agency name, link and logo; default **Rivoxa Tech**, https://rivoxa.tech; developer only). The same credit is at the bottom of the admin panel's sidebar and on its login page |
 | Settings → Payments, Delivery, Store | the payment methods and bank accounts at checkout, delivery quotes, the closed-store banner |
 
 **Contrast.** White text on the brand colour must be readable. `themeCss()` checks the contrast of the theme's primary colour (and accent) with its text colour and, when it is below 4.5:1 (WCAG AA), darkens it in small steps for **buttons, pills and badges only** (`--c-primary-btn`, `--c-accent-btn`); large headings keep the brand colour. A client with a lighter brand colour therefore still gets readable buttons.
 
-## The theme values extracted from the reference design
+**No hero banner?** The hero then shows the store name, the tagline and a *Shop now* button on a soft tint of the theme colour, without a picture. Put a banner in the admin panel to get the real hero.
 
-Read from `design/refrence ui.jpeg` and entered in the **dev database** (Settings → Theme). Enter the same values for the client:
+## The theme (Settings → Theme, not in the code)
+
+The colours, fonts, corner radius and shadow are **only** read from the admin panel; the storefront has neutral defaults (the ones Settings → Theme starts with) and no brand colour of its own. The admin panel itself wears the same primary colour (darkened when white text on it would be hard to read), so both match the logo.
+
+The values below were taken from the logo `design/logo.png` (teal gradient `#29B3BB` to `#1399A0`, the wordmark `#16242A`) and entered in the **dev database**. Enter the same values for the client:
 
 | Setting | Value |
 |---|---|
-| Primary colour (`theme_primary`) | `#09989E` |
+| Primary colour (`theme_primary`) | `#1AA1A8` (buttons get a darker readable shade automatically) |
 | Text on the primary colour (`theme_primary_contrast`) | `#FFFFFF` |
-| Accent colour (`theme_accent`, the second colour of two-colour headings) | `#0A9697` |
-| Page background (`theme_bg`) | `#F5FBFB` |
+| Accent colour (`theme_accent`, the second colour of two-colour headings) | `#0E8F96` |
+| Page background (`theme_bg`) | `#F4FAFA` |
 | Card background (`theme_surface`) | `#FFFFFF` |
-| Text colour (`theme_text`) | `#15414A` |
-| Muted text colour (`theme_muted`) | `#4B6B71` (the design's `#5B7A80` is 4.1:1 on the light teal tint, so it is darkened to pass AA) |
-| Border colour (`theme_border`) | `#DCEBEE` |
+| Text colour (`theme_text`) | `#16242A` |
+| Muted text colour (`theme_muted`) | `#4F6469` |
+| Border colour (`theme_border`) | `#D8E9EB` |
 | Heading font / body font | `Poppins` / `Poppins` (the design uses a rounded geometric font) |
 | Corner radius | `16px` |
 | Shadow | `soft` |

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/api/client.js'
 import { setCurrency } from '@/utils/format.js'
+import { applyPrimary } from '@/utils/theme.js'
 
 /** The favicon is a setting: point the tab icon at it, and back at the panel's own icon when the favicon is removed. */
 let defaultIcon = null
@@ -30,16 +31,18 @@ export const useSiteStore = defineStore('site', () => {
   const faviconUrl = computed(() => store.value.favicon_url || '')
   /** The name as the client typed it; empty until the settings are loaded (the document title then says just "Admin"). */
   const rawName = computed(() => (store.value.name || '').trim())
+  /** "Developed by": the agency credit of Settings → Footer & Social. */
+  const agency = computed(() => ({ name: '', url: '', logo_url: null, ...(data.value?.footer?.agency || {}) }))
   const tax = computed(() => data.value?.tax || { rate: null, inclusive: true, label: 'Tax' })
 
   function load(force = false) {
     if (loaded.value && !force) return Promise.resolve()
     loading ||= api.get('store/settings')
-      .then((res) => { data.value = res; setCurrency(res.currency); applyFavicon(res.store?.favicon_url); loaded.value = true })
+      .then((res) => { data.value = res; setCurrency(res.currency); applyFavicon(res.store?.favicon_url); applyPrimary(res.theme?.primary); loaded.value = true })
       .catch(() => { /* branding is optional: the panel keeps its neutral defaults */ })
       .finally(() => { loading = null })
     return loading
   }
 
-  return { data, loaded, store, name, rawName, logoUrl, faviconUrl, tax, load, reload: () => load(true) }
+  return { data, loaded, store, name, rawName, logoUrl, faviconUrl, agency, tax, load, reload: () => load(true) }
 })

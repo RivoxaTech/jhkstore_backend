@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-08 – Rivoxa Tech credit, everything the admin controls comes from the admin, theme from the logo (branch `lean-store`)
+
+### Added
+- **"Developed by [logo]"**: new setting `agency_logo` (Settings → Footer & Social, developer only; upload `POST/DELETE /admin/settings/agency-logo`, PNG / JPG / WEBP up to 1 MB). The agency credit now defaults to **Rivoxa Tech** / **https://rivoxa.tech** (`agency_name`, `agency_url`) and the public settings carry `footer.agency.logo_url`. It is shown at the very bottom of the **storefront** (right of the copyright) and in the **admin panel** (bottom of the sidebar and under the login form). No name = no credit. The Rivoxa logo, trimmed, is `design/rivoxa-logo.png`.
+- The admin panel wears the store's **primary colour** (Settings → Theme), darkened until white text on it is readable (4.5:1), so the panel matches the logo and the storefront.
+- Tests: agency defaults, logo upload / removal / limits (`SettingsTest`), the access matrix and the docs table for `agency_logo`; storefront browser tests for the admin-driven theme, tagline, logo and credit (124 checks).
+
+### Changed
+- **Nothing fixed in the storefront that the admin panel controls.** Removed: the toy hero and gift texts and pictures (no `home_hero` banner = a plain hero with the store name and tagline; no `home_secondary` banner = no strip), the "Play. Learn. Grow." and "Safe Toys. Happy Kids." taglines, the bundled JHK logo (no logo = the store name as text), the bundled favicon (the favicon, else the logo), the fixed Poppins font and the teal colours of the style sheet (neutral defaults = what Settings → Theme starts with), the teal-tinted hero overlay and search box (now theme colours).
+- The theme of the admin panel is applied with a more specific rule (`html:root`), because in `nuxt dev` the default `:root` of the style sheet loaded last and overrode it. `nuxt dev` no longer keeps the settings for 5 minutes, so a change in the admin panel shows at once.
+- Dev database: theme set from the logo colours (primary `#1AA1A8`, accent `#0E8F96`, text `#16242A`, see STOREFRONT.md), tagline, Rivoxa credit with its logo, two design banners.
+
+### Fixed
+- The logo of the Rivoxa credit did not show in the panel after an upload: the cached picture links were keyed by the host of the request, so an upload through one address did not clear the entry read through another. The key now depends on configuration only (`APP_URL`, disk URL).
+
+
 ## 2026-11-08 – Fix: an uploaded logo did not show; the Settings tab strip had two scrollbars (branch `lean-store`)
 
 ### Fixed

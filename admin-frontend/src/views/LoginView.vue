@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { CheckCircle2, Eye, EyeOff, ShieldCheck } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import BrandLogo from '@/components/BrandLogo.vue'
+import AgencyCredit from '@/components/AgencyCredit.vue'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -78,6 +79,7 @@ async function submit() {
           <span v-if="busy" class="spinner" /> {{ busy ? 'Signing in...' : 'Sign in' }}
         </button>
       </form>
+      <div class="login__credit"><AgencyCredit /></div>
     </section>
   </div>
 </template>
