@@ -1,7 +1,7 @@
 // The panel wears the store's primary colour (Settings → Theme), so it matches the logo and the storefront.
 // Two variables: `--brand` is the colour exactly as set (buttons, the login picture, active marks) with `--on-brand` as the text on it (the "text on the
-// primary colour" of the theme when it is readable, else white or a dark ink); `--primary` is the same colour darkened in small steps until it is readable
-// as TEXT on a light background (links, icons, soft buttons), at least 4.5:1.
+// primary colour" of the theme, white when none is given); `--primary` is the same colour darkened just enough to be clearly visible as TEXT or an icon on a
+// light background (links, soft buttons), at least 3:1.
 
 const HEX = /^#?([0-9a-f]{6})$/i
 
@@ -19,16 +19,14 @@ function luminance([r, g, b]) {
 }
 const contrastWhite = (rgb) => 1.05 / (luminance(rgb) + 0.05)
 
-const ratio = (a, b) => { const [hi, lo] = [Math.max(luminance(a), luminance(b)), Math.min(luminance(a), luminance(b))]; return (hi + 0.05) / (lo + 0.05) }
 
 /** The variables to set for a primary colour (and the text colour on it), or null when it is not a #RRGGBB value. */
 export function primaryVars(hex, onHex) {
   const brand = parse(hex)
   let rgb = parse(hex)
   if (!rgb) return null
-  for (let i = 0; i < 40 && contrastWhite(rgb) < 4.5; i++) rgb = mix(rgb, [0, 0, 0], 0.06)
-  const wanted = parse(onHex)
-  const on = wanted && ratio(brand, wanted) >= 4.5 ? wanted : contrastWhite(brand) >= 4.5 ? [255, 255, 255] : [11, 47, 53]
+  for (let i = 0; i < 40 && contrastWhite(rgb) < 3; i++) rgb = mix(rgb, [0, 0, 0], 0.06)
+  const on = parse(onHex) || [255, 255, 255]
   return {
     '--brand': toHex(brand),
     '--on-brand': toHex(on),

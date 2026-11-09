@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-09 (4) – Announcement bar from the admin, WhatsApp and back-to-top buttons, the colour `#3BBFCC` everywhere (branch `lean-store`)
+
+### Added
+- **Announcement bar** above the header (the thin dark line of the reference site). New settings in Settings → Store: `announcement_enabled` (on / off) and `announcement_text` (up to 160 characters); public settings carry `announcement: { enabled, text }` (shown only when it is on and has a text). Off by default.
+- **Round WhatsApp button** in the bottom-right corner (from the WhatsApp number of Settings → General, else the WhatsApp link of Footer & Social) and a **back to the top** button under it that appears after a scroll.
+
+### Changed
+- **One colour everywhere.** The primary and accent colours are used exactly as set (`#3BBFCC`) for buttons, tags, pills and the two-colour headings, with the theme's own text colour on them (white). Nothing is darkened any more (only the hover); buttons get a faint text shadow so white stays legible. The admin panel does the same: exact colour for buttons, login picture and active marks, a slightly darker copy only for coloured text on light backgrounds (3:1).
+- "Developed by [logo]": the logo is cropped to its artwork, 36 px high, with a small gap after the words.
+- The sort menu comes before the one / two per row switch.
+
+### Tests
+- PHPUnit: the announcement setting (off by default, text required, 160 characters, public answer). Storefront browser tests: buttons have the exact primary colour, announcement bar on / off, WhatsApp button, back to the top.
+
 ## 2026-11-09 (3) – Logo-colour theme, one page layout, tidier shop and Access Control, no Tags screen (branch `lean-store`)
 
 ### Changed

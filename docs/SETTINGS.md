@@ -124,6 +124,8 @@ The zones themselves are rows of `delivery_zones`, managed in this tab (`/admin/
 | `store_open` | bool | `on` | Off: customers can browse and get a quote, `POST /orders` answers 422 `store_closed` |
 | `store_closed_message` | text | `(empty)` | Shown instead of the checkout while closed (≤ 300 characters) |
 | `checkout_notice` | text | `(empty)` | A short notice at checkout (≤ 300 characters) |
+| `announcement_enabled` | bool | `off` | The thin announcement bar above the header of the website is shown (only when it also has a text) |
+| `announcement_text` | string | `(empty)` | The text of the announcement bar, e.g. International delivery available (≤ 160 characters) |
 
 ### Payments (Payments tab)
 

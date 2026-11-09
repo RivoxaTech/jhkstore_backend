@@ -125,6 +125,8 @@ class Settings
         'store_open' => ['store', 'bool', true, 'Store is open', 'Off: customers can still browse and see prices, but cannot place orders.'],
         'store_closed_message' => ['store', 'text', '', 'Message while the store is closed', 'Shown to customers instead of the checkout, e.g. We are closed until Monday.'],
         'checkout_notice' => ['store', 'text', '', 'Checkout notice', 'A short notice shown at checkout (up to 300 characters).'],
+        'announcement_enabled' => ['store', 'bool', false, 'Announcement bar', 'On: a thin bar with the text below is shown above the header of the website.'],
+        'announcement_text' => ['store', 'string', '', 'Announcement text', 'e.g. International delivery available · Wholesale & bulk orders available (up to 160 characters).'],
 
         // --- delivery (the zones themselves are managed in the Delivery tab, table delivery_zones)
         'delivery_method' => ['delivery', 'choice', 'free_above', 'Delivery method', 'Flat fee, always free, free above an amount, fee by delivery zone, or the owner confirms the fee after the order.'],
@@ -430,6 +432,7 @@ class Settings
             'agency_url' => ['nullable', 'url:https', 'max:255'],
             'store_closed_message' => ['nullable', 'string', 'max:300'],
             'checkout_notice' => ['nullable', 'string', 'max:300'],
+            'announcement_text' => ['nullable', 'string', 'max:160'],
             'delivery_eta_text' => ['nullable', 'string', 'max:120'],
             'pay_bank_instructions' => ['nullable', 'string', 'max:1000'],
             'mail_from_name' => ['nullable', 'string', 'max:80'],

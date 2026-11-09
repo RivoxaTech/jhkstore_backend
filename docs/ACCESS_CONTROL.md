@@ -88,6 +88,8 @@ Generated from `Settings::DEFINITIONS` (a test checks that every setting has a r
 | `store_open` | Store is open | Store | client | `settings.store` |
 | `store_closed_message` | Message while the store is closed | Store | client | `settings.store` |
 | `checkout_notice` | Checkout notice | Store | client | `settings.store` |
+| `announcement_enabled` | Announcement bar | Store | client | `settings.store` |
+| `announcement_text` | Announcement text | Store | client | `settings.store` |
 | `delivery_method` | Delivery method | Delivery | client | `settings.delivery` |
 | `delivery_fee` | Delivery charge | Delivery | client | `settings.delivery` |
 | `free_delivery_min_cart` | Free delivery from | Delivery | client | `settings.delivery` |

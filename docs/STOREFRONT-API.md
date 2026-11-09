@@ -21,6 +21,7 @@ The OpenAPI reference is in [openapi.json](openapi.json) (and generated live at 
   "tax": {"rate","inclusive","label"},
   "delivery": {"method","fee","free_delivery_min_cart","days"},
   "orders": {"min_order_amount","cod_max_amount"},
+  "announcement": {"enabled","text"},
   "payment": {"cod":{"enabled"}, "bank_transfer":{"enabled","proof_required","instructions","accounts":[{"bank","title","number","iban"}]}, "card":{"visible","coming_soon":true}},
   "theme": {"primary","primary_contrast","accent","bg","surface","text","muted","border","font_heading","font_body","radius","shadow"} }
 ```

@@ -27,6 +27,10 @@ class SettingController extends Controller
                 'open' => (bool) $settings->get('store_open'),                          // false: browsing works, POST /orders answers 422 store_closed
                 'closed_message' => (string) $settings->get('store_closed_message'),
             ],
+            'announcement' => [                                    // the thin bar above the header: shown only when it is on AND has a text
+                'enabled' => (bool) $settings->get('announcement_enabled') && trim((string) $settings->get('announcement_text')) !== '',
+                'text' => trim((string) $settings->get('announcement_text')),
+            ],
             'checkout' => [
                 'notice' => (string) $settings->get('checkout_notice'),
                 'eta_text' => (string) $settings->get('delivery_eta_text'),             // used when no delivery zone has an estimate of its own

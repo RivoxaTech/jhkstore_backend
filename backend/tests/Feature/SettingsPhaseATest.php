@@ -93,6 +93,29 @@ class SettingsPhaseATest extends TestCase
 
     // ------------------------------------------------------------------ store
 
+    public function test_the_announcement_bar_is_controlled_from_the_admin_panel(): void
+    {
+        $this->actingAsAdmin('admin');
+
+        // off by default: nothing is shown
+        $this->publicSettings()->assertOk()->assertJsonPath('announcement.enabled', false)->assertJsonPath('announcement.text', '');
+
+        // on with a text
+        $this->actingAsAdmin('admin'); $this->putJson(self::ADMIN.'/settings', ['announcement_enabled' => true, 'announcement_text' => 'Free delivery this week'])->assertOk();
+        $this->publicSettings()->assertJsonPath('announcement.enabled', true)->assertJsonPath('announcement.text', 'Free delivery this week');
+
+        // on but empty text: still nothing to show
+        $this->actingAsAdmin('admin'); $this->putJson(self::ADMIN.'/settings', ['announcement_text' => ''])->assertOk();
+        $this->publicSettings()->assertJsonPath('announcement.enabled', false);
+
+        // off again with a text kept for later
+        $this->actingAsAdmin('admin'); $this->putJson(self::ADMIN.'/settings', ['announcement_enabled' => false, 'announcement_text' => 'Back soon'])->assertOk();
+        $this->publicSettings()->assertJsonPath('announcement.enabled', false)->assertJsonPath('announcement.text', 'Back soon');
+
+        // the text is at most 160 characters
+        $this->actingAsAdmin('admin'); $this->putJson(self::ADMIN.'/settings', ['announcement_text' => str_repeat('a', 161)])->assertStatus(422)->assertJsonValidationErrors('announcement_text');
+    }
+
     public function test_the_store_tab_values_are_public(): void
     {
         $this->actingAsAdmin('admin');
