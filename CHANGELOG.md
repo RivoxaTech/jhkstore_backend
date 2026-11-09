@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-09 (2) – Phone layouts, simpler shop / product / wholesale pages, theme #3BBFCC (branch `lean-store`)
+
+### Changed
+- **Shop:** no second search box, no price range and no in-stock box (the header has the search); the number of toys and the sort are on one line, also on a phone. A link with `?min=&max=&stock=1` still works.
+- **Product page:** no fixed bottom bar and no trust points; the quantity has its own row, then **Add to Cart and Buy Now side by side**, the same on a phone and a desktop. The little scroll arrows next to the Description tab are gone.
+- **Wholesale:** only the enquiry form, centred (no "Get in touch" card).
+- **Home:** no "Shop by category" row (one request less); the hero picture is cropped a little more at the top; the trust bar is compact on a phone (small icons, title and text on one line each).
+- **Phone:** smaller logo, the menu opens over the page instead of pushing it down, the product card's Add to Cart is centred, checkout and cart are centred and cannot be pushed sideways (`overflow-x: clip`, grids with `minmax(0, 1fr)`); the coupon box and its button are smaller everywhere.
+- **Footer:** the last lines are centred, one under the other: copyright, then "Developed by [logo]".
+- Dev database theme: primary `#3BBFCC`, accent `#1A93A0`, background `#F5FBFC`, border `#D9EDF0`.
+
+### Housekeeping
+- `backend/storage`: removed the pictures, payment screenshots and logs left behind by test runs (everything not used by the dev database). Test runs now start their media ids at 1000 so they never share a folder with the dev media.
+
 ## 2026-11-09 – Product form, bank transfer at checkout, wholesale page, new shop / product / about layouts, a much faster storefront (branch `lean-store`)
 
 ### Added

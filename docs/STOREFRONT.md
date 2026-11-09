@@ -79,14 +79,14 @@ The values below were taken from the logo `design/logo.png` (teal gradient `#29B
 
 | Setting | Value |
 |---|---|
-| Primary colour (`theme_primary`) | `#1AA1A8` (buttons get a darker readable shade automatically) |
+| Primary colour (`theme_primary`) | `#3BBFCC` (buttons get a darker readable shade automatically) |
 | Text on the primary colour (`theme_primary_contrast`) | `#FFFFFF` |
-| Accent colour (`theme_accent`, the second colour of two-colour headings) | `#0E8F96` |
-| Page background (`theme_bg`) | `#F4FAFA` |
+| Accent colour (`theme_accent`, the second colour of two-colour headings) | `#1A93A0` |
+| Page background (`theme_bg`) | `#F5FBFC` |
 | Card background (`theme_surface`) | `#FFFFFF` |
 | Text colour (`theme_text`) | `#16242A` |
 | Muted text colour (`theme_muted`) | `#4F6469` |
-| Border colour (`theme_border`) | `#D8E9EB` |
+| Border colour (`theme_border`) | `#D9EDF0` |
 | Heading font / body font | `Poppins` / `Poppins` (the design uses a rounded geometric font) |
 | Corner radius | `16px` |
 | Shadow | `soft` |
