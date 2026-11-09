@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { Package, Pencil, Plus, Search, Tag, Trash2 } from '@lucide/vue'
+import { Package, Pencil, Plus, Search, Trash2 } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -11,8 +11,7 @@ import RowsPerPage from '@/components/RowsPerPage.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import QuickTagsModal from '@/components/QuickTagsModal.vue'
-import TagsModal from '@/components/TagsModal.vue'
+
 import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 import { money } from '@/utils/format.js'
 
@@ -32,8 +31,7 @@ const loading = ref(true)
 const loadedOnce = ref(false)
 const error = ref('')
 const search = ref(String(route.query.q || ''))
-const tagsFor = ref(null)      // product whose tags are being edited
-const manageTags = ref(false)
+
 const toDelete = ref(null)
 const busy = ref(false)
 
@@ -128,12 +126,7 @@ async function setFlag(row, flag, value) {
   }
 }
 
-function tagsSaved(product, tags) {
-  const row = rows.value.find(r => r.id === product.id)
-  if (row) row.tags = tags
-  tagsFor.value = null
-  ui.toast('Tags saved.')
-}
+
 
 async function confirmDelete() {
   busy.value = true
@@ -158,7 +151,7 @@ async function confirmDelete() {
       <div class="crumbs"><RouterLink :to="{ name: 'dashboard' }">Dashboard</RouterLink> › <span>Products</span></div>
     </div>
     <div class="page-actions">
-      <button v-if="canManage" class="btn btn-outline" type="button" @click="manageTags = true"><Tag :size="16" /> Tags</button>
+
       <RouterLink v-if="canManage" class="btn btn-primary" :to="{ name: 'product-new' }"><Plus :size="17" /> Add product</RouterLink>
     </div>
   </div>
@@ -189,10 +182,7 @@ async function confirmDelete() {
         <option value="">Any stock</option>
         <option v-for="[v, l] in STOCK_FILTERS" :key="v" :value="v">{{ l }}</option>
       </select>
-      <select class="select" style="width: 130px" :value="q('tag')" aria-label="Tag" @change="go({ tag: $event.target.value, page: undefined })">
-        <option value="">All tags</option>
-        <option v-for="tg in catalog.options.tags" :key="tg.id" :value="tg.slug">{{ tg.name }}</option>
-      </select>
+
       </template>
       <button v-if="hasFilters" class="btn btn-outline btn-sm" type="button" @click="clearFilters">Clear</button>
     </div>
@@ -249,7 +239,7 @@ async function confirmDelete() {
             </td>
             <td @click.stop>
               <div class="row-actions">
-                <button v-if="canManage" class="btn btn-soft btn-sm btn-icon" type="button" title="Edit tags" aria-label="Edit tags" @click="tagsFor = p"><Tag :size="14" /></button>
+
                 <RouterLink class="btn btn-soft btn-sm btn-icon" :to="{ name: 'product-edit', params: { id: p.id } }" :title="canManage ? 'Edit' : 'View'" :aria-label="canManage ? 'Edit' : 'View'"><Pencil :size="14" /></RouterLink>
                 <button v-if="canManage" class="btn btn-soft-danger btn-sm btn-icon" type="button" title="Delete" aria-label="Delete" @click="toDelete = p"><Trash2 :size="14" /></button>
               </div>
@@ -262,7 +252,6 @@ async function confirmDelete() {
     <PaginationBar :meta="meta" @page="go({ page: $event })" />
   </section>
 
-  <QuickTagsModal v-if="tagsFor" :product="tagsFor" :tags="catalog.options.tags" @close="tagsFor = null" @saved="tagsSaved" />
-  <TagsModal v-if="manageTags" @close="manageTags = false; catalog.reload()" />
+
   <ConfirmDialog v-if="toDelete" title="Delete product" :message="`Delete &quot;${toDelete.name}&quot;? It disappears from the website. It can be restored from the database only.`" confirm-text="Delete" tone="danger" :busy="busy" @confirm="confirmDelete" @close="toDelete = null" />
 </template>

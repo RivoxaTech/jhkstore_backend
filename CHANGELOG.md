@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-11-09 (3) – Logo-colour theme, one page layout, tidier shop and Access Control, no Tags screen (branch `lean-store`)
+
+### Changed
+- **Theme = the logo icon colour, exactly.** Buttons, tags and the admin panel's marks use the primary colour `#3BBFCC` itself instead of a darkened shade; the text on it is the dark "text on primary" colour (`theme_primary_contrast` `#0B2F35`, 6.9:1) so it stays readable. The admin panel keeps a darkened copy only for coloured *text* on light backgrounds. (If the contrast colour is not readable the storefront and the panel still fall back to a darker shade / white.)
+- **Same page header everywhere** (breadcrumb, title, line under it, all on the left): Shop, categories, About and the policy pages, Wholesale, Cart, Checkout, Track, Order.
+- **Shop:** the sort is a small quiet "Sort: Most popular" menu (it opens a short list instead of the native select that broke on a phone); on a phone the toy count, the one / two per row switch and the sort share one row.
+- **Product card:** Add to Cart is on the right, centred only when two products share a row on a phone.
+- **Footer:** on a desktop the copyright is on the left and "Developed by [logo]" on the right (centred and stacked on a phone). It now also shows the phone, e-mail and support hours from Settings, next to the social links.
+- **Focus rings:** the hard blue outline inside the search box and on the header buttons is gone (the search box has a soft ring of its own); the global focus rule moved to the base layer so utilities can override it.
+- **Admin → Access Control:** one horizontal list per role: a small heading per section, thin lines between sections and rows, the switch always on the right, no boxes.
+- **Admin → Settings → Footer:** the agency logo preview sits on a dark tile (the logo is white).
+
+### Removed
+- **Tags screen in the admin** (the Tags button, the per-product tag button, the tag filter and the tag picker in the product form): the badge text is the label. Tags a product already has are kept.
+
+### Dev database
+- Demo footer data: Instagram, Facebook and WhatsApp links, footer text, phone, e-mail and support hours.
+
 ## 2026-11-09 (2) – Phone layouts, simpler shop / product / wholesale pages, theme #3BBFCC (branch `lean-store`)
 
 ### Changed

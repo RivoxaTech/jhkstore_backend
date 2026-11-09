@@ -113,7 +113,7 @@ async function run(who, creds, width = 1366) {
   if (who === 'developer' && width >= 700) {
     await go(page, '/access-control')
     await shot(page, `${prefix}-access-control`)
-    await page.$$eval('.ac-fields summary', (els) => els.slice(0, 3).forEach((e) => e.click()))
+    await page.$$eval('.ac__fields summary', (els) => els.slice(0, 3).forEach((e) => e.click()))
     await shot(page, `${prefix}-access-control-open`)
   }
   if (width >= 700) {

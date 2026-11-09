@@ -12,6 +12,7 @@ const props = defineProps({
   name: { type: String, default: '' },          // initials shown while there is no picture
   help: { type: String, default: '' },
   upload: { type: Object, required: true },
+  dark: { type: Boolean, default: false },       // a light logo (the agency's) is shown on a dark tile
 })
 const emit = defineEmits(['updated', 'error', 'done'])
 
@@ -54,7 +55,7 @@ async function run(call, message) {
   <div class="field full">
     <label>{{ label }}</label>
     <div style="display: flex; gap: 14px; align-items: center">
-      <LogoBox :name="name" :src="url" large />
+      <LogoBox :name="name" :src="url" large :dark="dark" />
       <div style="min-width: 0">
         <div style="display: flex; gap: 6px; flex-wrap: wrap">
           <label class="btn btn-outline btn-sm" style="cursor: pointer; margin: 0" :aria-disabled="busy">

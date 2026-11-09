@@ -216,7 +216,7 @@ try {
   const tags = await d.page.$$eval('[data-role="admin"] [data-perm-row]', (els) => Object.fromEntries(els.map((e) => [e.dataset.permRow, e.querySelector('[data-tier]')?.dataset.tier])))
   check(tags['settings.delivery'] === 'client' && tags['orders.view'] === 'client' && tags['settings.footer'] === 'advanced' && tags['settings.advanced'] === 'advanced', 'Access Control: every permission carries a Client or Developer / advanced tag', tags)
   check((await d.page.$$('[data-role="admin"] [data-perm-row="settings.general"] details li')).length === 9, 'Access Control: settings.general lists the nine settings it covers (collapsible)')
-  const groups = await d.page.$$eval('[data-role="admin"] .ac-group .card__head h3', (els) => els.map((e) => e.innerText))
+  const groups = await d.page.$$eval('[data-role="admin"] .ac__section .ac__title h3', (els) => els.map((e) => e.innerText))
   check(groups.includes('Discounts') && groups.includes('Coupons'), 'Access Control: Discounts and Coupons are groups', groups)
   for (const key of ['products.view', 'settings.banners', 'settings.advanced']) {
     await d.page.$eval(`[data-role="admin"] input[data-permission="${key}"]`, (el) => el.click())

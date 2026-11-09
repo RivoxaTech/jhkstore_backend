@@ -63,7 +63,7 @@ const bankWarning = computed(() => {
 
 <template>
   <div class="sf" :data-field="f.key" :class="{ 'sf--switch': f.type === 'bool', 'sf--dev': isDev }">
-    <UploadField v-if="f.type === 'file'" :label="f.label" :url="files[f.key] || ''" :name="siteName" :help="f.help || ''" :upload="f.upload" @updated="(p, m) => emit('picture', p, m)" />
+    <UploadField v-if="f.type === 'file'" :label="f.label" :url="files[f.key] || ''" :name="siteName" :help="f.help || ''" :upload="f.upload" :dark="f.key === 'agency_logo'" @updated="(p, m) => emit('picture', p, m)" />
 
     <template v-else-if="f.type === 'bool'">
       <div class="sf__text">

@@ -1,5 +1,7 @@
 // The panel wears the store's primary colour (Settings → Theme), so it matches the logo and the storefront.
-// White text sits on the primary colour (buttons, active tags), so the colour is darkened in small steps until the contrast is at least 4.5:1.
+// Two variables: `--brand` is the colour exactly as set (buttons, the login picture, active marks) with `--on-brand` as the text on it (the "text on the
+// primary colour" of the theme when it is readable, else white or a dark ink); `--primary` is the same colour darkened in small steps until it is readable
+// as TEXT on a light background (links, icons, soft buttons), at least 4.5:1.
 
 const HEX = /^#?([0-9a-f]{6})$/i
 
@@ -17,23 +19,30 @@ function luminance([r, g, b]) {
 }
 const contrastWhite = (rgb) => 1.05 / (luminance(rgb) + 0.05)
 
-/** The variables to set for a primary colour, or null when it is not a #RRGGBB value. */
-export function primaryVars(hex) {
+const ratio = (a, b) => { const [hi, lo] = [Math.max(luminance(a), luminance(b)), Math.min(luminance(a), luminance(b))]; return (hi + 0.05) / (lo + 0.05) }
+
+/** The variables to set for a primary colour (and the text colour on it), or null when it is not a #RRGGBB value. */
+export function primaryVars(hex, onHex) {
+  const brand = parse(hex)
   let rgb = parse(hex)
   if (!rgb) return null
   for (let i = 0; i < 40 && contrastWhite(rgb) < 4.5; i++) rgb = mix(rgb, [0, 0, 0], 0.06)
+  const wanted = parse(onHex)
+  const on = wanted && ratio(brand, wanted) >= 4.5 ? wanted : contrastWhite(brand) >= 4.5 ? [255, 255, 255] : [11, 47, 53]
   return {
+    '--brand': toHex(brand),
+    '--on-brand': toHex(on),
     '--primary': toHex(rgb),
     '--primary-dark': toHex(mix(rgb, [0, 0, 0], 0.22)),
     '--primary-soft': toHex(mix(rgb, [255, 255, 255], 0.9)),
   }
 }
 
-const KEYS = ['--primary', '--primary-dark', '--primary-soft']
+const KEYS = ['--brand', '--on-brand', '--primary', '--primary-dark', '--primary-soft']
 
-/** Sets (or, without a valid colour, removes) the panel's primary colour. */
-export function applyPrimary(hex) {
+/** Sets (or, without a valid colour, removes) the panel's primary colour; `onHex` is the theme's text colour on it. */
+export function applyPrimary(hex, onHex) {
   const root = document.documentElement
-  const vars = primaryVars(hex)
+  const vars = primaryVars(hex, onHex)
   for (const k of KEYS) { if (vars) root.style.setProperty(k, vars[k]); else root.style.removeProperty(k) }
 }

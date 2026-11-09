@@ -37,7 +37,7 @@ export const useSiteStore = defineStore('site', () => {
   function load(force = false) {
     if (loaded.value && !force) return Promise.resolve()
     loading ||= api.get('store/settings')
-      .then((res) => { data.value = res; setCurrency(res.currency); applyFavicon(res.store?.favicon_url); applyPrimary(res.theme?.primary); loaded.value = true })
+      .then((res) => { data.value = res; setCurrency(res.currency); applyFavicon(res.store?.favicon_url); applyPrimary(res.theme?.primary, res.theme?.primary_contrast); loaded.value = true })
       .catch(() => { /* branding is optional: the panel keeps its neutral defaults */ })
       .finally(() => { loading = null })
     return loading

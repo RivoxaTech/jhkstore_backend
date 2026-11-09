@@ -47,7 +47,7 @@ const form = reactive({
   is_cod_available: true, is_sold_out: false, is_featured: false, status: 'draft', video_url: '',
   meta_title: '', meta_description: '',
 })
-const tagIds = ref([])
+const tagIds = ref([])           // the tags a product already has stay as they are (there is no tag screen any more: the badge text is the label)
 const tabs = reactive({})          // key -> { content, format, manual_url }
 const openTabs = ref(new Set())
 
@@ -438,18 +438,7 @@ function showErrors(message) {
             <label class="pf-switch"><span class="switch"><input v-model="form.is_cod_available" type="checkbox" /><span /></span> Cash on delivery</label>
           </div>
         </div>
-        <div class="field">
-          <label>Tags</label>
-          <div class="tag-pick">
-            <label v-for="t in catalog.options.tags" :key="t.id">
-              <input v-model="tagIds" type="checkbox" :value="t.id" />
-              <span class="tag-chip" :style="{ '--c': t.color || undefined }"><i class="dot" />{{ t.name }}</span>
-            </label>
-            <span v-if="!catalog.options.tags.length" class="muted">No tags yet.</span>
-          </div>
-          <p v-if="err('tag_ids') || err('tag_ids.0')" class="err">{{ err('tag_ids') || err('tag_ids.0') }}</p>
-          <p class="hint">Tags decide the website sections: best seller, hot selling, new arrival ...</p>
-        </div>
+
       </CollapsibleSection>
 
       <!-- ================= Options and pricing ================= -->
