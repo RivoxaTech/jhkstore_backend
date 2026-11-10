@@ -331,7 +331,7 @@ class CouponTest extends TestCase
         $this->postJson(self::STORE.'/coupons/validate', ['code' => 'nope', 'items' => [['variant_id' => $variant, 'qty' => 1]]])
             ->assertStatus(422)->assertJsonPath('code', 'coupon_invalid')->assertJsonPath('coupon_error.code', 'not_found');
         $this->postJson(self::STORE.'/coupons/validate', ['items' => [['variant_id' => $variant, 'qty' => 1]]])->assertStatus(422)->assertJsonValidationErrors('code');
-        $this->postJson(self::STORE.'/coupons/validate', ['code' => 'SAVE10', 'website' => 'bot', 'items' => [['variant_id' => $variant, 'qty' => 1]]])->assertStatus(422)->assertJsonPath('code', 'rejected');
+        $this->postJson(self::STORE.'/coupons/validate', ['code' => 'SAVE10', 'hp_extra' => 'bot', 'items' => [['variant_id' => $variant, 'qty' => 1]]])->assertStatus(422)->assertJsonPath('code', 'rejected');
     }
 
     public function test_the_coupon_code_check_is_rate_limited(): void

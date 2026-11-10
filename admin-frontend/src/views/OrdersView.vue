@@ -93,9 +93,9 @@ onMounted(async () => {
 })
 
 let seq = 0
-async function load() {
+async function load(silent = false) {
   const mine = ++seq
-  loading.value = true
+  if (silent !== true) loading.value = true   // a quiet reload (real time) keeps the list on screen
   error.value = ''
   try {
     const res = await api.get('admin/orders', {
@@ -114,7 +114,8 @@ async function load() {
   }
 }
 
-watch(() => route.fullPath, load, { immediate: true })
+watch(() => route.fullPath, () => load(), { immediate: true })
+watch(() => ui.ordersVersion, () => load(true))   // an order came in or changed: the list follows by itself
 watch(() => route.query.q, (v) => { search.value = String(v || '') })
 
 function go(patch) {

@@ -101,6 +101,29 @@ const skuTyped = ref(false)
 const skuFromName = (name) => String(name).normalize('NFKD').replace(/[^\x00-\x7F]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 70)
 const autoSku = computed(() => !isEdit.value && !skuTyped.value)
 watch(() => form.name, (now) => { if (autoSku.value) form.sku = skuFromName(now) })
+
+// SEO is made from the product while the owner has not typed their own text (the same rule the website uses when the two fields are left empty)
+const seoOwnTitle = ref(false)
+const seoOwnDesc = ref(false)
+const plain = (t) => String(t || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+const autoSeoTitle = computed(() => {
+  const name = form.name.trim()
+  const cat = catalog.categories.find(c => String(c.id) === String(form.category_id))?.name
+  return cat && !name.toLowerCase().includes(cat.toLowerCase()) ? `${name} - ${cat}` : name
+})
+const autoSeoDesc = computed(() => {
+  const sentence = (t) => (/[.!?]$/.test(t) ? t : `${t}.`)
+  let text = ''
+  for (const part of [plain(form.short_description), plain(form.description)].filter(Boolean)) {
+    const next = text ? `${text} ${sentence(part)}` : sentence(part)
+    if (next.length > 155 && text) break
+    text = next
+  }
+  if (!text) text = autoSeoTitle.value
+  return text.length > 155 ? `${text.slice(0, 152).trimEnd()}...` : text
+})
+watch(autoSeoTitle, (v) => { if (!seoOwnTitle.value && form.name.trim()) form.meta_title = v })
+watch(autoSeoDesc, (v) => { if (!seoOwnDesc.value && form.name.trim()) form.meta_description = v })
 const typeSku = () => { skuTyped.value = form.sku.trim() !== ''; clearError('sku', 'variants.0.sku') }
 
 // A product with a single option: that option follows the product name and SKU until the admin types its own.
@@ -130,6 +153,7 @@ const sectionErrors = computed(() => ({
 onMounted(async () => {
   try {
     await catalog.load()
+    catalog.reload().catch(() => {})   // always the newest categories and options (a category made a moment ago is there)
     catalog.options.content_tabs.forEach(t => { tabs[t.key] = { content: '', format: 'paragraphs', manual_url: '' } })
     if (isEdit.value) {
       applyProduct((await api.get(`admin/products/${id.value}`)).data)
@@ -156,8 +180,10 @@ function applyProduct(p) {
     min_order_qty: p.min_order_qty, max_order_qty: p.max_order_qty,
     is_cod_available: p.is_cod_available, is_sold_out: Boolean(p.is_sold_out), is_featured: Boolean(p.is_featured), status: p.status,
     video_url: p.video_url ?? '',
-    meta_title: p.meta_title ?? '', meta_description: p.meta_description ?? '',
+    meta_title: p.meta_title || p.seo_auto?.title || '', meta_description: p.meta_description || p.seo_auto?.description || '',
   })
+  seoOwnTitle.value = Boolean(p.meta_title)
+  seoOwnDesc.value = Boolean(p.meta_description)
   const toRow = (v) => blankVariant({
     id: v.id, name: v.name, sku: v.sku, mrp: v.mrp, selling_price: v.selling_price,
     weight_grams: v.weight_grams ?? '', is_active: v.is_active, is_default: v.is_default,
@@ -523,14 +549,15 @@ function showErrors(message) {
 
       <!-- ================= SEO ================= -->
       <CollapsibleSection id="seo" title="SEO" hint="Optional. Used for the page title and description in Google." :always-open="!isEdit" :has-error="sectionErrors.seo">
+        <p class="hint" style="margin: 0 0 10px">Made automatically from the product's name, category and descriptions. Change the text if you want your own.</p>
         <div class="field">
           <label for="mtitle">Page title</label>
-          <input id="mtitle" v-model="form.meta_title" class="input" maxlength="255" :class="{ 'has-error': err('meta_title') }" />
+          <input id="mtitle" v-model="form.meta_title" class="input" maxlength="255" :class="{ 'has-error': err('meta_title') }" @input="seoOwnTitle = true" />
           <p v-if="err('meta_title')" class="err">{{ err('meta_title') }}</p>
         </div>
         <div class="field">
           <label for="mdesc">Page description</label>
-          <textarea id="mdesc" v-model="form.meta_description" class="textarea" rows="2" maxlength="255" :class="{ 'has-error': err('meta_description') }" />
+          <textarea id="mdesc" v-model="form.meta_description" class="textarea" rows="2" maxlength="255" :class="{ 'has-error': err('meta_description') }" @input="seoOwnDesc = true" />
           <p v-if="err('meta_description')" class="err">{{ err('meta_description') }}</p>
         </div>
       </CollapsibleSection>

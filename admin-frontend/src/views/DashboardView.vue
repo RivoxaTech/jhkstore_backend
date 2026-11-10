@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { Activity, ArrowDownRight, ArrowUpRight, Clock, PackageSearch, Plus, ReceiptText, ShoppingBag, TrendingUp, Wallet } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
+import { useUiStore } from '@/stores/ui.js'
 import { api } from '@/api/client.js'
 import RevenueChart from '@/components/RevenueChart.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -15,6 +16,7 @@ const RANGES = [['today', 'Today'], ['7d', '7 days'], ['30d', '30 days'], ['mont
 const PAYMENT = { cod: 'Cash on delivery', bank_transfer: 'Bank transfer' }
 
 const auth = useAuthStore()
+const ui = useUiStore()
 const route = useRoute()
 const router = useRouter()
 const data = ref(null)
@@ -27,9 +29,9 @@ const rangeText = computed(() => ({ today: 'today', '7d': 'in the last 7 days', 
 const firstName = computed(() => String(auth.admin?.name || auth.admin?.username || '').trim().split(/\s+/)[0])
 
 let seq = 0
-async function load() {
+async function load(silent = false) {
   const mine = ++seq
-  loading.value = true
+  if (silent !== true) loading.value = true
   error.value = ''
   try {
     const res = await api.get('admin/dashboard', { range: range.value })
@@ -40,8 +42,9 @@ async function load() {
     if (mine === seq) loading.value = false
   }
 }
-onMounted(load)
-watch(range, load)
+onMounted(() => load())
+watch(range, () => load())
+watch(() => ui.ordersVersion, () => load(true))
 
 const orders = computed(() => data.value?.orders)
 const catalog = computed(() => data.value?.catalog)

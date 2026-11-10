@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-11-10 – Real-time panel, working mail / push, fast navigation, arranged products, automatic SEO (branch `lean-store`)
+
+### Fixed
+- **"Something looks wrong with this form" on checkout, bank transfer and the wholesale form.** The hidden spam-trap field was called `website`; Chrome auto-filled it and the shop then refused the real customer. It is now `hp_extra` (`SHOP_HONEYPOT_FIELD`), and if a browser still fills it the form empties it and sends once more, silently.
+- **No e-mails and no push notifications.** They wait in the queue and nothing was taking jobs. `php artisan serve` (local) now starts a queue listener and the scheduler next to the server, and on any host without a worker the mails and pushes of an order are sent by the web request right after its response (`SHOP_JOBS_WITHOUT_WORKER`). The test notification of Settings → Notifications is sent at once when no worker runs (it waited 25 seconds for one before).
+- **A fixed discount on a chosen product ("Rs 50 off this toy") did not lower the price.** It is now taken off every unit of the products / categories it covers and shows on the cards and the product page; the biggest saving wins against a store-wide discount. A fixed amount on the whole store is still taken off the order once.
+- **A new category was missing in the product form** until a hard refresh: the product screens read the newest categories on every visit and after every category change.
+- **The panel was not real time.** The order and wholesale lists, the dashboard and the badges follow new orders and changes within seconds (a light call every 5 seconds; the lists reload by themselves, without a flicker). Before, only the badge moved, every 30 seconds.
+
+### Faster
+- **Pages open in a fraction of a second** instead of 2 to 6 seconds: `nuxt dev` no longer renders a payload file on the server for every click, `php artisan serve` runs with OPcache (0.5 s → 0.1 s per answer), and nothing of the shop is cached in the browser on a developer machine.
+- **Add to Cart answers at once** (the cart opens, the server call finishes in the background).
+
+### Added
+- **Arrange the products by drag and drop** (Products screen, unfiltered list; `PUT /admin/products/reorder`, `products.sort_order`). The website's default order is now "Recommended" = this order (new products first, then popularity).
+- **Automatic SEO**: the page title and description of a product are made from its name, category and descriptions (the admin form fills them while the owner has not typed their own; the website does the same when the fields are empty; `seo_auto` in the admin product).
+- **Track your order** link in the footer (the page exists: order number + the phone used).
+- The order progress (Pending → Delivered) is joined by a line.
+
+### Changed
+- Footer and the announcement bar wear the colour of the logo icon; the announcement is always one line (a long text scrolls like a ticker on a phone).
+- Product cards: name, short description, the old price (light, struck through) in its own line and the price to pay under it in a calmer size; more space between the cards.
+- Home hero on a phone: smaller button, the picture is shown clear (no veil over it) and the four-feature bar sits half on the picture.
+- The video upload starts as soon as the file is chosen (no "Add to product" step); the Website tab is shown to the developer account only; the "Verify the bank transfer payment first" line next to the Confirm button is gone.
+
+### Tests
+- PHPUnit: per-unit fixed discounts, arranging products, automatic SEO, the order version, the no-worker fallback.
 ## 2026-11-09 (4) – Announcement bar from the admin, WhatsApp and back-to-top buttons, the colour `#3BBFCC` everywhere (branch `lean-store`)
 
 ### Added

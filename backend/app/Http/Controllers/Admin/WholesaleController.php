@@ -48,7 +48,9 @@ class WholesaleController extends Controller
     /** The number behind the sidebar badge: requests that are still `new`. */
     public function newCount(): JsonResponse
     {
-        return response()->json(['count' => WholesaleRequest::query()->where('status', 'new')->count()]);
+        $w = WholesaleRequest::query()->selectRaw('count(*) as c, max(id) as m, max(updated_at) as u')->first();
+
+        return response()->json(['count' => WholesaleRequest::query()->where('status', 'new')->count(), 'version' => md5($w->c.'|'.$w->m.'|'.$w->u)]);
     }
 
     /** CSV of the (filtered) list: reference, date, status, name, phone, e-mail, business, product, quantity, message, note. */

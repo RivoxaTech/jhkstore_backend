@@ -13,7 +13,10 @@ return [
     'max_qty_per_line' => (int) env('SHOP_MAX_QTY_PER_LINE', 500),
 
     // Name of the hidden form field that real visitors leave empty. A request that fills it is refused (bots fill every field).
-    'honeypot_field' => env('SHOP_HONEYPOT_FIELD', 'website'),
+    // No queue worker seen: send the mails and pushes of an order right after the response instead of leaving them waiting in the queue.
+    'jobs_without_worker' => (bool) env('SHOP_JOBS_WITHOUT_WORKER', true),
+
+    'honeypot_field' => env('SHOP_HONEYPOT_FIELD', 'hp_extra'),
 
     // Request limits of the public endpoints (the limiters are defined in App\Providers\AppServiceProvider). Per IP unless stated.
     'rate' => [
@@ -39,10 +42,11 @@ return [
     ],
 
     // Cache headers of the PUBLIC catalogue reads (settings, banners, categories, products, tags, sitemap) for Cloudflare and browsers. Everything else is no-store.
+    // On a developer machine (APP_ENV=local) nothing is kept: a product, a price or a category changed in the admin panel is there on the next click.
     'cache' => [
-        'max_age' => (int) env('STORE_CACHE_MAX_AGE', 60),                  // browsers
-        's_maxage' => (int) env('STORE_CACHE_S_MAXAGE', 300),               // shared caches (Cloudflare)
-        'stale_while_revalidate' => (int) env('STORE_CACHE_SWR', 60),
+        'max_age' => (int) env('STORE_CACHE_MAX_AGE', env('APP_ENV') === 'local' ? 0 : 60),                  // browsers
+        's_maxage' => (int) env('STORE_CACHE_S_MAXAGE', env('APP_ENV') === 'local' ? 0 : 300),               // shared caches (Cloudflare)
+        'stale_while_revalidate' => (int) env('STORE_CACHE_SWR', env('APP_ENV') === 'local' ? 0 : 60),
     ],
 
     // Bank transfer screenshot: kept on the PRIVATE disk (never a public URL), shown to the admin through an authenticated route only.

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ChevronRight, FolderTree, Pencil, Plus, Search, Trash2 } from '@lucide/vue'
 import { api } from '@/api/client.js'
+import { useCatalogStore } from '@/stores/catalog.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
 import LogoBox from '@/components/LogoBox.vue'
@@ -95,6 +96,7 @@ async function flip(item, field, isSub) {
   item[field] = value
   try {
     await api.put(`admin/${isSub ? 'sub-categories' : 'categories'}/${item.id}`, { [field]: value })
+    useCatalogStore().reload().catch(() => {})
     if (field === 'is_top') counts.value.top += value ? 1 : -1
     if (field === 'is_active') {
       ui.toast(value ? 'Visible to customers.' : `Hidden from customers${isSub ? '' : ' (with its sub-categories)'}.`, 'info')
@@ -113,6 +115,7 @@ async function confirmDelete() {
   busy.value = true
   try {
     await api.del(`admin/${level === 'category' ? 'categories' : 'sub-categories'}/${item.id}`)
+    useCatalogStore().reload().catch(() => {})
     ui.toast(`${NOUN[level][0].toUpperCase()}${NOUN[level].slice(1)} deleted.`)
     toDelete.value = null
     await load()

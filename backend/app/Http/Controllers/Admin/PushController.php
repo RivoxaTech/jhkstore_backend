@@ -66,7 +66,11 @@ class PushController extends Controller
         }
         $id = Str::lower(Str::random(16));
         PushLog::recordTest($id, $request->user()->id, ['status' => 'queued', 'devices' => 0, 'sent' => 0, 'error' => null]);
-        SendTestPush::dispatch($request->user()->id, $id, $data['endpoint'] ?? null);
+        if (QueueHealth::workerMissing()) {
+            SendTestPush::dispatchSync($request->user()->id, $id, $data['endpoint'] ?? null);   // nobody takes queued jobs: send it now, the answer is ready at once
+        } else {
+            SendTestPush::dispatch($request->user()->id, $id, $data['endpoint'] ?? null);
+        }
 
         return response()->json(['id' => $id, 'queue' => QueueHealth::status()['state']], 202);
     }

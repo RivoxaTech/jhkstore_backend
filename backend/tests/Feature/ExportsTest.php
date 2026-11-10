@@ -7,6 +7,7 @@ use App\Domain\Cart\Models\Cart;
 use App\Domain\Order\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\BuildsShop;
@@ -125,20 +126,20 @@ class ExportsTest extends TestCase
     public function test_the_pending_count_adds_pending_orders_and_proofs_waiting_to_be_checked(): void
     {
         $this->actingAsAdmin();
-        $this->assertSame(['count' => 0, 'pending' => 0, 'proofs' => 0], $this->getJson(self::ADMIN.'/orders/pending-count')->assertOk()->json());
+        $this->assertSame(['count' => 0, 'pending' => 0, 'proofs' => 0], Arr::except($this->getJson(self::ADMIN.'/orders/pending-count')->assertOk()->json(), 'version'));
 
         $cod = $this->orderFor();
         $bank = $this->bankOrder();
         $this->actingAsAdmin();
-        $this->assertSame(['count' => 2, 'pending' => 2, 'proofs' => 0], $this->getJson(self::ADMIN.'/orders/pending-count')->json());
+        $this->assertSame(['count' => 2, 'pending' => 2, 'proofs' => 0], Arr::except($this->getJson(self::ADMIN.'/orders/pending-count')->json(), 'version'));
 
         $this->uploadProof($bank)->assertOk();
         $this->actingAsAdmin();
-        $this->assertSame(['count' => 3, 'pending' => 2, 'proofs' => 1], $this->getJson(self::ADMIN.'/orders/pending-count')->json());   // the screenshot needs a second look
+        $this->assertSame(['count' => 3, 'pending' => 2, 'proofs' => 1], Arr::except($this->getJson(self::ADMIN.'/orders/pending-count')->json(), 'version'));   // the screenshot needs a second look
 
         $this->postJson(self::ADMIN."/orders/{$bank->id}/payment/verify")->assertOk();
         $this->postJson(self::ADMIN."/orders/{$cod->id}/status", ['status' => 'confirmed'])->assertOk();
-        $this->assertSame(['count' => 1, 'pending' => 1, 'proofs' => 0], $this->getJson(self::ADMIN.'/orders/pending-count')->json());
+        $this->assertSame(['count' => 1, 'pending' => 1, 'proofs' => 0], Arr::except($this->getJson(self::ADMIN.'/orders/pending-count')->json(), 'version'));
     }
 
     public function test_the_badge_endpoint_is_orders_view_only(): void

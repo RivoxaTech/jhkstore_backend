@@ -99,6 +99,38 @@ class SaveProduct
         Audit::log($admin, 'product.deleted', $product);
     }
 
+    /**
+     * Drag and drop on the Products screen: `$ids` are the products of ONE page in their new order. They take the places the same products
+     * had in the whole list (so a page that is not shown does not move), then every product gets its position 1..n.
+     *
+     * @param  list<int>  $ids
+     */
+    public function reorder(array $ids, Admin $admin): void
+    {
+        DB::transaction(function () use ($ids, $admin) {
+            $all = Product::query()->orderBy('sort_order')->orderByDesc('id')->pluck('id')->map(fn ($v) => (int) $v)->all();
+            $slots = [];
+            foreach ($all as $position => $id) {
+                if (in_array($id, $ids, true)) {
+                    $slots[] = $position;
+                }
+            }
+            foreach (array_values($ids) as $i => $id) {
+                if (isset($slots[$i])) {
+                    $all[$slots[$i]] = (int) $id;
+                }
+            }
+            foreach (array_chunk($all, 200, true) as $chunk) {
+                $cases = '';
+                foreach ($chunk as $position => $id) {
+                    $cases .= ' WHEN '.(int) $id.' THEN '.($position + 1);
+                }
+                DB::table('products')->whereIn('id', array_values($chunk))->update(['sort_order' => DB::raw('CASE id'.$cases.' END')]);
+            }
+            Audit::log($admin, 'product.reordered', null, ['ids' => array_values($ids)]);
+        });
+    }
+
     private function saveParts(Product $product, array $data, Admin $admin): void
     {
         if (isset($data['variants'])) {

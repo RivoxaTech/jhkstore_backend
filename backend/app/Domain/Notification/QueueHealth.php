@@ -33,6 +33,20 @@ class QueueHealth
         self::put('queue.last_activity');
     }
 
+    /**
+     * No queue worker was seen (and none is needed in tests / with the sync queue): jobs that people wait for (the notifications of an order, the
+     * test push) are then run by the web request itself, after its response, instead of waiting in the queue for ever. This keeps mail and push
+     * working on a host without a worker or a cron; with a worker nothing changes. Switch it off with SHOP_JOBS_WITHOUT_WORKER=false.
+     */
+    public static function workerMissing(): bool
+    {
+        if (! config('shop.jobs_without_worker', true)) {
+            return false;
+        }
+
+        return in_array(self::status()['state'], ['idle', 'stopped'], true);
+    }
+
     /** @return array{state:string, connection:string, pending:int, oldest_pending_seconds:?int, last_activity_at:?string, heartbeat_at:?string} */
     public static function status(): array
     {

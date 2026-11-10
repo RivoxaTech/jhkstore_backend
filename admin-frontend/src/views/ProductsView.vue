@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { Package, Pencil, Plus, Search, Trash2 } from '@lucide/vue'
+import { GripVertical, Package, Pencil, Plus, Search, Trash2 } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -90,6 +90,36 @@ const pickCategory = (v) => go({ category_id: v, sub_category_id: undefined, pag
 const hasFilters = computed(() => ['q', 'status', 'category_id', 'sub_category_id', 'tag', 'stock', 'featured'].some(k => q(k)))
 const STOCK_FILTERS = [['in', 'In stock'], ['low', 'Running low'], ['out', 'Out of stock'], ['sold_out', 'Marked sold out']]
 const clearFilters = () => { search.value = ''; router.push({ name: 'products' }) }
+
+// ---- arrange the products by drag and drop (the order the website shows them in). Only on the unfiltered list: a filtered list is not the whole order.
+const canArrange = computed(() => canManage.value && !hasFilters.value && rows.value.length > 1)
+const dragId = ref(null)
+const overId = ref(null)
+function dragStart(e, p) {
+  dragId.value = p.id
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData('text/plain', String(p.id))
+  const row = e.target.closest('tr')
+  if (row) e.dataTransfer.setDragImage(row, 20, 20)
+}
+const dragEnd = () => { dragId.value = null; overId.value = null }
+async function dropOn(target) {
+  const from = rows.value.findIndex(r => r.id === dragId.value)
+  const to = rows.value.findIndex(r => r.id === target.id)
+  dragEnd()
+  if (from < 0 || to < 0 || from === to) return
+  const before = [...rows.value]
+  const next = [...before]
+  next.splice(to, 0, next.splice(from, 1)[0])
+  rows.value = next   // the list moves at once; the server answer only confirms it
+  try {
+    await api.put('admin/products/reorder', { ids: next.map(r => r.id) })
+    ui.toast('Order saved.')
+  } catch (e) {
+    rows.value = before
+    ui.toast(e.message, 'error')
+  }
+}
 
 let t
 watch(search, (value) => {
@@ -201,11 +231,20 @@ async function confirmDelete() {
       <table class="table prod-table">
         <thead>
           <tr>
+            <th v-if="canArrange" class="c" style="width: 30px" title="Drag to arrange" />
             <th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th class="c">Sold out</th><th class="c">Featured</th><th />
           </tr>
         </thead>
         <tbody>
-          <tr v-for="p in rows" :key="p.id" class="row-link" :data-product="p.id" :class="{ 'is-soldout': p.is_sold_out }" @click="router.push({ name: 'product-edit', params: { id: p.id } })">
+          <tr
+            v-for="p in rows" :key="p.id" class="row-link" :data-product="p.id"
+            :class="{ 'is-soldout': p.is_sold_out, 'is-dragging': dragId === p.id, 'is-over': dragId && overId === p.id && dragId !== p.id }"
+            @click="router.push({ name: 'product-edit', params: { id: p.id } })"
+            @dragover="canArrange && dragId && ($event.preventDefault(), (overId = p.id))" @drop.prevent="canArrange && dragId && dropOn(p)"
+          >
+            <td v-if="canArrange" class="c grip-cell" @click.stop>
+              <span class="grip" draggable="true" title="Drag to arrange the products" data-testid="product-grip" @dragstart="dragStart($event, p)" @dragend="dragEnd"><GripVertical :size="17" /></span>
+            </td>
             <td>
               <div class="cell-main">
                 <span class="thumb"><img v-if="p.thumb_url" :src="p.thumb_url" :alt="p.name" loading="lazy" /><template v-else>{{ p.name.slice(0, 2).toUpperCase() }}</template></span>

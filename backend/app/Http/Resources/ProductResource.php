@@ -43,6 +43,7 @@ class ProductResource extends JsonResource
             'videos' => ProductVideos::forAdmin($this->resource),
             'meta_title' => $this->meta_title,
             'meta_description' => $this->meta_description,
+            'seo_auto' => ['title' => \App\Domain\Catalog\ProductSeo::title($this->resource, false), 'description' => \App\Domain\Catalog\ProductSeo::description($this->resource, false)],   // what the website uses while the two fields above are empty
             'variants' => $this->variants->map(fn ($v) => [
                 'id' => $v->id,
                 'name' => $v->name,

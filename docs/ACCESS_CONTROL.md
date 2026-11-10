@@ -34,7 +34,7 @@ Both accounts are created by the seeder from `backend/.env`: `SEED_DEVELOPER_USE
 | `settings.delivery` | Settings → Delivery (method, fee, free-delivery limit, minimum order, delivery text, the zones table). Delivery time in days and the unmatched-address rule need `settings.advanced` | ✔ | ✔ |
 | `settings.payments` | Settings → Payments (methods, bank accounts) | ✔ | ✔ |
 | `settings.notifications` | Settings → Notifications: the events table (customer e-mail, owner e-mail, admin push), test e-mail, notification status. Sender name, reply-to, owner address and tracking link need `settings.advanced` | ✔ | ✔ |
-| `settings.website` | Settings → Website: the status of the website rebuild (pending changes, last request, last result), the **Rebuild website now** button and the automatic-rebuild switch. The hook address, hook secret and the wait time are technical and need `settings.advanced` | ✔ | ✔ |
+| `settings.website` | Settings → Website: the status of the website rebuild (pending changes, last request, last result), the **Rebuild website now** button and the automatic-rebuild switch. The hook address, hook secret and the wait time are technical and need `settings.advanced`. The tab is the developer's: the admin panel does not show it to the shop owner's admin account, even with this permission | ✔ | ✔ |
 | `settings.advanced` | The technical fields of every tab the user may open, see the map below. Also the failed-jobs list and the queue details of the notification status | **off**, can be switched on | ✔ (fixed) |
 | `access.manage` | the Access Control screen | **never** | ✔ (fixed) |
 

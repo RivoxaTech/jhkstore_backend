@@ -610,3 +610,10 @@ table.table.od-items { min-width: 0; }
 .status-select.s-order option { color: var(--text); background: #fff; }
 
 .logo-box--dark { background: #1d2b30; }
+
+/* Products: arrange by drag and drop */
+.prod-table .grip-cell { width: 30px; padding-left: 4px; padding-right: 0; }
+.prod-table .grip { cursor: grab; color: var(--text-3); display: inline-grid; place-items: center; padding: 6px 2px; border-radius: 6px; }
+.prod-table .grip:hover { color: var(--text); background: var(--surface-2, rgba(0,0,0,.04)); }
+.prod-table tr.is-dragging { opacity: .45; }
+.prod-table tr.is-over td { background: var(--primary-soft); box-shadow: inset 0 2px 0 var(--brand, var(--primary)); }

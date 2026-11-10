@@ -80,7 +80,7 @@ class ProductController extends Controller
                     ->where('lv.is_active', true)->whereRaw('lv.stock_qty - lv.reserved_qty <= lv.low_stock_threshold')),
             })
             ->when($request->boolean('featured'), fn ($q) => $q->where('products.is_featured', true))
-            ->latest('products.id')
+            ->orderBy('products.sort_order')->orderByDesc('products.id')   // the order the owner arranged (new products: first)
             ->paginate((int) $request->query('per_page', 20))
             ->withQueryString();
 
@@ -132,6 +132,18 @@ class ProductController extends Controller
         $save->setSoldOut($product, $request->boolean('value'), $request->user());
 
         return new ProductResource($this->loaded($product->id));
+    }
+
+    /** PUT products/reorder { ids }: the products of one page of the list in their new order (drag and drop). */
+    public function reorder(Request $request, SaveProduct $save): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:2', 'max:100'],
+            'ids.*' => ['integer', 'distinct', Rule::exists('products', 'id')->whereNull('deleted_at')],
+        ]);
+        $save->reorder(array_map('intval', $data['ids']), $request->user());
+
+        return response()->json(['message' => 'Order saved.']);
     }
 
     /** PATCH products/{id}/featured { value } */

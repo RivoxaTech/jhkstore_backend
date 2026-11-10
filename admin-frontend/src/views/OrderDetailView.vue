@@ -102,7 +102,8 @@ const BLOCKED = {
   delivery_fee_pending: 'Set the delivery fee first.',
   payment_not_verified: 'Verify the bank transfer payment first.',
 }
-const blockedText = computed(() => BLOCKED[o.value?.actions?.blocked_reason] || '')
+const blockedTitle = computed(() => BLOCKED[o.value?.actions?.blocked_reason] || '')   // the hover text of the disabled button
+const blockedText = computed(() => (o.value?.actions?.blocked_reason === 'payment_not_verified' ? '' : blockedTitle.value))   // the owner knows a bank transfer is checked first: no line of text for it
 const isBank = computed(() => o.value?.payment?.method === 'bank_transfer')
 const FORM_FIELDS = ['status', 'reason', 'courier', 'awb_number', 'tracking_url', 'note']
 const PROOF_LABEL = { none: 'No proof yet', submitted: 'Proof to check', verified: 'Verified', rejected: 'Proof rejected' }
@@ -229,7 +230,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
       <button v-if="canManage && o.actions.can_cancel" class="btn btn-soft-danger" type="button" @click="openAction('cancelled')"><Ban :size="16" /> Cancel order</button>
       <button v-if="canManage && o.actions.can_reject" class="btn btn-soft-danger" type="button" data-reject-order @click="openAction('rejected')"><CircleX :size="16" /> Reject order</button>
       <span v-if="canManage && next && blockedText" class="muted" data-blocked :data-reason="o.actions.blocked_reason" style="max-width: 220px; line-height: 1.25">{{ blockedText }}</span>
-      <button v-if="canManage && next" class="btn" :class="`btn-${next.tone}`" type="button" :disabled="Boolean(o.actions.blocked_reason)" :title="blockedText || undefined" @click="openAction(o.actions.next_status)"><component :is="next.icon" :size="16" /> {{ next.button }}</button>
+      <button v-if="canManage && next" class="btn" :class="`btn-${next.tone}`" type="button" :disabled="Boolean(o.actions.blocked_reason)" :title="blockedTitle || undefined" @click="openAction(o.actions.next_status)"><component :is="next.icon" :size="16" /> {{ next.button }}</button>
     </div>
   </div>
 

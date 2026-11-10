@@ -398,11 +398,11 @@ class GuestCheckoutTest extends TestCase
     {
         $variant = $this->variantOf($this->shopProduct());
 
-        $this->placeOrder($this->orderBody([$variant => 1], ['website' => 'http://spam.example']))
+        $this->placeOrder($this->orderBody([$variant => 1], ['hp_extra' => 'http://spam.example']))
             ->assertStatus(422)->assertJsonPath('code', 'rejected')->assertJsonMissingPath('errors');
         $this->assertSame(0, Order::count());
 
-        $this->placeOrder($this->orderBody([$variant => 1], ['website' => '']))->assertCreated();   // an empty hidden field is what a person sends
+        $this->placeOrder($this->orderBody([$variant => 1], ['hp_extra' => '']))->assertCreated();   // an empty hidden field is what a person sends
     }
 
     public function test_the_honeypot_field_name_can_be_changed(): void

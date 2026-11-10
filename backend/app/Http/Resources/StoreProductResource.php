@@ -47,8 +47,8 @@ class StoreProductResource extends StoreProductCardResource
             'meta_description' => $this->meta_description,
             // what a page title / description / share picture should be: the product's own SEO fields, else its name / short description / picture, else the store defaults
             'seo' => [
-                'title' => $this->meta_title ?: $this->name,
-                'description' => $this->meta_description ?: ($this->short_description ?: (string) app(Settings::class)->get('seo_meta_description')),
+                'title' => \App\Domain\Catalog\ProductSeo::title($this->resource),
+                'description' => \App\Domain\Catalog\ProductSeo::description($this->resource),
                 'image_url' => $card['image_url'] ?? app(Settings::class)->fileUrl('seo_share_image'),
             ],
             // category > sub-category > product, as slugs (the storefront builds its own URLs and adds "Home")

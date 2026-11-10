@@ -309,7 +309,7 @@ class BankTransferTest extends TestCase
         config(['shop.rate.proof_per_minute' => 2]);
         $order = $this->bankOrder();
 
-        $this->uploadProof($order, null, null, ['website' => 'bot'])->assertStatus(422)->assertJsonPath('code', 'rejected');
+        $this->uploadProof($order, null, null, ['hp_extra' => 'bot'])->assertStatus(422)->assertJsonPath('code', 'rejected');
         $this->uploadProof($order, '+1 000 000 0000')->assertNotFound();
         $this->uploadProof($order, '+1 000 000 0000')->assertStatus(429)->assertHeader('Retry-After');
     }

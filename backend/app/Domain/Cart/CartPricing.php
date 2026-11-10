@@ -219,7 +219,10 @@ class CartPricing
 
         foreach ($this->promotions->liveDiscounts() as $discount) {
             $eligible = $this->eligible($discount, $drafts, $gross);
-            foreach ($this->savings($discount->type, (float) $discount->value, $eligible) as $i => $amount) {
+            $savings = $discount->type === 'fixed' && $discount->scope !== 'store'
+                ? $this->perUnitSavings($this->settings->cents($discount->value), $drafts, $eligible)
+                : $this->savings($discount->type, (float) $discount->value, $eligible);
+            foreach ($savings as $i => $amount) {
                 if ($amount > 0 && (! isset($best[$i]) || $amount > $best[$i]['amount'])) {
                     $best[$i] = ['amount' => $amount, 'id' => $discount->id];
                 }
@@ -238,6 +241,23 @@ class CartPricing
             if ($promotion->appliesTo((int) $product->id, (int) $product->category_id, $product->sub_category_id !== null ? (int) $product->sub_category_id : null)) {
                 $out[$i] = $total;
             }
+        }
+
+        return $out;
+    }
+
+    /**
+     * A fixed amount on chosen products / categories is taken off EVERY unit of the lines it covers ("Rs 50 off this toy"), never below zero.
+     * (A fixed amount on the whole store is an order discount instead: it is taken off once and split by line total, see savings().)
+     *
+     * @param  array<int, int>  $eligible  line index => line total (cents)
+     * @return array<int, int>
+     */
+    private function perUnitSavings(int $unitAmount, array $drafts, array $eligible): array
+    {
+        $out = [];
+        foreach ($eligible as $i => $total) {
+            $out[$i] = min($total, $unitAmount * max(1, (int) $drafts[$i]['qty']));
         }
 
         return $out;
@@ -446,8 +466,9 @@ class CartPricing
     // ------------------------------------------------------------------ product lists
 
     /**
-     * The display price of ONE unit for the product lists and pages, from the same live discounts the cart uses: a percent discount lowers the
-     * price; a fixed amount is taken off the order, not off a unit, so it only gives the label. Returns the final price, the label and the discount id.
+     * The display price of ONE unit for the product lists and pages, from the same live discounts the cart uses: a percent discount and a fixed amount
+     * on chosen products / categories lower the price of every unit (the biggest saving wins); a fixed amount on the whole store is taken off the
+     * order, not off a unit, so it only gives the label. Returns the final price, the label and the discount id.
      *
      * @return array{price:int, label:?string, discount_id:?int}
      */
@@ -472,9 +493,14 @@ class CartPricing
         $d = $best['discount'];
         $percent = rtrim(rtrim(number_format((float) $d->value, 2, '.', ''), '0'), '.');
 
-        return $d->type === 'percent'
-            ? ['price' => $priceCents - $best['saving'], 'label' => $percent.'% off', 'discount_id' => $d->id]
-            : ['price' => $priceCents, 'label' => $this->fmt($this->settings->cents($d->value)).' off', 'discount_id' => $d->id];
+        if ($d->type === 'percent') {
+            return ['price' => $priceCents - $best['saving'], 'label' => $percent.'% off', 'discount_id' => $d->id];
+        }
+        $label = $this->fmt($this->settings->cents($d->value)).' off';
+
+        return $d->scope === 'store'
+            ? ['price' => $priceCents, 'label' => $label, 'discount_id' => $d->id]
+            : ['price' => $priceCents - $best['saving'], 'label' => $label, 'discount_id' => $d->id];
     }
 
     // ------------------------------------------------------------------ helpers

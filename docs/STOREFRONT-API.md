@@ -55,7 +55,7 @@ A spot can hold **one banner or many**: the API always answers a list and **the 
 |---|---|
 | `GET /categories` (`?top=1`) | tree: `data[]` category `{id,name,slug,description,is_top,icon_url,image_url,sub_categories:[{id,name,slug,icon_url,image_url}]}`. Only active items, already ordered, cached 10 min. **Two levels** |
 | `GET /categories/{slug}` | one category (404 when inactive). Categories and sub-categories also carry `meta_title`, `meta_description` (their own SEO fields, may be `null`) and `updated_at` |
-| `GET /products` | filters `tag`, `category`, `sub_category` (slugs; add `category` to disambiguate), `q`, `min_price`, `max_price`, `in_stock=1`, `featured=1` (only the products the shop marked as featured), `sort` (`popularity`,`newest`,`price_asc`,`price_desc`,`discount`), `page`, `per_page` ≤ 100. Home page sections = the list with a tag, e.g. `?tag=best-seller&per_page=10` |
+| `GET /products` | filters `tag`, `category`, `sub_category` (slugs; add `category` to disambiguate), `q`, `min_price`, `max_price`, `in_stock=1`, `featured=1` (only the products the shop marked as featured), `sort` (`popularity` = the default, "Recommended": the order the owner arranged by drag and drop in the admin panel, then popularity; `newest`,`price_asc`,`price_desc`,`discount`), `page`, `per_page` ≤ 100. Home page sections = the list with a tag, e.g. `?tag=best-seller&per_page=10` |
 | `GET /products/{slug}` | detail: options (`variants[]` with price, stock `qty`, `low_stock`, bulk `price_tiers`, own pictures), images, `videos`, content tabs, `delivery.arrives_by`, related products |
 | `GET /tags` | active tags |
 | `GET /sitemap` | every visible product, category and sub-category as slugs, for a static build and `sitemap.xml` (section 10) |
@@ -174,7 +174,7 @@ POST /orders          Idempotency-Key: 8-64 characters (recommended)
 * **E-mails.** When the store switched order e-mails on and the order has an e-mail address, the customer gets plain e-mails (order received, confirmed, shipped with courier and tracking number, delivered, cancelled or rejected with the reason, payment proof rejected). They contain the order number, items, totals, payment method, delivery estimate and a link to your tracking page: `<storefront_track_url>?order=NUMBER` (the store sets `storefront_track_url`, for example `https://shop.example/track`). **Your tracking page must read `?order=` and ask for the phone number**, then call section 8; the link carries no token. The e-mails have no images and no tracking pixels. They are queued, so a mail problem never delays or fails an order.
 * The answer is the order: `order_number` (`PREFIX-2026-000123`), `status`, `payment_method`, `payment_status`, `payment {…}` (see section 7), `totals` (`items_total`, `product_discount`, `bulk_discount`, `discount_total`, `coupon_code`, `coupon_discount`, `subtotal`, `delivery_fee` – **`null` when it is still to be confirmed** –, `delivery_fee_pending`, `grand_total`, tax fields, `total_savings`), `items[]` (snapshots, with `discount_amount` and `discount_source`), `shipping_address`, `billing_address`, `timeline[]`, `customer`. Stock is deducted at once.
 * An order placed while the delivery fee is unknown has `delivery_fee_pending: true` and a `grand_total` without delivery. Show "delivery fee to be confirmed"; the shop sets the fee and the tracking answer then shows the final total.
-* Hidden-field **honeypot**: add an input named `website` (`SHOP_HONEYPOT_FIELD`) to the checkout form, hide it with CSS and leave it empty. A request that fills it is refused with `422 { "code": "rejected" }`. API clients that do not send the field are unaffected. No captcha.
+* Hidden-field **honeypot**: add an input named `hp_extra` (not `website`, `url`, `email`...: browsers autofill those names and a real customer would be refused) (`SHOP_HONEYPOT_FIELD`) to the checkout form, hide it with CSS and leave it empty. A request that fills it is refused with `422 { "code": "rejected" }`. API clients that do not send the field are unaffected. No captcha.
 
 ## 7. Bank transfer: the payment proof
 
@@ -226,10 +226,10 @@ POST /wholesale-requests
   "product_name": "Cardboard boxes",                                         // ... or free text (required when there is no product_id)
   "quantity": 500,                                                           // required, 1 or more
   "message": "Weekly delivery please",                                       // optional, 1000 characters
-  "website": "" }                                                            // the honeypot field, leave empty
+  "hp_extra": "" }                                                            // the honeypot field, leave empty
 ```
 
-`201 { "data": { "reference": "WS-2026-000001" } }` – only the reference; show it to the customer. Validation errors are `422 { message, errors }` as elsewhere (`variant_id` must belong to `product_id`). The honeypot field (`SHOP_HONEYPOT_FIELD`, default `website`) works as in section 6 (`422 { code: "rejected" }`). The customer record is found or created by the **normalised phone** (the same rule as an order), the name and e-mail update it; a request is not an order and changes no order count. The shop sees the request in its admin panel (and may be told by e-mail or push).
+`201 { "data": { "reference": "WS-2026-000001" } }` – only the reference; show it to the customer. Validation errors are `422 { message, errors }` as elsewhere (`variant_id` must belong to `product_id`). The honeypot field (`SHOP_HONEYPOT_FIELD`, default `hp_extra`) works as in section 6 (`422 { code: "rejected" }`). The customer record is found or created by the **normalised phone** (the same rule as an order), the name and e-mail update it; a request is not an order and changes no order count. The shop sees the request in its admin panel (and may be told by e-mail or push).
 
 Limits: **5 an hour per IP and 5 an hour per phone number** (`WHOLESALE_PER_HOUR`, `WHOLESALE_PER_PHONE_HOUR`); beyond that `429` with `Retry-After`.
 

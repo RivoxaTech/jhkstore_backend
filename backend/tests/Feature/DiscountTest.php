@@ -207,6 +207,39 @@ class DiscountTest extends TestCase
         $this->assertSame('$ 10 off', $card['discount_label']);
     }
 
+    public function test_a_fixed_discount_on_a_chosen_product_is_taken_off_every_unit_and_shows_on_the_card(): void
+    {
+        $product = $this->shopProduct();   // price 160
+        $other = $this->shopProduct();
+        $this->makeDiscount(['type' => 'fixed', 'value' => 50, 'scope' => 'products', 'targets' => [$product->id]]);
+
+        $cards = collect($this->getJson(self::STORE.'/products')->json('data'));
+        $card = $cards->firstWhere('id', $product->id);
+        $this->assertEquals(110, $card['price']);                    // 160 - 50: the price people pay, shown on the card
+        $this->assertSame('$ 50 off', $card['discount_label']);
+        $this->assertEquals(160, $cards->firstWhere('id', $other->id)['price']);
+
+        $line = $this->line($this->variantOf($product), 3);
+        $this->assertEquals(150, $line['discount_amount']);          // 3 units x 50
+        $this->assertEquals(330, $line['line_total']);               // 3 x 110
+    }
+
+    public function test_the_bigger_of_a_chosen_product_amount_and_a_store_percentage_is_shown(): void
+    {
+        $product = $this->shopProduct();   // price 160: 50 off beats 20 % (32)
+        $this->makeDiscount(['type' => 'fixed', 'value' => 50, 'scope' => 'products', 'targets' => [$product->id]]);
+        $this->makeDiscount(['name' => 'Store', 'type' => 'percent', 'value' => 20]);
+        $card = collect($this->getJson(self::STORE.'/products')->json('data'))->firstWhere('id', $product->id);
+        $this->assertEquals(110, $card['price']);
+        $this->assertSame('$ 50 off', $card['discount_label']);
+
+        $cheap = $this->shopProduct(['mrp' => 100, 'selling_price' => 100, 'price_tiers' => []]);   // 20 % (20) beats the 50 only on a pricier product
+        $this->makeDiscount(['name' => 'Cheap', 'type' => 'fixed', 'value' => 10, 'scope' => 'products', 'targets' => [$cheap->id]]);
+        $card = collect($this->getJson(self::STORE.'/products')->json('data'))->firstWhere('id', $cheap->id);
+        $this->assertEquals(80, $card['price']);
+        $this->assertSame('20% off', $card['discount_label']);
+    }
+
     public function test_without_a_discount_the_cards_have_no_label_and_compare_with_the_mrp(): void
     {
         $product = $this->shopProduct();

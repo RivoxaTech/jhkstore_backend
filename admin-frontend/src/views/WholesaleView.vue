@@ -47,9 +47,9 @@ const tabs = computed(() => [
 ])
 
 let seq = 0
-async function load() {
+async function load(silent = false) {
   const mine = ++seq
-  loading.value = true
+  if (silent !== true) loading.value = true
   error.value = ''
   try {
     const res = await api.get('admin/wholesale', { search: q('q'), status: status.value, page: page.value, per_page: PER_PAGE.value })
@@ -65,7 +65,8 @@ async function load() {
     if (mine === seq) loading.value = false
   }
 }
-watch(() => route.fullPath, load, { immediate: true })
+watch(() => route.fullPath, () => load(), { immediate: true })
+watch(() => ui.wholesaleVersion, () => load(true))
 
 function go(patch) {
   const query = { ...route.query, ...patch }

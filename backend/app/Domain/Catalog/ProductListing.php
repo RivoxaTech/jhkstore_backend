@@ -111,7 +111,8 @@ class ProductListing
             'price_asc' => $query->orderBy('products.min_price'),
             'price_desc' => $query->orderByDesc('products.min_price'),
             'discount' => $query->orderByDesc('products.max_discount_percent'),
-            default => $query->orderByDesc('products.popularity_score'),
+            // the default ("Recommended"): the order the owner arranged by drag and drop (0 = not placed yet, shown first), then the popularity
+            default => $query->orderBy('products.sort_order')->orderByDesc('products.popularity_score'),
         };
         $query->orderByDesc('products.id'); // stable order for equal values
     }

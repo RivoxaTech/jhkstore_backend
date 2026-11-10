@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '@/api/client.js'
+import { useCatalogStore } from '@/stores/catalog.js'
 import AppModal from '@/components/AppModal.vue'
 import ImagePicker from '@/components/ImagePicker.vue'
 
@@ -60,6 +61,7 @@ async function save() {
     } else {
       res = await api.postForm(isSub.value ? `admin/categories/${props.parent.id}/sub-categories` : base, fd)
     }
+    useCatalogStore().reload().catch(() => {})   // the category lists of the product screens follow at once (no hard refresh)
     emit('saved', res.data, isEdit.value)
   } catch (e) {
     if (e.status === 422) errors.value = e.errors

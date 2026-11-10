@@ -99,7 +99,12 @@ class OrderController extends Controller
         $proofs = Payment::query()->where('payable_type', Payment::ORDER)->where('proof_status', Payment::PROOF_SUBMITTED_STATUS)
             ->whereIn('payable_id', Order::query()->where('status', 'pending')->select('id'))->count();
 
-        return response()->json(['count' => $pending + $proofs, 'pending' => $pending, 'proofs' => $proofs]);
+        // `version` changes whenever an order is placed or changes (status, payment proof): the panel polls this light call every few seconds and
+        // reloads the list it shows when the version moved, so new orders and changes appear without a reload.
+        $o = Order::query()->selectRaw('count(*) as c, max(id) as m, max(updated_at) as u')->first();
+        $p = Payment::query()->where('payable_type', Payment::ORDER)->max('updated_at');
+
+        return response()->json(['count' => $pending + $proofs, 'pending' => $pending, 'proofs' => $proofs, 'version' => md5($o->c.'|'.$o->m.'|'.$o->u.'|'.$p)]);
     }
 
     /**

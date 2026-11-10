@@ -43,6 +43,13 @@ async function playChime() {
   if (!ok && !ui.soundReady) ui.soundReady = false   // keeps the "click once" hint visible: the browser refused
 }
 
+const versions = { orders: null, wholesale: null }
+function version(kind, v) {
+  if (!v) return
+  if (versions[kind] !== null && versions[kind] !== v) { if (kind === 'orders') ui.ordersVersion++; else ui.wholesaleVersion++ }
+  versions[kind] = v
+}
+
 function track(kind, count) {
   if (seen[kind] !== null && count > seen[kind]) announce(kind, count - seen[kind])
   seen[kind] = count
@@ -51,13 +58,13 @@ function track(kind, count) {
 async function refreshBadges() {
   if (document.hidden) return
   if (auth.can('orders.view')) {
-    try { const n = (await api.get('admin/orders/pending-count')).count ?? 0; ui.pendingOrders = n; track('orders', n) } catch { /* the badges are optional */ }
+    try { const r = await api.get('admin/orders/pending-count'); const n = r.count ?? 0; ui.pendingOrders = n; track('orders', n); version('orders', r.version) } catch { /* the badges are optional */ }
   }
   if (auth.can('wholesale.view')) {
-    try { const n = (await api.get('admin/wholesale/new-count')).count ?? 0; ui.newWholesale = n; track('wholesale', n) } catch { /* the badges are optional */ }
+    try { const r = await api.get('admin/wholesale/new-count'); const n = r.count ?? 0; ui.newWholesale = n; track('wholesale', n); version('wholesale', r.version) } catch { /* the badges are optional */ }
   }
 }
-const BADGE_POLL_MS = 30000
+const BADGE_POLL_MS = 5000   // two tiny calls: new orders, changes and badges show within seconds, without a reload
 let timer
 
 // The service worker tells open panel tabs about a push message (so the chime plays even while the system shows its own notification),

@@ -86,7 +86,7 @@ class Notifier
             if (! $this->settings->get('mail_enabled') || ! $this->settings->get($switch) || trim((string) $order->customer_email) === '') {
                 return;
             }
-            Mail::to($order->customer_email)->queue($make());
+            $this->sendMail($order->customer_email, $make());
         });
     }
 
@@ -97,7 +97,7 @@ class Notifier
             if (! $this->settings->get('mail_enabled') || ! $this->settings->get($switch) || $to === '') {
                 return;
             }
-            Mail::to($to)->queue(new OwnerAlertMail($kind, $about));
+            $this->sendMail($to, new OwnerAlertMail($kind, $about));
         });
     }
 
@@ -111,7 +111,32 @@ class Notifier
         if (! $this->settings->get('push_enabled') || ! $this->settings->get($switch) || ! WebPushSender::configured()) {
             return;
         }
-        SendPushNotification::dispatch($permission, $message);
+        $this->workerMissing()
+            ? SendPushNotification::dispatchAfterResponse($permission, $message)
+            : SendPushNotification::dispatch($permission, $message);
+    }
+
+    /** On the queue when a worker takes jobs; otherwise sent right after the response (people never wait for it, and nothing sits in the queue for ever). */
+    private function sendMail(string $to, \Illuminate\Contracts\Mail\Mailable $mail): void
+    {
+        if (! $this->workerMissing()) {
+            Mail::to($to)->queue($mail);
+
+            return;
+        }
+        dispatch(function () use ($to, $mail) {
+            try {
+                Mail::to($to)->sendNow($mail);
+            } catch (Throwable $e) {
+                Log::warning('Notification [mail] failed: '.$e->getMessage());
+            }
+        })->afterResponse();
+    }
+
+    /** No queue worker was seen: the notifications of an order are then sent by the web request itself, after the response. */
+    private function workerMissing(): bool
+    {
+        return QueueHealth::workerMissing();
     }
 
     /** Runs one step; whatever it throws is logged and swallowed. */

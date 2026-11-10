@@ -34,6 +34,8 @@ function pickVideo(e) {
   if (!TYPES.includes(f.type) && !/\.(mp4|webm)$/i.test(f.name)) { error.value = 'The video must be an MP4 or WEBM file.'; return }
   if (f.size > props.limits.max_mb * 1024 * 1024) { error.value = `The video must be ${props.limits.max_mb} MB or smaller (this one is ${formatBytes(f.size)}).`; return }
   file.value = f
+  // choosing the file IS the upload: a saved product gets it at once (with the progress bar), a new product keeps it and uploads it when the product is saved
+  if (staging.value) stage(); else upload()
 }
 function pickPoster(e) {
   const f = e.target.files[0]
@@ -134,11 +136,9 @@ async function move(i, by) {
     </ul>
 
     <div v-if="!full" class="vm__add">
-      <label class="btn btn-outline btn-sm"><UploadCloud :size="14" /> {{ file ? 'Change video' : 'Choose video' }}<input type="file" accept="video/mp4,video/webm" class="sr-only" aria-label="Video file" data-testid="video-input" :disabled="busy" @change="pickVideo" /></label>
-      <label class="btn btn-outline btn-sm"><ImagePlus :size="14" /> {{ poster ? 'Change poster' : 'Poster picture (optional)' }}<input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" aria-label="Poster picture" :disabled="busy" @change="pickPoster" /></label>
-      <span v-if="file" class="muted">{{ file.name }} ({{ formatBytes(file.size) }})</span>
-      <button v-if="file && staging" class="btn btn-primary btn-sm" type="button" data-testid="video-stage" @click="stage">Add to product</button>
-      <button v-else-if="file" class="btn btn-primary btn-sm" type="button" data-testid="video-upload" :disabled="busy" @click="upload"><span v-if="busy" class="spinner" /> Upload</button>
+      <label class="btn btn-primary btn-sm"><UploadCloud :size="14" /> {{ busy ? 'Uploading...' : 'Upload video' }}<input type="file" accept="video/mp4,video/webm" class="sr-only" aria-label="Video file" data-testid="video-input" :disabled="busy" @change="pickVideo" /></label>
+      <label class="btn btn-outline btn-sm"><ImagePlus :size="14" /> {{ poster ? 'Change poster' : 'Poster picture (optional, pick it first)' }}<input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" aria-label="Poster picture" :disabled="busy" @change="pickPoster" /></label>
+      <span v-if="file && busy" class="muted">{{ file.name }} ({{ formatBytes(file.size) }})</span>
     </div>
     <div v-if="busy" class="vm__bar" role="progressbar" :aria-valuenow="progress" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: `${progress}%` }" /><span>{{ progress }}%</span></div>
     <p v-else-if="full" class="hint">{{ limits.max_files }} videos is the most a product can have. Delete one to add another.</p>

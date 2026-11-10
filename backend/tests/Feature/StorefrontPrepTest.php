@@ -279,7 +279,7 @@ class StorefrontPrepTest extends TestCase
         $this->assertSame($card['image_width'], $this->getJson(self::STORE.'/products/'.$product->slug)->json('data.images.0.medium_width'));
 
         $detail = $this->getJson(self::STORE.'/products/'.$product->slug)->assertOk()->json('data');
-        $this->assertSame('Rainbow blocks', $detail['seo']['title']);                       // no own meta title: the name
+        $this->assertSame('Rainbow blocks - Toys', $detail['seo']['title']);                       // no own meta title: made from the name and the category
         $this->assertSame('Soft wooden blocks.', $detail['seo']['description']);            // no own meta description: the short description
         $this->assertSame($detail['image_url'], $detail['seo']['image_url']);
         $this->assertSame(['category', 'sub_category', 'product'], array_column($detail['breadcrumbs'], 'type'));
@@ -304,7 +304,7 @@ class StorefrontPrepTest extends TestCase
         $this->assertSame('My own description', $a['seo']['description']);
 
         $b = $this->getJson(self::STORE.'/products/'.$plain->slug)->json('data');
-        $this->assertSame('Plain', $b['seo']['title']);
+        $this->assertSame('Plain - Toys', $b['seo']['title']);
         $this->assertSame('The store default description', $b['seo']['description']);
         $this->assertNull($b['image_url']);
     }

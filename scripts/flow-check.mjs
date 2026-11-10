@@ -527,7 +527,7 @@ try {
   const stale = await placeOrder(orderBody([[mugB, 1]], { name: 'Stale', phone: '+92 322 1111111' }, { expected_total: 1 }))
   check(stale.status === 409 && stale.json?.code === 'price_changed' && stale.json?.current_total === 17, 'a stale expected_total is 409 price_changed (with current_total)', status(stale))
   check(dbOne("SELECT COUNT(*) n FROM customers WHERE name = 'Stale'").n === 0, 'and nothing was created')
-  const honey = await placeOrder(orderBody([[mugB, 1]], { name: 'Bot', phone: '+92 323 2222222' }, { website: 'http://spam.example' }))
+  const honey = await placeOrder(orderBody([[mugB, 1]], { name: 'Bot', phone: '+92 323 2222222' }, { hp_extra: 'http://spam.example' }))
   check(honey.status === 422 && honey.json?.code === 'rejected', 'honeypot filled -> 422 rejected', status(honey))
   check(dbOne("SELECT COUNT(*) n FROM customers WHERE name = 'Bot'").n === 0, 'and no order or customer for the bot')
 
@@ -1134,7 +1134,7 @@ try {
   const proofLimit = []
   for (let i = 0; i < 12; i++) proofLimit.push((await storeCall('POST', `orders/${bNo}/payment-proof?phone=0`, { form: formOf({}, { proof: file('x.png', 120, 120, [1, 1, 1]) }) })).status)
   check(proofLimit[0] === 404 && proofLimit.includes(429), 'payment-proof uploads are limited to 10 a minute per IP (404 for a wrong phone, then 429)', proofLimit)
-  const hp = await storePost('coupons/validate', { code: 'X', website: 'bot', items: [{ variant_id: dp.variant, qty: 1 }] })
+  const hp = await storePost('coupons/validate', { code: 'X', hp_extra: 'bot', items: [{ variant_id: dp.variant, qty: 1 }] })
   check(hp.status === 422 && hp.json?.code === 'rejected' || hp.status === 429, 'the honeypot field is refused on the new public POSTs', status(hp).slice(0, 100))
   // leave the store as the scripts expect it
   await setSettings({ pay_bank_enabled: false, pay_card_visible: false, pay_bank_accounts: [], pay_bank_instructions: '', delivery_method: 'free_above', store_open: true, checkout_notice: '', delivery_eta_text: '', store_closed_message: '' }, D)
@@ -1259,7 +1259,7 @@ try {
   check(ws1b.status === 201 && dbOne(`SELECT COUNT(*) n FROM customers WHERE phone = '${phoneN(301).replace(/ /g, '')}'`).n === 1, 'a second request with the same phone finds the same customer record (no duplicate)')
   const badWs = await Promise.all([ws(wsBody(2, { name: '' })), ws(wsBody(2, { phone: 'abc' })), ws(wsBody(2, { quantity: 0 })), ws(wsBody(2, { product_name: undefined })), ws(wsBody(2, { email: 'nope' }))])
   check(badWs.every((r) => r.status === 422), 'missing name, bad phone, quantity 0, no product and a bad e-mail are all refused (422)', badWs.map((r) => r.status))
-  const wsHoney = await ws(wsBody(3, { website: 'http://spam.test' }))
+  const wsHoney = await ws(wsBody(3, { hp_extra: 'http://spam.test' }))
   check(wsHoney.status === 422 && wsHoney.json?.code === 'rejected' && dbOne("SELECT COUNT(*) n FROM wholesale_requests WHERE name = 'Bulk Buyer 3'").n === 0, 'the honeypot field refuses a bot and saves nothing', status(wsHoney).slice(0, 100))
   const samePhone = []
   for (let i = 0; i < 6; i++) samePhone.push((await ws(wsBody(4, { name: 'Same Phone' }))).status)

@@ -62,6 +62,7 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin', 'store
         Route::get('tags/{tag}', [TagController::class, 'show']);
     });
     Route::middleware('admin.can:products.manage')->group(function () {
+        Route::put('products/reorder', [ProductController::class, 'reorder']);
         Route::post('products', [ProductController::class, 'store']);
         Route::match(['put', 'patch'], 'products/{product}', [ProductController::class, 'update']);
         Route::delete('products/{product}', [ProductController::class, 'destroy']);

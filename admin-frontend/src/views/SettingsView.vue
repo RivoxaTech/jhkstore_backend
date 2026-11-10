@@ -41,7 +41,8 @@ const files = ref({})         // setting key -> picture url
 const form = reactive({})     // the values being edited
 let keySeq = 0
 
-const visibleTabs = computed(() => tabs.value)
+// the "Website" (rebuild hook) tab is the developer's: the shop owner's admin account does not see it (the storefront shows live data, nothing is rebuilt by hand)
+const visibleTabs = computed(() => tabs.value.filter(t => t.key !== 'website' || auth.can('settings.advanced')))
 const isBanners = computed(() => activeKey.value === 'banners')
 const isNotifications = computed(() => activeKey.value === 'notifications')
 const isWebsite = computed(() => activeKey.value === 'website')
