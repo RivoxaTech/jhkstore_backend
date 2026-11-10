@@ -75,7 +75,8 @@ class StoreProductCardResource extends JsonResource
         $cents = $settings->cents($variant->selling_price);
         $d = app(CartPricing::class)->displayPrice($this->id, (int) $this->category_id, $this->sub_category_id !== null ? (int) $this->sub_category_id : null, $cents);
         $mrp = $settings->cents($variant->mrp);
-        $compare = $mrp > $d['price'] ? $mrp : ($cents > $d['price'] ? $cents : null);   // the MRP, else the price before the discount
+        // the crossed-out price: while a discount lowers the price it is the price before the discount ("Rs 100, now Rs 80"); otherwise the MRP when it is higher
+        $compare = $cents > $d['price'] ? $cents : ($mrp > $d['price'] ? $mrp : null);
 
         return [
             'price' => $settings->money($d['price']),

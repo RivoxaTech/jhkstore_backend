@@ -11,7 +11,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CouponUsagesModal from '@/components/CouponUsagesModal.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
-import PromotionModal from '@/components/PromotionModal.vue'
+
 import RowsPerPage from '@/components/RowsPerPage.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
@@ -38,7 +38,7 @@ const search = ref('')
 const status = ref('')
 const page = ref(1)
 const perPage = ref(storedPerPage())
-const modal = ref(null)        // { item } while the create/edit modal is open
+
 const usages = ref(null)
 const toDelete = ref(null)
 const busy = ref(false)
@@ -71,11 +71,7 @@ const setPerPage = (n) => { rememberPerPage(n); perPage.value = n; page.value = 
 const hasFilters = computed(() => Boolean(search.value.trim() || status.value))
 const clearFilters = () => { search.value = ''; status.value = ''; page.value = 1; load() }
 
-async function onSaved(saved, wasEdit) {
-  modal.value = null
-  ui.toast(`${isCoupon.value ? 'Coupon' : 'Discount'} ${wasEdit ? 'updated' : 'added'}.`)
-  await load()
-}
+
 
 // the switch flips at once and goes back if the server refuses
 async function flip(row) {
@@ -129,7 +125,7 @@ const label = (r) => (isCoupon.value ? r.code : r.name)
       <div class="crumbs"><RouterLink :to="{ name: 'dashboard' }">Dashboard</RouterLink> › <span>{{ title }}</span></div>
     </div>
     <div class="page-actions">
-      <button v-if="canManage" class="btn btn-primary" type="button" data-add @click="modal = { item: null }"><Plus :size="16" /> Add {{ kind }}</button>
+      <RouterLink v-if="canManage" class="btn btn-primary" :to="{ name: `${kind}-new` }" data-add><Plus :size="16" /> Add {{ kind }}</RouterLink>
     </div>
   </div>
 
@@ -153,7 +149,7 @@ const label = (r) => (isCoupon.value ? r.code : r.name)
     <TableSkeleton v-if="loading && !rows.length" :rows="6" />
     <EmptyState v-else-if="!rows.length && !error" :title="`No ${plural} found`" :text="hasFilters ? 'Try changing the search or the status.' : isCoupon ? 'A coupon is a code customers type at checkout.' : 'A discount applies by itself to the products it covers, with no code.'">
       <template #icon><Ticket v-if="isCoupon" :size="42" /><BadgePercent v-else :size="42" /></template>
-      <button v-if="canManage && !hasFilters" class="btn btn-primary" type="button" @click="modal = { item: null }"><Plus :size="16" /> Add the first {{ kind }}</button>
+      <RouterLink v-if="canManage && !hasFilters" class="btn btn-primary" :to="{ name: `${kind}-new` }"><Plus :size="16" /> Add the first {{ kind }}</RouterLink>
     </EmptyState>
 
     <div v-else-if="rows.length" class="table-wrap" :style="{ opacity: loading ? 0.55 : 1, transition: 'opacity .15s' }">
@@ -178,7 +174,7 @@ const label = (r) => (isCoupon.value ? r.code : r.name)
             <td>
               <div class="row-actions">
                 <button v-if="isCoupon" class="btn btn-outline btn-sm" type="button" :aria-label="`Uses of ${r.code}`" @click="usages = r"><History :size="13" /> Uses</button>
-                <button v-if="canManage" class="btn btn-outline btn-sm btn-icon" type="button" title="Edit" :aria-label="`Edit ${label(r)}`" @click="modal = { item: r }"><Pencil :size="14" /></button>
+                <RouterLink v-if="canManage" class="btn btn-outline btn-sm btn-icon" :to="{ name: `${kind}-edit`, params: { id: r.id } }" title="Edit" :aria-label="`Edit ${label(r)}`"><Pencil :size="14" /></RouterLink>
                 <button v-if="canManage" class="btn btn-soft-danger btn-sm btn-icon" type="button" title="Delete" :aria-label="`Delete ${label(r)}`" @click="toDelete = r"><Trash2 :size="14" /></button>
               </div>
             </td>
@@ -190,7 +186,7 @@ const label = (r) => (isCoupon.value ? r.code : r.name)
     <PaginationBar :meta="meta" @page="setPage" />
   </section>
 
-  <PromotionModal v-if="modal" :kind="kind" :item="modal.item" @close="modal = null" @saved="onSaved" />
+
   <CouponUsagesModal v-if="usages" :coupon="usages" @close="usages = null" />
   <ConfirmDialog
     v-if="toDelete" :title="`Delete ${kind}`" confirm-text="Delete" tone="danger" :busy="busy"

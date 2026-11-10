@@ -235,24 +235,13 @@ try {
   check(db(`SELECT admin_note FROM orders WHERE id = ${first.id}`)[0].admin_note === 'UI note: call the customer first.', 'UI-D12 an internal note is saved from the screen')
 
   const step = async (buttonText, fill) => {
-    await tapText(a.page, '.act-bar button', buttonText)
-    await a.page.waitForSelector('#status-form', { timeout: 10000 })
-    if (fill) await fill()
-    await tap(a.page, 'button[form="status-form"]')
+    await tapText(a.page, '.act-bar button', buttonText)   // the status simply changes: no form, no questions
   }
   await step('Confirm order')
   await toast(a.page, /confirmed|updated|saved/)
   await step('Mark as packed')
   await toast(a.page, /packed|updated|saved/)
-  await tapText(a.page, '.act-bar button', 'Ship order')
-  await a.page.waitForSelector('#courier', { timeout: 10000 })
-  await tap(a.page, 'button[form="status-form"]')   // nothing filled in
-  await a.page.waitForSelector('#status-form .err, #status-form .has-error', { timeout: 10000 })
-  check(await a.page.evaluate(() => /courier|tracking|AWB/i.test(document.querySelector('#status-form').innerText)), 'UI-D13 shipping without courier and tracking number shows the error in the form', await a.page.$eval('#status-form', (f) => f.innerText.replace(/\s+/g, ' ').slice(-140)))
-  await setValue(a.page, '#courier', 'TCS')
-  await setValue(a.page, '#awb', 'UI-AWB-001')
-  await setValue(a.page, '#track', 'https://track.example.com/UI-AWB-001')
-  await tap(a.page, 'button[form="status-form"]')
+  await step('Ship order')
   await toast(a.page, /shipped|updated|saved/)
   await step('Mark as delivered')
   await toast(a.page, /delivered|updated|saved/)
@@ -289,12 +278,7 @@ try {
   await goto(a.page, `orders/${second.id}`)
   await a.page.waitForSelector('.act-bar', { timeout: 15000 })
   await tapText(a.page, '.act-bar button', 'Cancel order')
-  await a.page.waitForSelector('#reason', { timeout: 10000 })
-  await tap(a.page, 'button[form="status-form"]')
-  await a.page.waitForSelector('#reason.has-error, #status-form .err', { timeout: 10000 })
-  check(true, 'UI-D14 cancelling without a reason is refused in the form')
-  await setValue(a.page, '#reason', 'Customer changed their mind (UI)')
-  await tap(a.page, 'button[form="status-form"]')
+  await tapText(a.page, '.modal__foot button', 'Cancel order')   // only an "are you sure?": no reason is asked
   await toast(a.page, /cancelled|updated|saved/)
   await sleep(500)
   const stockAfter = db(`SELECT stock_qty FROM product_variants WHERE id = ${line.variant_id}`)[0].stock_qty
@@ -492,7 +476,8 @@ try {
   await tap(a.page, 'button[form="promo-form"]')
   await a.page.waitForSelector('#promo-form .err', { timeout: 10000 })
   check(/already used by another coupon/.test(await a.page.$eval('#promo-form', (f) => f.innerText)), 'UI-P2 a duplicate code shows the server message under the field')
-  await tapText(a.page, '.modal__foot button', 'Cancel')
+  await tap(a.page, '[data-cancel]')
+  await a.page.waitForSelector(`tr[data-row="${CODE}"]`, { timeout: 15000 })   // back on the list
   await tapText(a.page, `tr[data-row="${CODE}"] button`, 'Uses')
   await a.page.waitForSelector('[data-no-usages]', { timeout: 10000 })
   check(true, 'UI-P2 the "Uses" dialog of an unused coupon says so')
@@ -671,8 +656,6 @@ try {
   check(v1.payment.status === 'paid' && v1.payment.proof_status === 'verified' && v1.actions.blocked_reason === null, 'UI-B1 Verify payment: payment paid, proof verified, nothing blocks the order any more', { pay: v1.payment.status, proof: v1.payment.proof_status })
   check(!(await a.page.$('[data-verify-payment]')) && !(await confirmBtn(a.page)).disabled && /Confirm/.test((await confirmBtn(a.page)).text), 'UI-B1 the verify buttons are gone and Confirm order is enabled')
   await tapText(a.page, '.act-bar button', 'Confirm order')
-  await a.page.waitForSelector('#status-form', { timeout: 10000 })
-  await tap(a.page, 'button[form="status-form"]')
   await toast(a.page, /confirmed/)
   check((await adminOrder(bank1.id)).status === 'confirmed', 'UI-B1 the verified bank-transfer order is confirmed from the screen')
 
@@ -698,19 +681,14 @@ try {
   await a.page.reload({ waitUntil: 'networkidle0' })
   await a.page.waitForSelector('[data-reject-order]', { timeout: 15000 })
   await tap(a.page, '[data-reject-order]')
-  await a.page.waitForSelector('#reason', { timeout: 5000 })
-  await tap(a.page, 'button[form="status-form"]')
-  await a.page.waitForSelector('#reason.has-error, #status-form .err', { timeout: 10000 })
-  check(/reason/i.test(await a.page.$eval('#status-form', (f) => f.innerText)), 'UI-B2 rejecting an order without a reason is refused in the form', await a.page.$eval('#status-form .err', (e) => e.innerText))
-  await setValue(a.page, '#reason', 'We cannot deliver this order (UI test).')
-  await tap(a.page, 'button[form="status-form"]')
+  await tapText(a.page, '.modal__foot button', 'Reject order')
   await toast(a.page, /rejected/)
   const r2b = await adminOrder(bank2.id)
-  check(r2b.status === 'rejected' && r2b.reject_reason === 'We cannot deliver this order (UI test).' && r2b.actions.can_reject === false, 'UI-B2 Reject order: status rejected with the reason; no more actions', { status: r2b.status })
-  check(await a.page.$eval('[data-reject-reason]', (e) => /We cannot deliver/.test(e.innerText)) && !(await a.page.$('.act-bar button.btn-primary')), 'UI-B2 the screen shows the reject reason and offers no further button')
+  check(r2b.status === 'rejected' && r2b.actions.can_reject === false, 'UI-B2 Reject order: one confirmation, status rejected, no more actions', { status: r2b.status })
+  check(!(await a.page.$('.act-bar button.btn-primary')), 'UI-B2 the screen offers no further button')
   check(await a.page.$eval('.timeline', (t) => /Rejected/.test(t.innerText)), 'UI-B2 the timeline has a "Rejected" step')
   const trackRejected = (await api('GET', `store/orders/${bank2.number}?phone=${encodeURIComponent(bank2.phone)}`)).json?.data
-  check(trackRejected?.status === 'rejected' && trackRejected?.reject_reason === 'We cannot deliver this order (UI test).', 'UI-B2 the customer tracking shows the rejection and its reason (public API)')
+  check(trackRejected?.status === 'rejected', 'UI-B2 the customer tracking shows the rejection (public API)')
 
   // orders list: Rejected tab with its count, payment-method and payment-status filters
   await goto(a.page, 'orders')
@@ -760,8 +738,6 @@ try {
   check(f1.totals.delivery_fee === 4.5 && f1.actions.needs_delivery_fee === false && f1.actions.blocked_reason === null, 'UI-D1 Set fee: the fee is 4.50, the total is recalculated, the box is gone', { fee: f1.totals.delivery_fee, total: f1.totals.grand_total })
   check(await a.page.$eval('[data-delivery-text]', (e) => /4\.50/.test(e.innerText)) && !(await a.page.$('[data-section="delivery-fee"]')), 'UI-D1 the totals show the confirmed fee')
   await tapText(a.page, '.act-bar button', 'Confirm order')
-  await a.page.waitForSelector('#status-form', { timeout: 10000 })
-  await tap(a.page, 'button[form="status-form"]')
   await toast(a.page, /confirmed/)
   check((await adminOrder(feeOrder.id)).status === 'confirmed', 'UI-D1 the order is confirmed after the fee was set')
   // a discount and a coupon are part of the totals box

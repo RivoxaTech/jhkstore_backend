@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/api/client.js'
 import { setTimezone } from '@/utils/format.js'
+import { forgetLists } from '@/utils/listCache.js'
 
 /** Login state lives in the HttpOnly session cookie; this store only mirrors "who am I" for the UI. */
 export const useAuthStore = defineStore('auth', () => {
@@ -42,6 +43,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function clear() {
     admin.value = null
+    forgetLists()   // the remembered lists belong to the account that just left
   }
 
   return { admin, ready, isLoggedIn, role, isDeveloper, permissions, can, initials, login, restore, logout, clear }

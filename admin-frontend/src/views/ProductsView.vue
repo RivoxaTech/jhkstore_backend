@@ -14,6 +14,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 import { money } from '@/utils/format.js'
+import { cachedList, rememberList } from '@/utils/listCache.js'
 
 const STATUSES = ['active', 'draft', 'inactive', 'archived']
 
@@ -57,7 +58,9 @@ const subOptions = computed(() => {
 let seq = 0
 async function load() {
   const mine = ++seq
-  loading.value = true
+  const key = 'products:' + route.fullPath
+  const hit = cachedList(key)
+  if (hit) { rows.value = hit.rows; meta.value = hit.meta; counts.value = hit.counts; loadedOnce.value = true } else loading.value = true   // the last answer at once, the fresh one follows
   error.value = ''
   try {
     const res = await api.get('admin/products', {
@@ -69,6 +72,7 @@ async function load() {
     meta.value = res.meta
     counts.value = res.counts || {}
     loadedOnce.value = true
+    rememberList(key, { rows: res.data, meta: res.meta, counts: res.counts || {} })
   } catch (e) {
     if (mine === seq) error.value = e.message
   } finally {

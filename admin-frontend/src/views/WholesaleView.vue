@@ -1,18 +1,17 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { Download, MessageCircle, Search, Store } from '@lucide/vue'
+import { Download, Search, Store } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
-import { useSiteStore } from '@/stores/site.js'
-import AppModal from '@/components/AppModal.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import RowsPerPage from '@/components/RowsPerPage.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
-import { formatDate, timeAgo, whatsappUrl } from '@/utils/format.js'
+import { formatDate, timeAgo } from '@/utils/format.js'
+import { cachedList, rememberList } from '@/utils/listCache.js'
 
 // Wholesale requests: customers asking for a bulk price (personal data: wholesale.view to look, wholesale.manage to answer and download).
 // Status tabs, search, a detail dialog with the status, an internal note and a WhatsApp button, and a CSV of the current list.
@@ -23,7 +22,6 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const ui = useUiStore()
-const site = useSiteStore()
 const canManage = computed(() => auth.can('wholesale.manage'))
 
 const rows = ref([])
@@ -49,6 +47,9 @@ const tabs = computed(() => [
 let seq = 0
 async function load(silent = false) {
   const mine = ++seq
+  const key = 'wholesale:' + route.fullPath
+  const hit = silent !== true ? cachedList(key) : null
+  if (hit) { rows.value = hit.rows; meta.value = hit.meta; counts.value = hit.counts; loadedOnce.value = true; silent = true }
   if (silent !== true) loading.value = true
   error.value = ''
   try {
@@ -58,6 +59,7 @@ async function load(silent = false) {
     meta.value = res.meta
     counts.value = res.counts || {}
     loadedOnce.value = true
+    rememberList(key, { rows: res.data, meta: res.meta, counts: res.counts || {} })
     if (!q('q') && !status.value) ui.newWholesale = Number(counts.value.new || 0)
   } catch (e) {
     if (mine === seq) error.value = e.message
@@ -79,35 +81,6 @@ watch(search, (value) => {
   t = setTimeout(() => { if (value.trim() !== q('q')) go({ q: value.trim(), page: undefined }) }, 350)
 })
 onBeforeUnmount(() => clearTimeout(t))
-
-// ---- detail dialog
-const open = ref(null)
-const form = ref({ status: 'new', admin_note: '' })
-const saving = ref(false)
-const formError = ref('')
-function show(row) {
-  open.value = row
-  form.value = { status: row.status, admin_note: row.admin_note || '' }
-  formError.value = ''
-}
-async function save() {
-  saving.value = true
-  formError.value = ''
-  try {
-    const res = await api.patch(`admin/wholesale/${open.value.id}`, { status: form.value.status, admin_note: form.value.admin_note })
-    const i = rows.value.findIndex(r => r.id === open.value.id)
-    if (i >= 0) rows.value[i] = res.data
-    ui.toast(`${res.data.reference} saved.`)
-    open.value = null
-    load()
-  } catch (e) {
-    formError.value = e.status === 422 ? Object.values(e.errors).flat()[0] || e.message : e.message
-  } finally {
-    saving.value = false
-  }
-}
-
-const whatsapp = (r) => whatsappUrl(r.phone, `Hello ${r.name}, this is ${site.name} about your wholesale request ${r.reference} (${r.quantity} × ${r.product_name}).`)
 
 async function exportCsv() {
   exporting.value = true
@@ -163,7 +136,7 @@ async function exportCsv() {
           <tr><th>Reference</th><th>Customer</th><th>Product</th><th style="text-align: right">Quantity</th><th>Received</th><th>Status</th></tr>
         </thead>
         <tbody>
-          <tr v-for="r in rows" :key="r.id" class="row-link" :data-ref="r.reference" @click="show(r)">
+          <tr v-for="r in rows" :key="r.id" class="row-link" :data-ref="r.reference" @click="router.push({ name: 'wholesale-request', params: { id: r.id } })">
             <td class="nowrap"><strong>{{ r.reference }}</strong></td>
             <td>
               <strong class="truncate" :title="r.name">{{ r.name }}</strong>
@@ -181,46 +154,4 @@ async function exportCsv() {
     <PaginationBar :meta="meta" @page="go({ page: $event })" />
   </section>
 
-  <AppModal v-if="open" :title="`Request ${open.reference}`" large @close="open = null">
-    <div class="wd">
-      <dl class="wd__grid">
-        <div><dt>Customer</dt><dd>{{ open.name }}</dd></div>
-        <div><dt>Business</dt><dd>{{ open.business_name || '–' }}</dd></div>
-        <div><dt>Phone</dt><dd>{{ open.phone }}</dd></div>
-        <div><dt>E-mail</dt><dd>{{ open.email || '–' }}</dd></div>
-        <div><dt>Product</dt><dd>{{ open.product_name }}</dd></div>
-        <div><dt>Quantity</dt><dd>{{ open.quantity }}</dd></div>
-        <div><dt>Received</dt><dd>{{ formatDate(open.created_at, true) }}</dd></div>
-        <div v-if="open.handled_at"><dt>Last handled</dt><dd>{{ formatDate(open.handled_at, true) }}</dd></div>
-      </dl>
-      <div v-if="open.message" class="wd__msg"><strong>Message</strong><p>{{ open.message }}</p></div>
-
-      <div v-if="formError" class="alert alert--error" role="alert">{{ formError }}</div>
-      <div class="form-grid">
-        <div class="field">
-          <label for="wstatus">Status</label>
-          <select id="wstatus" v-model="form.status" class="select" :disabled="!canManage">
-            <option v-for="s in STATUSES" :key="s" :value="s">{{ LABEL[s] }}</option>
-          </select>
-        </div>
-        <div class="field full">
-          <label for="wnote">Internal note</label>
-          <textarea id="wnote" v-model="form.admin_note" class="textarea" rows="3" maxlength="2000" :disabled="!canManage" placeholder="Only you see this: what you quoted, when to call back..." />
-        </div>
-      </div>
-    </div>
-    <template #footer>
-      <a v-if="whatsapp(open)" class="btn btn-outline" :href="whatsapp(open)" target="_blank" rel="noopener" data-testid="whatsapp" style="margin-right: auto"><MessageCircle :size="16" /> WhatsApp</a>
-      <button class="btn btn-outline" type="button" @click="open = null">{{ canManage ? 'Cancel' : 'Close' }}</button>
-      <button v-if="canManage" class="btn btn-primary" type="button" data-testid="save-request" :disabled="saving" @click="save"><span v-if="saving" class="spinner" /> Save</button>
-    </template>
-  </AppModal>
 </template>
-
-<style scoped>
-.wd__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin-bottom: 12px; }
-.wd__grid dt { font-size: 11.5px; color: var(--text-3); }
-.wd__grid dd { font-weight: 500; overflow-wrap: anywhere; }
-.wd__msg { background: var(--bg); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
-.wd__msg p { white-space: pre-wrap; margin-top: 4px; }
-</style>

@@ -45,7 +45,7 @@ const immediate = (r) => props.productId !== null && r.id !== null
         <thead>
           <tr>
             <th title="Preselected on the product page">Default</th><th>Name <span class="req">*</span></th><th>SKU <span class="req">*</span></th>
-            <th>MRP ({{ symbol }}) <span class="req">*</span></th><th>Price ({{ symbol }}) <span class="req">*</span></th><th>Stock</th><th title="Alert when this many or fewer are left">Alert at</th><th>Active</th><th />
+            <th title="Optional. The crossed-out price. Empty = the price below.">MRP ({{ symbol }})</th><th>Price ({{ symbol }}) <span class="req">*</span></th><th>Stock</th><th title="Alert when this many or fewer are left">Alert at</th><th>Active</th><th />
           </tr>
         </thead>
         <tbody>
@@ -61,7 +61,7 @@ const immediate = (r) => props.productId !== null && r.id !== null
                 <p v-if="err(i, 'sku')" class="err">{{ err(i, 'sku') }}</p>
               </td>
               <td>
-                <input :id="`variants-${i}-mrp`" v-model="r.mrp" class="input input--sm input--num" type="number" min="0" step="0.01" :aria-label="`Option ${i + 1} regular price`" :class="{ 'has-error': err(i, 'mrp') }" @input="clear(i, 'mrp', 'selling_price')" />
+                <input :id="`variants-${i}-mrp`" v-model="r.mrp" class="input input--sm input--num" type="number" min="0" step="0.01" placeholder="optional" :aria-label="`Option ${i + 1} regular price (optional)`" :class="{ 'has-error': err(i, 'mrp') }" @input="clear(i, 'mrp', 'selling_price')" />
                 <p v-if="err(i, 'mrp')" class="err">{{ err(i, 'mrp') }}</p>
               </td>
               <td>

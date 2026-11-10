@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSiteStore } from '@/stores/site.js'
 import AppModal from '@/components/AppModal.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import { currencySymbol, formatDate, money, whatsappUrl } from '@/utils/format.js'
@@ -110,22 +111,24 @@ const PROOF_LABEL = { none: 'No proof yet', submitted: 'Proof to check', verifie
 // a proof that was never checked on an order that was turned down or cancelled is not waiting for anybody
 const proofLabel = computed(() => (o.value?.payment?.proof_status === 'submitted' && ['rejected', 'cancelled'].includes(o.value.status) ? 'Not checked' : PROOF_LABEL[o.value?.payment?.proof_status] || o.value?.payment?.proof_status))
 
+// A status change asks for nothing: the button changes the status at once. Only cancelling and rejecting (they cannot be undone) ask "are you sure?".
+const confirmMove = ref(null)
 function openAction(status) {
-  Object.assign(form, { note: '', reason: '', courier: '', awb_number: '', tracking_url: '' })
   errors.value = {}
-  modal.value = status === 'cancelled'
-    ? { status, title: 'Cancel this order', confirm: 'Cancel order', tone: 'danger' }
-    : status === 'rejected'
-      ? { status, title: 'Reject this order', confirm: 'Reject order', tone: 'danger' }
-      : { status, title: NEXT[status].title, confirm: NEXT[status].button, tone: NEXT[status].tone }
+  if (status === 'cancelled' || status === 'rejected') { confirmMove.value = status; return }
+  modal.value = { status }
+  submit()
+}
+function confirmedMove() {
+  modal.value = { status: confirmMove.value }
+  confirmMove.value = null
+  submit()
 }
 
 async function submit() {
   busy.value = true
   errors.value = {}
-  const body = { status: modal.value.status, note: form.note || undefined }
-  if (modal.value.status === 'cancelled' || modal.value.status === 'rejected') body.reason = form.reason
-  if (modal.value.status === 'shipped') Object.assign(body, { courier: form.courier, awb_number: form.awb_number, tracking_url: form.tracking_url || undefined })
+  const body = { status: modal.value.status }
   try {
     order.value = (await api.post(`admin/orders/${o.value.id}/status`, body)).data
     ui.toast(`Order ${o.value.order_number} is now ${o.value.status}.`)
@@ -479,51 +482,11 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
     </div>
   </template>
 
-  <AppModal v-if="modal" :title="modal.title" @close="!busy && (modal = null)">
-    <form id="status-form" style="display: grid; gap: 12px" @submit.prevent="submit">
-      <p v-if="modal.status === 'delivered' && o.payment.collect_on_delivery" class="alert alert--info" style="margin: 0">
-        The courier collected {{ money(o.payment.collect_on_delivery) }} in cash: the payment will be marked as paid.
-      </p>
-      <p v-if="modal.status === 'cancelled'" class="alert alert--info" style="margin: 0">The stock goes back on the shelf.</p>
-      <p v-if="modal.status === 'rejected'" class="alert alert--info" style="margin: 0">The customer sees the reason on the order page. The stock goes back on the shelf and a coupon use is given back. This cannot be undone.</p>
-
-      <template v-if="modal.status === 'shipped'">
-        <div class="form-grid">
-          <div class="field">
-            <label for="courier">Courier <span class="req">*</span></label>
-            <input id="courier" v-model="form.courier" class="input" :class="{ 'has-error': fe('courier') }" placeholder="e.g. DHL, FedEx" maxlength="60" />
-            <div v-if="fe('courier')" class="err">{{ fe('courier') }}</div>
-          </div>
-          <div class="field">
-            <label for="awb">AWB / tracking number <span class="req">*</span></label>
-            <input id="awb" v-model="form.awb_number" class="input" :class="{ 'has-error': fe('awb_number') }" maxlength="60" />
-            <div v-if="fe('awb_number')" class="err">{{ fe('awb_number') }}</div>
-          </div>
-          <div class="field full">
-            <label for="track">Tracking link (optional)</label>
-            <input id="track" v-model="form.tracking_url" class="input" :class="{ 'has-error': fe('tracking_url') }" placeholder="https://" maxlength="500" />
-            <div v-if="fe('tracking_url')" class="err">{{ fe('tracking_url') }}</div>
-          </div>
-        </div>
-      </template>
-
-      <div v-if="modal.status === 'cancelled' || modal.status === 'rejected'" class="field">
-        <label for="reason">Reason <span class="req">*</span></label>
-        <textarea id="reason" v-model="form.reason" class="textarea" :class="{ 'has-error': fe('reason') }" rows="3" maxlength="300" style="height: auto; padding: 8px 11px" :placeholder="modal.status === 'rejected' ? 'Why is this order rejected? The customer will read it.' : 'Why is this order cancelled?'" />
-        <div v-if="fe('reason')" class="err">{{ fe('reason') }}</div>
-      </div>
-      <div v-else class="field">
-        <label for="note">Note for the timeline (optional)</label>
-        <input id="note" v-model="form.note" class="input" maxlength="255" />
-      </div>
-      <div v-if="fe('status')" class="alert alert--error" style="margin: 0">{{ fe('status') }}</div>
-    </form>
-    <template #footer>
-      <button class="btn btn-outline" type="button" :disabled="busy" @click="modal = null">Close</button>
-      <button class="btn" :class="`btn-${modal.tone}`" type="submit" form="status-form" :disabled="busy"><span v-if="busy" class="spinner" /> {{ modal.confirm }}</button>
-    </template>
-  </AppModal>
-
+  <ConfirmDialog
+    v-if="confirmMove" :title="confirmMove === 'rejected' ? 'Reject this order' : 'Cancel this order'" :confirm-text="confirmMove === 'rejected' ? 'Reject order' : 'Cancel order'" tone="danger" :busy="busy"
+    :message="confirmMove === 'rejected' ? 'Reject this order? The stock goes back on the shelf and a coupon use is given back. This cannot be undone.' : 'Cancel this order? The stock goes back on the shelf. This cannot be undone.'"
+    @confirm="confirmedMove" @close="confirmMove = null"
+  />
   <AppModal v-if="proofModal" title="Reject the payment proof" @close="!payBusy && (proofModal = false)">
     <form id="proof-form" style="display: grid; gap: 12px" @submit.prevent="rejectProof">
       <p class="alert alert--info" style="margin: 0">The order stays pending. The customer sees your reason and can upload a new screenshot.</p>

@@ -6,7 +6,7 @@ use App\Domain\Order\Enums\OrderStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/** Moves an order one step: confirmed | packed | shipped (courier + AWB) | delivered | cancelled (reason) | rejected (reason, only from pending). */
+/** Moves an order one step: confirmed | packed | shipped | delivered | cancelled | rejected (only from pending). Courier, AWB and reason are optional: a status change never asks for anything. */
 class ChangeOrderStatusRequest extends FormRequest
 {
     public function authorize(): bool
@@ -19,9 +19,9 @@ class ChangeOrderStatusRequest extends FormRequest
         return [
             'status' => ['required', Rule::in(array_diff(OrderStatus::values(), [OrderStatus::Pending->value]))],
             'note' => ['nullable', 'string', 'max:255'],
-            'reason' => ['required_if:status,cancelled,rejected', 'nullable', 'string', 'max:300'],
-            'courier' => ['required_if:status,shipped', 'nullable', 'string', 'max:60'],
-            'awb_number' => ['required_if:status,shipped', 'nullable', 'string', 'max:60'],
+            'reason' => ['nullable', 'string', 'max:300'],
+            'courier' => ['nullable', 'string', 'max:60'],
+            'awb_number' => ['nullable', 'string', 'max:60'],
             'tracking_url' => ['nullable', 'url', 'max:500'],
         ];
     }

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Activity, BadgePercent, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Store, Ticket, Users, Volume2, VolumeX } from '@lucide/vue'
+import { Activity, BadgePercent, BellRing, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Store, Ticket, Users, Volume2, VolumeX } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useCatalogStore } from '@/stores/catalog.js'
@@ -32,8 +32,21 @@ const statusEl = ref(null)
 const seen = { orders: null, wholesale: null }
 let quietUntil = 0   // a push message just alerted: the poll that follows must not alert a second time
 
+// A system notification from the panel itself, for a tab that is not in front (another tab or window): the polled change arrives even when no push
+// is subscribed. Skipped when this device is subscribed to push (the push message already shows its own notification).
+async function systemNotice(title, body) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted' || !document.hidden) return
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null
+    if (reg && (await reg.pushManager.getSubscription())) return
+    const options = { body, tag: 'panel-news', renotify: true, icon: site.logoUrl || undefined }
+    if (reg) await reg.showNotification(title, options); else new Notification(title, options)
+  } catch { /* a notification is a bonus: the toast and the chime still work */ }
+}
+
 async function announce(kind, delta) {
   if (Date.now() < quietUntil) return
+  systemNotice(kind === 'orders' ? 'New order' : 'New wholesale request', kind === 'orders' ? `${delta} new order${delta === 1 ? '' : 's'} or payment proof${delta === 1 ? '' : 's'} waiting.` : `${delta} new wholesale request${delta === 1 ? '' : 's'}.`)
   ui.toast(kind === 'orders' ? `${delta} new order${delta === 1 ? '' : 's'} or payment proof${delta === 1 ? '' : 's'} waiting.` : `${delta} new wholesale request${delta === 1 ? '' : 's'}.`, 'info', 6000)
   if (!ui.soundMuted) await playChime()
 }
@@ -56,7 +69,7 @@ function track(kind, count) {
 }
 
 async function refreshBadges() {
-  if (document.hidden) return
+  // (also in a tab that is not in front: the browser slows it down to about once a minute, but a new order is still announced)
   if (auth.can('orders.view')) {
     try { const r = await api.get('admin/orders/pending-count'); const n = r.count ?? 0; ui.pendingOrders = n; track('orders', n); version('orders', r.version) } catch { /* the badges are optional */ }
   }
@@ -127,6 +140,14 @@ function search() {
 
 const roleLabel = computed(() => ({ developer: 'Developer', admin: 'Admin' })[auth.role] || auth.role)
 const canNotify = computed(() => auth.can('orders.view') || auth.can('wholesale.view'))
+
+// "Turn on notifications?" banner: browsers only ask for the permission after a click, so the panel asks once (a day of silence after "Not now")
+const pushToggle = ref(null)
+const PROMPT_KEY = 'admin_push_prompt_until'
+const promptHidden = ref((() => { try { return Number(localStorage.getItem(PROMPT_KEY) || 0) > Date.now() } catch { return false } })())
+const showPushPrompt = computed(() => canNotify.value && !promptHidden.value && Boolean(pushToggle.value?.canAsk))
+function dismissPrompt() { promptHidden.value = true; try { localStorage.setItem(PROMPT_KEY, String(Date.now() + 86400000)) } catch { /* only for this visit */ } }
+async function turnOnPush() { await pushToggle.value?.toggle(); promptHidden.value = true }
 const showSoundHint = computed(() => canNotify.value && !ui.soundMuted && !ui.soundReady)
 
 // The sidebar: the same items and permissions as always, grouped under small labels. Items without permission are left out, and so is a label without items.
@@ -197,7 +218,7 @@ async function logout() {
         <button v-if="canNotify" class="icon-btn" type="button" data-testid="sound-toggle" :aria-pressed="!ui.soundMuted" :title="ui.soundMuted ? 'Alert sound is off. Click to turn it on.' : 'Alert sound is on. Click to mute.'" :aria-label="ui.soundMuted ? 'Turn the alert sound on' : 'Mute the alert sound'" @click="toggleSound">
           <VolumeX v-if="ui.soundMuted" :size="17" /><Volume2 v-else :size="17" />
         </button>
-        <PushToggle v-if="canNotify" />
+        <PushToggle v-if="canNotify" ref="pushToggle" />
         <div v-if="canNotify" ref="statusEl" class="status-menu">
           <button class="icon-btn" type="button" data-testid="notification-status-btn" title="Notification status" aria-label="Notification status" :aria-expanded="statusOpen" @click.stop="statusOpen = !statusOpen"><Activity :size="17" /></button>
           <div v-if="statusOpen" class="status-pop" role="dialog" aria-label="Notification status"><NotificationStatusCard compact bare /></div>
@@ -218,6 +239,12 @@ async function logout() {
       </header>
 
       <main class="content">
+        <div v-if="showPushPrompt" class="push-prompt" role="status" data-testid="push-prompt">
+          <BellRing :size="18" />
+          <span>Get a notification on this computer when an order or a wholesale request arrives, even when this tab is closed.</span>
+          <button class="btn btn-primary btn-sm" type="button" data-testid="push-prompt-on" @click="turnOnPush">Turn on</button>
+          <button class="btn btn-outline btn-sm" type="button" @click="dismissPrompt">Not now</button>
+        </div>
         <RouterView />
       </main>
     </div>

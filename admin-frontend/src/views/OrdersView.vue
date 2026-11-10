@@ -10,9 +10,10 @@ import RowsPerPage from '@/components/RowsPerPage.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import OrderStatusModal from '@/components/OrderStatusModal.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 import { formatDate, money } from '@/utils/format.js'
+import { cachedList, rememberList } from '@/utils/listCache.js'
 
 const STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled', 'rejected']
 // the filter boxes come from GET admin/orders/options; these are the readable names (an unknown value falls back to its own name)
@@ -28,9 +29,9 @@ const auth = useAuthStore()
 
 // ---- change the status straight from the list (orders.manage): a dropdown of the moves the order may make now
 const canManage = computed(() => auth.can('orders.manage'))
-const statusModal = ref(null)          // { order, status } while the courier / reason form is open
+const askMove = ref(null)              // { order, status } while "are you sure?" is open (only cancelling and rejecting ask)
 const rowBusy = ref(0)                 // id of the order being changed
-const NEEDS_FORM = ['shipped', 'delivered', 'cancelled', 'rejected']
+const NEEDS_SURE = ['cancelled', 'rejected']   // they cannot be undone; every other change simply happens
 const BLOCKED = { delivery_fee_pending: 'set the delivery fee first', payment_not_verified: 'verify the payment first' }
 const capital = (v) => v.charAt(0).toUpperCase() + v.slice(1)
 const canChange = (o) => canManage.value && o.next_statuses?.length > 0
@@ -40,16 +41,12 @@ async function refreshBadge() {
   try { ui.pendingOrders = (await api.get('admin/orders/pending-count')).count ?? 0 } catch { /* the badge catches up within 30 seconds */ }
 }
 
-async function pick(o, event) {
-  const to = event.target.value
-  event.target.value = o.status          // the row shows the new status only after the server agreed
-  if (!to || to === o.status) return
-  if (NEEDS_FORM.includes(to)) { statusModal.value = { order: o, status: to }; return }
+async function move(o, to) {
   rowBusy.value = o.id
   try {
     await api.post(`admin/orders/${o.id}/status`, { status: to })
     ui.toast(`Order ${o.order_number} is now ${to}.`)
-    await Promise.all([load(), refreshBadge()])
+    await Promise.all([load(true), refreshBadge()])
   } catch (e) {
     ui.toast(e.message, 'error')
   } finally {
@@ -57,13 +54,19 @@ async function pick(o, event) {
   }
 }
 
-async function statusDone(order) {
-  const number = statusModal.value?.order.order_number
-  statusModal.value = null
-  ui.toast(`Order ${number} is now ${order.status}.`)
-  await Promise.all([load(), refreshBadge()])
+function pick(o, event) {
+  const to = event.target.value
+  event.target.value = o.status          // the row shows the new status only after the server agreed
+  if (!to || to === o.status) return
+  if (NEEDS_SURE.includes(to)) { askMove.value = { order: o, status: to }; return }
+  move(o, to)
 }
 
+function sure() {
+  const { order, status } = askMove.value
+  askMove.value = null
+  move(order, status)
+}
 const rows = ref([])
 const meta = ref(null)
 const counts = ref({})
@@ -95,6 +98,9 @@ onMounted(async () => {
 let seq = 0
 async function load(silent = false) {
   const mine = ++seq
+  const key = 'orders:' + route.fullPath
+  const hit = silent !== true ? cachedList(key) : null
+  if (hit) { rows.value = hit.rows; meta.value = hit.meta; counts.value = hit.counts; loadedOnce.value = true; silent = true }   // the last answer at once, the fresh one follows
   if (silent !== true) loading.value = true   // a quiet reload (real time) keeps the list on screen
   error.value = ''
   try {
@@ -107,6 +113,7 @@ async function load(silent = false) {
     meta.value = res.meta
     counts.value = res.counts || {}
     loadedOnce.value = true
+    rememberList(key, { rows: res.data, meta: res.meta, counts: res.counts || {} })
   } catch (e) {
     if (mine === seq) error.value = e.message
   } finally {
@@ -228,5 +235,9 @@ async function exportCsv() {
     <PaginationBar :meta="meta" @page="go({ page: $event })" />
   </section>
 
-  <OrderStatusModal v-if="statusModal" :order="statusModal.order" :status="statusModal.status" @close="statusModal = null" @done="statusDone" />
+  <ConfirmDialog
+    v-if="askMove" :title="askMove.status === 'rejected' ? 'Reject this order' : 'Cancel this order'" :confirm-text="askMove.status === 'rejected' ? 'Reject order' : 'Cancel order'" tone="danger"
+    :message="`${askMove.status === 'rejected' ? 'Reject' : 'Cancel'} order ${askMove.order.order_number}? The stock goes back on the shelf. This cannot be undone.`"
+    @confirm="sure" @close="askMove = null"
+  />
 </template>

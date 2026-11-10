@@ -43,6 +43,10 @@ const keyBytes = (base64) => {
   return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0))
 }
 
+/** The layout asks "turn them on?" with a banner while this device has not decided yet (permission still "default") and push can work. */
+const canAsk = computed(() => state.value.ok && !subscribed.value && supported && Notification.permission === 'default')
+defineExpose({ toggle, canAsk, subscribed })
+
 async function toggle() {
   if (busy.value) return
   if (!state.value.ok) { ui.toast(state.value.why, 'info', 6000); return }

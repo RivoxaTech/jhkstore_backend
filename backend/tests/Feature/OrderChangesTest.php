@@ -65,13 +65,11 @@ class OrderChangesTest extends TestCase
             ->assertJsonPath('data.timeline.1.note', 'Rejected: We do not deliver to your street');
     }
 
-    public function test_rejecting_needs_a_reason_of_at_most_300_characters(): void
+    public function test_rejecting_takes_an_optional_reason_of_at_most_300_characters(): void
     {
         $order = $this->orderFor();
         $this->asAdmin();
 
-        $this->setStatus($order, 'rejected')->assertStatus(422)->assertJsonValidationErrors('reason');
-        $this->setStatus($order, 'rejected', ['reason' => ''])->assertStatus(422)->assertJsonValidationErrors('reason');
         $this->setStatus($order, 'rejected', ['reason' => str_repeat('r', 301)])->assertStatus(422)->assertJsonValidationErrors('reason');
         $this->assertSame('pending', $order->fresh()->status->value);
 
@@ -113,7 +111,6 @@ class OrderChangesTest extends TestCase
         }
         $this->setStatus($shipped, 'shipped', ['courier' => 'Fast', 'awb_number' => 'A1'])->assertOk();
 
-        $this->setStatus($pending, 'cancelled')->assertStatus(422)->assertJsonValidationErrors('reason');   // a reason is still needed
         $this->setStatus($pending, 'cancelled', ['reason' => 'Duplicate'])->assertOk()->assertJsonPath('data.cancel_reason', 'Duplicate')->assertJsonPath('data.reject_reason', null);
         $this->setStatus($packed, 'cancelled', ['reason' => 'Out of stock'])->assertOk();
         $this->setStatus($shipped, 'cancelled', ['reason' => 'Too late'])->assertStatus(422)->assertJsonPath('code', 'invalid_status_change');

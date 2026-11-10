@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-10 (2) – Pages instead of dialogs, no questions on a status change, optional MRP, notifications while another tab is open (branch `lean-store`)
+
+### Changed
+- **Discounts, coupons and wholesale requests have pages of their own** (`/discounts/new`, `/discounts/:id/edit`, `/coupons/new`, `/coupons/:id/edit`, `/wholesale/:id`) instead of a dialog. The long forms are split into cards (Details, What it gives, When, Limits).
+- **Changing the status of an order asks for nothing**: no courier / AWB form on shipping, no reason on cancelling or rejecting (all optional in the API too: `shipped` makes a shipment with what was given). Cancelling and rejecting only ask "are you sure?".
+- **The MRP is optional.** Left empty it is the selling price. While a discount lowers the price, the crossed-out price is the price before the discount (MRP 200, price 100, 20 % off: 100 crossed out, 80 to pay; no MRP and price 200: 200 crossed out, 160 to pay).
+- Product cards: on a one-per-row phone layout the price and the old price share a line; with several per row the old price is above the price.
+- The dark buttons / active date tab of the admin panel use the theme colour.
+
+### Added
+- **"Turn on notifications" banner** in the admin panel (browsers only ask for the permission after a click), and the panel keeps checking for new orders and requests in a tab that is not in front: it chimes and, when the tab is hidden and push is not subscribed, shows a system notification.
+- Lists (orders, products, wholesale) show their last answer at once when you come back and refresh it in the background; new indexes for the order badge, the product order and the payment-method filter.
+
 ## 2026-11-10 – Real-time panel, working mail / push, fast navigation, arranged products, automatic SEO (branch `lean-store`)
 
 ### Fixed

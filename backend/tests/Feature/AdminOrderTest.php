@@ -262,18 +262,19 @@ class AdminOrderTest extends TestCase
         $this->assertSame('confirmed', DB::table('orders')->where('id', $order->id)->value('status'));
     }
 
-    public function test_shipping_needs_a_courier_and_an_awb(): void
+    public function test_shipping_asks_for_nothing_but_keeps_the_courier_and_awb_when_given(): void
     {
         $order = $this->orderFor();
         $this->asAdmin();
         $this->setStatus($order, 'confirmed');
         $this->setStatus($order, 'packed');
 
-        $this->setStatus($order, 'shipped')->assertStatus(422)->assertJsonValidationErrors(['courier', 'awb_number']);
-        $this->setStatus($order, 'shipped', ['courier' => 'FastShip'])->assertStatus(422)->assertJsonValidationErrors('awb_number');
         $this->setStatus($order, 'shipped', ['courier' => 'FastShip', 'awb_number' => 'A1', 'tracking_url' => 'not a link'])->assertStatus(422)->assertJsonValidationErrors('tracking_url');
         $this->assertSame(0, DB::table('shipments')->count());
         $this->assertSame('packed', DB::table('orders')->where('id', $order->id)->value('status'));
+
+        $this->setStatus($order, 'shipped')->assertOk()->assertJsonPath('data.status', 'shipped');   // no courier, no AWB: the status simply changes
+        $this->assertDatabaseHas('shipments', ['order_id' => $order->id, 'carrier' => null, 'awb_number' => null]);
     }
 
     public function test_delivery_marks_cod_paid(): void
@@ -289,7 +290,7 @@ class AdminOrderTest extends TestCase
         $this->assertDatabaseHas('shipments', ['order_id' => $order->id, 'carrier' => 'FastShip', 'awb_number' => 'FS-123', 'status' => 'delivered']);
     }
 
-    public function test_cancelling_as_admin_needs_a_reason_and_restores_the_stock(): void
+    public function test_cancelling_as_admin_restores_the_stock_and_a_reason_is_optional(): void
     {
         $order = $this->orderFor([], 4);
         $variant = $order->items()->value('variant_id');
@@ -298,7 +299,6 @@ class AdminOrderTest extends TestCase
         $this->setStatus($order, 'confirmed');
         $this->setStatus($order, 'packed');
 
-        $this->setStatus($order, 'cancelled')->assertStatus(422)->assertJsonValidationErrors('reason');
         $res = $this->setStatus($order, 'cancelled', ['reason' => 'Customer called to cancel'])->assertOk();
 
         $res->assertJsonPath('data.status', 'cancelled')->assertJsonPath('data.cancel_reason', 'Customer called to cancel')->assertJsonPath('data.cancelled_by', 'admin')

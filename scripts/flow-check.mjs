@@ -625,8 +625,8 @@ try {
   check((await st(o1d.id, { status: 'shipped', courier: 'TCS', awb_number: 'X1' })).status === 422, 'confirmed -> shipped (skipping packed) is refused')
   const p1 = await st(o1d.id, { status: 'packed' })
   check(p1.status === 200, 'confirmed -> packed', status(p1).slice(0, 120))
-  const sNo = await st(o1d.id, { status: 'shipped' })
-  check(sNo.status === 422 && sNo.json?.errors?.courier && sNo.json?.errors?.awb_number, 'shipping without courier and tracking number is refused (422)', sNo.json?.errors)
+  const sNo = await st(o1d.id, { status: 'shipped', tracking_url: 'not a link' })
+  check(sNo.status === 422 && sNo.json?.errors?.tracking_url, 'a tracking link that is not a link is refused (422); the courier and the AWB are optional', sNo.json?.errors)
   const sOk = await st(o1d.id, { status: 'shipped', courier: 'TCS', awb_number: 'TCS123456', tracking_url: 'https://track.example.com/TCS123456' })
   check(sOk.status === 200, 'packed -> shipped (courier + AWB + link)', status(sOk).slice(0, 120))
   const trackSeen = await lookup(num, '0300 1234567')
@@ -653,8 +653,8 @@ try {
   check(cs.status === 201, 'place a second order (3 x Cancel test = 60 + 5 delivery)', status(cs).slice(0, 160))
   const csId = cs.json?.data?.id
   const sBefore = variantRow(noteD).stock_qty
-  const cNoReason = await st(csId, { status: 'cancelled' })
-  check(cNoReason.status === 422 && cNoReason.json?.errors?.reason, 'cancelling needs a reason (422)', cNoReason.json?.errors)
+  const cNoReason = await st(csId, { status: 'cancelled', reason: 'x'.repeat(301) })
+  check(cNoReason.status === 422 && cNoReason.json?.errors?.reason, 'a cancel reason longer than 300 characters is refused (422); a reason is optional', cNoReason.json?.errors)
   const cc = await st(csId, { status: 'cancelled', reason: 'Customer changed their mind' })
   const sAfter = variantRow(noteD).stock_qty
   check(cc.status === 200 && sBefore === 47 && sAfter === 50, 'cancelled: stock returns (47 -> 50)', { before: sBefore, after: sAfter })
@@ -1091,10 +1091,10 @@ try {
   const rNo = rejOrder.json?.data?.order_number
   const rId = dbOne(`SELECT id FROM orders WHERE order_number = '${rNo}'`)?.id
   check(rejOrder.status === 201 && variantRow(rp1.variant).stock_qty === 97, 'an order for 3 units takes the stock (97 left)', variantRow(rp1.variant))
-  const rejNoReason = await post(`admin/orders/${rId}/status`, { status: 'rejected' }, A)
+  const rejNoReason = await post(`admin/orders/${rId}/status`, { status: 'rejected', reason: 'x'.repeat(301) }, A)
   const rejOk = await post(`admin/orders/${rId}/status`, { status: 'rejected', reason: 'We cannot deliver to that area' }, A)
   const rejCustomer = dbOne(`SELECT orders_count FROM customers WHERE phone = '${phoneN(50).replace(/ /g, '')}'`)
-  check(rejNoReason.status === 422 && rejOk.status === 200 && rejOk.json.data.status === 'rejected' && variantRow(rp1.variant).stock_qty === 100 && rejCustomer.orders_count === 0, 'reject needs a reason; the order is rejected, the stock is back (100), the customer totals are reversed', { stock: variantRow(rp1.variant).stock_qty, orders: rejCustomer.orders_count })
+  check(rejNoReason.status === 422 && rejOk.status === 200 && rejOk.json.data.status === 'rejected' && variantRow(rp1.variant).stock_qty === 100 && rejCustomer.orders_count === 0, 'a reject reason is optional (too long = 422); the order is rejected, the stock is back (100), the customer totals are reversed', { stock: variantRow(rp1.variant).stock_qty, orders: rejCustomer.orders_count })
   const rejTrack = await lookup(rNo, phoneN(50))
   check(rejTrack.json?.data?.status === 'rejected' && rejTrack.json.data.reject_reason === 'We cannot deliver to that area' && rejTrack.json.data.timeline.at(-1).note.includes('We cannot deliver'), 'the customer sees "rejected" with the reason on the tracking answer', { status: rejTrack.json?.data?.status, reason: rejTrack.json?.data?.reject_reason })
   const rejAgain = await post(`admin/orders/${rId}/status`, { status: 'cancelled', reason: 'x' }, A)

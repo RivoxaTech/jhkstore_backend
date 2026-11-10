@@ -60,6 +60,19 @@ class SaveProductRequest extends FormRequest
             }
             $this->merge(['variants' => [$row]]);
         }
+
+        // the MRP is optional: left empty, it is the selling price (there is no crossed-out price until a discount or a higher MRP makes one)
+        if (is_array($this->input('variants'))) {
+            $rows = $this->input('variants');
+            foreach ($rows as $i => $row) {
+                if (is_array($row) && ($row['mrp'] ?? '') === '' || is_array($row) && ! isset($row['mrp'])) {
+                    if (isset($row['selling_price']) && $row['selling_price'] !== '') {
+                        $rows[$i]['mrp'] = $row['selling_price'];
+                    }
+                }
+            }
+            $this->merge(['variants' => $rows]);
+        }
     }
 
     public function rules(): array

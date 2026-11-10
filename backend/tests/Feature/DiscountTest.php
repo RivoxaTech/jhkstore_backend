@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Catalog\Models\Product;
 use App\Domain\Order\Models\Order;
 use App\Domain\Promotion\Models\Discount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -185,15 +186,32 @@ class DiscountTest extends TestCase
 
         $card = collect($this->getJson(self::STORE.'/products')->assertOk()->json('data'))->firstWhere('id', $product->id);
         $this->assertEquals(120, $card['price']);
-        $this->assertEquals(200, $card['compare_price']);
+        $this->assertEquals(160, $card['compare_price']);   // crossed out: the price before the discount (MRP 200, price 160, 25 % off = 120)
         $this->assertSame('25% off', $card['discount_label']);
         $this->assertEquals(200, $card['mrp']);
 
         $variant = $this->getJson(self::STORE.'/products/'.$product->slug)->assertOk()->json('data.variants.0');
         $this->assertEquals(120, $variant['price']);
         $this->assertEquals(160, $variant['option_price']);
-        $this->assertEquals(200, $variant['compare_price']);
+        $this->assertEquals(160, $variant['compare_price']);
         $this->assertSame('25% off', $variant['discount_label']);
+    }
+
+    public function test_the_mrp_is_optional_and_the_crossed_out_price_is_the_price_before_the_discount(): void
+    {
+        $this->actingAsAdmin('admin');
+        $category = $this->makeCategory('No MRP');
+        $id = $this->postJson(self::ADMIN.'/products', ['category_id' => $category->id, 'name' => 'No Mrp Toy', 'status' => 'active', 'selling_price' => 200, 'stock' => 5])->assertCreated()->json('data.id');
+        $slug = Product::query()->findOrFail($id)->slug;
+        $this->assertEquals(200, Product::query()->findOrFail($id)->variants()->value('mrp'));   // empty MRP = the selling price
+
+        $card = fn () => collect($this->getJson(self::STORE.'/products')->json('data'))->firstWhere('id', $id);
+        $this->assertNull($card()['compare_price']);   // no discount, no higher MRP: nothing crossed out
+
+        $this->makeDiscount(['value' => 20]);
+        $this->assertEquals(160, $card()['price']);
+        $this->assertEquals(200, $card()['compare_price']);   // 200 crossed out, 160 to pay
+        $this->assertEquals(160, $this->getJson(self::STORE.'/products/'.$slug)->json('data.variants.0.price'));
     }
 
     public function test_a_fixed_discount_only_gives_the_label_on_the_cards(): void

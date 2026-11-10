@@ -229,9 +229,9 @@ function describe(a) {
 .dash-tabs { min-width: 0; display: inline-flex; gap: 2px; padding: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; max-width: 100%; }
 .dash-tab { padding: 5px 12px; border-radius: 8px; font-weight: 500; color: var(--text-2); white-space: nowrap; }
 .dash-tab:hover { color: var(--primary); }
-.dash-tab.is-active { background: #111827; color: #fff; }
-.btn-dark { background: #111827; color: #fff; }
-.btn-dark:hover { background: #1f2937; }
+.dash-tab.is-active { background: var(--brand, var(--primary)); color: var(--on-brand, #fff); }
+.btn-dark { background: var(--brand, var(--primary)); color: var(--on-brand, #fff); }
+.btn-dark:hover { background: var(--primary-dark); }
 .dash-zone { font-size: 11.5px; margin-bottom: 10px; }
 
 /* soft coloured cards */

@@ -107,19 +107,16 @@ class ChangeOrderStatus
     {
         $courier = trim((string) ($data['courier'] ?? ''));
         $awb = trim((string) ($data['awb_number'] ?? ''));
-        if ($courier === '' || $awb === '') {
-            throw new CommerceException('shipping_details_required', 'Enter the courier and the AWB / tracking number to ship this order.', 'courier', 422);
-        }
 
         Shipment::create([
-            'order_id' => $order->id, 'shipment_number' => 'SH-'.$order->order_number, 'carrier' => $courier, 'awb_number' => $awb,
+            'order_id' => $order->id, 'shipment_number' => 'SH-'.$order->order_number, 'carrier' => $courier !== '' ? $courier : null, 'awb_number' => $awb !== '' ? $awb : null,
             'tracking_url' => $data['tracking_url'] ?? null, 'status' => 'in_transit', 'shipped_at' => now(),
             'estimated_delivery_date' => $order->estimated_delivery_date,
         ]);
         $order->shipped_at = now();
         $order->fulfillment_status = 'fulfilled';
 
-        return "Shipped via $courier, AWB $awb";
+        return $courier === '' && $awb === '' ? 'Order shipped' : trim('Shipped'.($courier !== '' ? " via $courier" : '').($awb !== '' ? ", AWB $awb" : ''));
     }
 
     private function deliver(Order $order): void
@@ -145,18 +142,15 @@ class ChangeOrderStatus
         return $reason ? 'Cancelled: '.$reason : 'Order cancelled';
     }
 
-    /** The shop turns a pending order down. The reason is required and the customer sees it. */
+    /** The shop turns a pending order down. A reason is optional; when given, the customer sees it. */
     private function reject(Order $order, Admin $actor, ?string $reason): string
     {
         $reason = trim((string) $reason);
-        if ($reason === '') {
-            throw new CommerceException('reason_required', 'Enter the reason for rejecting this order.', 'reason');
-        }
         $order->rejected_at = now();
-        $order->reject_reason = mb_substr($reason, 0, 300);
+        $order->reject_reason = $reason !== '' ? mb_substr($reason, 0, 300) : null;
         $this->giveBack($order, $actor, 'rejected');
 
-        return 'Rejected: '.$order->reject_reason;
+        return $reason !== '' ? 'Rejected: '.$order->reject_reason : 'Order rejected';
     }
 
     /** What cancelling and rejecting have in common: the order is void, so everything it took is given back. */

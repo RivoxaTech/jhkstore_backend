@@ -185,7 +185,7 @@ function applyProduct(p) {
   seoOwnTitle.value = Boolean(p.meta_title)
   seoOwnDesc.value = Boolean(p.meta_description)
   const toRow = (v) => blankVariant({
-    id: v.id, name: v.name, sku: v.sku, mrp: v.mrp, selling_price: v.selling_price,
+    id: v.id, name: v.name, sku: v.sku, mrp: Number(v.mrp) === Number(v.selling_price) ? '' : v.mrp, selling_price: v.selling_price,
     weight_grams: v.weight_grams ?? '', is_active: v.is_active, is_default: v.is_default,
     price_tiers: v.price_tiers.map(t => ({ min_qty: t.min_qty, price: t.price })), stock: v.stock ?? 0, stock_was: Number(v.stock ?? 0),
     reserved: v.reserved ?? 0, low_stock_threshold: v.low_stock_threshold ?? 0,
@@ -228,9 +228,9 @@ function clientValidate() {
   const checkRow = (row, prefix) => {
     if (!row.name.trim()) e[`${prefix}.name`] = ['Name the option (for example "Blue, 500 ml").']
     if (!row.sku.trim() && variants.value.length > 1) e[`${prefix}.sku`] = ['Enter a SKU.']
-    if (!(num(row.mrp) > 0)) e[`${prefix}.mrp`] = ['Enter the regular price.']
+
     if (Number.isNaN(num(row.selling_price))) e[`${prefix}.selling_price`] = ['Enter the selling price.']
-    else if (num(row.selling_price) > num(row.mrp)) e[`${prefix}.selling_price`] = ['The selling price cannot be higher than the regular price.']
+    else if (num(row.mrp) > 0 && num(row.selling_price) > num(row.mrp)) e[`${prefix}.selling_price`] = ['The selling price cannot be higher than the regular price.']
 
     row.price_tiers = row.price_tiers.filter(t => String(t.min_qty).trim() !== '' || String(t.price).trim() !== '') // empty rows are ignored
     const seen = new Set()
