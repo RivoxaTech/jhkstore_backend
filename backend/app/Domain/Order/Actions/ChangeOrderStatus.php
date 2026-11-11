@@ -122,6 +122,8 @@ class ChangeOrderStatus
     private function deliver(Order $order): void
     {
         $order->delivered_at = now();
+        $order->shipped_at ??= now();   // marked delivered without a shipping step: it left and arrived
+        $order->fulfillment_status = 'fulfilled';
 
         // cash on delivery: the money is collected by the courier at the door
         if ($order->payment_status === PaymentStatus::CodPending) {

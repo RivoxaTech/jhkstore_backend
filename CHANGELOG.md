@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-11 (2) – Sales and Revenue, any later status, cleaner invoice and packing slip, faster product add (branch `lean-store`)
+
+### Changed
+- **Dashboard cards: Sales, Revenue, Orders, Wholesale.** *Sales* is what was ordered (cancelled and rejected orders left out). *Revenue* is only money **received**: a bank transfer once the payment is verified **and** the order is confirmed, cash on delivery once the order is delivered. The "Pending" and "Average order" cards are gone; the chart now says Sales. (API: `orders.kpis.sales` and `orders.kpis.revenue`; `revenue` used to mean what `sales` means now. New migration `2026_11_12_000001` widens the dashboard index.) Recent orders use the whole width.
+- **Order status: once an order is confirmed it can go straight to packed, shipped or delivered** (and still be cancelled before shipping). A pending order is confirmed (or cancelled / rejected) first. The status list of the orders table and a new status menu on the order page are real menus (coloured dots, a tick on the current one, greyed-out choices say why) instead of the browser's drop-down.
+- **Invoice and packing slip redone**: the logo (no name beside it) on the left, phone and e-mail on the right, the title with order / date / payment, the two address boxes, the items, the totals, a thank-you line; A4 with its own margins (the browser's header and footer - date, page title - no longer print). The packing slip now shows the prices and a box "Cash on delivery - Collect Rs X from the customer" (or "Paid - nothing to collect"), so the courier and the customer know what to pay.
+- **Product card**: the price and the old price share one line when the card is wide enough, and sit on two lines on a narrow card (a container query, not the screen width).
+- **Wholesale form**: the product list is a proper drop-down with a search box, thumbnails and a list that scrolls inside the page (`ProductPicker.vue`); the website's scroll bars are thin and in the theme colour.
+- The payment screenshot on the order page shows a placeholder frame while it loads.
+
+### Faster
+- **Adding a product**: the pictures were resized by calling the image optimiser's tools (a process per picture on Windows): 3 pictures took 2.5 s, now 1.0 s; the new product opens the list at once and its pictures and video upload in the background (a toast says how it went).
+
+### Added
+- **An option's SKU is made for you**: adding an option fills SKU-2, SKU-3 ... from the product SKU (the first free number, never the same twice); the server does the same when an option arrives without one.
 ## 2026-11-11 – Speed round and an adversarial test of the whole shop (branch `lean-store`)
 
 ### Fixed (found by the new tests)

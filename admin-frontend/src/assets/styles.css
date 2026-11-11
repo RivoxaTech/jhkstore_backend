@@ -515,25 +515,43 @@ label.dropzone { display: block; }
 .input-affix--right .input { padding-left: 11px; padding-right: 54px; }
 .input-affix--right > span { left: auto; right: 11px; }
 
-/* print: only the invoice / packing slip of the order page */
-.print-sheet { display: none; padding: 6px 14px; }
+/* print: only the invoice / packing slip of the order page. `@page { margin: 0 }` also removes the browser's own header and footer (date, page title, address):
+   the sheet has its own margins and its own header. */
+.print-sheet { display: none; }
+@page { size: A4; margin: 0; }
 @media print {
   .sidebar, .topbar, .backdrop, .screen-only, .toast-host, .no-print { display: none !important; }
   .main { margin-left: 0 !important; }
   .content { padding: 0 !important; max-width: none !important; }
-  body { background: #fff; font-size: 12px; }
-  .print-sheet { display: block; color: #000; }
-  .print-sheet table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  .print-sheet th, .print-sheet td { border-bottom: 1px solid #bbb; padding: 5px 6px; text-align: left; vertical-align: top; }
-  .print-sheet .num { text-align: right; }
-  .print-sheet h1 { font-size: 20px; }
-  .print-sheet .ps-head { display: flex; gap: 12px; align-items: center; }
-  .print-sheet .ps-logo { max-height: 56px; width: auto; }
-  .print-sheet .ps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
-  .print-sheet .ps-totals { margin-left: auto; width: 280px; margin-top: 10px; }
-  .print-sheet .ps-totals div { display: flex; justify-content: space-between; padding: 2px 0; }
-  .print-sheet .ps-totals .grand { border-top: 2px solid #000; font-weight: 700; font-size: 14px; margin-top: 4px; padding-top: 5px; }
-  .print-sheet.is-slip .price-col { display: none; }
+  html, body { background: #fff; font-size: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-sheet { display: block; color: #111; padding: 14mm 16mm; font-size: 12px; line-height: 1.45; }
+  .print-sheet .ps-top { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding-bottom: 12px; border-bottom: 2px solid #111; }
+  .print-sheet .ps-logo { max-height: 54px; max-width: 220px; width: auto; display: block; }
+  .print-sheet .ps-name { font-size: 22px; }
+  .print-sheet .ps-contact { text-align: right; font-size: 12.5px; line-height: 1.6; }
+  .print-sheet .ps-title { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin: 18px 0 14px; }
+  .print-sheet h1 { font-size: 26px; letter-spacing: 0.08em; text-transform: uppercase; margin: 0; line-height: 1; }
+  .print-sheet .ps-facts { margin: 0; display: grid; gap: 3px; }
+  .print-sheet .ps-facts div { display: flex; justify-content: flex-end; gap: 10px; }
+  .print-sheet .ps-facts dt { color: #666; }
+  .print-sheet .ps-facts dd { margin: 0; font-weight: 600; min-width: 120px; text-align: right; }
+  .print-sheet .ps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .print-sheet .ps-box { border: 1px solid #ccc; border-radius: 6px; padding: 10px 12px; }
+  .print-sheet .ps-box h3 { margin: 0 0 4px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: #666; }
+  .print-sheet .ps-strong { font-weight: 700; }
+  .print-sheet .ps-pay.is-due { border: 2px solid #111; background: #f3f3f3; }
+  .print-sheet .ps-pay__line { font-size: 15px; font-weight: 700; }
+  .print-sheet table.ps-items { width: 100%; border-collapse: collapse; }
+  .print-sheet .ps-items th { background: #f1f1f1; text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; padding: 7px 8px; border-top: 1px solid #bbb; border-bottom: 1px solid #bbb; }
+  .print-sheet .ps-items td { padding: 8px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  .print-sheet .num { text-align: right; white-space: nowrap; }
+  .print-sheet .ps-n { width: 28px; color: #666; }
+  .print-sheet .ps-totals { margin-left: auto; width: 300px; margin-top: 14px; }
+  .print-sheet .ps-totals div { display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; }
+  .print-sheet .ps-totals .grand { border-top: 2px solid #111; font-weight: 700; font-size: 15px; margin-top: 6px; padding-top: 8px; }
+  .print-sheet .ps-totals .ps-note { color: #666; font-size: 11px; }
+  .print-sheet .ps-note-box { margin-top: 16px; border-left: 3px solid #999; padding: 4px 10px; }
+  .print-sheet .ps-thanks { margin-top: 28px; text-align: center; color: #666; font-size: 11px; }
 }
 
 /* ---------- store mark (logo or generic icon) ---------- */

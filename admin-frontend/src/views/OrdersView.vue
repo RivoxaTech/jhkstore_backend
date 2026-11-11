@@ -10,6 +10,7 @@ import RowsPerPage from '@/components/RowsPerPage.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import StatusMenu from '@/components/StatusMenu.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 import { formatDate, money } from '@/utils/format.js'
@@ -34,7 +35,11 @@ const NEEDS_SURE = ['cancelled', 'rejected']   // they cannot be undone; every o
 const BLOCKED = { delivery_fee_pending: 'set the delivery fee first', payment_not_verified: 'verify the payment first' }
 const capital = (v) => v.charAt(0).toUpperCase() + v.slice(1)
 const canChange = (o) => canManage.value && o.next_statuses?.length > 0
-const optionText = (o, s) => (s === 'confirmed' && o.blocked_reason ? `Confirmed (${BLOCKED[o.blocked_reason]})` : capital(s))
+/** The menu of a row: the current status, then every status the order may be set to now (a confirmed order may jump straight to packed, shipped or delivered). */
+const statusOptions = (o) => [
+  { value: o.status, label: capital(o.status) },
+  ...o.next_statuses.map((s) => ({ value: s, label: capital(s), disabled: s === 'confirmed' && !!o.blocked_reason, hint: s === 'confirmed' && o.blocked_reason ? BLOCKED[o.blocked_reason] : '' })),
+]
 
 async function refreshBadge() {
   try { ui.pendingOrders = (await api.get('admin/orders/pending-count')).count ?? 0 } catch { /* the badge catches up within a few seconds */ }
@@ -53,10 +58,8 @@ async function move(o, to) {
   }
 }
 
-function pick(o, event) {
-  const to = event.target.value
-  event.target.value = o.status          // the row shows the new status only after the server agreed
-  if (!to || to === o.status) return
+function pick(o, to) {
+  if (!to || to === o.status) return   // the row shows the new status only after the server agreed
   if (NEEDS_SURE.includes(to)) { askMove.value = { order: o, status: to }; return }
   move(o, to)
 }
@@ -222,10 +225,7 @@ async function exportCsv() {
               <StatusBadge :status="o.payment_status" />
             </td>
             <td @click.stop>
-              <select v-if="canChange(o)" class="status-select s-order" :class="`s-${o.status}`" :value="o.status" :disabled="rowBusy === o.id" :aria-label="`Status of ${o.order_number}`" :data-status-select="o.order_number" @change="pick(o, $event)">
-                <option :value="o.status">{{ capital(o.status) }}</option>
-                <option v-for="s in o.next_statuses" :key="s" :value="s" :disabled="s === 'confirmed' && !!o.blocked_reason">{{ optionText(o, s) }}</option>
-              </select>
+              <StatusMenu v-if="canChange(o)" :status="o.status" :options="statusOptions(o)" :disabled="rowBusy === o.id" :aria-label="`Status of ${o.order_number}`" :data-status-select="o.order_number" @pick="pick(o, $event)" />
               <StatusBadge v-else :status="o.status" />
             </td>
           </tr>

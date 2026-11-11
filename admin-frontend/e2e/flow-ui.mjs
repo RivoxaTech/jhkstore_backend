@@ -260,14 +260,14 @@ try {
   const sheet = async () => a.page.evaluate(() => { const s = document.querySelector('.print-sheet'); return { shown: getComputedStyle(s).display !== 'none', text: s.innerText.replace(/\s+/g, ' ') } })
   const inv = await sheet()
   const itemName = db(`SELECT name FROM order_items WHERE order_id = ${first.id} LIMIT 1`)[0].name
-  check(inv.shown && /Invoice/.test(inv.text) && inv.text.includes(first.order_number) && inv.text.includes(itemName) && /Bill to/.test(inv.text) && /Total/.test(inv.text) && /Cash on delivery/.test(inv.text), 'UI-D14 invoice (print view): number, items, bill-to, totals, payment', inv.text.slice(0, 220))
+  check(inv.shown && /Invoice/i.test(inv.text) && inv.text.includes(first.order_number) && inv.text.includes(itemName) && /Bill to/i.test(inv.text) && /Total/i.test(inv.text) && /Cash on delivery/i.test(inv.text), 'UI-D14 invoice (print view): number, items, bill-to, totals, payment', inv.text.slice(0, 220))
   await a.page.pdf({ path: path.join(OUT, 'invoice.pdf'), format: 'A4' })
   await a.page.emulateMediaType('screen')
   await tapText(a.page, '.act-bar button', 'Packing slip')
   await sleep(300)
   await a.page.emulateMediaType('print')
   const slip = await sheet()
-  check(slip.shown && /Packing slip/.test(slip.text) && slip.text.includes(first.order_number) && slip.text.includes(itemName) && !/Bill to/.test(slip.text) && !/Total\b.*\$/.test(slip.text.replace(/Qty.*/, '')), 'UI-D14 packing slip (print view): items and ship-to, no prices or bill-to', slip.text.slice(0, 220))
+  check(slip.shown && /Packing slip/i.test(slip.text) && slip.text.includes(first.order_number) && slip.text.includes(itemName) && !/Bill to/i.test(slip.text) && /Cash on delivery/i.test(slip.text) && /Unit price/i.test(slip.text) && /(Collect|Nothing to collect)/i.test(slip.text), 'UI-D14 packing slip (print view): items with prices, ship-to, and what the courier collects (or that nothing is due), no bill-to', slip.text.slice(0, 260))
   await a.page.pdf({ path: path.join(OUT, 'packing-slip.pdf'), format: 'A4' })
   await a.page.emulateMediaType('screen')
   check((await a.page.evaluate(() => window.__printed)) === 2 && fs.statSync(path.join(OUT, 'invoice.pdf')).size > 1500 && fs.statSync(path.join(OUT, 'packing-slip.pdf')).size > 1500, 'UI-D14 both buttons call print; both print views render to a PDF', { dir: OUT })
@@ -284,7 +284,7 @@ try {
   const stockAfter = db(`SELECT stock_qty FROM product_variants WHERE id = ${line.variant_id}`)[0].stock_qty
   check(db(`SELECT status FROM orders WHERE id = ${second.id}`)[0].status === 'cancelled' && stockAfter - stockBefore === line.qty, 'UI-D14 cancel from the screen: status cancelled and the stock returned', { before: stockBefore, after: stockAfter, qty: line.qty })
   await goto(a.page, '')
-  check(await bodyHas(a.page, /Revenue/) && await bodyHas(a.page, /Pending orders/i), 'UI-D12 the dashboard shows the order figures to the client admin')
+  check(await bodyHas(a.page, /Revenue/) && await bodyHas(a.page, /Sales/) && await bodyHas(a.page, /Wholesale/) && !(await bodyHas(a.page, /Pending orders/)), 'UI-D12 the dashboard shows Sales, Revenue, Orders and Wholesale to the client admin')
 
   // ============================================================ D15: customers
   await goto(a.page, 'customers')
@@ -760,8 +760,8 @@ try {
   await goto(a.page, '')
   await waitVal(a.page, '[data-kpi="revenue"]')
   const kpiCards = await a.page.$$eval('[data-kpi]', (els) => els.map((e) => e.dataset.kpi))
-  check(JSON.stringify(kpiCards) === JSON.stringify(['revenue', 'orders', 'aov', 'pending']), 'UI-G1 the admin dashboard shows exactly four soft KPI cards (revenue, orders, average order, pending)', kpiCards)
-  check(/Pending \D*[\d.,]+/.test(await textOf(a.page, '[data-kpi="revenue"]')) && /^Welcome back/.test(await textOf(a.page, '.dash-head h1')), 'UI-C5 the revenue card shows the pending amount underneath, and the welcome line greets the user')
+  check(JSON.stringify(kpiCards) === JSON.stringify(['sales', 'revenue', 'orders', 'wholesale']), 'UI-G1 the admin dashboard shows exactly four soft KPI cards (sales, revenue, orders, wholesale)', kpiCards)
+  check(/Received/.test(await textOf(a.page, '[data-kpi="revenue"]')) && /Ordered/.test(await textOf(a.page, '[data-kpi="sales"]')) && /^Welcome back/.test(await textOf(a.page, '.dash-head h1')), 'UI-C5 the revenue card says what "received" means, the sales card what "ordered" means, and the welcome line greets the user')
   const tabsDash = await a.page.$$eval('.dash-tabs [role="tab"]', (els) => els.map((e) => e.innerText.trim()))
   check(JSON.stringify(tabsDash) === JSON.stringify(['Today', '7 days', '30 days', 'This month', 'All time']), 'UI-G1 the date tabs: Today, 7 days, 30 days, This month, All time', tabsDash)
   await tap(a.page, '[data-range="all"]')

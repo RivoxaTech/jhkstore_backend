@@ -84,6 +84,8 @@ class AdminOrderResource extends JsonResource
             // what the buttons of the admin screen may do from here
             'actions' => [
                 'next_status' => $next?->value,
+                // every status this order may be set to now (the panel's status menu): forward steps first, then cancel / reject
+                'allowed_statuses' => array_map(fn (OrderStatus $s) => $s->value, $o->status->next()),
                 'next_label' => $next ? ucfirst($next->value) : null,
                 'needs_shipping_details' => $next === OrderStatus::Shipped,
                 'can_cancel' => $o->status->isCancellable(),

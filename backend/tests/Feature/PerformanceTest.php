@@ -26,8 +26,8 @@ class PerformanceTest extends TestCase
 
     public function test_the_dashboard_has_a_covering_index_on_the_orders(): void
     {
-        $this->assertTrue(Schema::hasIndex('orders', 'orders_created_status_total_index'));
-        $this->assertTrue(Schema::hasIndex('orders', ['created_at', 'status', 'grand_total']));
+        $this->assertTrue(Schema::hasIndex('orders', 'orders_created_status_pay_total_index'));
+        $this->assertTrue(Schema::hasIndex('orders', ['created_at', 'status', 'payment_status', 'grand_total']));
     }
 
     public function test_the_dashboard_costs_a_fixed_number_of_queries_and_adds_up_the_same(): void
@@ -55,7 +55,8 @@ class PerformanceTest extends TestCase
         $this->assertEquals(4, $k['total_orders']);
         $this->assertEquals(2, $k['pending_count']);
         $this->assertEquals(2, $k['cancelled_rejected_count']);
-        $this->assertEquals(round($revenue, 2), $k['revenue']);
+        $this->assertEquals(round($revenue, 2), $k['sales']);
+        $this->assertEquals(0, $k['revenue']);
         $this->assertEquals(round($revenue / 2, 2), $k['average_order_value']);
         $this->assertCount(1, array_filter($json['orders']['series']['points'], fn ($p) => $p['orders'] > 0));
         $this->assertEquals(2, array_sum(array_column($json['orders']['series']['points'], 'orders')), 'the chart counts the live orders only');

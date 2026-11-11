@@ -50,7 +50,7 @@ class OrderListStatusTest extends TestCase
         $order = $this->place();
         $this->actingAsAdmin();
         $this->postJson(self::ADMIN."/orders/{$order->id}/status", ['status' => 'confirmed'])->assertOk();
-        $this->assertSame(['packed', 'cancelled'], $this->row($order)['next_statuses']);
+        $this->assertSame(['packed', 'shipped', 'delivered', 'cancelled'], $this->row($order)['next_statuses']);
 
         $this->postJson(self::ADMIN."/orders/{$order->id}/status", ['status' => 'packed'])->assertOk();
         $this->postJson(self::ADMIN."/orders/{$order->id}/status", ['status' => 'shipped', 'courier' => 'FastShip', 'awb_number' => 'AWB1'])->assertOk();

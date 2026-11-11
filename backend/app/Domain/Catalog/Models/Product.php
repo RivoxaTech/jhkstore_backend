@@ -50,8 +50,8 @@ class Product extends Model implements HasMedia
 
     public function registerMediaConversions(?Media $media = null): void
     {
-        $this->addMediaConversion('thumb')->width(256)->height(256)->performOnCollections('images')->nonQueued();
-        $this->addMediaConversion('medium')->width(512)->height(512)->performOnCollections('images')->nonQueued();
+        $this->addMediaConversion('thumb')->width(256)->height(256)->performOnCollections('images')->nonQueued()->nonOptimized();
+        $this->addMediaConversion('medium')->width(512)->height(512)->performOnCollections('images')->nonQueued()->nonOptimized();
     }
 
     // ------------------------------------------------------------------ relations

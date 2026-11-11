@@ -38,7 +38,7 @@ class Banner extends Model implements HasMedia
 
     public function registerMediaConversions(?Media $media = null): void
     {
-        $this->addMediaConversion('thumb')->width(480)->performOnCollections('desktop', 'mobile')->nonQueued();
+        $this->addMediaConversion('thumb')->width(480)->performOnCollections('desktop', 'mobile')->nonQueued()->nonOptimized();
     }
 
     /** Active and inside its date window (an empty start / end is open-ended). */

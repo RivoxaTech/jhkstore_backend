@@ -21,6 +21,9 @@ class Dashboard
 
     public const VOID = ['cancelled', 'rejected'];
 
+    /** Money that has been RECEIVED: the order is accepted (not pending, not cancelled / rejected) and paid - a verified bank transfer, or cash on delivery once delivered. */
+    public const RECEIVED = "payment_status = 'paid' AND status NOT IN ('pending', 'cancelled', 'rejected')";
+
     /** @return array{key:string, label:string, from:?CarbonInterface, to:CarbonInterface} `from` null = all time; both in shop time */
     public function range(string $key): array
     {
@@ -45,8 +48,8 @@ class Dashboard
         $live = fn () => $orders()->whereNotIn('orders.status', self::VOID);
 
         // ONE pass over the range for all the cards (count, cancelled / rejected, pending, the money of the live orders): each extra query is a pass over the index
-        $all = $orders()->selectRaw('COUNT(*) as total, SUM(status IN (\'cancelled\', \'rejected\')) as void, SUM(status = \'pending\') as pending, COALESCE(SUM(CASE WHEN status = \'pending\' THEN grand_total ELSE 0 END), 0) as pending_amount, COALESCE(SUM(CASE WHEN status NOT IN (\'cancelled\', \'rejected\') THEN grand_total ELSE 0 END), 0) as revenue')->first();
-        $paid = (object) ['total' => (int) $all->total - (int) $all->void, 'revenue' => $all->revenue];
+        $all = $orders()->selectRaw('COUNT(*) as total, SUM(status IN (\'cancelled\', \'rejected\')) as void, SUM(status = \'pending\') as pending, COALESCE(SUM(CASE WHEN status = \'pending\' THEN grand_total ELSE 0 END), 0) as pending_amount, COALESCE(SUM(CASE WHEN status NOT IN (\'cancelled\', \'rejected\') THEN grand_total ELSE 0 END), 0) as sales, COALESCE(SUM(CASE WHEN ' . self::RECEIVED . ' THEN grand_total ELSE 0 END), 0) as revenue')->first();
+        $paid = (object) ['total' => (int) $all->total - (int) $all->void, 'sales' => $all->sales, 'revenue' => $all->revenue];
 
         $awaitingProof = $orders()->where('orders.status', 'pending')->where('orders.payment_method', 'bank_transfer')
             ->whereExists(fn ($q) => $q->select(DB::raw(1))->from('payments')->whereColumn('payments.payable_id', 'orders.id')->where('payments.payable_type', Payment::ORDER)
@@ -61,15 +64,16 @@ class Dashboard
             'revenue_today' => (float) $today->revenue,
             'pending' => (int) DB::table('orders')->where('status', 'pending')->count(),
             'kpis' => [
-                'revenue' => (float) $paid->revenue,
+                'sales' => (float) $paid->sales,       // what was ordered (cancelled and rejected orders left out)
+                'revenue' => (float) $paid->revenue,   // what was received: a bank transfer that was verified on a confirmed order, cash on delivery once delivered
                 'pending_amount' => (float) $all->pending_amount,
                 'total_orders' => (int) $all->total,
-                'average_order_value' => $paid->total > 0 ? round((float) $paid->revenue / $paid->total, 2) : 0.0,
+                'average_order_value' => $paid->total > 0 ? round((float) $paid->sales / $paid->total, 2) : 0.0,
                 'pending_count' => (int) $all->pending,
                 'cancelled_rejected_count' => (int) $all->void,
                 'awaiting_proof_count' => $awaitingProof,
             ],
-            'comparison' => $this->comparison($range, ['revenue' => (float) $paid->revenue, 'total_orders' => (int) $all->total, 'average_order_value' => $paid->total > 0 ? round((float) $paid->revenue / $paid->total, 2) : 0.0]),
+            'comparison' => $this->comparison($range, ['sales' => (float) $paid->sales, 'revenue' => (float) $paid->revenue, 'total_orders' => (int) $all->total]),
             'series' => $this->series($live, $range),
             'top_products' => $this->topProducts($range),
             'recent' => $this->recent($orders),
@@ -132,14 +136,13 @@ class Dashboard
         return ['from' => $from->copy()->subDays($days)->startOfDay(), 'to' => $before];
     }
 
-    /** Revenue (not counting cancelled or rejected), orders placed and the average order of a period. */
+    /** Sales (ordered, not counting cancelled or rejected), revenue (received) and orders placed in a period. */
     private function figures(array $range): array
     {
         $base = fn () => DB::table('orders')->when($range['from'], fn ($q, $from) => $q->where('created_at', '>=', $from->format('Y-m-d H:i:s')))->where('created_at', '<=', $range['to']->format('Y-m-d H:i:s'));
-        $row = $base()->selectRaw('COUNT(*) as total, SUM(status IN (\'cancelled\', \'rejected\')) as void, COALESCE(SUM(CASE WHEN status NOT IN (\'cancelled\', \'rejected\') THEN grand_total ELSE 0 END), 0) as revenue')->first();
-        $live = (int) $row->total - (int) $row->void;
+        $row = $base()->selectRaw('COUNT(*) as total, COALESCE(SUM(CASE WHEN status NOT IN (\'cancelled\', \'rejected\') THEN grand_total ELSE 0 END), 0) as sales, COALESCE(SUM(CASE WHEN ' . self::RECEIVED . ' THEN grand_total ELSE 0 END), 0) as revenue')->first();
 
-        return ['revenue' => (float) $row->revenue, 'total_orders' => (int) $row->total, 'average_order_value' => $live > 0 ? round((float) $row->revenue / $live, 2) : 0.0];
+        return ['sales' => (float) $row->sales, 'revenue' => (float) $row->revenue, 'total_orders' => (int) $row->total];
     }
 
     /** @return array{from:string, to:string, previous:array, change:array}|null  the figures of the previous period and the change in percent (null where the previous period had none) */

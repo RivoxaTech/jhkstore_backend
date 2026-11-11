@@ -78,6 +78,7 @@ async function load() {
   }
 }
 
+watch(() => ui.productsVersion, () => load())
 onMounted(() => catalog.load().catch(e => { error.value = e.message }))
 watch(() => route.fullPath, load, { immediate: true })
 watch(() => route.query.q, (v) => { search.value = String(v || '') })

@@ -2,7 +2,10 @@
 
 namespace App\Domain\Order\Enums;
 
-/** pending -> confirmed -> packed -> shipped -> delivered, plus cancelled (only before shipping) and rejected (only from pending, with a reason). */
+/**
+ * pending -> confirmed, then any later step: packed, shipped or delivered directly (the shop may skip steps once it has accepted the order), plus cancelled
+ * (only before shipping) and rejected (only from pending). A pending order is accepted (confirmed) first.
+ */
 enum OrderStatus: string
 {
     case Pending = 'pending';
@@ -19,13 +22,13 @@ enum OrderStatus: string
         return array_column(self::cases(), 'value');
     }
 
-    /** Statuses an order can move to from this one (a single forward step, or cancel while it has not shipped). */
+    /** Statuses an order can move to from this one (any later step once it is confirmed, or cancel while it has not shipped). */
     public function next(): array
     {
         return match ($this) {
             self::Pending => [self::Confirmed, self::Cancelled, self::Rejected],
-            self::Confirmed => [self::Packed, self::Cancelled],
-            self::Packed => [self::Shipped, self::Cancelled],
+            self::Confirmed => [self::Packed, self::Shipped, self::Delivered, self::Cancelled],
+            self::Packed => [self::Shipped, self::Delivered, self::Cancelled],
             self::Shipped => [self::Delivered],
             self::Delivered, self::Cancelled, self::Rejected => [],
         };

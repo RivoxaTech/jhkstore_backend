@@ -9,6 +9,7 @@ import { useSiteStore } from '@/stores/site.js'
 import AppModal from '@/components/AppModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import StatusMenu from '@/components/StatusMenu.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import { currencySymbol, formatDate, money, whatsappUrl } from '@/utils/format.js'
 
@@ -90,6 +91,15 @@ const taxLabel = computed(() => {
   return totals.value.tax_inclusive ? `${base} (incl.)` : base
 })
 const hasTax = computed(() => has(totals.value, 'tax_total') && (Number(totals.value.tax_total) > 0 || !totals.value.tax_inclusive))
+// the packing slip tells the courier what to collect: cash on delivery = the amount; paid = nothing
+const payBox = computed(() => {
+  const p = o.value?.payment
+  if (!p) return null
+  const due = Number(p.collect_on_delivery || 0)
+  if (p.method === 'cod' && due > 0) return { tone: 'due', title: 'Cash on delivery', line: `Collect ${money(due)} from the customer` }
+  if (p.status === 'paid') return { tone: 'paid', title: 'Paid', line: 'Nothing to collect' }
+  return { tone: 'wait', title: p.method_label, line: `Payment ${String(p.status).replace('_', ' ')}` }
+})
 const storeAddress = computed(() => String(site.store.address || '').split(/\r?\n/).filter(Boolean))
 const sameAddress = computed(() => JSON.stringify(o.value?.shipping_address) === JSON.stringify(o.value?.billing_address))
 // the delivery fee row: null = the fee is not confirmed yet
@@ -103,6 +113,12 @@ const NEXT = {
   delivered: { title: 'Mark as delivered', button: 'Mark as delivered', tone: 'success', icon: Check },
 }
 const next = computed(() => (o.value?.actions.next_status ? NEXT[o.value.actions.next_status] : null))
+// the status menu: the current status and every LATER step the order may be set to (cancel and reject have their own buttons); only worth showing when there is a choice
+const forwardOptions = computed(() => {
+  const allowed = (o.value?.actions?.allowed_statuses || []).filter((s) => s !== 'cancelled' && s !== 'rejected')
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1)
+  return [{ value: o.value?.status, label: cap(o.value?.status || '') }, ...allowed.map((s) => ({ value: s, label: cap(s), disabled: s === 'confirmed' && Boolean(o.value?.actions?.blocked_reason), hint: s === 'confirmed' ? blockedTitle.value : '' }))]
+})
 
 // the order is still waiting for something: say what, and keep the Confirm button off (the API would answer 422 with the same code)
 const BLOCKED = {
@@ -236,6 +252,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
       <button class="btn btn-outline" type="button" @click="print('invoice')"><Printer :size="16" /> Print invoice</button>
       <button class="btn btn-outline" type="button" @click="print('slip')"><FileText :size="16" /> Packing slip</button>
       <a v-if="whatsapp" class="btn btn-outline" :href="whatsapp" target="_blank" rel="noopener" data-testid="whatsapp"><MessageCircle :size="16" /> WhatsApp</a>
+      <StatusMenu v-if="canManage && forwardOptions.length > 2" size="md" :status="o.status" :options="forwardOptions" :disabled="busy" aria-label="Change the status of this order" data-testid="status-menu-btn" @pick="openAction" />
       <button v-if="canManage && o.actions.can_cancel" class="btn btn-soft-danger" type="button" @click="openAction('cancelled')"><Ban :size="16" /> Cancel order</button>
       <button v-if="canManage && o.actions.can_reject" class="btn btn-soft-danger" type="button" data-reject-order @click="openAction('rejected')"><CircleX :size="16" /> Reject order</button>
       <span v-if="canManage && next && blockedText" class="muted" data-blocked :data-reason="o.actions.blocked_reason" style="max-width: 220px; line-height: 1.25">{{ blockedText }}</span>
@@ -299,7 +316,8 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
                   <button v-if="proofUrl" class="proof-thumb" type="button" title="Click to enlarge" data-proof-thumb @click="zoom = true">
                     <img :src="proofUrl" alt="Payment proof" data-proof-img /><span class="proof-zoom"><ZoomIn :size="16" /></span>
                   </button>
-                  <p v-else-if="proofState === 'loading'" class="muted" style="margin: 0">Loading the picture...</p>
+                  <!-- the screenshot is a private file fetched on its own: until it arrives a frame of the same shape shows where it will appear -->
+                  <div v-else-if="proofState !== 'error'" class="skeleton proof-skel" role="img" aria-label="Loading the payment screenshot" data-testid="proof-skeleton" />
                   <p v-else-if="proofState === 'error'" class="err" style="margin: 0">The picture could not be loaded. <button class="btn btn-outline btn-sm" type="button" @click="loadProof">Retry</button></p>
                 </div>
                 <p v-else class="muted" style="margin: 0" data-no-proof>The customer has not uploaded a proof yet.</p>
@@ -438,54 +456,71 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
       </div>
     </div>
 
-    <!-- Printed version (invoice or packing slip); only visible when printing -->
+    <!-- Printed version (invoice or packing slip); only visible when printing. Logo (it carries the name) on the left, phone and e-mail on the right, then the
+         title with the order facts, the addresses, the items, the totals. The packing slip adds a box that says what the courier collects. -->
     <div class="print-sheet" :class="{ 'is-slip': printMode === 'slip' }">
-      <div class="ps-head">
-        <img v-if="site.logoUrl" class="ps-logo" :src="site.logoUrl" :alt="site.name" />
-        <div>
-          <h1>{{ site.name }}</h1>
-          <div v-for="line in storeAddress" :key="line">{{ line }}</div>
-          <div v-if="site.store.phone || site.store.email">{{ [site.store.phone, site.store.email].filter(Boolean).join(' · ') }}</div>
+      <header class="ps-top">
+        <div class="ps-brand"><img v-if="site.logoUrl" class="ps-logo" :src="site.logoUrl" :alt="site.name" /><strong v-else class="ps-name">{{ site.name }}</strong></div>
+        <div class="ps-contact">
+          <div v-if="site.store.phone">{{ site.store.phone }}</div>
+          <div v-if="site.store.email">{{ site.store.email }}</div>
         </div>
+      </header>
+
+      <div class="ps-title">
+        <h1>{{ printMode === 'slip' ? 'Packing slip' : 'Invoice' }}</h1>
+        <dl class="ps-facts">
+          <div><dt>Order</dt><dd>{{ o.order_number }}</dd></div>
+          <div><dt>Date</dt><dd>{{ formatDate(o.placed_at, true) }}</dd></div>
+          <div><dt>Payment</dt><dd>{{ o.payment.method_label }} · {{ o.payment.status.replace('_', ' ') }}</dd></div>
+        </dl>
       </div>
-      <div><strong>{{ printMode === 'slip' ? 'Packing slip' : 'Invoice' }}</strong> · Order {{ o.order_number }} · {{ formatDate(o.placed_at, true) }}</div>
-      <div>Payment: {{ o.payment.method_label }} ({{ o.payment.status.replace('_', ' ') }})</div>
+
       <div class="ps-grid">
-        <div>
-          <strong>Ship to</strong>
-          <div>{{ o.shipping_address.name }}</div>
+        <div class="ps-box">
+          <h3>Ship to</h3>
+          <div class="ps-strong">{{ o.shipping_address.name }}</div>
           <div v-for="line in addressLines(o.shipping_address)" :key="line">{{ line }}</div>
           <div>Phone: {{ o.shipping_address.phone }}</div>
         </div>
-        <div v-if="printMode !== 'slip'">
-          <strong>Bill to</strong>
-          <div>{{ o.billing_address.name }}</div>
+        <div v-if="printMode !== 'slip'" class="ps-box">
+          <h3>Bill to</h3>
+          <div class="ps-strong">{{ o.billing_address.name }}</div>
           <div v-for="line in addressLines(o.billing_address)" :key="line">{{ line }}</div>
         </div>
+        <div v-else-if="payBox" class="ps-box ps-pay" :class="`is-${payBox.tone}`" data-pay-box>
+          <h3>{{ payBox.title }}</h3>
+          <div class="ps-pay__line">{{ payBox.line }}</div>
+        </div>
       </div>
-      <table>
-        <thead><tr><th>#</th><th>Item</th><th>SKU</th><th class="num">Qty</th><th class="num price-col">Unit price</th><th class="num price-col">Total</th></tr></thead>
+
+      <table class="ps-items">
+        <thead><tr><th class="ps-n">#</th><th>Item</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Total</th></tr></thead>
         <tbody>
           <tr v-for="(i, idx) in o.items" :key="i.id">
-            <td>{{ idx + 1 }}</td><td>{{ i.name }}<template v-if="i.option_name && i.option_name !== i.name"> - {{ i.option_name }}</template></td><td>{{ i.sku }}</td>
-            <td class="num">{{ i.qty }}</td><td class="num price-col">{{ money(i.unit_price) }}</td><td class="num price-col">{{ money(i.line_total) }}</td>
+            <td class="ps-n">{{ idx + 1 }}</td><td>{{ i.name }}<template v-if="i.option_name && i.option_name !== i.name"> - {{ i.option_name }}</template></td><td>{{ i.sku }}</td>
+            <td class="num">{{ i.qty }}</td><td class="num">{{ money(i.unit_price) }}</td><td class="num">{{ money(i.line_total) }}</td>
           </tr>
         </tbody>
       </table>
-      <div v-if="printMode !== 'slip'" class="ps-totals">
+
+      <div class="ps-totals">
         <div><span>Items total (regular prices)</span><span>{{ money(totals.items_total) }}</span></div>
         <div v-if="totals.product_discount > 0"><span>Product discount</span><span>- {{ money(totals.product_discount) }}</span></div>
         <div v-if="totals.bulk_discount > 0"><span>Bulk-offer discount</span><span>- {{ money(totals.bulk_discount) }}</span></div>
         <div v-if="totals.discount_total > 0"><span>Discount</span><span>- {{ money(totals.discount_total) }}</span></div>
-        <div v-if="totals.coupon_discount > 0"><span>{{ totals.coupon_code ? `Coupon ${totals.coupon_code}` : "Coupon" }}</span><span>- {{ money(totals.coupon_discount) }}</span></div>
+        <div v-if="totals.coupon_discount > 0"><span>{{ totals.coupon_code ? `Coupon ${totals.coupon_code}` : 'Coupon' }}</span><span>- {{ money(totals.coupon_discount) }}</span></div>
         <div><span>Delivery</span><span>{{ deliveryText }}</span></div>
         <div v-if="hasTax && !totals.tax_inclusive"><span>{{ taxLabel }}</span><span>{{ money(totals.tax_total) }}</span></div>
-        <div class="grand"><span>Total</span><span>{{ money(totals.grand_total) }}</span></div>
-        <div v-if="hasTax && totals.tax_inclusive"><span>{{ taxLabel }}</span><span>{{ money(totals.tax_total) }}</span></div>
-        <div v-if="totals.tax_note"><span>{{ totals.tax_note }}</span><span /></div>
+        <div class="grand"><span>{{ printMode === 'slip' && payBox && payBox.tone === 'due' ? 'To pay' : 'Total' }}</span><span>{{ money(totals.grand_total) }}</span></div>
+        <div v-if="hasTax && totals.tax_inclusive" class="ps-note"><span>{{ taxLabel }} included</span><span>{{ money(totals.tax_total) }}</span></div>
+        <div v-if="totals.tax_note && !hasTax" class="ps-note"><span>{{ totals.tax_note }}</span><span /></div>
       </div>
-      <p v-if="o.customer_note" style="margin-top: 12px"><strong>Customer note:</strong> {{ o.customer_note }}</p>
+
+      <p v-if="o.customer_note" class="ps-note-box"><strong>Customer note:</strong> {{ o.customer_note }}</p>
+      <p class="ps-thanks">Thank you for shopping with {{ site.name }}.</p>
     </div>
+
   </template>
 
   <ConfirmDialog
@@ -516,6 +551,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
 <style scoped>
 .proof-thumb { position: relative; display: block; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--muted-soft); cursor: zoom-in; padding: 0; max-width: 100%; }
 .proof-thumb { aspect-ratio: 3 / 4; width: 168px; }   /* a phone screenshot is 3:4 portrait: the frame has that shape, the picture is shown whole inside it */
+.proof-skel { aspect-ratio: 3 / 4; width: 168px; max-width: 100%; border-radius: 10px; }
 .proof-thumb img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .proof-zoom { position: absolute; right: 6px; bottom: 6px; background: rgba(15, 23, 42, .65); color: #fff; border-radius: 6px; padding: 3px; display: grid; }
 .acct-show { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }

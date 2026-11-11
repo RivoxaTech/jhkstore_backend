@@ -76,7 +76,8 @@ class DashboardRangeTest extends TestCase
         $k = $this->dashboard('today')->json('orders.kpis');
 
         $this->assertSame(5, $k['total_orders']);
-        $this->assertEquals(160 + 320 + 160, $k['revenue']);                 // pending + confirmed + bank order; not the cancelled or the rejected
+        $this->assertEquals(160 + 320 + 160, $k['sales']);                   // pending + confirmed + bank order; not the cancelled or the rejected
+        $this->assertEquals(0, $k['revenue']);                                // nothing is RECEIVED yet: cash on delivery is not delivered, the transfer is not verified
         $this->assertEquals(round((160 + 320 + 160) / 3, 2), $k['average_order_value']);
         $this->assertSame(2, $k['pending_count']);                            // the first one and the bank order
         $this->assertEquals(160 + 160, $k['pending_amount']);

@@ -39,6 +39,8 @@ class SaveProductRequest extends FormRequest
             $this->merge(['sku' => $this->makeSku((string) $this->input('name'))]);
         }
 
+        $this->fillOptionSkus($product);
+
         if (! $this->has('variants') && ($this->has('mrp') || $this->has('selling_price'))) {
             $this->flat = true;
             $default = $product?->variants()->orderByDesc('is_default')->orderBy('id')->first();
@@ -231,6 +233,39 @@ class SaveProductRequest extends FormRequest
                 $validator->errors()->add("variants.$i.sku", 'This SKU is already used by another variant.');
             }
         }
+    }
+
+    /**
+     * An option of a product with several options that comes without a SKU gets one: the product's SKU plus the first number that is free (SKU-2, SKU-3...),
+     * never the same as another option of this request or an option anywhere in the shop. (The panel fills the same pattern in as you add options.)
+     */
+    private function fillOptionSkus(mixed $product): void
+    {
+        $rows = $this->input('variants');
+        if (! is_array($rows) || count($rows) < 2) {
+            return;
+        }
+        $base = trim((string) ($this->input('sku') ?: $product?->sku));
+        if ($base === '') {
+            return;
+        }
+        $taken = array_map('strtolower', array_filter(array_map(fn ($r) => is_array($r) ? trim((string) ($r['sku'] ?? '')) : '', $rows)));
+        foreach ($rows as $i => $row) {
+            if (! is_array($row) || trim((string) ($row['sku'] ?? '')) !== '') {
+                continue;
+            }
+            for ($n = 2; ; $n++) {
+                $sku = mb_substr($base, 0, 75).'-'.$n;
+                $free = ! in_array(strtolower($sku), $taken, true)
+                    && ! DB::table('product_variants')->where('sku', $sku)->when($row['id'] ?? null, fn ($q, $id) => $q->where('id', '!=', $id))->exists();
+                if ($free) {
+                    break;
+                }
+            }
+            $taken[] = strtolower($sku);
+            $rows[$i]['sku'] = $sku;
+        }
+        $this->merge(['variants' => $rows]);
     }
 
     /** A SKU from the product name that no product or option uses yet. */

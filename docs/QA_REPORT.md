@@ -232,3 +232,6 @@ Bugs found and fixed in this round: see [CHANGELOG.md](../CHANGELOG.md) (status 
 
 Not tested here (needs a person): a real browser push on your machine (headless Chrome has no push service), the real mail server of the client, Safari and Firefox, a phone on the network, a deploy behind Apache / Nginx.
 Left as they are, on purpose: two admins editing the same product - the last save wins, there is no "someone else changed this" warning; a product can be deleted while it is in open orders (the orders keep their lines, the stock is not put back anywhere).
+
+### Round F, part 2 (the owner's list of 11 changes)
+PHPUnit 591 tests (590 pass, 1 skipped as before; new: `DashboardRevenueTest`, `ProductOptionSkuTest`, status-jump tests in `AdminOrderTest`), `flow-ui` all checks pass (invoice / packing slip / dashboard cards / status checks updated), `frontend/tests/e2e.mjs` 151 / 151, `scripts/adversarial.mjs` 165, `frontend/tests/journey.mjs` 90 (new: the status menu jumps a confirmed order to Delivered, the four dashboard cards, Revenue grows by a delivered cash order, the packing slip says what to collect, the print header layout).

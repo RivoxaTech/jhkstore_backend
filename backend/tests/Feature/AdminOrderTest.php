@@ -246,7 +246,27 @@ class AdminOrderTest extends TestCase
         $this->assertSame(4, DB::table('audit_logs')->where('subject_type', 'Order')->where('subject_id', $order->id)->where('action', 'order.status_changed')->count());
     }
 
-    public function test_steps_cannot_be_skipped_or_reversed(): void
+    public function test_a_confirmed_order_may_skip_straight_to_a_later_step_but_never_go_back(): void
+    {
+        $order = $this->orderFor();
+        $this->asAdmin();
+        $this->setStatus($order, 'confirmed')->assertOk()->assertJsonPath('data.actions.allowed_statuses', ['packed', 'shipped', 'delivered', 'cancelled']);
+
+        $this->setStatus($order, 'delivered')->assertOk()->assertJsonPath('data.status', 'delivered');
+        $fresh = DB::table('orders')->where('id', $order->id)->first();
+        $this->assertNotNull($fresh->shipped_at, 'delivered without a shipping step: it left and arrived');
+        $this->assertSame('paid', $fresh->payment_status, 'cash on delivery is collected');
+        $this->setStatus($order, 'packed')->assertStatus(422)->assertJsonPath('code', 'invalid_status_change');
+        $this->setStatus($order, 'cancelled')->assertStatus(422)->assertJsonPath('code', 'invalid_status_change');
+
+        $packed = $this->orderFor(['phone' => '+15550100008']);
+        $this->asAdmin();   // placing an order as a guest logs the admin out of the test
+        $this->setStatus($packed, 'confirmed')->assertOk();
+        $this->setStatus($packed, 'packed')->assertOk()->assertJsonPath('data.actions.allowed_statuses', ['shipped', 'delivered', 'cancelled']);
+        $this->setStatus($packed, 'delivered')->assertOk();
+    }
+
+    public function test_a_pending_order_must_be_accepted_first_and_nothing_is_reversed(): void
     {
         $order = $this->orderFor();
         $this->asAdmin();

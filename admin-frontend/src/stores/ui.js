@@ -15,6 +15,7 @@ export const useUiStore = defineStore('ui', () => {
   // Counters that go up whenever the server says orders / wholesale requests changed: the screens that list them watch these and reload quietly (real time)
   const ordersVersion = ref(0)
   const wholesaleVersion = ref(0)
+  const productsVersion = ref(0)   // moves when pictures finish uploading in the background: an open product list reloads quietly
   // In-panel alert sound: a short chime when something new arrives while the panel is open. The choice is kept in this browser only.
   const soundMuted = ref(read('admin_sound_muted') === '1')
   const soundReady = ref(typeof navigator !== 'undefined' && navigator.userActivation?.hasBeenActive === true) // browsers play sound only after a click on the page
@@ -41,5 +42,5 @@ export const useUiStore = defineStore('ui', () => {
 
   const dismiss = (id) => { toasts.value = toasts.value.filter(t => t.id !== id) }
 
-  return { sidebarCollapsed, mobileSidebarOpen, toasts, pendingOrders, newWholesale, ordersVersion, wholesaleVersion, soundMuted, soundReady, setMuted, toggleSidebar, toast, dismiss }
+  return { sidebarCollapsed, mobileSidebarOpen, toasts, pendingOrders, newWholesale, ordersVersion, wholesaleVersion, productsVersion, soundMuted, soundReady, setMuted, toggleSidebar, toast, dismiss }
 })

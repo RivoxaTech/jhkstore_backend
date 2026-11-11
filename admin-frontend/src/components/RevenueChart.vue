@@ -111,11 +111,11 @@ function key(event) {
 <template>
   <div class="chart" data-testid="revenue-chart">
     <div class="chart__legend">
-      <span><i class="sw sw--area" /> Revenue</span>
+      <span><i class="sw sw--area" /> Sales</span>
       <span><i class="sw sw--line" /> Orders</span>
     </div>
     <div class="chart__stage">
-      <svg ref="svg" :viewBox="`0 0 ${W} ${H}`" role="img" tabindex="0" :aria-label="`Revenue and orders: ${money(totals.revenue)} from ${totals.orders} orders in ${n} ${granularity === 'month' ? 'months' : 'days'}. Use the arrow keys to read each ${granularity === 'month' ? 'month' : 'day'}.`" preserveAspectRatio="xMidYMid meet"
+      <svg ref="svg" :viewBox="`0 0 ${W} ${H}`" role="img" tabindex="0" :aria-label="`Sales and orders: ${money(totals.revenue)} from ${totals.orders} orders in ${n} ${granularity === 'month' ? 'months' : 'days'}. Use the arrow keys to read each ${granularity === 'month' ? 'month' : 'day'}.`" preserveAspectRatio="xMidYMid meet"
         @mousemove="pick" @mouseleave="hover = null" @touchstart.passive="pick($event.touches[0])" @touchmove.passive="pick($event.touches[0])" @keydown="key" @blur="hover = null">
         <defs>
           <linearGradient id="rc-fill" x1="0" y1="0" x2="0" y2="1">

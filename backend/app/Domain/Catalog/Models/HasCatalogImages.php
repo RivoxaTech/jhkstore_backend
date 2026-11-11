@@ -18,6 +18,6 @@ trait HasCatalogImages
 
     public function registerMediaConversions(?Media $media = null): void
     {
-        $this->addMediaConversion('thumb')->width(256)->height(256)->performOnCollections('icon')->nonQueued();
+        $this->addMediaConversion('thumb')->width(256)->height(256)->performOnCollections('icon')->nonQueued()->nonOptimized();
     }
 }

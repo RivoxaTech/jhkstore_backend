@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { Activity, ArrowDownRight, ArrowUpRight, Clock, PackageSearch, Plus, ReceiptText, ShoppingBag, TrendingUp, Wallet } from '@lucide/vue'
+import { Activity, ArrowDownRight, ArrowUpRight, PackageSearch, Plus, ReceiptText, ShoppingBag, Store, TrendingUp, Wallet } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { api } from '@/api/client.js'
@@ -68,13 +68,14 @@ const cards = computed(() => {
   const list = []
   if (k) {
     list.push(
-      { id: 'revenue', label: 'Revenue', value: money(k.revenue), under: `Pending ${money(k.pending_amount)}`, change: change('revenue', money), icon: Wallet, tint: 'peach', to: { name: 'orders', query: fromQuery.value } },
-      { id: 'orders', label: 'Total orders', value: k.total_orders, under: 'Placed in this period', change: change('total_orders'), icon: ShoppingBag, tint: 'green', to: { name: 'orders', query: fromQuery.value } },
-      { id: 'aov', label: 'Average order value', value: money(k.average_order_value), under: 'Revenue per order', change: change('average_order_value', money), icon: ReceiptText, tint: 'blue', to: { name: 'orders', query: fromQuery.value } },
-      { id: 'pending', label: 'Pending orders', value: k.pending_count, under: 'Waiting to be confirmed', icon: Clock, tint: 'mint', to: { name: 'orders', query: { status: 'pending', ...fromQuery.value } } },
+      { id: 'sales', label: 'Sales', value: money(k.sales), under: 'Ordered in this period', change: change('sales', money), icon: ReceiptText, tint: 'peach', to: { name: 'orders', query: fromQuery.value } },
+      { id: 'revenue', label: 'Revenue', value: money(k.revenue), under: 'Received: verified transfers and delivered cash orders', change: change('revenue', money), icon: Wallet, tint: 'green', to: { name: 'orders', query: fromQuery.value } },
+      { id: 'orders', label: 'Orders', value: k.total_orders, under: `${k.pending_count} waiting to be confirmed`, change: change('total_orders'), icon: ShoppingBag, tint: 'blue', to: { name: 'orders', query: fromQuery.value } },
     )
   }
-  // four cards for the orders (the sidebar badges already show pending orders and new wholesale requests); the developer, who has no orders, gets the low-stock card
+  // Sales (ordered), Revenue (received), Orders and Wholesale; the developer, who has no orders, gets the low-stock card
+  const w = data.value?.wholesale
+  if (k && w) list.push({ id: 'wholesale', label: 'Wholesale', value: w.in_range, under: `${w.new} new, waiting for an answer`, icon: Store, tint: 'mint', to: { name: 'wholesale' } })
   if (!k && catalog.value) list.push({ id: 'low-stock', label: 'Low stock', value: catalog.value.low_stock, under: 'Options at or below their alert level', icon: PackageSearch, tint: 'pink', to: { name: 'products', query: { stock: 'low' } } })
   return list
 })
@@ -151,7 +152,7 @@ function describe(a) {
     </section>
   </div>
 
-  <div v-if="orders || catalog" class="dash-row dash-row--orders">
+  <div v-if="orders || catalog" class="dash-row dash-row--orders" :class="{ 'dash-row--solo': !catalog }">
     <section v-if="orders" class="card">
       <div class="card__head">
         <h2>Recent orders</h2>
@@ -262,6 +263,7 @@ a.kpi:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 .dash-row { display: grid; gap: 10px; margin-bottom: 10px; align-items: start; }
 .dash-row--chart { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); }
 .dash-row--orders { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); }
+.dash-row--solo { grid-template-columns: minmax(0, 1fr); }   /* the recent orders use the whole width when nothing sits beside them */
 @media (max-width: 1100px) { .dash-row--chart, .dash-row--orders { grid-template-columns: minmax(0, 1fr); } }
 .card__head h2 { display: flex; align-items: center; gap: 6px; }
 .empty-note { display: flex; gap: 10px; align-items: center; color: var(--text-3); font-size: 12.5px; }
@@ -276,7 +278,7 @@ a.kpi:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 .top-list__sold strong { color: var(--text); font-weight: 600; }
 
 .quick { display: flex; gap: 6px; flex-wrap: wrap; }
-table.table--recent { min-width: 560px; }
+table.table--recent { width: 100%; }
 .table--recent th, .table--recent td { padding-left: 14px; padding-right: 10px; }
 .table--recent .num { text-align: right; }
 .table--recent td { height: 40px; }

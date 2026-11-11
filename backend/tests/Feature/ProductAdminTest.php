@@ -224,10 +224,10 @@ class ProductAdminTest extends TestCase
             ['name' => 'A', 'sku' => 'SAME', 'mrp' => 10, 'selling_price' => 9],
             ['name' => 'B', 'sku' => 'SAME', 'mrp' => 10, 'selling_price' => 9],
         ]]))->assertUnprocessable()->assertJsonValidationErrors('variants.1.sku');
-        // options need a name and a SKU
+        // options need a name (a missing SKU is made for them: NEW-3-2)
         $this->create($this->simplePayload($category, ['sku' => 'NEW-3', 'variants' => [
             ['mrp' => 10, 'selling_price' => 9], ['name' => 'B', 'sku' => 'B3', 'mrp' => 10, 'selling_price' => 9],
-        ]]))->assertUnprocessable()->assertJsonValidationErrors(['variants.0.name', 'variants.0.sku']);
+        ]]))->assertUnprocessable()->assertJsonValidationErrors(['variants.0.name'])->assertJsonMissingValidationErrors('variants.0.sku');
     }
 
     public function test_other_field_rules(): void

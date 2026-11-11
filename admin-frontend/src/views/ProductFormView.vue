@@ -131,9 +131,26 @@ watch(() => form.name, (now, before) => {
   const v = variants.value[0]
   if (variants.value.length === 1 && v && (v.name === '' || v.name === before)) v.name = now
 })
+// The SKU of every further option is made from the product's: SNAKE-TRAIN, SNAKE-TRAIN-2, SNAKE-TRAIN-3 (the first free number, never the same twice). It follows the
+// product SKU while the admin has not typed an own one; the server makes the same SKU when an option comes without one.
+const optionSku = () => {
+  const base = form.sku.trim()
+  if (!base) return ''
+  const used = new Set(variants.value.map(v => String(v.sku).trim().toLowerCase()))
+  for (let n = 2; ; n++) if (!used.has(`${base}-${n}`.toLowerCase())) return `${base}-${n}`
+}
 watch(() => form.sku, (now, before) => {
   const v = variants.value[0]
   if (variants.value.length === 1 && v && (v.sku === '' || v.sku === before)) v.sku = now
+  if (variants.value.length > 1) {
+    if (v && v.sku === before) v.sku = now
+    variants.value.slice(1).forEach((r) => {
+      // "<old product sku>-<number>": an option SKU that was made for you follows the product SKU; one the admin typed is left alone
+      const rest = before && String(r.sku).startsWith(`${before}-`) ? String(r.sku).slice(before.length + 1) : ''
+      const m = /^\d+$/.test(rest) ? [null, rest] : null
+      if (r.sku === '' || m) r.sku = r.sku === '' ? optionSku() : `${now}-${m[1]}`
+    })
+  }
 })
 
 // ---- errors
@@ -201,7 +218,7 @@ function applyProduct(p) {
 }
 
 // ---- options
-const addVariant = () => variants.value.push(blankVariant())
+const addVariant = () => variants.value.push(blankVariant({ sku: optionSku() }))   // the SKU is made for you
 
 // The default option is the one preselected on the product page. It is always an active option.
 const activeCount = computed(() => variants.value.filter(v => v.is_active).length)
@@ -356,14 +373,17 @@ async function submit() {
       else ui.toast('Product saved.')
     } else {
       const res = await api.post('admin/products', buildPayload())
-      const { failed } = await runUploads(res.data.id, collectUploads(res.data))
-      const videoFailed = await uploadVideos(res.data.id)
-      if (failed || videoFailed) {
-        ui.toast(`Product added, but ${failed ? `some pictures were not uploaded (${failed})` : `a video was not uploaded (${videoFailed})`}. Add ${failed ? 'them' : 'it'} here.`, 'error', 8000)
-        router.replace({ name: 'product-edit', params: { id: res.data.id } })   // the edit page lets the admin try again
-      } else {
+      const productId = res.data.id
+      const jobs = collectUploads(res.data)
+      if (!jobs.length && !pendingVideos.value.length) {
         ui.toast('Product added.')
         router.replace({ name: 'products' })
+      } else {
+        // the product exists now (about 0.1 s): go on to the list at once and finish the pictures and the video in the background (each picture is resized on the
+        // server, that takes a moment); the toasts say how it went
+        ui.toast('Product added. Its pictures and video are uploading in the background...', 'info', 6000)
+        router.replace({ name: 'products' })
+        finishUploads(productId, jobs)
       }
     }
   } catch (e) {
@@ -376,6 +396,15 @@ async function submit() {
   } finally {
     saving.value = false
   }
+}
+
+/** After a NEW product was saved: its pictures and videos go up while the admin is already on the next screen. */
+async function finishUploads(productId, jobs) {
+  const { failed } = await runUploads(productId, jobs)
+  const videoFailed = await uploadVideos(productId)
+  ui.productsVersion++   // the list (if it is open) shows the pictures now
+  if (failed || videoFailed) ui.toast(`The product was added, but ${failed ? `some pictures were not uploaded (${failed})` : `a video was not uploaded (${videoFailed})`}. Open it and add ${failed ? 'them' : 'it'} again.`, 'error', 9000)
+  else ui.toast('Pictures and video uploaded.')
 }
 
 function showErrors(message) {

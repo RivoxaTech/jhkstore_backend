@@ -71,11 +71,12 @@ class DashboardComparisonTest extends TestCase
         $c = $this->dashboard('7d')->json('orders.comparison');
 
         $this->assertSame(['2026-11-05', '2026-11-11'], [$c['from'], $c['to']]);
-        $this->assertEquals(160, $c['previous']['revenue']);
+        $this->assertEquals(160, $c['previous']['sales']);
+        $this->assertEquals(0, $c['previous']['revenue']);   // nothing was received yet (cash on delivery, not delivered)
         $this->assertSame(1, $c['previous']['total_orders']);
-        $this->assertEquals(100.0, $c['change']['revenue']);            // 320 against 160
+        $this->assertEquals(100.0, $c['change']['sales']);              // 320 against 160
+        $this->assertNull($c['change']['revenue']);                     // 0 received before: nothing to compare with
         $this->assertEquals(100.0, $c['change']['total_orders']);       // 2 against 1
-        $this->assertEquals(0.0, $c['change']['average_order_value']);  // 160 each time
     }
 
     public function test_no_change_is_given_when_the_previous_period_had_nothing_or_for_all_time(): void
@@ -84,7 +85,7 @@ class DashboardComparisonTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-11-18 15:00', config('app.timezone')));
 
         $c = $this->dashboard('7d')->json('orders.comparison');
-        $this->assertSame(['revenue' => null, 'total_orders' => null, 'average_order_value' => null], $c['change']);   // nothing to compare with: no percent, no division by zero
+        $this->assertSame(['sales' => null, 'revenue' => null, 'total_orders' => null], $c['change']);   // nothing to compare with: no percent, no division by zero
         $this->assertNull($this->dashboard('all')->json('orders.comparison'));
     }
 
