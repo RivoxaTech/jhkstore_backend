@@ -135,7 +135,7 @@ Optional. Customers never log in, so the cart belongs to a random token the brow
 | `PUT /cart/items/{variantId} { qty }` | sets the quantity of a line (`404 not_in_cart` when the option is not in the cart) |
 | `DELETE /cart/items/{variantId}` | removes a line |
 | `DELETE /cart` | empties the cart (items and coupon; the contact stays) |
-| `PUT /cart/contact { name?, phone?, email? }` | saves the contact (phone normalised, e-mail lower-cased) so the shop can follow up; only the keys that are sent change |
+| `PUT /cart/contact { name?, phone?, email? }` | saves the contact (phone normalised, e-mail lower-cased) so the shop can follow up (the website calls it a moment after the customer types a valid phone and / or e-mail at checkout: this is what makes a left-behind cart show in Customers > Abandoned carts); only the keys that are sent change |
 | `PUT /cart/coupon { code }` | applies a coupon; a code that does not work answers `422 coupon_invalid` (as in section 4) and is **not** saved |
 | `DELETE /cart/coupon` | removes the coupon |
 

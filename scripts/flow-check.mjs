@@ -12,6 +12,8 @@
 //   CHECKOUT_PER_HOUR=1000 WHOLESALE_PER_HOUR=30     the run places far more than 60 orders, and floods the wholesale form on purpose (G32)
 //   APP_URL=http://127.0.0.1:<port>                  picture and video URLs are built from it
 //   VAPID_SUBJECT / VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY   from `php artisan shop:vapid` (push checks G29, G31); on Windows set OPENSSL_CONF too
+//   SHOP_JOBS_WITHOUT_WORKER=false on BOTH servers (the checks count queued jobs; with the default `true` a host without a worker sends mails after the response and nothing is queued)
+//   STORE_CACHE_MAX_AGE=60 STORE_CACHE_S_MAXAGE=300 STORE_CACHE_SWR=60 (a local server sends no-cache headers; the G33 check then only looks for `public` and the ETag)
 //   the SECOND server also with MAIL_MAILER=smtp MAIL_HOST=127.0.0.1 MAIL_PORT=1: a mail server that does not exist (G28: an order is still placed)
 // The queue worker is started by the script itself (php artisan queue:work --stop-when-empty) with the log mailer; QUEUE_CONNECTION=database.
 //

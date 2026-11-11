@@ -97,8 +97,10 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // A worker that finishes or fails a job leaves a stamp: that is how the panel knows a queue worker is running (QueueHealth).
-        Event::listen(JobProcessed::class, fn () => QueueHealth::recordActivity());
-        Event::listen(JobFailed::class, fn () => QueueHealth::recordActivity());
+        // The `sync` connection does not count: the notifications that are sent right after the response (no worker, see QueueHealth::workerMissing) run on it,
+        // and a stamp from them would make the next notification believe a worker is running and wait in the queue for ever.
+        Event::listen(JobProcessed::class, fn (JobProcessed $e) => $e->connectionName === 'sync' || QueueHealth::recordActivity());
+        Event::listen(JobFailed::class, fn (JobFailed $e) => $e->connectionName === 'sync' || QueueHealth::recordActivity());
 
         // The test push button: a handful a minute.
         RateLimiter::for('test-push', fn (Request $request) => Limit::perMinute(5)->by('test-push|'.$request->user()?->getAuthIdentifier()));

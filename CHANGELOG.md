@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-11-11 – Speed round and an adversarial test of the whole shop (branch `lean-store`)
+
+### Fixed (found by the new tests)
+- **E-mails of a status change (confirmed, shipped, delivered, cancelled) were not sent on a host without a queue worker.** The mail of a new order is sent by the web request right after its response when no worker runs; that run was counted as "a queue worker is running", so every later mail was put in the queue, where nobody took it. The after-response run no longer counts (`AppServiceProvider`), test: `WorkerFallbackTest`.
+- **Abandoned carts were never captured.** The Customers > Abandoned carts tab and the API existed, but the website never told the server who was buying: the checkout now saves the phone / e-mail / name on the cart a moment after they are typed (`useCart().saveContact`, `PUT /store/cart/contact`). Tests: `frontend/tests/e2e.mjs` S5, `frontend/tests/journey.mjs`.
+- **`nuxt generate` failed** (`useSeo.ts` declared the same helper twice) - no static site could be built.
+- A wrong file chosen as the payment screenshot was answered with "Please upload the screenshot" instead of "Please choose a JPG, PNG or WEBP picture".
+- A double click on *Place Order* could send the request twice (the Idempotency-Key made it one order; now the button is guarded as well).
+- The invoice and the order page printed "CouponCODE" without a space.
+- The product form reloaded every dropdown on each visit (two calls instead of one) and the panel polled two endpoints every 5 seconds (now one).
+
+### Faster
+Measured on a developer machine with `php artisan serve` (numbers and method: [docs/PERFORMANCE.md](docs/PERFORMANCE.md)).
+- **Screens show the last answer at once and refresh in the background** - every list, every detail page, Settings, Access Control, the dashboard (`api.peek` in `admin-frontend/src/api/client.js`, replaces `listCache.js`). A write drops the remembered answers of its own resource so a stale list is never shown first.
+- **Hover / touch prefetch**: pointing at a sidebar item or an order / product / request row loads the screen's code and its data first (`utils/prefetch.js`); the busiest screens' code loads while the browser is idle. Identical GETs that are already on their way share one request.
+- **One badge poll** (`GET /admin/badges`: orders + wholesale, versions included) instead of two calls every 5 seconds; the old endpoints stay.
+- **Dashboard**: a covering index on the orders (`2026_11_11_000001_add_dashboard_indexes`) and 6 queries fewer: 483 ms -> 140 ms with 30 000 orders.
+- **Local requests are 20-25 % faster**: the MySQL connection is kept open between requests when `APP_ENV=local` (`DB_PERSISTENT`).
+- `Server-Timing` header on every answer in local development (total / boot / database time and query count): see it in the browser's Network > Timing tab.
+
+### Added
+- `scripts/adversarial.mjs` (customer / admin attacks over HTTP, 165 checks), `frontend/tests/journey.mjs` (customer and owner in one browser session, 84 checks, screenshots), `admin-frontend/e2e/perf-nav.mjs` and `frontend/tests/perf.mjs` (speed), `BadgesTest`, `PerformanceTest`.
+- `flow-check` accepts the "no cache" headers of a local server.
+
+
 ## 2026-11-10 (2) – Pages instead of dialogs, no questions on a status change, optional MRP, notifications while another tab is open (branch `lean-store`)
 
 ### Changed

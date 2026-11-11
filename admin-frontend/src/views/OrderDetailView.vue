@@ -343,7 +343,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
               <div v-if="totals.product_discount > 0" class="minus"><span>Product discount</span><span>- {{ money(totals.product_discount) }}</span></div>
               <div v-if="totals.bulk_discount > 0" class="minus"><span>Bulk-offer discount</span><span>- {{ money(totals.bulk_discount) }}</span></div>
               <div v-if="totals.discount_total > 0" class="minus" data-discount-row><span>Discount</span><span>- {{ money(totals.discount_total) }}</span></div>
-              <div v-if="totals.coupon_discount > 0" class="minus" data-coupon-row><span>Coupon<template v-if="totals.coupon_code"> {{ totals.coupon_code }}</template></span><span>- {{ money(totals.coupon_discount) }}</span></div>
+              <div v-if="totals.coupon_discount > 0" class="minus" data-coupon-row><span>{{ totals.coupon_code ? `Coupon ${totals.coupon_code}` : "Coupon" }}</span><span>- {{ money(totals.coupon_discount) }}</span></div>
               <div><span>Subtotal</span><span>{{ money(totals.subtotal) }}</span></div>
               <div><span>Delivery fee</span><span data-delivery-text>{{ deliveryText }}</span></div>
               <div v-if="hasTax && !totals.tax_inclusive"><span>{{ taxLabel }}</span><span>+ {{ money(totals.tax_total) }}</span></div>
@@ -477,7 +477,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
         <div v-if="totals.product_discount > 0"><span>Product discount</span><span>- {{ money(totals.product_discount) }}</span></div>
         <div v-if="totals.bulk_discount > 0"><span>Bulk-offer discount</span><span>- {{ money(totals.bulk_discount) }}</span></div>
         <div v-if="totals.discount_total > 0"><span>Discount</span><span>- {{ money(totals.discount_total) }}</span></div>
-        <div v-if="totals.coupon_discount > 0"><span>Coupon<template v-if="totals.coupon_code"> {{ totals.coupon_code }}</template></span><span>- {{ money(totals.coupon_discount) }}</span></div>
+        <div v-if="totals.coupon_discount > 0"><span>{{ totals.coupon_code ? `Coupon ${totals.coupon_code}` : "Coupon" }}</span><span>- {{ money(totals.coupon_discount) }}</span></div>
         <div><span>Delivery</span><span>{{ deliveryText }}</span></div>
         <div v-if="hasTax && !totals.tax_inclusive"><span>{{ taxLabel }}</span><span>{{ money(totals.tax_total) }}</span></div>
         <div class="grand"><span>Total</span><span>{{ money(totals.grand_total) }}</span></div>

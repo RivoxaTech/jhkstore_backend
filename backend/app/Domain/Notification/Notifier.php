@@ -15,8 +15,10 @@ use App\Mail\OrderShippedMail;
 use App\Mail\OwnerAlertMail;
 use App\Mail\PaymentProofRejectedMail;
 use Closure;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -129,8 +131,26 @@ class Notifier
                 Mail::to($to)->sendNow($mail);
             } catch (Throwable $e) {
                 Log::warning('Notification [mail] failed: '.$e->getMessage());
+                $this->recordFailure($mail, $e);
             }
         })->afterResponse();
+    }
+
+    /**
+     * A mail that was sent by the request itself (no queue worker) and failed leaves the same trace a failed queued mail does - a row in `failed_jobs`, which
+     * Settings > Notifications counts and lists (the job name and the exception class, never the content or the address) - so a dead mail server is visible
+     * on a host without a worker too, not only in the log.
+     */
+    private function recordFailure(object $mail, Throwable $e): void
+    {
+        try {
+            DB::table('failed_jobs')->insert([
+                'uuid' => (string) Str::uuid(), 'connection' => 'after-response', 'queue' => 'default',
+                'payload' => json_encode(['displayName' => $mail::class]), 'exception' => get_class($e).': mail could not be sent', 'failed_at' => now(),
+            ]);
+        } catch (Throwable) {
+            // the trace is a convenience; a failure to write it must never matter
+        }
     }
 
     /** No queue worker was seen: the notifications of an order are then sent by the web request itself, after the response. */

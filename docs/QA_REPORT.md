@@ -214,3 +214,21 @@ Remaining differences, honestly:
 - Fonts: Poppins like the design; letter spacing and sizes were matched by eye, not measured.
 
 Final re-run after the storefront work: **PHPUnit 552 tests, all pass** (551 passed + 1 skipped, 6918 assertions; 551 before the storefront change, +1 for the card fields), `admin-frontend` `npm run build` ok.
+
+## Round F (2026-11-11): speed and an adversarial test
+
+Scratch database `jhkstore_shots`, two API servers (8012, 8013 with a dead mail server), the generated website on 3020, headless Chrome.
+
+| Suite | Result |
+|---|---|
+| PHPUnit | 584 tests (576 before, + `BadgesTest`, `PerformanceTest`, four `WorkerFallbackTest` cases): pass, 1 skipped as before |
+| `scripts/flow-check.mjs` | pass (one check needed the second server started with `SHOP_JOBS_WITHOUT_WORKER=false`; see its header) |
+| `admin-frontend/e2e/flow-ui.mjs` | 205 checks pass (the time zone check needs a second server, skipped) |
+| `frontend/tests/e2e.mjs` | 150 / 151 (the one miss: the scratch banner title was not "Bright *Futures*") |
+| `scripts/adversarial.mjs` | 165 checks pass: double submit (two servers), absurd quantities, out of stock and the last-unit race, price change, tampered bodies, coupons (expired, not started, inactive, minimum, limits, reuse, cancel gives the use back), other people's orders, junk contact data and HTML, the honeypot and browser autofill, proof uploads (text, SVG, PHP, 5 MB, tiny, empty, COD order), wholesale spam, the cart in two tabs, the abandoned cart (captured, listed after 3 hours, recovered, gone after the order), categories (with products, duplicates, in the dropdown at once), products (blank, negative, huge, duplicate SKU / slug, optional MRP, discount and crossed-out price, automatic SEO, arranging), a product in open orders and carts, discounts (100 %, above the price, overlapping, ended), every wrong status order and two admins at once (stock returns once), a limited role by URL and API, tampered / expired tokens, bad pictures and videos, two admins editing one product |
+| `frontend/tests/journey.mjs` | 84 checks pass: customer and owner in one browser session (cart drawer edits, coupon, refresh mid-checkout, three clicks on Place Order = one order, back button, the order in the owner's list within one 5-second poll with badge + toast + chime, the invoice and its PDF, every status change without a form, cancel / reject ask only a question, stock and customer totals, tracking from the footer, the mails in the log, bank transfer with a wrong file then the screenshot and the owner's verification, the wholesale form in real time, an abandoned cart through the real checkout, 390 px layouts of the website and the panel without sideways scroll) |
+
+Bugs found and fixed in this round: see [CHANGELOG.md](../CHANGELOG.md) (status mails lost without a worker, abandoned carts never captured, `nuxt generate` broken, wrong-file message, double click, invoice text).
+
+Not tested here (needs a person): a real browser push on your machine (headless Chrome has no push service), the real mail server of the client, Safari and Firefox, a phone on the network, a deploy behind Apache / Nginx.
+Left as they are, on purpose: two admins editing the same product - the last save wins, there is no "someone else changed this" warning; a product can be deleted while it is in open orders (the orders keep their lines, the stock is not put back anywhere).

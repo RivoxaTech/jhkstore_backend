@@ -45,6 +45,48 @@ class WorkerFallbackTest extends TestCase
         $this->assertSame(0, DB::table('jobs')->count());
     }
 
+    public function test_the_fallback_does_not_make_the_next_notification_wait_for_a_worker(): void
+    {
+        // the bug: a mail sent right after the response ran on the sync connection, its JobProcessed event stamped "a worker is running", and every
+        // later mail (confirmed, shipped, delivered...) was queued for a worker that does not exist
+        config(['queue.default' => 'database']);
+        Mail::fake();
+
+        $this->order();
+        $this->order();
+        $this->order();
+
+        $this->assertTrue(QueueHealth::workerMissing(), 'sending after the response must not look like a worker');
+        $this->assertNull(QueueHealth::status()['last_activity_at']);
+        Mail::assertSent(OrderPlacedMail::class);
+        Mail::assertNotQueued(OrderPlacedMail::class);
+        $this->assertSame(0, DB::table('jobs')->count());
+    }
+
+    public function test_a_dead_mail_server_without_a_worker_still_leaves_a_trace_in_the_failed_jobs(): void
+    {
+        config(['queue.default' => 'database', 'mail.default' => 'smtp', 'mail.mailers.smtp.host' => '127.0.0.1', 'mail.mailers.smtp.port' => 1]);
+        app('mail.manager')->forgetMailers();
+
+        $this->order();   // the order is placed (assertCreated inside) whatever the mail server does
+
+        $this->assertSame(1, DB::table('failed_jobs')->where('connection', 'after-response')->count());
+        $row = DB::table('failed_jobs')->first();
+        $this->assertSame(OrderPlacedMail::class, json_decode($row->payload, true)['displayName']);
+        $this->assertStringNotContainsString('buyer@example.test', $row->payload.$row->exception, 'no address, no content');
+        $this->assertSame(0, DB::table('jobs')->count());
+    }
+
+    public function test_a_real_worker_still_leaves_its_stamp(): void
+    {
+        config(['queue.default' => 'database']);
+        $this->assertNull(QueueHealth::status()['last_activity_at']);
+        event(new \Illuminate\Queue\Events\JobProcessed('database', \Mockery::mock(\Illuminate\Contracts\Queue\Job::class)));
+
+        $this->assertNotNull(QueueHealth::status()['last_activity_at']);
+        $this->assertFalse(QueueHealth::workerMissing());
+    }
+
     public function test_with_a_worker_nothing_changes_and_the_mail_is_queued(): void
     {
         config(['queue.default' => 'database']);

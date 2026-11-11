@@ -22,7 +22,7 @@ Neutral Laravel 13 + Vue 3 store, **one deployment per client**, API first, sepa
 | Guest checkout, order flow, reject, fee | `PlaceOrder`, `ChangeOrderStatus`, `ConfirmDeliveryFee`, `OrderController`, `OrderDetailView.vue` | `orders.view` / `orders.manage` |
 | Order tracking (number + phone) | `Store\OrderController::show`, `StoreOrderResource` | public |
 | Dashboard | `backend/app/Domain/Support/Dashboard.php`, `DashboardController`, `DashboardView.vue`, `RevenueChart.vue` | `dashboard.view`; each section needs its own (`orders.view`, `products.view`, `wholesale.view`, `customers.view`) |
-| Sidebar badges (30 s) | `OrderController::pendingCount`, `WholesaleController::newCount`, `AdminLayout.vue` | `orders.view`, `wholesale.view` |
+| Sidebar badges + real-time lists (one call every 5 s) | `BadgesController` (`GET admin/badges`), `Domain/Support/Badges`, `AdminLayout.vue` (the old `orders/pending-count` and `wholesale/new-count` stay) | `orders.view`, `wholesale.view` |
 | Wholesale requests | `backend/app/Domain/Wholesale`, `Store\WholesaleController`, `Admin\WholesaleController`, `WholesaleView.vue` | `wholesale.view` / `.manage` (developer: off, switchable) |
 | Order e-mails and owner alerts | `backend/app/Mail`, `backend/resources/views/mail`, `backend/app/Domain/Notification/Notifier.php`, `NotificationsPanel.vue` (events table: customer e-mail, owner alert, push per event) | `settings.notifications` |
 | Setting tiers (client / advanced) | `Settings::access()`, `ADVANCED_KEYS` / `ADVANCED_GROUPS`, `SettingController::mayUse()`, `SettingField.vue` (Developer tag) | tab permission **and** `settings.advanced` for advanced fields ([ACCESS_CONTROL.md](ACCESS_CONTROL.md)) |
