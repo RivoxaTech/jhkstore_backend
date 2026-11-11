@@ -29,6 +29,12 @@ const memo = new Map()      // url -> { at, data }
 const inflight = new Map()  // url -> Promise
 const remember = (url, data) => { memo.delete(url); memo.set(url, { at: Date.now(), data }); if (memo.size > MEMO_MAX) memo.delete(memo.keys().next().value) }
 export const forgetAnswers = () => { memo.clear(); inflight.clear() }
+/** A write to `admin/discounts/5` makes every remembered answer about `admin/discounts` out of date (the screen that comes next must not show it first). */
+function forgetFamily(path) {
+  const [a, b] = String(path).replace(/^\//, '').split('/')
+  const needle = `/${a}/${b}`
+  for (const key of [...memo.keys()]) if (key.includes(needle)) memo.delete(key)
+}
 
 let unauthorizedHandler = () => {}
 export const onUnauthorized = (fn) => { unauthorizedHandler = fn }
@@ -78,7 +84,7 @@ async function request(method, path, { query, json, form, raw, retried } = {}) {
     return request(method, path, { query, json, form, raw, retried: true })
   }
 
-  if (isWrite) inflight.clear()
+  if (isWrite) { inflight.clear(); if (res.ok) forgetFamily(path) }
   if (raw && res.ok) return res
 
   const data = res.status === 204 ? null : await res.json().catch(() => null)

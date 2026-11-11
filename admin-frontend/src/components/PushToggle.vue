@@ -16,7 +16,7 @@ const supported = typeof window !== 'undefined' && window.isSecureContext && 'se
 const SCOPE = import.meta.env.DEV ? '/' : '/admin/'
 
 const state = computed(() => {
-  if (!supported) return { ok: false, why: 'This browser (or this address, which needs https) cannot show push notifications. The badges still update every 30 seconds.' }
+  if (!supported) return { ok: false, why: 'This browser (or this address, which needs https) cannot show push notifications. The badges still update every few seconds.' }
   if (!status.value) return { ok: false, why: 'Checking push notifications...' }
   if (!status.value.configured) return { ok: false, why: 'Push is not set up on the server yet (ask your developer: php artisan shop:vapid).' }
   if (!status.value.enabled) return { ok: false, why: 'Push notifications are switched off in Settings > Notifications.' }

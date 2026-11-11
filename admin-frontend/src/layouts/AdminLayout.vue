@@ -27,7 +27,7 @@ const menuEl = ref(null)
 const statusOpen = ref(false)
 const statusEl = ref(null)
 
-// Keeps the badges fresh: pending orders + payment proofs to check (sidebar + bell) and new wholesale requests. Two light calls every 30 seconds,
+// Keeps the badges fresh: pending orders + payment proofs to check (sidebar + bell) and new wholesale requests. One light call every 5 seconds,
 // only for what this admin may see (also the fallback when browser push is not available). When a number goes UP while the panel is open, the
 // panel chimes and shows a toast (unless sound is muted): that is the in-panel alert, because a site cannot change the sound of a push notification.
 const seen = { orders: null, wholesale: null }

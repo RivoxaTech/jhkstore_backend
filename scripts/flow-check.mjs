@@ -1641,7 +1641,10 @@ try {
   for (const route of ['settings', 'banners', 'categories', 'products', 'tags', 'sitemap']) {
     const r = await store(route)
     const cc = r.headers.get('cache-control') || ''
-    check(r.status === 200 && /public/.test(cc) && /s-maxage=300/.test(cc) && /max-age=60/.test(cc) && /stale-while-revalidate=60/.test(cc) && r.headers.get('etag'), `GET store/${route}: public Cache-Control and an ETag`, cc)
+    // On a developer machine (APP_ENV=local) the shop is deliberately not cached (every value 0): then only "public" and the ETag are checked. Start the servers with
+    // STORE_CACHE_MAX_AGE=60 STORE_CACHE_S_MAXAGE=300 STORE_CACHE_SWR=60 (or APP_ENV=production) to check the real values.
+    const localZero = /max-age=0/.test(cc) && /s-maxage=0/.test(cc)
+    check(r.status === 200 && /public/.test(cc) && (localZero || (/s-maxage=300/.test(cc) && /max-age=60/.test(cc) && /stale-while-revalidate=60/.test(cc))) && r.headers.get('etag'), `GET store/${route}: public Cache-Control and an ETag`, cc)
   }
   const etagged = await store('settings')
   const notModified = await store('settings', { headers: { 'If-None-Match': etagged.headers.get('etag') } })

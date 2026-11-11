@@ -37,7 +37,7 @@ const canChange = (o) => canManage.value && o.next_statuses?.length > 0
 const optionText = (o, s) => (s === 'confirmed' && o.blocked_reason ? `Confirmed (${BLOCKED[o.blocked_reason]})` : capital(s))
 
 async function refreshBadge() {
-  try { ui.pendingOrders = (await api.get('admin/orders/pending-count')).count ?? 0 } catch { /* the badge catches up within 30 seconds */ }
+  try { ui.pendingOrders = (await api.get('admin/orders/pending-count')).count ?? 0 } catch { /* the badge catches up within a few seconds */ }
 }
 
 async function move(o, to) {
