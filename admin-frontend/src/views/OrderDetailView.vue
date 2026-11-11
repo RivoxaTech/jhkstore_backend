@@ -39,13 +39,18 @@ const proofError = ref('')
 const payBusy = ref(false)
 const printMode = ref(['invoice', 'slip'].includes(String(route.query.print)) ? String(route.query.print) : 'invoice')
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  const hit = silent !== true ? api.peek(`admin/orders/${route.params.id}`) : undefined
+  if (hit) { order.value = hit.data; adminNote.value = order.value.admin_note || ''; loading.value = false; silent = true }   // the last answer at once, the fresh one follows
+  if (silent !== true) loading.value = true
   error.value = ''
   try {
-    order.value = (await api.get(`admin/orders/${route.params.id}`)).data
-    adminNote.value = order.value.admin_note || ''
-    loadProof()
+    const fresh = (await api.get(`admin/orders/${route.params.id}`)).data
+    const changed = !order.value || JSON.stringify(order.value) !== JSON.stringify(fresh)
+    const typing = order.value && order.value.id === fresh.id && adminNote.value !== (order.value.admin_note || '')
+    order.value = fresh
+    if (!typing) adminNote.value = order.value.admin_note || ''
+    if (changed || !proofUrl.value) loadProof()
   } catch (e) {
     error.value = e.status === 404 ? 'This order does not exist.' : e.message
   } finally {
@@ -54,6 +59,7 @@ async function load() {
 }
 onMounted(load)
 watch(() => route.params.id, load)
+watch(() => ui.ordersVersion, () => { if (!loading.value && !busy.value) load(true) })   // the order changed somewhere else (a customer paid, another tab): follow it by itself
 
 // The screenshot is on a private disk: only the authenticated route can show it, so it is fetched with the login cookie and shown from an object URL.
 async function loadProof() {

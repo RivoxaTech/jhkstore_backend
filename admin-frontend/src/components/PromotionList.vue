@@ -46,10 +46,12 @@ const busy = ref(false)
 let seq = 0
 async function load() {
   const mine = ++seq
-  loading.value = true
+  const query = { q: search.value.trim(), status: status.value, page: page.value, per_page: perPage.value }
+  const hit = api.peek(`admin/${plural.value}`, query)
+  if (hit) { rows.value = hit.data; meta.value = hit.meta; loadedOnce.value = true; loading.value = false } else loading.value = true   // the last answer at once, the fresh one follows
   error.value = ''
   try {
-    const res = await api.get(`admin/${plural.value}`, { q: search.value.trim(), status: status.value, page: page.value, per_page: perPage.value })
+    const res = await api.get(`admin/${plural.value}`, query)
     if (mine !== seq) return
     rows.value = res.data
     meta.value = res.meta

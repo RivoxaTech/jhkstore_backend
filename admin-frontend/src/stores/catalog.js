@@ -35,5 +35,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     return loading
   }
 
-  return { options, currency, categories, loaded, hasSubCategories, load, reload: () => load(true) }
+  /** Only the categories again (one light call): the product screens read it on every visit so a category made a moment ago is there. */
+  const refreshCategories = () => api.get('admin/categories/options').then((cats) => { categories.value = cats.data })
+
+  return { options, currency, categories, loaded, hasSubCategories, load, reload: () => load(true), refreshCategories }
 })

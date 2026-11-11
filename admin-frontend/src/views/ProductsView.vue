@@ -14,7 +14,6 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 import { money } from '@/utils/format.js'
-import { cachedList, rememberList } from '@/utils/listCache.js'
 
 const STATUSES = ['active', 'draft', 'inactive', 'archived']
 
@@ -58,21 +57,20 @@ const subOptions = computed(() => {
 let seq = 0
 async function load() {
   const mine = ++seq
-  const key = 'products:' + route.fullPath
-  const hit = cachedList(key)
-  if (hit) { rows.value = hit.rows; meta.value = hit.meta; counts.value = hit.counts; loadedOnce.value = true } else loading.value = true   // the last answer at once, the fresh one follows
+  const query = {
+    q: q('q'), status: status.value, category_id: q('category_id'),
+    sub_category_id: q('sub_category_id'), tag: q('tag'), stock: q('stock'), featured: q('featured'), page: page.value, per_page: PER_PAGE.value,
+  }
+  const hit = api.peek('admin/products', query)
+  if (hit) { rows.value = hit.data; meta.value = hit.meta; counts.value = hit.counts || {}; loadedOnce.value = true; loading.value = false } else loading.value = true   // the last answer at once, the fresh one follows
   error.value = ''
   try {
-    const res = await api.get('admin/products', {
-      q: q('q'), status: status.value, category_id: q('category_id'),
-      sub_category_id: q('sub_category_id'), tag: q('tag'), stock: q('stock'), featured: q('featured'), page: page.value, per_page: PER_PAGE.value,
-    })
+    const res = await api.get('admin/products', query)
     if (mine !== seq) return
     rows.value = res.data
     meta.value = res.meta
     counts.value = res.counts || {}
     loadedOnce.value = true
-    rememberList(key, { rows: res.data, meta: res.meta, counts: res.counts || {} })
   } catch (e) {
     if (mine === seq) error.value = e.message
   } finally {
@@ -243,6 +241,7 @@ async function confirmDelete() {
           <tr
             v-for="p in rows" :key="p.id" class="row-link" :data-product="p.id"
             :class="{ 'is-soldout': p.is_sold_out, 'is-dragging': dragId === p.id, 'is-over': dragId && overId === p.id && dragId !== p.id }"
+            @pointerenter="api.prefetch(`admin/products/${p.id}`)"
             @click="router.push({ name: 'product-edit', params: { id: p.id } })"
             @dragover="canArrange && dragId && ($event.preventDefault(), (overId = p.id))" @drop.prevent="canArrange && dragId && dropOn(p)"
           >

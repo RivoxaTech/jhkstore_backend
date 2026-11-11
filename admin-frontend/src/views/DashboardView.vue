@@ -31,6 +31,8 @@ const firstName = computed(() => String(auth.admin?.name || auth.admin?.username
 let seq = 0
 async function load(silent = false) {
   const mine = ++seq
+  const hit = silent !== true ? api.peek('admin/dashboard', { range: range.value }) : undefined
+  if (hit) { data.value = hit; loading.value = false; silent = true }   // the last answer at once, the fresh one follows
   if (silent !== true) loading.value = true
   error.value = ''
   try {

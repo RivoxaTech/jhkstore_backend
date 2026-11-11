@@ -12,6 +12,7 @@ use App\Domain\Order\Enums\PaymentStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Order\Models\Payment;
 use App\Domain\Order\OrderSearch;
+use App\Domain\Support\Badges;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ChangeOrderStatusRequest;
 use App\Http\Requests\Admin\RejectPaymentProofRequest;
@@ -95,16 +96,8 @@ class OrderController extends Controller
     /** The number behind the sidebar badge: pending orders plus bank transfer payment proofs waiting to be checked. */
     public function pendingCount(): JsonResponse
     {
-        $pending = Order::query()->where('status', 'pending')->count();
-        $proofs = Payment::query()->where('payable_type', Payment::ORDER)->where('proof_status', Payment::PROOF_SUBMITTED_STATUS)
-            ->whereIn('payable_id', Order::query()->where('status', 'pending')->select('id'))->count();
-
-        // `version` changes whenever an order is placed or changes (status, payment proof): the panel polls this light call every few seconds and
-        // reloads the list it shows when the version moved, so new orders and changes appear without a reload.
-        $o = Order::query()->selectRaw('count(*) as c, max(id) as m, max(updated_at) as u')->first();
-        $p = Payment::query()->where('payable_type', Payment::ORDER)->max('updated_at');
-
-        return response()->json(['count' => $pending + $proofs, 'pending' => $pending, 'proofs' => $proofs, 'version' => md5($o->c.'|'.$o->m.'|'.$o->u.'|'.$p)]);
+        // `version` changes whenever an order is placed or changes (status, payment proof): the panel polls it and reloads the list it shows when it moved.
+        return response()->json(Badges::orders());
     }
 
     /**

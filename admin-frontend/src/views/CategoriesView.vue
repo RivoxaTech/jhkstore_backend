@@ -46,8 +46,11 @@ let seq = 0
 async function load() {
   const mine = ++seq
   error.value = ''
+  const query = { q: search.value.trim(), page: page.value, per_page: perPage.value }
+  const hit = api.peek('admin/categories', query)
+  if (hit) { categories.value = hit.data; meta.value = hit.meta; counts.value = hit.counts; loading.value = false }   // the last answer at once, the fresh one follows
   try {
-    const res = await api.get('admin/categories', { q: search.value.trim(), page: page.value, per_page: perPage.value })
+    const res = await api.get('admin/categories', query)
     if (mine !== seq) return // a newer request is already running
     categories.value = res.data
     meta.value = res.meta

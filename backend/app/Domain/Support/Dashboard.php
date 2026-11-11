@@ -44,8 +44,9 @@ class Dashboard
             ->where('orders.created_at', '<=', $range['to']->format('Y-m-d H:i:s'));
         $live = fn () => $orders()->whereNotIn('orders.status', self::VOID);
 
-        $all = $orders()->selectRaw('COUNT(*) as total, SUM(status IN (\'cancelled\', \'rejected\')) as void, SUM(status = \'pending\') as pending, COALESCE(SUM(CASE WHEN status = \'pending\' THEN grand_total ELSE 0 END), 0) as pending_amount')->first();
-        $paid = $live()->selectRaw('COUNT(*) as total, COALESCE(SUM(grand_total), 0) as revenue')->first();
+        // ONE pass over the range for all the cards (count, cancelled / rejected, pending, the money of the live orders): each extra query is a pass over the index
+        $all = $orders()->selectRaw('COUNT(*) as total, SUM(status IN (\'cancelled\', \'rejected\')) as void, SUM(status = \'pending\') as pending, COALESCE(SUM(CASE WHEN status = \'pending\' THEN grand_total ELSE 0 END), 0) as pending_amount, COALESCE(SUM(CASE WHEN status NOT IN (\'cancelled\', \'rejected\') THEN grand_total ELSE 0 END), 0) as revenue')->first();
+        $paid = (object) ['total' => (int) $all->total - (int) $all->void, 'revenue' => $all->revenue];
 
         $awaitingProof = $orders()->where('orders.status', 'pending')->where('orders.payment_method', 'bank_transfer')
             ->whereExists(fn ($q) => $q->select(DB::raw(1))->from('payments')->whereColumn('payments.payable_id', 'orders.id')->where('payments.payable_type', Payment::ORDER)
@@ -135,9 +136,10 @@ class Dashboard
     private function figures(array $range): array
     {
         $base = fn () => DB::table('orders')->when($range['from'], fn ($q, $from) => $q->where('created_at', '>=', $from->format('Y-m-d H:i:s')))->where('created_at', '<=', $range['to']->format('Y-m-d H:i:s'));
-        $paid = $base()->whereNotIn('status', self::VOID)->selectRaw('COUNT(*) as total, COALESCE(SUM(grand_total), 0) as revenue')->first();
+        $row = $base()->selectRaw('COUNT(*) as total, SUM(status IN (\'cancelled\', \'rejected\')) as void, COALESCE(SUM(CASE WHEN status NOT IN (\'cancelled\', \'rejected\') THEN grand_total ELSE 0 END), 0) as revenue')->first();
+        $live = (int) $row->total - (int) $row->void;
 
-        return ['revenue' => (float) $paid->revenue, 'total_orders' => $base()->count(), 'average_order_value' => $paid->total > 0 ? round((float) $paid->revenue / $paid->total, 2) : 0.0];
+        return ['revenue' => (float) $row->revenue, 'total_orders' => (int) $row->total, 'average_order_value' => $live > 0 ? round((float) $row->revenue / $live, 2) : 0.0];
     }
 
     /** @return array{from:string, to:string, previous:array, change:array}|null  the figures of the previous period and the change in percent (null where the previous period had none) */
@@ -159,13 +161,16 @@ class Dashboard
     /** One point per shop day (per month for a long "all time"), zeros included so the chart has no gaps. */
     private function series(\Closure $live, array $range): array
     {
-        $from = $range['from'] ?? ($live()->min('orders.created_at') ? \Illuminate\Support\Carbon::parse($live()->min('orders.created_at'), config('app.timezone')) : $range['to']->copy()->startOfDay());
+        $first = $range['from'] ? null : $live()->min('orders.created_at');
+        $from = $range['from'] ?? ($first ? \Illuminate\Support\Carbon::parse($first, config('app.timezone')) : $range['to']->copy()->startOfDay());
         $monthly = $from->diffInDays($range['to']) > 120;
         $format = $monthly ? '%Y-%m' : '%Y-%m-%d';
 
-        $rows = $live()->selectRaw("DATE_FORMAT(orders.created_at, '$format') as bucket, COUNT(*) as orders, COALESCE(SUM(grand_total), 0) as revenue")
-            ->groupBy('bucket')->pluck('revenue', 'bucket');
-        $counts = $live()->selectRaw("DATE_FORMAT(orders.created_at, '$format') as bucket, COUNT(*) as orders")->groupBy('bucket')->pluck('orders', 'bucket');
+        // one query for the orders and the money of every day
+        $buckets = $live()->selectRaw("DATE_FORMAT(orders.created_at, '$format') as bucket, COUNT(*) as orders, COALESCE(SUM(grand_total), 0) as revenue")
+            ->groupBy('bucket')->get()->keyBy('bucket');
+        $rows = $buckets->pluck('revenue', 'bucket');
+        $counts = $buckets->pluck('orders', 'bucket');
 
         $out = [];
         $cursor = $monthly ? $from->copy()->startOfMonth() : $from->copy()->startOfDay();

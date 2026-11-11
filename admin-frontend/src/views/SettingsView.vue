@@ -72,9 +72,13 @@ function fill(payload) {
 }
 
 async function load() {
-  loading.value = true
+  const hit = api.peek('admin/settings')
+  if (hit) { fill(hit); loading.value = false } else loading.value = true   // the last answer at once, the fresh one follows
   loadError.value = ''
-  try { fill(await api.get('admin/settings')) } catch (e) { loadError.value = e.message } finally { loading.value = false }
+  try {
+    const fresh = await api.get('admin/settings')
+    if (!hit || !dirty.value) fill(fresh)   // never over what the person is already typing
+  } catch (e) { loadError.value = e.message } finally { loading.value = false }
 }
 onMounted(load)
 

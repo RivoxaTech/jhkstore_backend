@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AccessControlController;
 use App\Http\Controllers\Admin\AuthController;
+use App\Http\Controllers\Admin\BadgesController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CouponController;
@@ -36,6 +37,8 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin', 'store
     Route::get('auth/me', [AuthController::class, 'me']);
 
     Route::get('dashboard', DashboardController::class)->middleware('admin.can:dashboard.view');
+    // the panel's poll (every few seconds): the order and wholesale badges + versions in one call, each part only for an admin who may see it
+    Route::get('badges', BadgesController::class)->middleware('admin.can:orders.view,wholesale.view');
 
     // Categories and sub-categories (the product form also needs the list of categories to choose from)
     Route::get('categories/options', [CategoryController::class, 'options'])->middleware('admin.can:categories.view,products.view');

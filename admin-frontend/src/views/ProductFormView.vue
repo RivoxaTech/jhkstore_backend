@@ -153,10 +153,13 @@ const sectionErrors = computed(() => ({
 onMounted(async () => {
   try {
     await catalog.load()
-    catalog.reload().catch(() => {})   // always the newest categories and options (a category made a moment ago is there)
+    catalog.refreshCategories().catch(() => {})   // always the newest categories (a category made a moment ago is there)
     catalog.options.content_tabs.forEach(t => { tabs[t.key] = { content: '', format: 'paragraphs', manual_url: '' } })
     if (isEdit.value) {
-      applyProduct((await api.get(`admin/products/${id.value}`)).data)
+      const hit = api.peek(`admin/products/${id.value}`)
+      if (hit) { applyProduct(hit.data); loading.value = false }   // the last answer at once, the fresh one follows
+      const fresh = (await api.get(`admin/products/${id.value}`)).data
+      if (!hit || JSON.stringify(hit.data) !== JSON.stringify(fresh)) applyProduct(fresh)
     } else {
       variants.value = [blankVariant({ is_default: true })]
     }

@@ -13,7 +13,6 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 import { formatDate, money } from '@/utils/format.js'
-import { cachedList, rememberList } from '@/utils/listCache.js'
 
 const STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled', 'rejected']
 // the filter boxes come from GET admin/orders/options; these are the readable names (an unknown value falls back to its own name)
@@ -87,33 +86,35 @@ const tabs = computed(() => [
   ...STATUSES.map(s => ({ key: s, label: s[0].toUpperCase() + s.slice(1), count: counts.value[s] || 0 })),
 ])
 
+// the filter lists hardly ever change: the last answer is used at once and asked again at most every ten minutes (the built-in lists are enough when it fails)
+function applyOptions(o) {
+  if (o?.payment_statuses?.length) paymentStatuses.value = o.payment_statuses
+  if (o?.payment_methods?.length) paymentMethods.value = o.payment_methods
+}
 onMounted(async () => {
-  try {
-    const o = await api.get('admin/orders/options')
-    if (o.payment_statuses?.length) paymentStatuses.value = o.payment_statuses
-    if (o.payment_methods?.length) paymentMethods.value = o.payment_methods
-  } catch { /* the built-in lists are enough */ }
+  applyOptions(api.peek('admin/orders/options'))
+  await api.prefetch('admin/orders/options', undefined, 10 * 60 * 1000)
+  applyOptions(api.peek('admin/orders/options'))
 })
 
 let seq = 0
 async function load(silent = false) {
   const mine = ++seq
-  const key = 'orders:' + route.fullPath
-  const hit = silent !== true ? cachedList(key) : null
-  if (hit) { rows.value = hit.rows; meta.value = hit.meta; counts.value = hit.counts; loadedOnce.value = true; silent = true }   // the last answer at once, the fresh one follows
+  const query = {
+    search: q('q'), status: status.value, payment_status: q('payment_status'), payment_method: q('payment_method'), from: q('from'), to: q('to'),
+    customer_id: q('customer_id'), page: page.value, per_page: PER_PAGE.value,
+  }
+  const hit = silent !== true ? api.peek('admin/orders', query) : undefined
+  if (hit) { rows.value = hit.data; meta.value = hit.meta; counts.value = hit.counts || {}; loadedOnce.value = true; loading.value = false; silent = true }   // the last answer at once, the fresh one follows
   if (silent !== true) loading.value = true   // a quiet reload (real time) keeps the list on screen
   error.value = ''
   try {
-    const res = await api.get('admin/orders', {
-      search: q('q'), status: status.value, payment_status: q('payment_status'), payment_method: q('payment_method'), from: q('from'), to: q('to'),
-      customer_id: q('customer_id'), page: page.value, per_page: PER_PAGE.value,
-    })
+    const res = await api.get('admin/orders', query)
     if (mine !== seq) return
     rows.value = res.data
     meta.value = res.meta
     counts.value = res.counts || {}
     loadedOnce.value = true
-    rememberList(key, { rows: res.data, meta: res.meta, counts: res.counts || {} })
   } catch (e) {
     if (mine === seq) error.value = e.message
   } finally {
@@ -207,7 +208,7 @@ async function exportCsv() {
           <tr><th>Order</th><th>Date</th><th>Customer</th><th class="num" style="text-align: right">Items</th><th style="text-align: right">Total</th><th>Payment</th><th>Status</th></tr>
         </thead>
         <tbody>
-          <tr v-for="o in rows" :key="o.id" class="row-link" @click="router.push({ name: 'order', params: { id: o.id } })">
+          <tr v-for="o in rows" :key="o.id" class="row-link" @pointerenter="api.prefetch(`admin/orders/${o.id}`)" @click="router.push({ name: 'order', params: { id: o.id } })">
             <td><RouterLink class="order-no" :to="{ name: 'order', params: { id: o.id } }" @click.stop>{{ o.order_number }}</RouterLink></td>
             <td class="nowrap"><span>{{ formatDate(o.placed_at) }}</span><div class="muted">{{ formatDate(o.placed_at, true).split(',').pop().trim() }}</div></td>
             <td>

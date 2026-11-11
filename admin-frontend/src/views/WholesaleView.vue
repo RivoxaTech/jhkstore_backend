@@ -11,7 +11,6 @@ import RowsPerPage from '@/components/RowsPerPage.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 import { formatDate, timeAgo } from '@/utils/format.js'
-import { cachedList, rememberList } from '@/utils/listCache.js'
 
 // Wholesale requests: customers asking for a bulk price (personal data: wholesale.view to look, wholesale.manage to answer and download).
 // Status tabs, search, a detail dialog with the status, an internal note and a WhatsApp button, and a CSV of the current list.
@@ -47,19 +46,18 @@ const tabs = computed(() => [
 let seq = 0
 async function load(silent = false) {
   const mine = ++seq
-  const key = 'wholesale:' + route.fullPath
-  const hit = silent !== true ? cachedList(key) : null
-  if (hit) { rows.value = hit.rows; meta.value = hit.meta; counts.value = hit.counts; loadedOnce.value = true; silent = true }
+  const query = { search: q('q'), status: status.value, page: page.value, per_page: PER_PAGE.value }
+  const hit = silent !== true ? api.peek('admin/wholesale', query) : undefined
+  if (hit) { rows.value = hit.data; meta.value = hit.meta; counts.value = hit.counts || {}; loadedOnce.value = true; loading.value = false; silent = true }   // the last answer at once, the fresh one follows
   if (silent !== true) loading.value = true
   error.value = ''
   try {
-    const res = await api.get('admin/wholesale', { search: q('q'), status: status.value, page: page.value, per_page: PER_PAGE.value })
+    const res = await api.get('admin/wholesale', query)
     if (mine !== seq) return
     rows.value = res.data
     meta.value = res.meta
     counts.value = res.counts || {}
     loadedOnce.value = true
-    rememberList(key, { rows: res.data, meta: res.meta, counts: res.counts || {} })
     if (!q('q') && !status.value) ui.newWholesale = Number(counts.value.new || 0)
   } catch (e) {
     if (mine === seq) error.value = e.message
@@ -136,7 +134,7 @@ async function exportCsv() {
           <tr><th>Reference</th><th>Customer</th><th>Product</th><th style="text-align: right">Quantity</th><th>Received</th><th>Status</th></tr>
         </thead>
         <tbody>
-          <tr v-for="r in rows" :key="r.id" class="row-link" :data-ref="r.reference" @click="router.push({ name: 'wholesale-request', params: { id: r.id } })">
+          <tr v-for="r in rows" :key="r.id" class="row-link" :data-ref="r.reference" @pointerenter="api.prefetch(`admin/wholesale/${r.id}`)" @click="router.push({ name: 'wholesale-request', params: { id: r.id } })">
             <td class="nowrap"><strong>{{ r.reference }}</strong></td>
             <td>
               <strong class="truncate" :title="r.name">{{ r.name }}</strong>

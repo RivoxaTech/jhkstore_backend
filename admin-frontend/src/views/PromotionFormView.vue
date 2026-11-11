@@ -51,8 +51,11 @@ function fill(m) {
 
 onMounted(async () => {
   if (!isEdit.value) { first.value?.focus(); return }
+  const hit = api.peek(`${endpoint.value}/${route.params.id}`)
+  if (hit) { fill(hit.data); loading.value = false }   // the last answer at once, the fresh one follows
   try {
-    fill((await api.get(`${endpoint.value}/${route.params.id}`)).data)
+    const fresh = (await api.get(`${endpoint.value}/${route.params.id}`)).data
+    if (!hit || JSON.stringify(hit.data) !== JSON.stringify(fresh)) fill(fresh)
   } catch (e) {
     message.value = e.message
   } finally {

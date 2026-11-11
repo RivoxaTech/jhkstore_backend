@@ -12,6 +12,7 @@ import PushToggle from '@/components/PushToggle.vue'
 import NotificationStatusCard from '@/components/NotificationStatusCard.vue'
 import { api } from '@/api/client.js'
 import * as chime from '@/utils/chime.js'
+import { warm, warmIdle } from '@/utils/prefetch.js'
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -70,14 +71,15 @@ function track(kind, count) {
 
 async function refreshBadges() {
   // (also in a tab that is not in front: the browser slows it down to about once a minute, but a new order is still announced)
-  if (auth.can('orders.view')) {
-    try { const r = await api.get('admin/orders/pending-count'); const n = r.count ?? 0; ui.pendingOrders = n; track('orders', n); version('orders', r.version) } catch { /* the badges are optional */ }
-  }
-  if (auth.can('wholesale.view')) {
-    try { const r = await api.get('admin/wholesale/new-count'); const n = r.count ?? 0; ui.newWholesale = n; track('wholesale', n); version('wholesale', r.version) } catch { /* the badges are optional */ }
-  }
+  // ONE call for both badges: every call occupies the (single-threaded, on a developer machine) server for its whole boot time
+  if (!auth.can('orders.view') && !auth.can('wholesale.view')) return
+  try {
+    const r = await api.get('admin/badges')
+    if (r.orders) { const n = r.orders.count ?? 0; ui.pendingOrders = n; track('orders', n); version('orders', r.orders.version) }
+    if (r.wholesale) { const n = r.wholesale.count ?? 0; ui.newWholesale = n; track('wholesale', n); version('wholesale', r.wholesale.version) }
+  } catch { /* the badges are optional */ }
 }
-const BADGE_POLL_MS = 5000   // two tiny calls: new orders, changes and badges show within seconds, without a reload
+const BADGE_POLL_MS = 5000   // one tiny call: new orders, changes and badges show within seconds, without a reload
 let timer
 
 // The service worker tells open panel tabs about a push message (so the chime plays even while the system shows its own notification),
@@ -104,6 +106,7 @@ onMounted(() => {
   if (auth.can('products.view') || auth.can('categories.view')) catalog.load().catch(() => { /* the features fall back to the public store settings */ })
   refreshBadges()
   timer = setInterval(refreshBadges, BADGE_POLL_MS)
+  warmIdle(router, auth)   // the code of the busiest screens loads while the browser is idle
   document.addEventListener('click', closeMenus)
   document.addEventListener('visibilitychange', refreshBadges)
   document.addEventListener('pointerdown', unlockSound)
@@ -189,7 +192,7 @@ async function logout() {
       <nav class="sidebar__nav">
         <div v-for="s in sections" :key="s.label || 'top'" class="nav-group">
           <div v-if="s.label" class="nav-label">{{ s.label }}</div>
-          <RouterLink v-for="i in s.items" :key="i.to" :to="{ name: i.to }" class="nav-item" :class="{ 'is-active': i.on(route) }" exact-active-class="" active-class="" :title="ui.sidebarCollapsed ? i.text : undefined">
+          <RouterLink v-for="i in s.items" :key="i.to" :to="{ name: i.to }" class="nav-item" :class="{ 'is-active': i.on(route) }" exact-active-class="" active-class="" :title="ui.sidebarCollapsed ? i.text : undefined" @pointerenter="warm(router, { name: i.to }, auth)" @focus="warm(router, { name: i.to }, auth)" @touchstart.passive="warm(router, { name: i.to }, auth)">
             <component :is="i.icon" :size="18" /><span>{{ i.text }}</span>
             <b v-if="i.badge && ui[i.badge]" class="nav-badge" :data-testid="i.testid" :title="i.title(ui[i.badge])">{{ ui[i.badge] }}</b>
           </RouterLink>

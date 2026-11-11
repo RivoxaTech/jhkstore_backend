@@ -21,6 +21,15 @@ export class ApiError extends Error {
   }
 }
 
+// The last answer of every GET, kept in memory for this visit (never persisted; a logout or an expired session empties it). A screen shows the last
+// answer at once (`api.peek`) and the fresh one replaces it a moment later: coming back to a screen never waits on a skeleton. Identical GETs that are
+// still in flight share one request, so a prefetch (hover, idle) and the screen that opens a moment later cost one call, not two.
+const MEMO_MAX = 120
+const memo = new Map()      // url -> { at, data }
+const inflight = new Map()  // url -> Promise
+const remember = (url, data) => { memo.delete(url); memo.set(url, { at: Date.now(), data }); if (memo.size > MEMO_MAX) memo.delete(memo.keys().next().value) }
+export const forgetAnswers = () => { memo.clear(); inflight.clear() }
+
 let unauthorizedHandler = () => {}
 export const onUnauthorized = (fn) => { unauthorizedHandler = fn }
 
@@ -47,7 +56,7 @@ function buildUrl(path, query) {
 
 async function request(method, path, { query, json, form, raw, retried } = {}) {
   const isWrite = method !== 'GET'
-  if (isWrite) await ensureCsrf()
+  if (isWrite) { inflight.clear(); await ensureCsrf() }   // a write may change what a GET that is already on its way will answer: nobody may share that one
 
   const headers = { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
   if (isWrite) headers['X-XSRF-TOKEN'] = readCookie('XSRF-TOKEN') || ''
@@ -69,18 +78,38 @@ async function request(method, path, { query, json, form, raw, retried } = {}) {
     return request(method, path, { query, json, form, raw, retried: true })
   }
 
+  if (isWrite) inflight.clear()
   if (raw && res.ok) return res
 
   const data = res.status === 204 ? null : await res.json().catch(() => null)
   if (!res.ok) {
-    if (res.status === 401) unauthorizedHandler(path)
+    if (res.status === 401) { forgetAnswers(); unauthorizedHandler(path) }
     throw new ApiError(res.status, data)
   }
   return data
 }
 
+async function cachedGet(path, query) {
+  const key = buildUrl(path, query)
+  if (inflight.has(key)) return inflight.get(key)
+  const p = request('GET', path, { query }).then((data) => { remember(key, data); return data }).finally(() => { if (inflight.get(key) === p) inflight.delete(key) })
+  inflight.set(key, p)
+  return p
+}
+
 export const api = {
-  get: (path, query) => request('GET', path, { query }),
+  get: (path, query) => cachedGet(path, query),
+  /** The last answer of this GET in this visit (a copy: change it freely), or undefined. Use it to show something at once, then call `get` for the fresh one. */
+  peek(path, query) {
+    const hit = memo.get(buildUrl(path, query))
+    return hit ? structuredClone(hit.data) : undefined
+  },
+  /** Warm the answer of a GET that is likely to be needed next (a link under the pointer). Skipped when the last answer is younger than `maxAge` ms. Never throws. */
+  prefetch(path, query, maxAge = 4000) {
+    const hit = memo.get(buildUrl(path, query))
+    if (hit && Date.now() - hit.at < maxAge) return Promise.resolve()
+    return cachedGet(path, query).then(() => {}, () => {})
+  },
   post: (path, json) => request('POST', path, { json }),
   put: (path, json) => request('PUT', path, { json }),
   patch: (path, json) => request('PATCH', path, { json }),
@@ -92,6 +121,7 @@ export const api = {
    * Answers like the other calls (parsed JSON, or an ApiError with the validation messages).
    */
   async postFormProgress(path, form, onProgress) {
+    inflight.clear()
     await ensureCsrf()
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()

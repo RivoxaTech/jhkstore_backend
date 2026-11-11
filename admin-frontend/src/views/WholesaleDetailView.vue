@@ -28,11 +28,14 @@ const saving = ref(false)
 const formError = ref('')
 
 async function load() {
-  loading.value = true
+  const hit = api.peek(`admin/wholesale/${route.params.id}`)
+  if (hit) { req.value = hit.data; form.value = { status: req.value.status, admin_note: req.value.admin_note || '' }; loading.value = false } else loading.value = true   // the last answer at once, the fresh one follows
   loadError.value = ''
   try {
-    req.value = (await api.get(`admin/wholesale/${route.params.id}`)).data
-    form.value = { status: req.value.status, admin_note: req.value.admin_note || '' }
+    const fresh = (await api.get(`admin/wholesale/${route.params.id}`)).data
+    const typing = hit && (form.value.status !== (hit.data.status) || form.value.admin_note !== (hit.data.admin_note || ''))
+    req.value = fresh
+    if (!typing) form.value = { status: req.value.status, admin_note: req.value.admin_note || '' }
   } catch (e) {
     loadError.value = e.status === 404 ? 'This request does not exist (any more).' : e.message
   } finally {

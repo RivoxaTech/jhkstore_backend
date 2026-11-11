@@ -38,10 +38,12 @@ const endpoint = computed(() => (abandoned.value ? 'admin/customers/abandoned-ca
 let seq = 0
 async function load() {
   const mine = ++seq
-  loading.value = true
+  const query = { q: q.value, page: page.value, per_page: PER_PAGE.value }
+  const hit = api.peek(endpoint.value, query)
+  if (hit) { rows.value = hit.data; meta.value = hit.meta; loading.value = false } else loading.value = true   // the last answer at once, the fresh one follows
   error.value = ''
   try {
-    const res = await api.get(endpoint.value, { q: q.value, page: page.value, per_page: PER_PAGE.value })
+    const res = await api.get(endpoint.value, query)
     if (mine !== seq) return
     rows.value = res.data
     meta.value = res.meta

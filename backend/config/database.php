@@ -61,6 +61,9 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                // `php artisan serve` opens a new MySQL connection for every request (about 15 ms on Windows). Locally it is kept open between
+                // requests (a persistent connection); on a real server PHP-FPM / the host decides: DB_PERSISTENT=true switches it on there too.
+                \PDO::ATTR_PERSISTENT => filter_var(env('DB_PERSISTENT', env('APP_ENV') === 'local'), FILTER_VALIDATE_BOOLEAN),
             ]) : [],
         ],
 

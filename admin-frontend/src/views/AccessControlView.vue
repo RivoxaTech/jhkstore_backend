@@ -31,9 +31,13 @@ function fill(payload) {
 }
 
 async function load() {
-  loading.value = true
+  const hit = api.peek('admin/access-control')
+  if (hit) { fill(hit); loading.value = false } else loading.value = true   // the last answer at once, the fresh one follows
   error.value = ''
-  try { fill(await api.get('admin/access-control')) } catch (e) { error.value = e.message } finally { loading.value = false }
+  try {
+    const fresh = await api.get('admin/access-control')
+    if (!hit || !['admin', 'developer'].some(dirty)) fill(fresh)   // never over switches that were just clicked
+  } catch (e) { error.value = e.message } finally { loading.value = false }
 }
 onMounted(load)
 
