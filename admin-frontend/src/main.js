@@ -5,6 +5,7 @@ import router, { updateDocumentTitle } from './router/index.js'
 import { onUnauthorized } from '@/api/client.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSiteStore } from '@/stores/site.js'
+import { installPopovers } from '@/utils/popovers.js'
 import './assets/styles.css'
 
 const app = createApp(App)
@@ -39,5 +40,7 @@ function labelTables() {
 }
 new MutationObserver(() => { if (!labelling) labelling = requestAnimationFrame(labelTables) }).observe(document.body, { childList: true, subtree: true })
 phone.addEventListener?.('change', labelTables)
+
+installPopovers()   // the panel's own drop-down list and calendar (utils/popovers.js)
 
 app.mount('#app')

@@ -9,6 +9,7 @@ import PaginationBar from '@/components/PaginationBar.vue'
 import RowsPerPage from '@/components/RowsPerPage.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import CopyButton from '@/components/CopyButton.vue'
 import { isValidPerPage, rememberPerPage, storedPerPage } from '@/utils/perPage.js'
 import { formatDate, money, timeAgo, whatsappUrl } from '@/utils/format.js'
 import { useSiteStore } from '@/stores/site.js'
@@ -120,16 +121,16 @@ const message = (c) => `Hello${c.name ? ` ${c.name}` : ''}, you left ${c.items} 
       <template #icon><ShoppingCart v-if="abandoned" :size="42" /><Users v-else :size="42" /></template>
     </EmptyState>
 
-    <div v-else-if="abandoned" class="table-wrap" :style="{ opacity: loading ? 0.55 : 1, transition: 'opacity .15s' }">
-      <table class="table" data-testid="abandoned-table">
+    <div v-else-if="abandoned" class="table-wrap table-wrap--scroll" :style="{ opacity: loading ? 0.55 : 1, transition: 'opacity .15s' }">
+      <table class="table table--keep" data-testid="abandoned-table">
         <thead>
           <tr><th>Name</th><th>Phone</th><th>Email</th><th style="text-align: right">Items</th><th style="text-align: right">Value</th><th>Last activity</th><th /></tr>
         </thead>
         <tbody>
           <tr v-for="c in rows" :key="c.id">
             <td><strong class="truncate" :title="c.name">{{ c.name || '–' }}</strong></td>
-            <td class="nowrap">{{ c.phone || '–' }}</td>
-            <td><span class="truncate" :title="c.email">{{ c.email || '–' }}</span></td>
+            <td class="nowrap">{{ c.phone || '–' }} <CopyButton :text="c.phone" label="Copy phone" /></td>
+            <td class="nowrap"><span class="truncate truncate--wide" :title="c.email">{{ c.email || '–' }}</span> <CopyButton :text="c.email" label="Copy e-mail" /></td>
             <td style="text-align: right">{{ c.items }}</td>
             <td class="nowrap" style="text-align: right">{{ money(c.value) }}</td>
             <td class="nowrap" :title="formatDate(c.last_activity_at, true)">{{ timeAgo(c.last_activity_at) }}</td>
@@ -141,16 +142,16 @@ const message = (c) => `Hello${c.name ? ` ${c.name}` : ''}, you left ${c.items} 
       </table>
     </div>
 
-    <div v-else class="table-wrap" :style="{ opacity: loading ? 0.55 : 1, transition: 'opacity .15s' }">
-      <table class="table">
+    <div v-else class="table-wrap table-wrap--scroll" :style="{ opacity: loading ? 0.55 : 1, transition: 'opacity .15s' }">
+      <table class="table table--keep" data-testid="customers-table">
         <thead>
           <tr><th>Name</th><th>Phone</th><th>Email</th><th>City</th><th style="text-align: right">Orders</th><th style="text-align: right">Total spent</th><th>Last order</th></tr>
         </thead>
         <tbody>
           <tr v-for="c in rows" :key="c.id">
             <td><strong class="truncate" :title="c.name">{{ c.name }}</strong></td>
-            <td class="nowrap">{{ c.phone }}</td>
-            <td><span class="truncate" :title="c.email">{{ c.email || '–' }}</span></td>
+            <td class="nowrap">{{ c.phone }} <CopyButton :text="c.phone" label="Copy phone" /></td>
+            <td class="nowrap"><span class="truncate truncate--wide" :title="c.email">{{ c.email || '–' }}</span> <CopyButton :text="c.email" label="Copy e-mail" /></td>
             <td>{{ c.city || '–' }}</td>
             <td style="text-align: right">{{ c.orders_count }}</td>
             <td class="nowrap" style="text-align: right">{{ money(c.total_spent) }}</td>

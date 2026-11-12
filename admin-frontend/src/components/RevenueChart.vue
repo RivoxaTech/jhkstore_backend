@@ -168,14 +168,14 @@ svg:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; bord
 .area { pointer-events: none; }
 .rev-line { fill: none; stroke: var(--primary); stroke-width: 2.4; stroke-linecap: round; pointer-events: none; }
 .orders-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; pointer-events: none; }
-.rev-dot { fill: #fff; stroke: var(--primary); stroke-width: 2.4; pointer-events: none; }
-.orders-dot { fill: #fff; stroke: var(--accent); stroke-width: 2; pointer-events: none; }
+.rev-dot { fill: var(--surface); stroke: var(--primary); stroke-width: 2.4; pointer-events: none; }
+.orders-dot { fill: var(--surface); stroke: var(--accent); stroke-width: 2; pointer-events: none; }
 .band { fill: var(--primary-soft); opacity: .75; pointer-events: none; }
 .chart__legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--text-2); justify-content: flex-end; margin: -2px 0 2px; }
 .sw { display: inline-block; vertical-align: middle; margin-right: 5px; }
 .sw--area { width: 10px; height: 10px; background: var(--primary); border-radius: 50%; }
 .sw--line { width: 10px; height: 10px; background: var(--accent); border-radius: 50%; }
-.chart__tip { position: absolute; pointer-events: none; background: #fff; border: 1px solid var(--border); box-shadow: var(--shadow-md); border-radius: 10px; padding: 5px 10px; display: grid; gap: 0; white-space: nowrap; z-index: 2; }
+.chart__tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-md); border-radius: 10px; padding: 5px 10px; display: grid; gap: 0; white-space: nowrap; z-index: 2; }
 .chart__tip strong { font-size: 13px; font-weight: 600; }
 .chart__tip span { font-size: 11.5px; color: var(--accent); font-weight: 500; }
 .chart__tip small { font-size: 10.5px; color: var(--text-3); }

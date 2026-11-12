@@ -100,7 +100,7 @@ function drop(i) {
 
 <style scoped>
 .acct-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
-.acct-row { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.acct-row { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--field); }
 .acct-row.is-dragging { opacity: .45; }
 .acct-row.is-over { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); }
 .acct-row.is-inactive .acct-fields { opacity: .6; }

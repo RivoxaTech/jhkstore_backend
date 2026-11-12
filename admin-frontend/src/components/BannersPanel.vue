@@ -186,7 +186,7 @@ function window_(b) {
 
 <style scoped>
 .banner-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.banner-row { display: grid; grid-template-columns: auto 150px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.banner-row { display: grid; grid-template-columns: auto 150px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--field); }
 .banner-row.is-dragging { opacity: .45; }
 .banner-row.is-over { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); }
 .banner-row.is-off .banner-thumb, .banner-row.is-off .banner-info { opacity: .65; }

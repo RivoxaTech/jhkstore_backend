@@ -70,7 +70,7 @@ const remove = (id) => emit('update:modelValue', props.modelValue.filter(t => t.
 .tp-box { position: relative; }
 .tp-box > svg { position: absolute; left: 11px; top: 10px; color: var(--text-3); pointer-events: none; }
 .tp-input { padding-left: 34px; }
-.tp-list { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 2px); background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-md); max-height: 220px; overflow: auto; list-style: none; margin: 0; padding: 3px; }
+.tp-list { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 2px); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-md); max-height: 220px; overflow: auto; list-style: none; margin: 0; padding: 3px; }
 .tp-option { padding: 6px 9px; border-radius: 6px; cursor: pointer; font-size: 12.5px; }
 .tp-option:hover { background: var(--primary-soft); color: var(--primary-dark); }
 .tp-note { padding: 7px 9px; color: var(--text-3); font-size: 12px; }

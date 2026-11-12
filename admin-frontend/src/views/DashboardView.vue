@@ -68,15 +68,16 @@ const cards = computed(() => {
   const list = []
   if (k) {
     list.push(
-      { id: 'sales', label: 'Sales', value: money(k.sales), under: 'Ordered in this period', change: change('sales', money), icon: ReceiptText, tint: 'peach', to: { name: 'orders', query: fromQuery.value } },
-      { id: 'revenue', label: 'Revenue', value: money(k.revenue), under: 'Received: verified transfers and delivered cash orders', change: change('revenue', money), icon: Wallet, tint: 'green', to: { name: 'orders', query: fromQuery.value } },
-      { id: 'orders', label: 'Orders', value: k.total_orders, under: `${k.pending_count} waiting to be confirmed`, change: change('total_orders'), icon: ShoppingBag, tint: 'blue', to: { name: 'orders', query: fromQuery.value } },
+      { id: 'sales', label: 'Sales', value: money(k.sales), change: change('sales', money), icon: ReceiptText, tint: 'peach', to: { name: 'orders', query: fromQuery.value } },
+      { id: 'revenue', label: 'Revenue', value: money(k.revenue), change: change('revenue', money), icon: Wallet, tint: 'green', to: { name: 'orders', query: fromQuery.value } },
+      { id: 'orders', label: 'Orders', value: k.total_orders, change: change('total_orders'), icon: ShoppingBag, tint: 'blue', to: { name: 'orders', query: fromQuery.value } },
     )
   }
-  // Sales (ordered), Revenue (received), Orders and Wholesale; the developer, who has no orders, gets the low-stock card
+  // Sales (ordered), Revenue (received), Orders and Wholesale; the developer, who has no orders, gets the low-stock card. No explaining text on the
+  // cards: the names say it.
   const w = data.value?.wholesale
-  if (k && w) list.push({ id: 'wholesale', label: 'Wholesale', value: w.in_range, under: `${w.new} new, waiting for an answer`, icon: Store, tint: 'mint', to: { name: 'wholesale' } })
-  if (!k && catalog.value) list.push({ id: 'low-stock', label: 'Low stock', value: catalog.value.low_stock, under: 'Options at or below their alert level', icon: PackageSearch, tint: 'pink', to: { name: 'products', query: { stock: 'low' } } })
+  if (k && w) list.push({ id: 'wholesale', label: 'Wholesale', value: w.in_range, icon: Store, tint: 'mint', to: { name: 'wholesale' } })
+  if (!k && catalog.value) list.push({ id: 'low-stock', label: 'Low stock', value: catalog.value.low_stock, icon: PackageSearch, tint: 'pink', to: { name: 'products', query: { stock: 'low' } } })
   return list
 })
 
@@ -108,7 +109,7 @@ function describe(a) {
     {{ error }} <button class="btn btn-outline btn-sm" type="button" style="margin-left: auto" @click="load">Retry</button>
   </div>
 
-  <div v-if="cards.length || (loading && !data)" class="kpis" aria-label="Overview" data-testid="kpis">
+  <div v-if="cards.length || (loading && !data)" class="kpis" :style="{ '--n': cards.length || 4 }" aria-label="Overview" data-testid="kpis">
     <template v-if="loading && !data">
       <div v-for="n in 4" :key="n" class="kpi kpi--skeleton"><div class="skeleton" style="width: 60%; height: 12px" /><div class="skeleton" style="width: 80%; height: 26px; margin-top: 10px" /><div class="skeleton" style="width: 50%; height: 16px; margin-top: 12px" /></div>
     </template>
@@ -117,11 +118,10 @@ function describe(a) {
       <div class="kpi__main">
         <span class="kpi__label">{{ s.label }}</span>
         <div class="kpi__value stat__value">{{ s.value ?? 0 }}</div>
-        <div class="kpi__under">{{ s.under }}</div>
-      <div v-if="s.change" class="kpi__change" :data-change="s.id">
-        <span v-if="!s.change.none" class="pill" :class="s.change.up ? 'is-up' : 'is-down'"><component :is="s.change.up ? ArrowUpRight : ArrowDownRight" :size="12" /> {{ s.change.pct }}</span>
-        <small>{{ s.change.text }}</small>
-      </div>
+        <div v-if="s.change" class="kpi__change" :data-change="s.id">
+          <span v-if="!s.change.none" class="pill" :class="s.change.up ? 'is-up' : 'is-down'"><component :is="s.change.up ? ArrowUpRight : ArrowDownRight" :size="12" /> {{ s.change.pct }}</span>
+          <small>{{ s.change.text }}</small>
+        </div>
       </div>
     </RouterLink>
   </div>
@@ -239,9 +239,12 @@ function describe(a) {
 .btn-dark { background: var(--brand, var(--primary)); color: var(--on-brand, #fff); }
 .btn-dark:hover { background: var(--primary-dark); }
 .dash-zone { font-size: 11.5px; margin-bottom: 10px; }
+@media (max-width: 720px) { .dash-head { flex-direction: column; align-items: stretch; gap: 8px; } }
 
 /* soft coloured cards */
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.kpis { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+@media (max-width: 1180px) { .kpis { grid-template-columns: repeat(min(var(--n, 4), 2), minmax(0, 1fr)); } }
+@media (min-width: 641px) { .kpis[style*="--n: 1"] { max-width: 340px; } }
 /* a round "orb" with the icon, the figure beside it, a big soft circle behind the corner: one tint (--tint) and one ink (--ink) per card */
 .kpi { --tint: #eef1f5; --ink: #64748b; position: relative; overflow: hidden; display: flex; align-items: center; gap: 14px; padding: 16px 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--border-light); box-shadow: var(--shadow-sm); transition: transform .15s, box-shadow .15s; min-width: 0; }
 .kpi::after { content: ''; position: absolute; right: -34px; top: -34px; width: 120px; height: 120px; border-radius: 50%; background: var(--tint); opacity: .55; pointer-events: none; }
@@ -257,7 +260,6 @@ a.kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .kpi--skeleton { display: block; }
 .kpi__label { font-size: 12.5px; font-weight: 500; color: var(--text-2); }
 .kpi__value { font-size: 24px; font-weight: 700; line-height: 1.2; color: var(--text); overflow-wrap: anywhere; }
-.kpi__under { font-size: 11.5px; color: var(--text-2); line-height: 1.35; }
 .kpi__change { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .kpi__change small { font-size: 11px; color: var(--text-2); }
 @media (max-width: 640px) {
@@ -267,7 +269,7 @@ a.kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
   .kpi__value { font-size: 20px; }
   .kpi::after { width: 90px; height: 90px; right: -28px; top: -28px; }
 }
-.pill { display: inline-flex; align-items: center; gap: 2px; padding: 1px 8px 1px 5px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #fff; }
+.pill { display: inline-flex; align-items: center; gap: 2px; padding: 1px 8px 1px 5px; border-radius: 12px; font-size: 11px; font-weight: 600; background: var(--surface); }
 .pill.is-up { color: var(--success); }
 .pill.is-down { color: var(--danger); }
 
@@ -281,7 +283,7 @@ a.kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 
 .top-list { list-style: none; display: grid; gap: 9px; }
 .top-list li { display: flex; gap: 10px; align-items: center; }
-.top-list__thumb { width: 42px; height: 42px; border-radius: 10px; background: #f6f8fb; }
+.top-list__thumb { width: 42px; height: 42px; border-radius: 10px; background: var(--soft); }
 .top-list__text { flex: 1; min-width: 0; display: grid; }
 .top-list__name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .top-list__text small { color: var(--text-3); font-size: 11.5px; }
@@ -297,7 +299,7 @@ table.table--recent { width: 100%; }
 .table--recent .truncate { max-width: 150px; display: block; }
 
 .prod-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 8px; }
-.prod-count { display: grid; text-align: center; padding: 8px 4px; border-radius: 10px; background: #f6f8fb; }
+.prod-count { display: grid; text-align: center; padding: 8px 4px; border-radius: 10px; background: var(--soft); }
 .prod-count strong { font-size: 18px; font-weight: 600; }
 .prod-count span { font-size: 11.5px; color: var(--text-2); text-transform: capitalize; }
 .prod-count:hover { background: var(--primary-soft); }

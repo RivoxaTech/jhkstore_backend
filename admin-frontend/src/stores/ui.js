@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { reapplyPrimary } from '@/utils/theme.js'
 
 let nextId = 1
 
@@ -26,6 +27,7 @@ export const useUiStore = defineStore('ui', () => {
     theme.value = theme.value === 'dark' ? 'light' : 'dark'
     write('admin_theme', theme.value)
     document.documentElement.dataset.theme = theme.value
+    reapplyPrimary()   // the store's colour is worked out for the light or the dark panel
   }
 
   function toggleSidebar() {

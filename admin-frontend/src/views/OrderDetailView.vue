@@ -10,6 +10,7 @@ import AppModal from '@/components/AppModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import StatusMenu from '@/components/StatusMenu.vue'
+import CopyButton from '@/components/CopyButton.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import { currencySymbol, formatDate, money, whatsappUrl } from '@/utils/format.js'
 
@@ -393,8 +394,8 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
             <div class="card__head"><h2>Customer</h2><RouterLink class="btn btn-soft btn-sm" :to="{ name: 'orders', query: { customer_id: o.customer.id } }">{{ o.customer.orders_count }} {{ o.customer.orders_count === 1 ? "order" : "orders" }}</RouterLink></div>
             <div class="kv-list">
               <div><span class="k">Name</span><span class="v">{{ o.customer.name }}</span></div>
-              <div><span class="k">Email</span><span class="v">{{ o.customer.email || '-' }}</span></div>
-              <div><span class="k">Phone</span><span class="v">{{ o.customer.phone || '-' }}</span></div>
+              <div><span class="k">Email</span><span class="v">{{ o.customer.email || '-' }} <CopyButton :text="o.customer.email" label="Copy e-mail" /></span></div>
+              <div><span class="k">Phone</span><span class="v">{{ o.customer.phone || '-' }} <CopyButton :text="o.customer.phone" label="Copy phone" /></span></div>
               <div><span class="k">First order</span><span class="v">{{ formatDate(o.customer.first_order_at) }}</span></div>
             </div>
           </section>
@@ -555,5 +556,5 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
 .proof-thumb img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .proof-zoom { position: absolute; right: 6px; bottom: 6px; background: rgba(15, 23, 42, .65); color: #fff; border-radius: 6px; padding: 3px; display: grid; }
 .acct-show { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.acct-show li { padding: 6px 9px; border: 1px solid var(--border-light); border-radius: 8px; background: #f8fafc; }
+.acct-show li { padding: 6px 9px; border: 1px solid var(--border-light); border-radius: 8px; background: var(--surface-2); }
 </style>

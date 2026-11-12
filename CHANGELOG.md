@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-11-12 (2) – A really dark dark theme, own drop-down list and calendar, compact phone screens, copy icons, old price first (branch `lean-store`)
+
+### Fixed
+- **The dark theme was half light.** The panel writes the store's primary colour as inline CSS variables, and those light values overrode the dark ones (the active menu item, soft buttons, tints stayed pale), and many components had a hard-coded white (the save bar, switches, chart tooltip, banner / account / link rows, the option table, the order's bank box, the dashboard tiles). The primary colour is now worked out for the light or the dark panel (`utils/theme.js`, redone when the theme is toggled) and the hard-coded colours are theme tokens (`--field`, `--surface-2`, `--hover`, `--soft`, skeleton, switch, scroll bar). A script that walks every screen in the dark theme and lists visible elements with a light background now finds only the intended accent colours (badge, switch "on").
+- **Dashboard header on a phone** was pushed to the right (the scoped style beat the phone rule).
+
+### Changed
+- **Dashboard cards** carry no explaining text any more: the icon disc, the name, the figure and the change against the last period. The grid has as many columns as there are cards (one card for the developer does not stretch over the whole row).
+- **Scroll bars** of the panel: slim, rounded, theme-coloured (Firefox: thin).
+- **Export CSV** sits in the same row as the title and the path on a phone (orders, customers, wholesale, products, ...).
+- **Orders filter on a phone**: From and To share one row; the selects and dates are 34 px high.
+- **Customers** are a table again on a phone (the box scrolls sideways) instead of cards; a **copy icon** beside every phone number and e-mail (customers, abandoned carts, the customer box of an order).
+- **Order page on a phone**: the items are compact lines (picture and name, then quantity x price and the line total) that fit the screen; the totals are tighter.
+- **Save bar** (settings, forms): one compact row on a phone ("All changes saved", an icon-only Discard, Save changes), dark in the dark theme.
+- **Storefront**: the old (struck-through) price is shown **before** the price, on the product card and on the product page (a wide card: one row; a narrow card: two rows); the page headers (Shop, About, ...) and the first section are much tighter on a phone; the site header and the phone menu have rounded bottom corners like the cards.
+
+### Added
+- **The panel's own drop-down list and calendar** (`admin-frontend/src/utils/popovers.js`): every `select.select` and every date field opens a list / a calendar drawn by the panel (themed, inside the screen, with a check mark, keyboard: Space / Enter / arrows / Esc) instead of the browser's pop-up. The real element stays in the page and still fires `input` / `change`, so v-model and the tests are unchanged.
+- `CopyButton` component (clipboard API with a fallback for http pages).
+- Tests: `flow-ui` UI-S1..S4 (the list, the calendar, the copy icon, the cards without text); `journey.mjs` phone checks (Export in the title row, From and To on one row, customers table with copy icons, compact order items, old price before the price, compact page header).
+
 ## 2026-11-12 – Plain sidebar, profile and password, dark theme, phone layouts, round-icon dashboard cards (branch `lean-store`)
 
 ### Changed

@@ -761,7 +761,7 @@ try {
   await waitVal(a.page, '[data-kpi="revenue"]')
   const kpiCards = await a.page.$$eval('[data-kpi]', (els) => els.map((e) => e.dataset.kpi))
   check(JSON.stringify(kpiCards) === JSON.stringify(['sales', 'revenue', 'orders', 'wholesale']), 'UI-G1 the admin dashboard shows exactly four soft KPI cards (sales, revenue, orders, wholesale)', kpiCards)
-  check(/Received/.test(await textOf(a.page, '[data-kpi="revenue"]')) && /Ordered/.test(await textOf(a.page, '[data-kpi="sales"]')) && /^Welcome back/.test(await textOf(a.page, '.dash-head h1')), 'UI-C5 the revenue card says what "received" means, the sales card what "ordered" means, and the welcome line greets the user')
+  check(/Revenue/.test(await textOf(a.page, '[data-kpi="revenue"]')) && /Sales/.test(await textOf(a.page, '[data-kpi="sales"]')) && /^Welcome back/.test(await textOf(a.page, '.dash-head h1')), 'UI-C5 the Revenue and Sales cards are there (no explaining text) and the welcome line greets the user')
   const tabsDash = await a.page.$$eval('.dash-tabs [role="tab"]', (els) => els.map((e) => e.innerText.trim()))
   check(JSON.stringify(tabsDash) === JSON.stringify(['Today', '7 days', '30 days', 'This month', 'All time']), 'UI-G1 the date tabs: Today, 7 days, 30 days, This month, All time', tabsDash)
   await tap(a.page, '[data-range="all"]')
@@ -1127,6 +1127,32 @@ try {
   } else {
     console.log('SKIP  UI-G7 time zone check: start a server with APP_TIMEZONE=Pacific/Auckland and set E2E_BASE_TZ (see the header)')
   }
+
+  // ============================================================ UI-S: the panel's own drop-down list and calendar, the copy icons, no explaining text on the cards
+  await api('PUT', 'admin/access-control/admin', { permissions: ADMIN_DEFAULTS }, devToken)   // earlier flows changed what the admin may do
+  await goto(a.page, 'orders')
+  await a.page.waitForSelector('select[aria-label="Payment"]', { timeout: 15000 }).catch(async (e) => { console.log(`  (UI-S: no select; url ${a.page.url()}; text: ${(await a.page.evaluate(() => document.body.innerText)).slice(0, 300).replace(/s+/g, ' ')})`); throw e })
+  await a.page.click('select[aria-label="Payment"]')
+  await a.page.waitForSelector('.pop--list')
+  check((await a.page.$$eval('.pop__opt', (o) => o.length)) >= 3, 'UI-S1 a click on a select opens the panel\'s own list (not the browser\'s)')
+  await a.page.click('.pop__opt:nth-child(2)')
+  await a.page.waitForFunction(() => location.search.includes('payment_status='), { timeout: 15000 })
+  check(!(await a.page.$('.pop--list')), 'UI-S1 picking an option closes the list and sets the filter', a.page.url())
+  await a.page.click('input[aria-label="From date"]')
+  await a.page.waitForSelector('.pop--cal')
+  await a.page.click('.cal__day.is-today')
+  await a.page.waitForFunction(() => location.search.includes('from='), { timeout: 15000 })
+  check(/from=\d{4}-\d{2}-\d{2}/.test(a.page.url()) && !(await a.page.$('.pop--cal')), 'UI-S2 the panel\'s own calendar picks a date', a.page.url())
+  await goto(a.page, 'customers')
+  await a.page.waitForSelector('[data-testid="customers-table"] [data-testid="copy"]')
+  await a.page.evaluate(() => { window.__clip = ''; navigator.clipboard.writeText = async (t) => { window.__clip = t } })
+  await a.page.click('[data-testid="customers-table"] [data-testid="copy"]')
+  await a.page.waitForFunction(() => window.__clip !== '', { timeout: 5000 })
+  check(/^\+?\d[\d ]{6,}$/.test(await a.page.evaluate(() => window.__clip)), 'UI-S3 the copy icon next to a phone number copies it', await a.page.evaluate(() => window.__clip))
+  await goto(a.page, '')
+  await a.page.waitForSelector('[data-kpi="sales"]')
+  check(!(await a.page.$('.kpi__under')) && (await a.page.$$eval('.kpi', (k) => k.length)) === 4, 'UI-S4 the four cards carry no explaining text')
+
 
   // ============================================================ UI-R: profile, password, theme, the plain sidebar, the logout icon
   await goto(a.page, '')

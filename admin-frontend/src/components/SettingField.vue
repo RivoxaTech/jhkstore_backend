@@ -118,6 +118,6 @@ const bankWarning = computed(() => {
 .secret-state { font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
 .secret-state.is-set { color: var(--success); font-weight: 600; }
 .color-field { display: flex; align-items: center; gap: 8px; }
-.color-swatch { width: 40px; height: 34px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: #fff; cursor: pointer; flex: none; }
+.color-swatch { width: 40px; height: 34px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--field); cursor: pointer; flex: none; }
 .color-field .input { max-width: 130px; font-variant-numeric: tabular-nums; text-transform: uppercase; }
 </style>

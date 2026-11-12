@@ -122,14 +122,14 @@ const immediate = (r) => props.productId !== null && r.id !== null
 .opt-table th { white-space: nowrap; }
 .opt-table td { vertical-align: top; padding: 5px 6px; }
 .opt-table td.c, .opt-table th.c { text-align: center; }
-.opt-table tr.is-off td { background: #fafafa; }
-.opt-table tr.is-bad td { background: #fff7f8; }
+.opt-table tr.is-off td { background: var(--hover); }
+.opt-table tr.is-bad td { background: var(--danger-soft); }
 .input--sm { height: 30px; padding: 0 8px; min-width: 70px; }
 .input--num { width: 90px; text-align: right; }
 .opt-table .err { font-size: 11px; color: var(--danger); margin-top: 2px; max-width: 170px; }
 .opt-table small { display: block; font-size: 11px; }
 .req { color: var(--danger); }
-.opt-more td { background: #f8fafc; }
+.opt-more td { background: var(--surface-2); }
 .opt-more__grid { display: grid; grid-template-columns: 180px 1fr; gap: 14px; align-items: start; }
 @media (max-width: 760px) { .opt-more__grid { grid-template-columns: 1fr; } }
 .opt__foot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-top: 6px; }

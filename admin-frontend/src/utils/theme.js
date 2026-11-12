@@ -20,13 +20,28 @@ function luminance([r, g, b]) {
 const contrastWhite = (rgb) => 1.05 / (luminance(rgb) + 0.05)
 
 
-/** The variables to set for a primary colour (and the text colour on it), or null when it is not a #RRGGBB value. */
-export function primaryVars(hex, onHex) {
+const DARK_SURFACE_L = 0.011   // luminance of the dark panel's cards
+const contrastOnDark = (rgb) => (luminance(rgb) + 0.05) / (DARK_SURFACE_L + 0.05)
+
+/** The variables to set for a primary colour (and the text colour on it), or null when it is not a #RRGGBB value.
+ *  Light panel: the colour darkened until it reads as text on white. Dark panel: lightened until it reads as text on the dark cards, and the soft
+ *  tint is the colour at a low opacity (a pale tint would be a light patch on a dark page). */
+export function primaryVars(hex, onHex, dark = false) {
   const brand = parse(hex)
   let rgb = parse(hex)
   if (!rgb) return null
-  for (let i = 0; i < 40 && contrastWhite(rgb) < 3; i++) rgb = mix(rgb, [0, 0, 0], 0.06)
   const on = parse(onHex) || [255, 255, 255]
+  if (dark) {
+    for (let i = 0; i < 40 && contrastOnDark(rgb) < 4.5; i++) rgb = mix(rgb, [255, 255, 255], 0.08)
+    return {
+      '--brand': toHex(brand),
+      '--on-brand': toHex(on),
+      '--primary': toHex(rgb),
+      '--primary-dark': toHex(mix(rgb, [255, 255, 255], 0.28)),
+      '--primary-soft': `rgba(${brand.map(Math.round).join(', ')}, .2)`,
+    }
+  }
+  for (let i = 0; i < 40 && contrastWhite(rgb) < 3; i++) rgb = mix(rgb, [0, 0, 0], 0.06)
   return {
     '--brand': toHex(brand),
     '--on-brand': toHex(on),
@@ -37,10 +52,16 @@ export function primaryVars(hex, onHex) {
 }
 
 const KEYS = ['--brand', '--on-brand', '--primary', '--primary-dark', '--primary-soft']
+let last = null
 
-/** Sets (or, without a valid colour, removes) the panel's primary colour; `onHex` is the theme's text colour on it. */
+/** Sets (or, without a valid colour, removes) the panel's primary colour; `onHex` is the theme's text colour on it. The colours follow the light / dark
+ *  theme of the panel (call it again, or `reapplyPrimary`, when that changes). */
 export function applyPrimary(hex, onHex) {
+  last = [hex, onHex]
   const root = document.documentElement
-  const vars = primaryVars(hex, onHex)
+  const vars = primaryVars(hex, onHex, root.dataset.theme === 'dark')
   for (const k of KEYS) { if (vars) root.style.setProperty(k, vars[k]); else root.style.removeProperty(k) }
 }
+
+/** The theme (light / dark) changed: work the primary colour out again for it. */
+export function reapplyPrimary() { if (last) applyPrimary(last[0], last[1]) }
