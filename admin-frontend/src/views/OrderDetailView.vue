@@ -249,12 +249,12 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
       <div class="crumbs"><RouterLink :to="{ name: 'dashboard' }">Dashboard</RouterLink> › <RouterLink :to="{ name: 'orders' }">Orders</RouterLink> › <span>{{ o?.order_number || '...' }}</span></div>
     </div>
     <div v-if="o" class="act-bar">
-      <button class="btn btn-outline" type="button" @click="print('invoice')"><Printer :size="16" /> Print invoice</button>
-      <button class="btn btn-outline" type="button" @click="print('slip')"><FileText :size="16" /> Packing slip</button>
-      <a v-if="whatsapp" class="btn btn-outline" :href="whatsapp" target="_blank" rel="noopener" data-testid="whatsapp"><MessageCircle :size="16" /> WhatsApp</a>
+      <button class="btn btn-outline" type="button" title="Print invoice" aria-label="Print invoice" @click="print('invoice')"><Printer :size="16" /> Print invoice</button>
+      <button class="btn btn-outline" type="button" title="Packing slip" aria-label="Packing slip" @click="print('slip')"><FileText :size="16" /> Packing slip</button>
+      <a v-if="whatsapp" class="btn btn-outline" title="WhatsApp the customer" aria-label="WhatsApp the customer" :href="whatsapp" target="_blank" rel="noopener" data-testid="whatsapp"><MessageCircle :size="16" /> WhatsApp</a>
       <StatusMenu v-if="canManage && forwardOptions.length > 2" size="md" :status="o.status" :options="forwardOptions" :disabled="busy" aria-label="Change the status of this order" data-testid="status-menu-btn" @pick="openAction" />
-      <button v-if="canManage && o.actions.can_cancel" class="btn btn-soft-danger" type="button" @click="openAction('cancelled')"><Ban :size="16" /> Cancel order</button>
-      <button v-if="canManage && o.actions.can_reject" class="btn btn-soft-danger" type="button" data-reject-order @click="openAction('rejected')"><CircleX :size="16" /> Reject order</button>
+      <button v-if="canManage && o.actions.can_cancel" class="btn btn-soft-danger" type="button" title="Cancel order" aria-label="Cancel order" @click="openAction('cancelled')"><Ban :size="16" /> Cancel order</button>
+      <button v-if="canManage && o.actions.can_reject" class="btn btn-soft-danger" type="button" title="Reject order" aria-label="Reject order" data-reject-order @click="openAction('rejected')"><CircleX :size="16" /> Reject order</button>
       <span v-if="canManage && next && blockedText" class="muted" data-blocked :data-reason="o.actions.blocked_reason" style="max-width: 220px; line-height: 1.25">{{ blockedText }}</span>
       <button v-if="canManage && next" class="btn" :class="`btn-${next.tone}`" type="button" :disabled="Boolean(o.actions.blocked_reason)" :title="blockedTitle || undefined" @click="openAction(o.actions.next_status)"><component :is="next.icon" :size="16" /> {{ next.button }}</button>
     </div>
@@ -331,7 +331,7 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
           <section class="card">
             <div class="card__head"><h2>Items ({{ o.items.length }})</h2></div>
             <div class="table-wrap">
-              <table class="table od-items">
+              <table class="table table--keep od-items">
                 <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Total</th></tr></thead>
                 <tbody>
                   <tr v-for="i in o.items" :key="i.id">

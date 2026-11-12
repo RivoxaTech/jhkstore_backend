@@ -90,6 +90,7 @@ export function whatsappUrl(phone, text = '') {
 }
 
 export const ACTION_LABELS = {
+  'auth.password_changed': 'changed their password',
   'orders.exported': 'downloaded the orders list',
   'wholesale.updated': 'updated wholesale request',
   'wholesale.exported': 'downloaded the wholesale requests',

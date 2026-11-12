@@ -69,6 +69,37 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logged out.']);
     }
 
+    /**
+     * PUT auth/password { current_password, password, password_confirmation }: the signed-in admin changes their own password. The current password must be
+     * right, the new one at least 8 characters (12 in production), not the username and not the old one. Every other bearer token of the account is revoked
+     * (a stolen token stops working); this session stays. The password never reaches the audit log.
+     */
+    public function password(Request $request): JsonResponse
+    {
+        $admin = $request->user();
+        $min = app()->environment('production') ? 12 : 8;
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'string', "min:$min", 'max:128', 'confirmed', 'different:current_password', 'not_in:'.$admin->username],
+        ], [
+            'password.min' => "The new password needs at least $min characters.",
+            'password.confirmed' => 'The two new passwords are not the same.',
+            'password.different' => 'Choose a password you have not used just now.',
+            'password.not_in' => 'The password cannot be your username.',
+        ]);
+
+        if (! Hash::check($data['current_password'], $admin->password)) {
+            throw ValidationException::withMessages(['current_password' => ['The current password is not correct.']]);
+        }
+
+        $admin->forceFill(['password' => $data['password']])->save();
+        $current = $request->user()->currentAccessToken();
+        $admin->tokens()->when($current && isset($current->id), fn ($q) => $q->where('id', '!=', $current->id))->delete();
+        \App\Support\Audit::log($admin, 'auth.password_changed', $admin);
+
+        return response()->json(['message' => 'Your password was changed.']);
+    }
+
     public function me(Request $request): JsonResponse
     {
         return response()->json(['admin' => $this->payload($request->user())]);

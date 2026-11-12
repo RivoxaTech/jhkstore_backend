@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-12 – Plain sidebar, profile and password, dark theme, phone layouts, round-icon dashboard cards (branch `lean-store`)
+
+### Changed
+- **Sidebar**: no group headings, one list in the order Dashboard, Orders, Wholesale, Customers, (Products, Categories, Discounts, Coupons), then a thin line and Settings / Access Control. The collapse button is the small round button next to the logo (on the edge of the sidebar when it is collapsed). The signed-in person (name and role, Admin or Developer) sits at the bottom and opens the **Profile** page.
+- **Top bar**: the name button is gone; the right side is the alert sound, push and status buttons, the **theme toggle** and a **logout icon**.
+- **Dashboard cards** are round "orbs" with the icon, the figure, a soft circle behind the corner and the change against the last period; four across on a desktop, two by two on a phone.
+- **Phones**: every list (orders, wholesale, customers, coupons, discounts, products, the dashboard's recent orders) is drawn as cards (orders: number and total on top, customer, date, payment and status below). The tabs scroll sideways, the filters are two to a row. On the order page the print / packing slip / WhatsApp / cancel / reject buttons are icons and the main step keeps a short label.
+
+### Added
+- **Profile page** (`/admin/profile`): who you are and **Change password** (current password, new password twice, an eye button on each box; the same eye on the sign-in page). `PUT /admin/auth/password` - the current password is checked, at least 8 characters (12 in production), not the username, not the old one; the account's other API tokens are revoked; 5 tries a minute; the password never reaches the audit log.
+- **Light / dark theme** for the panel, kept in the browser and applied before the first paint.
 ## 2026-11-11 (2) – Sales and Revenue, any later status, cleaner invoice and packing slip, faster product add (branch `lean-store`)
 
 ### Changed

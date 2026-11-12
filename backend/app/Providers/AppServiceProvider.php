@@ -52,6 +52,9 @@ class AppServiceProvider extends ServiceProvider
         // Admin API: 600 a minute per admin (ADMIN_PER_MINUTE) - generous for the panel, a ceiling for a runaway script.
         RateLimiter::for('admin', fn (Request $request) => Limit::perMinute((int) env('ADMIN_PER_MINUTE', 600))->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
 
+        // Changing the password: 5 a minute per admin (the current password is checked, so this is a guess limit).
+        RateLimiter::for('password', fn (Request $request) => Limit::perMinute(5)->by('password|'.$request->user()?->getAuthIdentifier()));
+
         // Login attempts: 8 per minute per login name + IP.
         RateLimiter::for('login', fn (Request $request) => Limit::perMinute(8)->by(strtolower((string) $request->input('login')).'|'.$request->ip()));
 

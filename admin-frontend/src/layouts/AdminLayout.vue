@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Activity, BadgePercent, BellRing, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Package, Search, Settings, ShoppingBag, Store, Ticket, Users, Volume2, VolumeX } from '@lucide/vue'
+import { Activity, BadgePercent, BellRing, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Moon, Package, Search, Settings, ShoppingBag, Store, Sun, Ticket, Users, Volume2, VolumeX } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useCatalogStore } from '@/stores/catalog.js'
@@ -155,27 +155,20 @@ const showSoundHint = computed(() => canNotify.value && !ui.soundMuted && !ui.so
 
 // The sidebar: the same items and permissions as always, grouped under small labels. Items without permission are left out, and so is a label without items.
 const named = (...names) => (r) => names.includes(r.name)
+// The sidebar: one plain list in the order the owner works in (no group headings). `system` items sit under a thin line.
 const NAV = [
-  { label: '', items: [{ to: 'dashboard', text: 'Dashboard', icon: LayoutDashboard, can: 'dashboard.view', on: named('dashboard') }] },
-  { label: 'Sales', items: [{ to: 'orders', text: 'Orders', icon: ShoppingBag, can: 'orders.view', on: named('orders', 'order'), badge: 'pendingOrders', testid: 'orders-badge', title: (n) => `${n} orders or payment proofs waiting` }] },
-  { label: 'Catalogue', items: [
-    { to: 'products', text: 'Products', icon: Package, can: 'products.view', on: (r) => String(r.name).startsWith('product') },
-    { to: 'categories', text: 'Categories', icon: FolderTree, can: 'categories.view', on: named('categories') },
-  ] },
-  { label: 'People', items: [
-    { to: 'customers', text: 'Customers', icon: Users, can: 'customers.view', on: named('customers') },
-    { to: 'wholesale', text: 'Wholesale', icon: Store, can: 'wholesale.view', on: named('wholesale'), badge: 'newWholesale', testid: 'wholesale-badge', title: (n) => `${n} new requests` },
-  ] },
-  { label: 'Promotions', items: [
-    { to: 'discounts', text: 'Discounts', icon: BadgePercent, can: 'discounts.view', on: named('discounts') },
-    { to: 'coupons', text: 'Coupons', icon: Ticket, can: 'coupons.view', on: named('coupons') },
-  ] },
-  { label: 'System', items: [
-    { to: 'settings', text: 'Settings', icon: Settings, can: 'settings.*', on: named('settings') },
-    { to: 'access-control', text: 'Access Control', icon: KeyRound, can: 'access.manage', on: named('access-control') },
-  ] },
+  { to: 'dashboard', text: 'Dashboard', icon: LayoutDashboard, can: 'dashboard.view', on: named('dashboard') },
+  { to: 'orders', text: 'Orders', icon: ShoppingBag, can: 'orders.view', on: named('orders', 'order'), badge: 'pendingOrders', testid: 'orders-badge', title: (n) => `${n} orders or payment proofs waiting` },
+  { to: 'wholesale', text: 'Wholesale', icon: Store, can: 'wholesale.view', on: named('wholesale', 'wholesale-request'), badge: 'newWholesale', testid: 'wholesale-badge', title: (n) => `${n} new requests` },
+  { to: 'customers', text: 'Customers', icon: Users, can: 'customers.view', on: named('customers') },
+  { to: 'products', text: 'Products', icon: Package, can: 'products.view', on: (r) => String(r.name).startsWith('product') },
+  { to: 'categories', text: 'Categories', icon: FolderTree, can: 'categories.view', on: named('categories') },
+  { to: 'discounts', text: 'Discounts', icon: BadgePercent, can: 'discounts.view', on: (r) => String(r.name).startsWith('discount') },
+  { to: 'coupons', text: 'Coupons', icon: Ticket, can: 'coupons.view', on: (r) => String(r.name).startsWith('coupon') },
+  { to: 'settings', text: 'Settings', icon: Settings, can: 'settings.*', on: named('settings'), system: true },
+  { to: 'access-control', text: 'Access Control', icon: KeyRound, can: 'access.manage', on: named('access-control'), system: true },
 ]
-const sections = computed(() => NAV.map((s) => ({ ...s, items: s.items.filter((i) => auth.can(i.can)) })).filter((s) => s.items.length))
+const items = computed(() => NAV.filter((i) => auth.can(i.can)))
 
 async function logout() {
   await auth.logout()
@@ -188,22 +181,24 @@ async function logout() {
     <aside class="sidebar" aria-label="Main navigation">
       <div class="sidebar__head">
         <BrandLogo :collapsed="ui.sidebarCollapsed" />
+        <button class="side-toggle" type="button" :title="ui.sidebarCollapsed ? 'Expand menu' : 'Collapse menu'" :aria-label="ui.sidebarCollapsed ? 'Expand menu' : 'Collapse menu'" data-testid="collapse-toggle" @click="ui.toggleSidebar()">
+          <ChevronsRight v-if="ui.sidebarCollapsed" :size="16" /><ChevronsLeft v-else :size="16" />
+        </button>
       </div>
       <nav class="sidebar__nav">
-        <div v-for="s in sections" :key="s.label || 'top'" class="nav-group">
-          <div v-if="s.label" class="nav-label">{{ s.label }}</div>
-          <RouterLink v-for="i in s.items" :key="i.to" :to="{ name: i.to }" class="nav-item" :class="{ 'is-active': i.on(route) }" exact-active-class="" active-class="" :title="ui.sidebarCollapsed ? i.text : undefined" @pointerenter="warm(router, { name: i.to }, auth)" @focus="warm(router, { name: i.to }, auth)" @touchstart.passive="warm(router, { name: i.to }, auth)">
+        <template v-for="(i, n) in items" :key="i.to">
+          <div v-if="i.system && !items[n - 1]?.system" class="nav-sep" role="separator" />
+          <RouterLink :to="{ name: i.to }" class="nav-item" :class="{ 'is-active': i.on(route) }" exact-active-class="" active-class="" :title="ui.sidebarCollapsed ? i.text : undefined" @pointerenter="warm(router, { name: i.to }, auth)" @focus="warm(router, { name: i.to }, auth)" @touchstart.passive="warm(router, { name: i.to }, auth)">
             <component :is="i.icon" :size="18" /><span>{{ i.text }}</span>
             <b v-if="i.badge && ui[i.badge]" class="nav-badge" :data-testid="i.testid" :title="i.title(ui[i.badge])">{{ ui[i.badge] }}</b>
           </RouterLink>
-        </div>
+        </template>
       </nav>
       <div class="sidebar__foot">
-
-        <button class="collapse-btn" type="button" :title="ui.sidebarCollapsed ? 'Expand menu' : 'Collapse menu'" :aria-label="ui.sidebarCollapsed ? 'Expand menu' : 'Collapse menu'" @click="ui.toggleSidebar()">
-          <ChevronsRight v-if="ui.sidebarCollapsed" :size="18" /><ChevronsLeft v-else :size="18" />
-          <span>Collapse</span>
-        </button>
+        <RouterLink :to="{ name: 'profile' }" class="profile-link" active-class="" exact-active-class="" :class="{ 'is-active': route.name === 'profile' }" :title="`${auth.admin?.name || auth.admin?.username} - change password`" data-testid="profile-link">
+          <span class="avatar">{{ auth.initials }}</span>
+          <span class="profile-link__text"><strong>{{ auth.admin?.name || auth.admin?.username }}</strong><small>{{ roleLabel }}</small></span>
+        </RouterLink>
       </div>
     </aside>
     <div class="backdrop" @click="ui.mobileSidebarOpen = false" />
@@ -226,19 +221,10 @@ async function logout() {
           <button class="icon-btn" type="button" data-testid="notification-status-btn" title="Notification status" aria-label="Notification status" :aria-expanded="statusOpen" @click.stop="statusOpen = !statusOpen"><Activity :size="17" /></button>
           <div v-if="statusOpen" class="status-pop" role="dialog" aria-label="Notification status"><NotificationStatusCard compact bare /></div>
         </div>
-        <div ref="menuEl" class="user-menu">
-          <button class="user-btn" type="button" aria-haspopup="menu" :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen">
-            <span class="avatar">{{ auth.initials }}</span>
-            <strong>{{ auth.admin?.name || auth.admin?.username }}</strong>
-          </button>
-          <div v-if="menuOpen" class="dropdown" role="menu">
-            <div class="dropdown__head">
-              <strong>{{ auth.admin?.name }}</strong>
-              <small>@{{ auth.admin?.username }}<template v-if="auth.role"> · {{ roleLabel }}</template></small>
-            </div>
-            <button type="button" role="menuitem" @click="logout"><LogOut :size="17" /> Sign out</button>
-          </div>
-        </div>
+        <button class="icon-btn" type="button" data-testid="theme-toggle" :aria-pressed="ui.theme === 'dark'" :title="ui.theme === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'" :aria-label="ui.theme === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'" @click="ui.toggleTheme()">
+          <Sun v-if="ui.theme === 'dark'" :size="17" /><Moon v-else :size="17" />
+        </button>
+        <button class="icon-btn" type="button" data-testid="logout" title="Sign out" aria-label="Sign out" @click="logout"><LogOut :size="17" /></button>
       </header>
 
       <main class="content">

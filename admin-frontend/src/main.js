@@ -26,4 +26,18 @@ const site = useSiteStore()
 site.load()
 watch(() => site.rawName, () => updateDocumentTitle())
 
+// On a phone every table is drawn as cards: each cell carries the text of its column heading (CSS shows it as a small label). Done here once for every table.
+const phone = window.matchMedia('(max-width: 720px)')
+let labelling = 0
+function labelTables() {
+  labelling = 0
+  if (!phone.matches) return
+  document.querySelectorAll('table.table').forEach((t) => {
+    const heads = [...t.querySelectorAll('thead th')].map((th) => th.textContent.trim())
+    t.querySelectorAll('tbody tr').forEach((tr) => [...tr.children].forEach((td, i) => { if (heads[i] !== undefined && td.getAttribute('data-label') !== heads[i]) td.setAttribute('data-label', heads[i]) }))
+  })
+}
+new MutationObserver(() => { if (!labelling) labelling = requestAnimationFrame(labelTables) }).observe(document.body, { childList: true, subtree: true })
+phone.addEventListener?.('change', labelTables)
+
 app.mount('#app')

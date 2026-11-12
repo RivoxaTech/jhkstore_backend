@@ -20,6 +20,14 @@ export const useUiStore = defineStore('ui', () => {
   const soundMuted = ref(read('admin_sound_muted') === '1')
   const soundReady = ref(typeof navigator !== 'undefined' && navigator.userActivation?.hasBeenActive === true) // browsers play sound only after a click on the page
 
+  // light or dark panel: kept in this browser, applied to <html data-theme> (index.html applies it before the first paint)
+  const theme = ref(read('admin_theme') === 'dark' ? 'dark' : 'light')
+  function toggleTheme() {
+    theme.value = theme.value === 'dark' ? 'light' : 'dark'
+    write('admin_theme', theme.value)
+    document.documentElement.dataset.theme = theme.value
+  }
+
   function toggleSidebar() {
     if (window.innerWidth < 960) {
       mobileSidebarOpen.value = !mobileSidebarOpen.value
@@ -42,5 +50,5 @@ export const useUiStore = defineStore('ui', () => {
 
   const dismiss = (id) => { toasts.value = toasts.value.filter(t => t.id !== id) }
 
-  return { sidebarCollapsed, mobileSidebarOpen, toasts, pendingOrders, newWholesale, ordersVersion, wholesaleVersion, productsVersion, soundMuted, soundReady, setMuted, toggleSidebar, toast, dismiss }
+  return { sidebarCollapsed, mobileSidebarOpen, toasts, pendingOrders, newWholesale, ordersVersion, wholesaleVersion, productsVersion, soundMuted, soundReady, theme, toggleTheme, setMuted, toggleSidebar, toast, dismiss }
 })

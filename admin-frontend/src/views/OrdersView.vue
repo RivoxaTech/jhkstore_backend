@@ -206,7 +206,7 @@ async function exportCsv() {
     </EmptyState>
 
     <div v-else class="table-wrap" :style="{ opacity: loading ? 0.55 : 1, transition: 'opacity .15s' }">
-      <table class="table">
+      <table class="table orders-table">
         <thead>
           <tr><th>Order</th><th>Date</th><th>Customer</th><th class="num" style="text-align: right">Items</th><th style="text-align: right">Total</th><th>Payment</th><th>Status</th></tr>
         </thead>

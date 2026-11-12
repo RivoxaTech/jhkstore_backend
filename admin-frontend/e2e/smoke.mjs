@@ -71,7 +71,7 @@ try {
   // ================= the client admin, default access
   await login(a.page, ADMIN)
   check(a.page.url().endsWith('/admin/'), 'admin login lands on the dashboard')
-  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Customers', 'Wholesale', 'Discounts', 'Coupons', 'Settings']), `admin sidebar: Dashboard, Orders, Customers, Wholesale, Discounts, Coupons, Settings (${(await nav(a.page)).join(', ')})`)
+  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Wholesale', 'Customers', 'Discounts', 'Coupons', 'Settings']), `admin sidebar: Dashboard, Orders, Customers, Wholesale, Discounts, Coupons, Settings (${(await nav(a.page)).join(', ')})`)
   for (const [path, heading] of [['', 'Welcome back'], ['orders', 'Orders'], ['customers', 'Customers'], ['wholesale', 'Wholesale'], ['discounts', 'Discounts'], ['coupons', 'Coupons'], ['settings', 'Settings']]) {
     await goto(a.page, path)
     await a.page.waitForSelector('h1', { timeout: 15000 })

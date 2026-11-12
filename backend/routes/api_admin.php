@@ -35,6 +35,7 @@ Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttl
 Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin', 'storefront.changes'])->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('auth/me', [AuthController::class, 'me']);
+    Route::put('auth/password', [AuthController::class, 'password'])->middleware('throttle:password');   // any signed-in admin changes their OWN password
 
     Route::get('dashboard', DashboardController::class)->middleware('admin.can:dashboard.view');
     // the panel's poll (every few seconds): the order and wholesale badges + versions in one call, each part only for an admin who may see it

@@ -1,9 +1,10 @@
 <script setup>
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { CheckCircle2, Eye, EyeOff, ShieldCheck } from '@lucide/vue'
+import { CheckCircle2, ShieldCheck } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import BrandLogo from '@/components/BrandLogo.vue'
+import PasswordInput from '@/components/PasswordInput.vue'
 
 
 const auth = useAuthStore()
@@ -12,7 +13,6 @@ const router = useRouter()
 
 const username = ref('')
 const password = ref('')
-const showPassword = ref(false)
 const busy = ref(false)
 const error = ref('')
 
@@ -68,12 +68,7 @@ async function submit() {
         </div>
         <div class="field" style="margin-bottom: 22px">
           <label for="password">Password</label>
-          <div class="pw">
-            <input id="password" v-model="password" class="input" :class="{ 'has-error': error }" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" placeholder="Your password" style="padding-right: 44px" />
-            <button type="button" :aria-label="showPassword ? 'Hide password' : 'Show password'" @click="showPassword = !showPassword">
-              <EyeOff v-if="showPassword" :size="18" /><Eye v-else :size="18" />
-            </button>
-          </div>
+          <PasswordInput id="password" v-model="password" autocomplete="current-password" placeholder="Your password" :invalid="!!error" />
         </div>
         <button class="btn btn-primary btn-block" type="submit" :disabled="busy" style="height: 46px">
           <span v-if="busy" class="spinner" /> {{ busy ? 'Signing in...' : 'Sign in' }}

@@ -235,3 +235,6 @@ Left as they are, on purpose: two admins editing the same product - the last sav
 
 ### Round F, part 2 (the owner's list of 11 changes)
 PHPUnit 591 tests (590 pass, 1 skipped as before; new: `DashboardRevenueTest`, `ProductOptionSkuTest`, status-jump tests in `AdminOrderTest`), `flow-ui` all checks pass (invoice / packing slip / dashboard cards / status checks updated), `frontend/tests/e2e.mjs` 151 / 151, `scripts/adversarial.mjs` 165, `frontend/tests/journey.mjs` 90 (new: the status menu jumps a confirmed order to Delivered, the four dashboard cards, Revenue grows by a delivered cash order, the packing slip says what to collect, the print header layout).
+
+### Round G (sidebar, profile, theme, phones)
+PHPUnit 596 tests (595 pass, 1 skipped as before; new `PasswordChangeTest`), `flow-ui` all checks pass (new UI-R: no headings, theme toggle survives a reload, profile page, eye button, wrong / right password), e2e 151 / 151, adversarial 165, journey 92 (new: orders are cards on a phone, icon buttons on the order page).

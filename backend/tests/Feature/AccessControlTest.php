@@ -22,7 +22,7 @@ class AccessControlTest extends TestCase
     use BuildsShop, RefreshDatabase;
 
     /** Routes any logged-in admin may call (they only describe the caller). */
-    private const OPEN = ['auth/logout', 'auth/me', 'auth/login'];
+    private const OPEN = ['auth/logout', 'auth/me', 'auth/login', 'auth/password'];
 
     protected function setUp(): void
     {

@@ -117,7 +117,7 @@ async function run(who, creds, width = 1366) {
     await shot(page, `${prefix}-access-control-open`)
   }
   if (width >= 700) {
-    await page.click('.collapse-btn')
+    await page.click('[data-testid="collapse-toggle"]')
     await go(page, '/', 700)
     await shot(page, `${prefix}-collapsed`, { full: false })
   }

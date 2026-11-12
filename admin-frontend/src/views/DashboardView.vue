@@ -113,12 +113,15 @@ function describe(a) {
       <div v-for="n in 4" :key="n" class="kpi kpi--skeleton"><div class="skeleton" style="width: 60%; height: 12px" /><div class="skeleton" style="width: 80%; height: 26px; margin-top: 10px" /><div class="skeleton" style="width: 50%; height: 16px; margin-top: 12px" /></div>
     </template>
     <RouterLink v-for="s in cards" v-else :key="s.id" :to="s.to" class="kpi" :class="`kpi--${s.tint}`" :data-kpi="s.id" :style="{ opacity: loading ? 0.6 : 1 }">
-      <div class="kpi__top"><span class="kpi__label">{{ s.label }}</span><component :is="s.icon" :size="16" class="kpi__icon" /></div>
-      <div class="kpi__value stat__value">{{ s.value ?? 0 }}</div>
-      <div class="kpi__under">{{ s.under }}</div>
+      <span class="kpi__orb"><component :is="s.icon" :size="22" /></span>
+      <div class="kpi__main">
+        <span class="kpi__label">{{ s.label }}</span>
+        <div class="kpi__value stat__value">{{ s.value ?? 0 }}</div>
+        <div class="kpi__under">{{ s.under }}</div>
       <div v-if="s.change" class="kpi__change" :data-change="s.id">
         <span v-if="!s.change.none" class="pill" :class="s.change.up ? 'is-up' : 'is-down'"><component :is="s.change.up ? ArrowUpRight : ArrowDownRight" :size="12" /> {{ s.change.pct }}</span>
         <small>{{ s.change.text }}</small>
+      </div>
       </div>
     </RouterLink>
   </div>
@@ -238,24 +241,32 @@ function describe(a) {
 .dash-zone { font-size: 11.5px; margin-bottom: 10px; }
 
 /* soft coloured cards */
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px; }
-.kpi { --tint: #eef1f5; display: flex; flex-direction: column; gap: 1px; padding: 12px 14px; border-radius: 14px; background: var(--tint); border: 1px solid transparent; transition: transform .15s, box-shadow .15s; min-width: 0; }
-a.kpi:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-.kpi--peach { --tint: #fdf1e7; }
-.kpi--green { --tint: #eaf6ee; }
-.kpi--blue { --tint: #e8f1fb; }
-.kpi--mint { --tint: #e5f5f1; }
-.kpi--pink { --tint: #fbebef; }
-.kpi--lavender { --tint: #f1ecfc; }
-.kpi--sky { --tint: #e7f3f9; }
-.kpi--skeleton { background: var(--surface); border-color: var(--border-light); }
-.kpi__top { display: flex; justify-content: space-between; align-items: center; color: var(--text-2); }
-.kpi__label { font-size: 12px; }
-.kpi__icon { opacity: .65; flex: none; }
-.kpi__value { font-size: 22px; font-weight: 600; line-height: 1.25; color: var(--text); overflow-wrap: anywhere; }
-.kpi__under { font-size: 11.5px; color: var(--text-2); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 12px; }
+/* a round "orb" with the icon, the figure beside it, a big soft circle behind the corner: one tint (--tint) and one ink (--ink) per card */
+.kpi { --tint: #eef1f5; --ink: #64748b; position: relative; overflow: hidden; display: flex; align-items: center; gap: 14px; padding: 16px 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--border-light); box-shadow: var(--shadow-sm); transition: transform .15s, box-shadow .15s; min-width: 0; }
+.kpi::after { content: ''; position: absolute; right: -34px; top: -34px; width: 120px; height: 120px; border-radius: 50%; background: var(--tint); opacity: .55; pointer-events: none; }
+a.kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.kpi__orb { position: relative; z-index: 1; flex: none; width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; background: var(--tint); color: var(--ink); box-shadow: 0 0 0 6px color-mix(in srgb, var(--tint) 45%, transparent); }
+.kpi__main { position: relative; z-index: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.kpi--peach { --tint: #fde9d8; --ink: #e2762a; }
+.kpi--green { --tint: #dcf3e3; --ink: #16a34a; }
+.kpi--blue { --tint: #dbeafb; --ink: #1d70ca; }
+.kpi--mint { --tint: #d8f2ec; --ink: #0f9d8a; }
+.kpi--pink { --tint: #fbe1e8; --ink: #e11d48; }
+.kpi--lavender { --tint: #ebe3fb; --ink: #7c4ddb; }
+.kpi--skeleton { display: block; }
+.kpi__label { font-size: 12.5px; font-weight: 500; color: var(--text-2); }
+.kpi__value { font-size: 24px; font-weight: 700; line-height: 1.2; color: var(--text); overflow-wrap: anywhere; }
+.kpi__under { font-size: 11.5px; color: var(--text-2); line-height: 1.35; }
 .kpi__change { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .kpi__change small { font-size: 11px; color: var(--text-2); }
+@media (max-width: 640px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kpi { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; }
+  .kpi__orb { width: 42px; height: 42px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--tint) 45%, transparent); }
+  .kpi__value { font-size: 20px; }
+  .kpi::after { width: 90px; height: 90px; right: -28px; top: -28px; }
+}
 .pill { display: inline-flex; align-items: center; gap: 2px; padding: 1px 8px 1px 5px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #fff; }
 .pill.is-up { color: var(--success); }
 .pill.is-down { color: var(--danger); }
