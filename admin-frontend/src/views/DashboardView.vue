@@ -81,6 +81,11 @@ const cards = computed(() => {
   return list
 })
 
+/** A long figure gets a smaller type (and, at the very end, an ellipsis with the full figure in the tooltip), so a card never grows or breaks the line. */
+function sizeOf(value) {
+  const n = String(value ?? 0).length
+  return n <= 11 ? '' : n <= 15 ? 'is-md' : n <= 20 ? 'is-sm' : 'is-xs'
+}
 const payment = (code) => PAYMENT[code] || String(code || '').replace(/_/g, ' ')
 const initial = (name) => String(name || '?').trim().charAt(0).toUpperCase()
 
@@ -117,7 +122,7 @@ function describe(a) {
       <span class="kpi__orb"><component :is="s.icon" :size="22" /></span>
       <div class="kpi__main">
         <span class="kpi__label">{{ s.label }}</span>
-        <div class="kpi__value stat__value">{{ s.value ?? 0 }}</div>
+        <div class="kpi__value stat__value" :class="sizeOf(s.value)" :title="String(s.value ?? 0)">{{ s.value ?? 0 }}</div>
         <div v-if="s.change" class="kpi__change" :data-change="s.id">
           <span v-if="!s.change.none" class="pill" :class="s.change.up ? 'is-up' : 'is-down'"><component :is="s.change.up ? ArrowUpRight : ArrowDownRight" :size="12" /> {{ s.change.pct }}</span>
           <small>{{ s.change.text }}</small>
@@ -250,7 +255,7 @@ function describe(a) {
 .kpi::after { content: ''; position: absolute; right: -34px; top: -34px; width: 120px; height: 120px; border-radius: 50%; background: var(--tint); opacity: .55; pointer-events: none; }
 a.kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .kpi__orb { position: relative; z-index: 1; flex: none; width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; background: var(--tint); color: var(--ink); box-shadow: 0 0 0 6px color-mix(in srgb, var(--tint) 45%, transparent); }
-.kpi__main { position: relative; z-index: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.kpi__main { position: relative; z-index: 1; min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 1px; }
 .kpi--peach { --tint: #fde9d8; --ink: #e2762a; }
 .kpi--green { --tint: #dcf3e3; --ink: #16a34a; }
 .kpi--blue { --tint: #dbeafb; --ink: #1d70ca; }
@@ -259,14 +264,21 @@ a.kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .kpi--lavender { --tint: #ebe3fb; --ink: #7c4ddb; }
 .kpi--skeleton { display: block; }
 .kpi__label { font-size: 12.5px; font-weight: 500; color: var(--text-2); }
-.kpi__value { font-size: 24px; font-weight: 700; line-height: 1.2; color: var(--text); overflow-wrap: anywhere; }
+.kpi__value { font-size: 24px; font-weight: 600; line-height: 1.25; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.kpi__value.is-md { font-size: 20px; }
+.kpi__value.is-sm { font-size: 17px; }
+.kpi__value.is-xs { font-size: 14px; }
 .kpi__change { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .kpi__change small { font-size: 11px; color: var(--text-2); }
 @media (max-width: 640px) {
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .kpi { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; }
   .kpi__orb { width: 42px; height: 42px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--tint) 45%, transparent); }
-  .kpi__value { font-size: 20px; }
+  .kpi__value { font-size: 19px; }
+  .kpi__value.is-md { font-size: 16px; }
+  .kpi__value.is-sm { font-size: 14px; }
+  .kpi__value.is-xs { font-size: 12px; }
+  .kpi__main { width: 100%; }
   .kpi::after { width: 90px; height: 90px; right: -28px; top: -28px; }
 }
 .pill { display: inline-flex; align-items: center; gap: 2px; padding: 1px 8px 1px 5px; border-radius: 12px; font-size: 11px; font-weight: 600; background: var(--surface); }

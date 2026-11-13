@@ -30,6 +30,6 @@ class WholesaleRequest extends Model
         $like = '%'.addcslashes($term, '%_\\').'%';
 
         return $query->where(fn ($q) => $q->where('reference', 'like', $like)->orWhere('name', 'like', $like)->orWhere('phone', 'like', $like)
-            ->orWhere('email', 'like', $like)->orWhere('business_name', 'like', $like)->orWhere('product_name', 'like', $like));
+            ->orWhere('email', 'like', $like)->orWhere('business_name', 'like', $like)->orWhere('brn', 'like', $like)->orWhere('product_name', 'like', $like));
     }
 }

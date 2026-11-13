@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { MessageCircle } from '@lucide/vue'
+import CopyButton from '@/components/CopyButton.vue'
 import { api } from '@/api/client.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
@@ -79,8 +80,9 @@ const whatsapp = computed(() => (req.value ? whatsappUrl(req.value.phone, `Hello
         <dl class="wd__grid">
           <div><dt>Customer</dt><dd>{{ req.name }}</dd></div>
           <div><dt>Business</dt><dd>{{ req.business_name || '–' }}</dd></div>
-          <div><dt>Phone</dt><dd>{{ req.phone }}</dd></div>
-          <div><dt>E-mail</dt><dd>{{ req.email || '–' }}</dd></div>
+          <div v-if="req.brn"><dt>BRN</dt><dd>{{ req.brn }} <CopyButton :text="req.brn" label="Copy BRN" /></dd></div>
+          <div><dt>Phone</dt><dd>{{ req.phone }} <CopyButton :text="req.phone" label="Copy phone" /></dd></div>
+          <div><dt>E-mail</dt><dd>{{ req.email || '–' }} <CopyButton :text="req.email" label="Copy e-mail" /></dd></div>
           <div><dt>Product</dt><dd>{{ req.product_name }}</dd></div>
           <div><dt>Quantity</dt><dd>{{ req.quantity }}</dd></div>
           <div><dt>Received</dt><dd>{{ formatDate(req.created_at, true) }}</dd></div>

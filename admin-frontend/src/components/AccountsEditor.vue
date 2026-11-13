@@ -80,7 +80,7 @@ function drop(i) {
           </div>
           <div class="field">
             <label :for="`ac-i-${row._key}`" class="sr-only">IBAN</label>
-            <input :id="`ac-i-${row._key}`" class="input acct-iban" type="text" maxlength="40" placeholder="IBAN" :value="row.iban" :class="{ 'has-error': err(i, 'iban') }" @input="patch(i, { iban: $event.target.value })" />
+            <input :id="`ac-i-${row._key}`" class="input acct-iban" type="text" maxlength="40" placeholder="IBAN (optional)" :value="row.iban" :class="{ 'has-error': err(i, 'iban') }" @input="patch(i, { iban: $event.target.value })" />
             <p v-if="err(i, 'iban')" class="err">{{ err(i, 'iban') }}</p>
           </div>
         </div>

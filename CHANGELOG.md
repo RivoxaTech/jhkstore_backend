@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-13 – BRN on the wholesale form, copy icons for delivery details, optional IBAN, long figures on the cards (branch `lean-store`)
+
+### Added
+- **BRN (business registration number)** on the wholesale form, optional, right after the business name; the form order is now name, phone, e-mail, business name, BRN, quantity, which toy, what are you looking for, message. Backend: `wholesale_requests.brn` (migration `2026_11_13_000001`, run `php artisan migrate`), validated (letters, digits, space, - / ., max 50), shown on the request page and in the list, searchable, in the CSV (new column after Business) and in the owner's alert e-mail. Documented in `STOREFRONT-API.md` / `openapi.json`.
+- **Copy icons on the order page**: next to the shipping address name, phone, e-mail and the address (also the billing address), plus a **Copy all** button that copies the delivery block (name, phone, e-mail, address lines) for a courier or a chat; copy icons for the BRN, phone and e-mail on a wholesale request.
+
+### Changed
+- **IBAN is optional** in the bank accounts of Settings → Payments (the box says "IBAN (optional)"); it is shown to customers (checkout, order page, e-mails) and in the admin order only when it is filled in. An account still needs an account number or an IBAN.
+- **Dashboard cards**: a long figure gets a smaller type in steps (and an ellipsis with the full figure as the tooltip at the very end) instead of breaking over several lines; lighter weight (600).
+- **Money in the admin panel always groups thousands with commas** (1,234,567.00), whatever the browser's language (the storefront already did).
+- Checked: the store phone, WhatsApp number and e-mail come from Settings → General everywhere (storefront footer, About / policy pages through the {phone} {email} {address} placeholders, the floating WhatsApp button, order page, e-mails, the printed invoice and packing slip); nothing is typed into the code. Storefront pages show a changed value after the next rebuild or, at the latest, when the visitor's browser refreshes the settings.
+
 ## 2026-11-12 (2) – A really dark dark theme, own drop-down list and calendar, compact phone screens, copy icons, old price first (branch `lean-store`)
 
 ### Fixed

@@ -20,7 +20,7 @@ class WholesaleRequestRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        foreach (['name', 'phone', 'email', 'business_name', 'product_name', 'message'] as $key) {
+        foreach (['name', 'phone', 'email', 'business_name', 'brn', 'product_name', 'message'] as $key) {
             if (is_string($this->input($key))) {
                 $this->merge([$key => trim($this->input($key))]);
             }
@@ -38,6 +38,8 @@ class WholesaleRequestRequest extends FormRequest
             }],
             'email' => ['nullable', 'email:rfc', 'max:190'],
             'business_name' => ['nullable', 'string', 'max:150'],
+            // the business registration number: optional, letters, digits and the usual separators
+            'brn' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9][A-Za-z0-9\-\/\.\s]*$/'],
             'product_id' => ['nullable', 'integer', Rule::exists('products', 'id')->whereNull('deleted_at')],
             'variant_id' => ['nullable', 'integer', 'required_with:product_id', Rule::exists('product_variants', 'id')->where('product_id', $this->input('product_id'))],
             'product_name' => ['nullable', 'required_without:product_id', 'string', 'max:255'],
@@ -53,6 +55,7 @@ class WholesaleRequestRequest extends FormRequest
             'variant_id.required_with' => 'Choose the option of the product.',
             'variant_id.exists' => 'That option does not belong to the chosen product.',
             'quantity.min' => 'The quantity must be at least 1.',
+            'brn.regex' => 'The BRN can only have letters, digits, spaces and - / .',
         ];
     }
 }

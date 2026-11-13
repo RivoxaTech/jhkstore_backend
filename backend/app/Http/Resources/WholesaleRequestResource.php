@@ -20,6 +20,7 @@ class WholesaleRequestResource extends JsonResource
             'phone' => $r->phone,
             'email' => $r->email,
             'business_name' => $r->business_name,
+            'brn' => $r->brn,
             'product_id' => $r->product_id,
             'variant_id' => $r->variant_id,
             'product_name' => $r->product_name,

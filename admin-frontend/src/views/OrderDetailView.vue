@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { Ban, Check, CircleX, FileText, MessageCircle, PackageCheck, Printer, Save, ShieldCheck, Truck, ZoomIn } from '@lucide/vue'
+import { Ban, Check, CircleX, Copy, FileText, MessageCircle, PackageCheck, Printer, Save, ShieldCheck, Truck, ZoomIn } from '@lucide/vue'
 import { api, ApiError } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -11,6 +11,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import StatusMenu from '@/components/StatusMenu.vue'
 import CopyButton from '@/components/CopyButton.vue'
+import { copyText } from '@/utils/clipboard.js'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import { currencySymbol, formatDate, money, whatsappUrl } from '@/utils/format.js'
 
@@ -238,6 +239,12 @@ const whatsapp = computed(() => {
   const text = `Hello ${x.customer.name}, this is ${site.name} about your order ${x.order_number} (${x.status_label.toLowerCase()}).`
   return whatsappUrl(x.customer.phone, text)
 })
+/** The whole delivery block (name, phone, e-mail, address) as plain lines: ready to paste to a courier or into a chat. */
+async function copyAll(a) {
+  const text = [a.name, a.phone, o.value?.customer?.email, ...addressLines(a)].filter(Boolean).join('\n')
+  const ok = await copyText(text)
+  ui.toast(ok ? 'Delivery details copied.' : 'Could not copy.', ok ? 'success' : 'error')
+}
 const addressLines = (a) => [a.line1, a.area, a.landmark && `Landmark: ${a.landmark}`, [a.city, a.state, a.postcode].filter(Boolean).join(', '), a.country].filter(Boolean)
 const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status === 'rejected', 'is-delivered': s.status === 'delivered' })
 </script>
@@ -403,9 +410,13 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
           <section class="card">
             <div class="card__head"><h2>Shipping address</h2></div>
             <div v-if="o.shipping_address" class="addr">
-              <strong>{{ o.shipping_address.name }}<span v-if="o.shipping_address.type" class="tag">{{ o.shipping_address.type }}</span></strong>
-              <div v-for="line in addressLines(o.shipping_address)" :key="line">{{ line }}</div>
-              <div>Phone: {{ o.shipping_address.phone }}</div>
+              <strong>{{ o.shipping_address.name }}<span v-if="o.shipping_address.type" class="tag">{{ o.shipping_address.type }}</span> <CopyButton :text="o.shipping_address.name" label="Copy name" /></strong>
+              <div class="addr-lines"><div>
+                <div v-for="line in addressLines(o.shipping_address)" :key="line">{{ line }}</div>
+              </div><CopyButton :text="addressLines(o.shipping_address).join(', ')" label="Copy address" /></div>
+              <div>Phone: {{ o.shipping_address.phone }} <CopyButton :text="o.shipping_address.phone" label="Copy phone" /></div>
+              <div v-if="o.customer.email">E-mail: {{ o.customer.email }} <CopyButton :text="o.customer.email" label="Copy e-mail" /></div>
+              <button class="btn btn-outline btn-sm addr-copy-all" type="button" data-testid="copy-shipping" @click="copyAll(o.shipping_address)"><Copy :size="14" /> Copy all</button>
             </div>
             <div v-if="sameAddress" class="addr-same muted">Billing address: same as the shipping address.</div>
           </section>
@@ -413,9 +424,11 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
           <section v-if="!sameAddress" class="card">
             <div class="card__head"><h2>Billing address</h2></div>
             <div v-if="o.billing_address" class="addr">
-              <strong>{{ o.billing_address.name }}<span v-if="o.billing_address.type" class="tag">{{ o.billing_address.type }}</span></strong>
-              <div v-for="line in addressLines(o.billing_address)" :key="line">{{ line }}</div>
-              <div>Phone: {{ o.billing_address.phone }}</div>
+              <strong>{{ o.billing_address.name }}<span v-if="o.billing_address.type" class="tag">{{ o.billing_address.type }}</span> <CopyButton :text="o.billing_address.name" label="Copy name" /></strong>
+              <div class="addr-lines"><div>
+                <div v-for="line in addressLines(o.billing_address)" :key="line">{{ line }}</div>
+              </div><CopyButton :text="addressLines(o.billing_address).join(', ')" label="Copy address" /></div>
+              <div>Phone: {{ o.billing_address.phone }} <CopyButton :text="o.billing_address.phone" label="Copy phone" /></div>
             </div>
           </section>
 

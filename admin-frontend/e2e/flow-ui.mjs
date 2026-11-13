@@ -1149,9 +1149,23 @@ try {
   await a.page.click('[data-testid="customers-table"] [data-testid="copy"]')
   await a.page.waitForFunction(() => window.__clip !== '', { timeout: 5000 })
   check(/^\+?\d[\d ]{6,}$/.test(await a.page.evaluate(() => window.__clip)), 'UI-S3 the copy icon next to a phone number copies it', await a.page.evaluate(() => window.__clip))
+  // the delivery boxes of an order: copy icons for the name, phone, e-mail and address, and one button for all of it
+  const shipOrder = db("SELECT id FROM orders ORDER BY id DESC LIMIT 1")[0]
+  await goto(a.page, 'orders/' + shipOrder.id)
+  await a.page.waitForSelector('[data-testid="copy-shipping"]')
+  await a.page.evaluate(() => { window.__clip = ''; navigator.clipboard.writeText = async (t) => { window.__clip = t } })
+  const icons = await a.page.$$eval('.addr [data-testid="copy"]', (b) => b.length)
+  await a.page.click('[data-testid="copy-shipping"]')
+  await a.page.waitForFunction(() => window.__clip !== '', { timeout: 5000 })
+  const copied = await a.page.evaluate(() => window.__clip)
+  check(icons >= 3 && copied.split('\n').length >= 4 && /\d{6,}/.test(copied), 'UI-S5 the shipping address has copy icons (name, phone, e-mail, address) and a "Copy all" that copies the delivery block', { icons, copied })
   await goto(a.page, '')
   await a.page.waitForSelector('[data-kpi="sales"]')
   check(!(await a.page.$('.kpi__under')) && (await a.page.$$eval('.kpi', (k) => k.length)) === 4, 'UI-S4 the four cards carry no explaining text')
+  // big figures: the card keeps one line (smaller type, the full figure in the tooltip) instead of breaking
+  await a.page.evaluate(() => { const v = document.querySelector('[data-kpi="sales"] .kpi__value'); v.textContent = '$8,853,333,333,333,333.33'; v.className = 'kpi__value stat__value is-sm' })
+  const fits = await a.page.$eval('[data-kpi="sales"] .kpi__value', (e) => ({ h: Math.round(e.getBoundingClientRect().height), oneLine: e.getBoundingClientRect().height < 40 }))
+  check(fits.oneLine, 'UI-S6 a very long figure stays on one line in its card', fits)
 
 
   // ============================================================ UI-R: profile, password, theme, the plain sidebar, the logout icon

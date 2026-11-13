@@ -1,4 +1,4 @@
-// Locale: everything uses the browser default (undefined) for number grouping and dates.
+// Locale: dates use the browser default (undefined); money always groups thousands with commas (en-US: 1,234,567.00), whatever the browser's language.
 // Time zone: every date is shown, typed and compared in the STORE's time zone (APP_TIMEZONE, sent by GET /admin/auth/me), never the browser's,
 // so "ends 23:59" means the same moment for everyone. Until it is known the browser's zone is used.
 let zone
@@ -150,7 +150,7 @@ export function money(value) {
   if (value === null || value === undefined || value === '') return '-'
   const n = Number(value)
   if (Number.isNaN(n)) return '-'
-  const text = Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: currency.decimals, maximumFractionDigits: currency.decimals })
+  const text = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: currency.decimals, maximumFractionDigits: currency.decimals })
   const gap = /[A-Za-z]$/.test(currency.symbol) ? ' ' : '' // "USD 5.00" but "$5.00"
   return `${n < 0 ? '-' : ''}${currency.symbol}${gap}${text}`
 }

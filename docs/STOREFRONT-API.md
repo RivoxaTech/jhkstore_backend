@@ -222,6 +222,7 @@ A form for customers who want a bulk price. No login, nothing is priced or reser
 POST /wholesale-requests
 { "name": "Bulk Buyer", "phone": "+1 555 010 0100",                         // required
   "email": "buyer@example.com", "business_name": "ACME Retail",                // optional
+  "brn": "C12345/2020",                          // optional business registration number (letters, digits, space, - / .), max 50
   "product_id": 7, "variant_id": 12,                                          // a catalogue product AND one of its options ...
   "product_name": "Cardboard boxes",                                         // ... or free text (required when there is no product_id)
   "quantity": 500,                                                           // required, 1 or more

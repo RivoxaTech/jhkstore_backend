@@ -856,3 +856,8 @@ input[type="date"]::-webkit-calendar-picker-indicator { display: none; }
   .settings-bar__state { white-space: nowrap; font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .set-fields { padding: 8px 12px 10px; }
 }
+
+/* ---------- Round I: copy icons in the delivery boxes ---------- */
+.addr-lines { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.addr-lines > div { min-width: 0; }
+.addr-copy-all { margin-top: 8px; }

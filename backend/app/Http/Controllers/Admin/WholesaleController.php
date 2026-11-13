@@ -61,10 +61,10 @@ class WholesaleController extends Controller
         $query = WholesaleRequest::query()->search($request->query('search'))->when($request->query('status'), fn ($q, $s) => $q->where('status', $s))->orderByDesc('id');
 
         return Csv::download('wholesale-requests-'.now()->format('Y-m-d').'.csv',
-            ['Reference', 'Date', 'Status', 'Name', 'Phone', 'Email', 'Business', 'Product', 'Quantity', 'Message', 'Note'],
+            ['Reference', 'Date', 'Status', 'Name', 'Phone', 'Email', 'Business', 'BRN', 'Product', 'Quantity', 'Message', 'Note'],
             (function () use ($query) {
                 foreach ($query->lazyById(500) as $r) {
-                    yield [$r->reference, $r->created_at?->format('Y-m-d H:i'), $r->status, $r->name, $r->phone, $r->email, $r->business_name, $r->product_name, $r->quantity, $r->message, $r->admin_note];
+                    yield [$r->reference, $r->created_at?->format('Y-m-d H:i'), $r->status, $r->name, $r->phone, $r->email, $r->business_name, $r->brn, $r->product_name, $r->quantity, $r->message, $r->admin_note];
                 }
             })());
     }

@@ -51,13 +51,14 @@ class WholesaleTest extends TestCase
 
     public function test_a_guest_sends_a_request_and_gets_only_the_reference(): void
     {
-        $res = $this->submit(['email' => 'Buyer@Example.test', 'business_name' => 'ACME Retail', 'message' => 'Weekly delivery please'])->assertCreated();
+        $res = $this->submit(['email' => 'Buyer@Example.test', 'business_name' => 'ACME Retail', 'brn' => ' C12345/2020 ', 'message' => 'Weekly delivery please'])->assertCreated();
 
         $row = WholesaleRequest::firstOrFail();
         $this->assertSame(['data' => ['reference' => sprintf('WS-%s-%06d', now()->format('Y'), $row->id)]], $res->json());   // WS-2026-000001: the year and the id
         $this->assertSame('new', $row->status);
         $this->assertSame('buyer@example.test', $row->email);
         $this->assertSame('ACME Retail', $row->business_name);
+        $this->assertSame('C12345/2020', $row->brn);   // the registration number is optional and trimmed
         $this->assertSame(500, $row->quantity);
         $this->assertNull($row->product_id);
         $this->assertSame('Cardboard boxes', $row->product_name);
@@ -106,7 +107,7 @@ class WholesaleTest extends TestCase
     {
         foreach ([
             ['name', ''], ['name', 'A'], ['phone', ''], ['phone', 'abc'], ['phone', '12'], ['email', 'not-mail'], ['quantity', 0], ['quantity', 'many'], ['quantity', null],
-            ['message', str_repeat('x', 1001)], ['business_name', str_repeat('x', 151)], ['product_name', null],
+            ['message', str_repeat('x', 1001)], ['business_name', str_repeat('x', 151)], ['brn', str_repeat('1', 51)], ['brn', '<script>'], ['product_name', null],
         ] as [$field, $value]) {
             $this->submit([$field => $value])->assertStatus(422)->assertJsonValidationErrors($field);
         }
@@ -178,7 +179,7 @@ class WholesaleTest extends TestCase
         $this->assertCount(3, $res->json('data'));
         $this->assertEquals(['new' => 1, 'contacted' => 1, 'closed' => 1], $res->json('counts'));
         $this->assertSame('Cara Bulk', $res->json('data.0.name'));                       // newest first
-        $this->assertSame(['id', 'reference', 'status', 'name', 'phone', 'email', 'business_name', 'product_id', 'variant_id', 'product_name', 'quantity', 'message', 'admin_note', 'handled_at', 'created_at', 'updated_at'], array_keys($res->json('data.0')));
+        $this->assertSame(['id', 'reference', 'status', 'name', 'phone', 'email', 'business_name', 'brn', 'product_id', 'variant_id', 'product_name', 'quantity', 'message', 'admin_note', 'handled_at', 'created_at', 'updated_at'], array_keys($res->json('data.0')));
 
         $this->assertSame(['Anna Bulk'], collect($this->getJson(self::ADMIN.'/wholesale?status=new')->json('data'))->pluck('name')->all());
         $this->assertSame(['Ben Bulk'], collect($this->getJson(self::ADMIN.'/wholesale?search=Bags')->json('data'))->pluck('name')->all());
@@ -220,7 +221,7 @@ class WholesaleTest extends TestCase
         $this->assertStringContainsString('text/csv', $res->headers->get('Content-Type'));
         $csv = $res->streamedContent();
         $this->assertStringStartsWith("\xEF\xBB\xBF", $csv);
-        $this->assertStringContainsString('Reference,Date,Status,Name,Phone,Email,Business,Product,Quantity,Message,Note', $csv);
+        $this->assertStringContainsString('Reference,Date,Status,Name,Phone,Email,Business,BRN,Product,Quantity,Message,Note', $csv);
         $this->assertStringContainsString('Anna Bulk', $csv);
         $this->assertStringNotContainsString('Ben Bulk', $csv);                       // the status filter
         $this->assertStringContainsString("\"'=HYPERLINK", $csv);                     // a formula is made harmless

@@ -13271,6 +13271,14 @@
                         ],
                         "maxLength": 150
                     },
+                    "brn": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 50,
+                        "description": "Business registration number (optional): letters, digits, spaces and - / ."
+                    },
                     "product_id": {
                         "type": [
                             "integer",

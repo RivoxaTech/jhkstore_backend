@@ -4,7 +4,7 @@
 @if ($kind === 'wholesale')
 <p style="margin:0 0 12px;"><strong>New wholesale request {{ $about->reference }}</strong></p>
 <p style="margin:0 0 12px;">{{ $about->quantity }} × {{ $about->product_name }}<br>
-{{ $about->name }}@if ($about->business_name) · {{ $about->business_name }}@endif<br>
+{{ $about->name }}@if ($about->business_name) · {{ $about->business_name }}@endif @if ($about->brn) · BRN {{ $about->brn }}@endif<br>
 {{ $about->phone }}@if ($about->email) · {{ $about->email }}@endif</p>
 @if ($about->message)<p style="margin:0 0 12px;padding:12px;background:#f9fafb;border-radius:6px;">{{ $about->message }}</p>@endif
 <p style="margin:0;color:#6b7280;">Open the Wholesale screen of your admin panel to answer.</p>

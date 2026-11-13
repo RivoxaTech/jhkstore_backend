@@ -20,7 +20,7 @@ class SubmitWholesaleRequest
 {
     public function __construct(private readonly UpsertCustomer $customers, private readonly Notifier $notifier) {}
 
-    /** @param  array{name:string, phone:string, email?:?string, business_name?:?string, product_id?:?int, variant_id?:?int, product_name?:?string, quantity:int, message?:?string}  $data */
+    /** @param  array{name:string, phone:string, email?:?string, business_name?:?string, brn?:?string, product_id?:?int, variant_id?:?int, product_name?:?string, quantity:int, message?:?string}  $data */
     public function handle(array $data): WholesaleRequest
     {
         $request = DB::transaction(function () use ($data) {
@@ -33,6 +33,7 @@ class SubmitWholesaleRequest
                 'phone' => Phone::normalise($data['phone']),
                 'email' => trim((string) ($data['email'] ?? '')) !== '' ? strtolower(trim($data['email'])) : null,
                 'business_name' => trim((string) ($data['business_name'] ?? '')) ?: null,
+                'brn' => trim((string) ($data['brn'] ?? '')) ?: null,
                 'product_id' => $data['product_id'] ?? null,
                 'variant_id' => $data['variant_id'] ?? null,
                 'product_name' => $this->productName($data),

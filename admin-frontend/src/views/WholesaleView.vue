@@ -138,7 +138,7 @@ async function exportCsv() {
             <td class="nowrap"><strong>{{ r.reference }}</strong></td>
             <td>
               <strong class="truncate" :title="r.name">{{ r.name }}</strong>
-              <small class="muted" style="display: block">{{ r.business_name || r.phone }}</small>
+              <small class="muted" style="display: block">{{ [r.business_name, r.brn && `BRN ${r.brn}`].filter(Boolean).join(' · ') || r.phone }}</small>
             </td>
             <td><span class="truncate" style="max-width: 220px; display: inline-block" :title="r.product_name">{{ r.product_name }}</span></td>
             <td style="text-align: right">{{ r.quantity }}</td>

@@ -2,31 +2,16 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { Check, Copy } from '@lucide/vue'
 import { useUiStore } from '@/stores/ui.js'
+import { copyText } from '@/utils/clipboard.js'
 
-// A small copy icon next to a phone number or an e-mail: one click puts the text on the clipboard (a tick shows for a moment).
+// A small copy icon next to a phone number, an e-mail, a name or an address: one click puts the text on the clipboard (a tick shows for a moment).
 const props = defineProps({ text: { type: String, default: '' }, label: { type: String, default: 'Copy' } })
 const ui = useUiStore()
 const done = ref(false)
 let timer
 
 async function copy() {
-  const value = String(props.text || '')
-  if (!value) return
-  let ok = false
-  try {
-    await navigator.clipboard.writeText(value)
-    ok = true
-  } catch {
-    // http pages and old browsers have no clipboard API: select a hidden field and copy
-    const field = document.createElement('textarea')
-    field.value = value
-    field.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0'
-    document.body.appendChild(field)
-    field.select()
-    try { ok = document.execCommand('copy') } catch { ok = false }
-    field.remove()
-  }
-  if (!ok) return ui.toast('Could not copy.', 'error')
+  if (!(await copyText(props.text))) return ui.toast('Could not copy.', 'error')
   done.value = true
   clearTimeout(timer)
   timer = setTimeout(() => (done.value = false), 1400)
