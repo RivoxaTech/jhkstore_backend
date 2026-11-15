@@ -50,7 +50,7 @@ class AccessControlController extends Controller
 
         $describe = function (string $permission) use ($fields, $advancedFields): array {
             if ($permission === AdminAccess::SETTINGS_ADVANCED) {
-                return ['tier' => Settings::ADVANCED, 'covers' => ['Every technical field marked "Developer", in the Settings tabs the admin may open', 'Technical details of the notification status (queue, failed jobs)'], 'fields' => $advancedFields];
+                return ['tier' => Settings::ADVANCED, 'covers' => ['The single technical fields marked "Developer" inside a tab that is not technical as a whole (the store name in General, the mail sender in Notifications, the hook address in Website)', 'Technical details of the notification status (queue, failed jobs)', 'A tab that is technical as a whole (Footer, Currency & Tax, SEO, Branding, Banners, E-mail ...) needs only its own switch'], 'fields' => $advancedFields];
             }
             if (str_starts_with($permission, 'settings.')) {
                 $tab = substr($permission, 9);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Auth\AdminAccess;
+use App\Domain\Notification\MailServer;
 use App\Domain\Notification\Models\PushSubscription;
 use App\Domain\Notification\PushLog;
 use App\Domain\Notification\QueueHealth;
@@ -27,6 +28,7 @@ class NotificationController extends Controller
     public function status(Request $request, Settings $settings): JsonResponse
     {
         $queue = QueueHealth::status();
+        app(MailServer::class)->apply();   // so the technical details below say what is really used
         $out = [
             'queue' => ['state' => $queue['state'], 'last_activity_at' => $queue['last_activity_at']],
             'failed_jobs' => (int) DB::table('failed_jobs')->count(),
@@ -42,6 +44,7 @@ class NotificationController extends Controller
             $out += [
                 'queue_connection' => $queue['connection'],
                 'mailer' => (string) config('mail.default'),
+                'mail_account' => app(MailServer::class)->custom() ? 'panel' : 'env',   // Settings > E-mail, or the MAIL_* values of the server
                 'from_address' => (string) config('mail.from.address'),
                 'pending_jobs' => $queue['pending'],
             ];
@@ -73,6 +76,7 @@ class NotificationController extends Controller
             return response()->json(['message' => 'Enter an e-mail address to send the test to.', 'errors' => ['to' => ['Enter an e-mail address to send the test to.']]], 422);
         }
 
+        app(MailServer::class)->apply();   // the account of Settings > E-mail, as saved
         try {
             Mail::to($to)->send(new TestMail);
         } catch (\Throwable $e) {

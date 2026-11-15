@@ -70,6 +70,7 @@ class AdminAccess
             'settings.delivery' => 'Settings: Delivery (method, fees, zones)',
             'settings.payments' => 'Settings: Payments (methods, bank accounts)',
             'settings.notifications' => 'Settings: Notifications (which e-mails and push messages are sent)',
+            'settings.mail' => 'Settings: E-mail account (the mail server that sends the e-mails: host, port, user, password; technical, developer by default)',
             'settings.website' => 'Settings: Website (rebuild the website, see when it was last rebuilt; the hook address and secret need the advanced permission)',
             'settings.advanced' => 'Settings: technical fields in every tab (store name, currency, tax, order numbers, mail sender, tracking link, ...)',
         ]],

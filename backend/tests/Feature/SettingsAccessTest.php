@@ -46,6 +46,7 @@ class SettingsAccessTest extends TestCase
         $advanced = ['store_name', 'store_tagline', 'store_country', 'default_phone_country_code', 'order_number_prefix', 'cod_max_amount', 'currency_code', 'currency_symbol', 'currency_decimals',
             'tax_rate', 'tax_inclusive', 'tax_label', 'delivery_unmatched', 'delivery_days', 'mail_from_name', 'mail_reply_to', 'notify_admin_email', 'storefront_track_url',
             'rebuild_hook_url', 'rebuild_hook_secret', 'rebuild_debounce_seconds',
+            'mail_custom', 'mail_host', 'mail_port', 'mail_encryption', 'mail_username', 'mail_password', 'mail_from_address',
             'social_links', 'footer_text', 'footer_copyright', 'agency_name', 'agency_url', 'agency_logo', 'seo_meta_title', 'seo_meta_description', 'seo_share_image', 'store_logo', 'store_favicon'];
 
         foreach ($client as $key) {
@@ -154,27 +155,31 @@ class SettingsAccessTest extends TestCase
         $this->putJson(self::ADMIN.'/settings', ['theme_primary' => '#123456'])->assertOk();
     }
 
-    public function test_a_tab_with_none_of_its_fields_is_hidden(): void
+    public function test_a_technical_tab_opens_with_its_own_switch_alone(): void
     {
-        $this->adminWith(['settings.footer', 'settings.seo', 'settings.branding', 'settings.currency_tax', 'settings.orders_delivery', 'settings.banners']);
+        // the developer switches the tabs on in Access Control: that is the decision, no second master switch is needed
+        $this->adminWith(['settings.footer', 'settings.seo', 'settings.branding', 'settings.currency_tax', 'settings.orders_delivery', 'settings.banners', 'settings.mail']);
         $res = $this->getJson(self::ADMIN.'/settings')->assertOk();
-        $this->assertSame([], $res->json('tabs'));                                    // all technical: nothing is left to show
-        $this->getJson(self::ADMIN.'/banners')->assertForbidden();                    // the banner manager is technical too
-        $this->postJson(self::ADMIN.'/settings/logo', [])->assertForbidden();
+        $this->assertSame(['branding', 'banners', 'footer', 'currency_tax', 'orders_delivery', 'mail', 'seo'], collect($res->json('tabs'))->pluck('key')->all());
+        $this->getJson(self::ADMIN.'/banners')->assertOk();                           // the banner manager too
+        $this->postJson(self::ADMIN.'/settings/logo', [])->assertStatus(422);         // allowed in: validation answers
+        $this->putJson(self::ADMIN.'/settings', ['currency_symbol' => 'Rs.'])->assertOk();
+        $this->putJson(self::ADMIN.'/settings', ['footer_text' => 'Hello'])->assertOk();
 
-        $this->adminWith(['settings.footer', 'settings.seo', 'settings.branding', 'settings.banners', 'settings.advanced']);
-        $this->assertSame(['branding', 'banners', 'footer', 'seo'], collect($this->getJson(self::ADMIN.'/settings')->json('tabs'))->pluck('key')->all());
-        $this->getJson(self::ADMIN.'/banners')->assertOk();
+        // a single technical field inside a client tab still needs settings.advanced
+        $this->adminWith(['settings.general']);
+        $this->assertNotContains('store_name', $this->keysOf($this->getJson(self::ADMIN.'/settings')->json()));
+        $this->putJson(self::ADMIN.'/settings', ['store_name' => 'Renamed'])->assertForbidden();
     }
 
-    public function test_the_logo_upload_needs_settings_advanced_too(): void
+    public function test_the_logo_upload_needs_the_branding_switch(): void
     {
         Storage::fake('public');
-        $this->adminWith(['settings.branding']);
+        $this->adminWith(['settings.general']);
         $this->postJson(self::ADMIN.'/settings/logo', [])->assertForbidden();
         $this->deleteJson(self::ADMIN.'/settings/favicon')->assertForbidden();
 
-        $this->adminWith(['settings.branding', 'settings.advanced']);
+        $this->adminWith(['settings.branding']);
         $this->postJson(self::ADMIN.'/settings/logo', [])->assertStatus(422);   // allowed in: validation answers
     }
 

@@ -72,6 +72,7 @@ export class Recorder {
     this.x = 40
     this.y = 120
     this.steps = []
+    this.times = []   // when each step began (seconds on the wall clock); turned into a time in the video at the end
     this.n = 0
   }
 
@@ -110,6 +111,7 @@ export class Recorder {
   async step(text, { pause = 1100 } = {}) {
     this.n += 1
     this.steps.push(text)
+    this.times.push(Date.now() / 1000)
     await this.page.evaluate((n, t) => window.__hvCaption(n, t), String(this.n), text)
     await sleep(pause)
   }
@@ -209,7 +211,7 @@ export class Recorder {
   }
 
   // ---- finishing
-  async finish({ slug, outDir, titleAt = 0.9 }) {
+  async finish({ slug, outDir }) {
     await sleep(900)
     await this.client.send('Page.stopScreencast')
     await sleep(200)
@@ -229,10 +231,12 @@ export class Recorder {
     const mp4 = path.join(outDir, `${slug}.mp4`)
     const run = (args) => { const r = spawnSync(FFMPEG, args, { cwd: tmp, encoding: 'utf8' }); if (r.status !== 0) throw new Error(`ffmpeg failed: ${(r.stderr || '').slice(-600)}`); return r }
     run(['-y', '-hide_banner', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', 'list.txt', '-vf', `fps=${FPS},scale=${W}:${H}:flags=lanczos,format=yuv420p`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '31', '-r', String(FPS), '-movflags', '+faststart', '-an', mp4])
-    run(['-y', '-hide_banner', '-loglevel', 'error', '-ss', String(titleAt), '-i', mp4, '-frames:v', '1', '-vf', 'scale=640:-2', '-q:v', '5', path.join(outDir, `${slug}.jpg`)])
     const duration = frames[frames.length - 1].ts - frames[0].ts + 1.2
+    // the picture shown before play: a frame from the middle of the video (the panel with its step banner), not the title card
+    run(['-y', '-hide_banner', '-loglevel', 'error', '-ss', (duration * 0.4).toFixed(1), '-i', mp4, '-frames:v', '1', '-vf', 'scale=640:-2', '-q:v', '5', path.join(outDir, `${slug}.jpg`)])
     fs.rmSync(tmp, { recursive: true, force: true })
-    return { slug, duration: Math.round(duration * 10) / 10, bytes: fs.statSync(mp4).size, steps: this.steps }
+    const steps = this.steps.map((text, i) => ({ text, at: Math.max(0, Math.round((this.times[i] - frames[0].ts) * 10) / 10) }))
+    return { slug, duration: Math.round(duration * 10) / 10, bytes: fs.statSync(mp4).size, steps }
   }
 }
 

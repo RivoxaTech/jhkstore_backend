@@ -146,6 +146,13 @@ E-mails are queued: a queue worker (or the cron variant) must run, see [NEW_CLIE
 |---|---|---|---|
 | `mail_enabled` | bool | `off` | Master switch: off = no e-mail at all, also no owner alerts |
 | `mail_from_name` | string | `(empty)` | Sender name customers see (empty = the store name) |
+| `mail_custom` | bool | `off` | **E-mail tab (developer):** send with the account below. Off = the `MAIL_*` values of the server (`.env`) are used, as before. Needs a host and a sender address to be switched on |
+| `mail_host` | string | `(empty)` | E-mail tab: the mail server, e.g. `smtp.gmail.com` |
+| `mail_port` | int | `587` | E-mail tab: 587 with TLS, 465 with SSL |
+| `mail_encryption` | choice | `tls` | E-mail tab: `tls` (STARTTLS), `ssl` or `none` |
+| `mail_username` | string | `(empty)` | E-mail tab: the login, usually the full address |
+| `mail_password` | secret | `(empty)` | E-mail tab: stored encrypted, never shown again (only whether it is set) |
+| `mail_from_address` | string | `(empty)` | E-mail tab: the sender address customers see (empty = `MAIL_FROM_ADDRESS`) |
 | `mail_reply_to` | string | `(empty)` | Reply-to address (empty = the store e-mail) |
 | `notify_admin_email` | string | `(empty)` | The owner's address: gets an alert for every new order, payment proof and wholesale request. Not an admin account. Empty = no alerts |
 | `mail_on_placed` | bool | `on` | Customer: order received (also the "delivery fee confirmed" mail) |

@@ -4,134 +4,341 @@
       "slug": "add-product",
       "title": "Add a product",
       "summary": "A new toy from the first field to the website: category, name, price, stock, pictures and the Active status.",
+      "topic": "Products",
       "can": "products.manage",
       "open": {
         "route": "product-new",
         "text": "Add a product"
       },
-      "duration": 63.6,
-      "bytes": 981311,
+      "duration": 62.4,
+      "bytes": 964676,
       "steps": [
-        "Open Products and press Add product",
-        "Choose the category, and the sub-category if there is one",
-        "Type the product name. The SKU is made for you",
-        "Write a short description and the full description",
-        "Set the status to Active. Only Active products show on the website",
-        "Under Options and pricing type the old price, the price and the stock",
-        "Add pictures. The first one is the main picture",
-        "Press Add product to save",
-        "Done. The product is in the list. The website shows it after the next rebuild, 1 to 3 minutes"
+        {
+          "text": "Open Products and press Add product",
+          "at": 3.2
+        },
+        {
+          "text": "Choose the category, and the sub-category if there is one",
+          "at": 7.3
+        },
+        {
+          "text": "Type the product name. The SKU is made for you",
+          "at": 18.1
+        },
+        {
+          "text": "Write a short description and the full description",
+          "at": 22.7
+        },
+        {
+          "text": "Set the status to Active. Only Active products show on the website",
+          "at": 35.8
+        },
+        {
+          "text": "Under Options and pricing type the old price, the price and the stock",
+          "at": 41.9
+        },
+        {
+          "text": "Add pictures. The first one is the main picture",
+          "at": 48.4
+        },
+        {
+          "text": "Press Add product to save",
+          "at": 52.1
+        },
+        {
+          "text": "Done. The product is in the list. The website shows it after the next rebuild, 1 to 3 minutes",
+          "at": 57.3
+        }
       ]
     },
     {
       "slug": "edit-product",
       "title": "Edit a product",
       "summary": "Find a product, change its status from the list, then change its price and stock, and add another option.",
+      "topic": "Products",
       "can": "products.manage",
       "open": {
         "route": "products",
         "text": "Open Products"
       },
-      "duration": 53.3,
-      "bytes": 748352,
+      "duration": 52.6,
+      "bytes": 730207,
       "steps": [
-        "Find the product with the search box",
-        "Change the status right in the list. Inactive hides the product, Active shows it",
-        "Press the pencil to open the product",
-        "Go to Options and pricing. Open it if it is closed",
-        "Change the price. The old price has to be higher than the price",
-        "Change the stock when you receive or sell toys",
-        "Need a second size or colour? Press Add option and fill it in",
-        "Press Save product",
-        "Saved. Customers pay the price shown in the cart, and it is live at once on the product page"
+        {
+          "text": "Find the product with the search box",
+          "at": 3.2
+        },
+        {
+          "text": "Change the status right in the list. Inactive hides the product, Active shows it",
+          "at": 7.9
+        },
+        {
+          "text": "Press the pencil to open the product",
+          "at": 19
+        },
+        {
+          "text": "Go to Options and pricing. Open it if it is closed",
+          "at": 22.9
+        },
+        {
+          "text": "Change the price. The old price has to be higher than the price",
+          "at": 25.7
+        },
+        {
+          "text": "Change the stock when you receive or sell toys",
+          "at": 28.7
+        },
+        {
+          "text": "Need a second size or colour? Press Add option and fill it in",
+          "at": 31.6
+        },
+        {
+          "text": "Press Save product",
+          "at": 44.1
+        },
+        {
+          "text": "Saved. Customers pay the price shown in the cart, and it is live at once on the product page",
+          "at": 49.2
+        }
       ]
     },
     {
       "slug": "categories",
       "title": "Categories and sub-categories",
       "summary": "Add a category, then a sub-category inside it. Products are placed in them when you add or edit a product.",
+      "topic": "Categories",
       "can": "categories.manage",
       "open": {
         "route": "categories",
         "text": "Open Categories"
       },
-      "duration": 35.7,
-      "bytes": 474842,
+      "duration": 35,
+      "bytes": 463796,
       "steps": [
-        "Open Categories and press Add category",
-        "Type the name of the category",
-        "Active shows it on the website. Top puts it on the home page (the list shows how many fit)",
-        "Press Save",
-        "To add a sub-category, press the + next to the category",
-        "Type the name of the sub-category and press Save",
-        "Done. Use the pencil to rename a category, or the switch to hide it from the website"
+        {
+          "text": "Open Categories and press Add category",
+          "at": 3.2
+        },
+        {
+          "text": "Type the name of the category",
+          "at": 7.3
+        },
+        {
+          "text": "Active shows it on the website. Top puts it on the home page (the list shows how many fit)",
+          "at": 11.4
+        },
+        {
+          "text": "Press Save",
+          "at": 15.3
+        },
+        {
+          "text": "To add a sub-category, press the + next to the category",
+          "at": 20.1
+        },
+        {
+          "text": "Type the name of the sub-category and press Save",
+          "at": 23.6
+        },
+        {
+          "text": "Done. Use the pencil to rename a category, or the switch to hide it from the website",
+          "at": 31.4
+        }
       ]
     },
     {
       "slug": "add-discount",
       "title": "Add a discount",
       "summary": "A discount lowers prices by itself, with no code. Choose how much, on what, and for how long.",
+      "topic": "Discounts",
       "can": "discounts.manage",
       "open": {
         "route": "discounts",
         "text": "Open Discounts"
       },
-      "duration": 45,
-      "bytes": 392265,
+      "duration": 44.1,
+      "bytes": 383327,
       "steps": [
-        "Open Discounts and press Add discount",
-        "Name the discount. Only you see this name",
-        "Choose Percentage or Fixed amount, then type the value",
-        "Choose what it applies to: the whole store, or chosen categories or products",
-        "Search and click the categories to add",
-        "Starts and Ends are optional. Leave them empty to start now and never end",
-        "Press Add discount. The new price shows on the website and in the cart",
-        "Done. Switch Active off in the list to stop a discount without deleting it"
+        {
+          "text": "Open Discounts and press Add discount",
+          "at": 3.2
+        },
+        {
+          "text": "Name the discount. Only you see this name",
+          "at": 7.4
+        },
+        {
+          "text": "Choose Percentage or Fixed amount, then type the value",
+          "at": 11.5
+        },
+        {
+          "text": "Choose what it applies to: the whole store, or chosen categories or products",
+          "at": 19
+        },
+        {
+          "text": "Search and click the categories to add",
+          "at": 24.6
+        },
+        {
+          "text": "Starts and Ends are optional. Leave them empty to start now and never end",
+          "at": 32.4
+        },
+        {
+          "text": "Press Add discount. The new price shows on the website and in the cart",
+          "at": 36
+        },
+        {
+          "text": "Done. Switch Active off in the list to stop a discount without deleting it",
+          "at": 41.2
+        }
       ]
     },
     {
       "slug": "add-coupon",
       "title": "Add a coupon",
       "summary": "A coupon is a code customers type at checkout. Set the code, the amount, and limits such as a minimum order.",
+      "topic": "Coupons",
       "can": "coupons.manage",
       "open": {
         "route": "coupons",
         "text": "Open Coupons"
       },
-      "duration": 44.6,
-      "bytes": 357361,
+      "duration": 43.5,
+      "bytes": 366477,
       "steps": [
-        "Open Coupons and press Add coupon",
-        "Type the code customers will enter. Letters and digits, no spaces",
-        "Give it a name for yourself",
-        "Choose Percentage or Fixed amount, then type the value",
-        "It works on the whole store here. You can also choose categories or products",
-        "Set limits: a minimum order, how many times it can be used, and uses per customer",
-        "Free delivery and First order only are switches in the same form",
-        "Press Add coupon",
-        "Done. Tell your customers the code. Switch it off in the list when the offer ends"
+        {
+          "text": "Open Coupons and press Add coupon",
+          "at": 3.2
+        },
+        {
+          "text": "Type the code customers will enter. Letters and digits, no spaces",
+          "at": 7.4
+        },
+        {
+          "text": "Give it a name for yourself",
+          "at": 11.3
+        },
+        {
+          "text": "Choose Percentage or Fixed amount, then type the value",
+          "at": 15
+        },
+        {
+          "text": "It works on the whole store here. You can also choose categories or products",
+          "at": 22.5
+        },
+        {
+          "text": "Set limits: a minimum order, how many times it can be used, and uses per customer",
+          "at": 25.5
+        },
+        {
+          "text": "Free delivery and First order only are switches in the same form",
+          "at": 32.3
+        },
+        {
+          "text": "Press Add coupon",
+          "at": 35.5
+        },
+        {
+          "text": "Done. Tell your customers the code. Switch it off in the list when the offer ends",
+          "at": 40.6
+        }
       ]
     },
     {
       "slug": "settings",
       "title": "Settings",
       "summary": "A tour of Settings: your contact details, delivery, payments and notifications, and how to save a change.",
+      "topic": "Settings",
       "can": "settings.*",
       "open": {
         "route": "settings",
         "text": "Open Settings"
       },
-      "duration": 46.5,
-      "bytes": 466947,
+      "duration": 45.3,
+      "bytes": 456638,
       "steps": [
-        "Settings has one tab for each topic. Start with General",
-        "Your phone, WhatsApp number and e-mail show on the website, in e-mails and on invoices",
-        "Press Save changes. The bar at the bottom shows when something is not saved",
-        "Delivery: choose how the fee is worked out, and the amounts",
-        "Payments: switch cash on delivery and bank transfer on or off, and add your bank accounts",
-        "The IBAN is optional. It is shown to customers only when you fill it in",
-        "Notifications: who is told by e-mail and on this device when an order arrives",
-        "Every change shows on the website after the next rebuild, about 1 to 3 minutes"
+        {
+          "text": "Settings has one tab for each topic. Start with General",
+          "at": 3.2
+        },
+        {
+          "text": "Your phone, WhatsApp number and e-mail show on the website, in e-mails and on invoices",
+          "at": 6.1
+        },
+        {
+          "text": "Press Save changes. The bar at the bottom shows when something is not saved",
+          "at": 15.9
+        },
+        {
+          "text": "Delivery: choose how the fee is worked out, and the amounts",
+          "at": 21.1
+        },
+        {
+          "text": "Payments: switch cash on delivery and bank transfer on or off, and add your bank accounts",
+          "at": 27.7
+        },
+        {
+          "text": "The IBAN is optional. It is shown to customers only when you fill it in",
+          "at": 33.8
+        },
+        {
+          "text": "Notifications: who is told by e-mail and on this device when an order arrives",
+          "at": 37.3
+        },
+        {
+          "text": "Every change shows on the website after the next rebuild, about 1 to 3 minutes",
+          "at": 43.9
+        }
+      ]
+    },
+    {
+      "slug": "mail-account",
+      "title": "Connect the e-mail account",
+      "summary": "Set the mail account that sends order e-mails to your customers: the server, the login and the sender address, then send a test.",
+      "topic": "Settings",
+      "can": "settings.mail",
+      "open": {
+        "route": "settings",
+        "text": "Open Settings"
+      },
+      "duration": 60,
+      "bytes": 918845,
+      "steps": [
+        {
+          "text": "Open Settings and the E-mail tab",
+          "at": 3.2
+        },
+        {
+          "text": "Press your mail service to fill in the server, the port and the encryption",
+          "at": 8
+        },
+        {
+          "text": "Or type the mail server your provider gave you (here a test server is used)",
+          "at": 14.4
+        },
+        {
+          "text": "Type the user name, the password and the sender address",
+          "at": 24.5
+        },
+        {
+          "text": "Switch on Send with this mail account",
+          "at": 34.7
+        },
+        {
+          "text": "Press Save changes",
+          "at": 38.3
+        },
+        {
+          "text": "Send a test e-mail to an address of yours. If it is not sent, the message says why",
+          "at": 43
+        },
+        {
+          "text": "Last, check that Send e-mails is on in the Notifications tab",
+          "at": 51.8
+        },
+        {
+          "text": "Done. Order e-mails now go out with this account",
+          "at": 58.6
+        }
       ]
     }
   ]

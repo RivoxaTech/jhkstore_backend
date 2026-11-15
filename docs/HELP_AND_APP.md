@@ -2,7 +2,7 @@
 
 ## The Help section
 
-**Help** is the last item of the admin sidebar, for every signed-in account. It shows short, silent how-to videos with the steps written under each one (Add a product, Edit a product, Categories and sub-categories, Add a discount, Add a coupon, Settings). A person only sees the videos of the screens their account may use (the owner's account does not see the product videos unless the developer gives it product access in Access Control).
+**Help** is the last item of the admin sidebar, for every signed-in account. It is laid out like a video site: a grid of videos, three in a row (a picture, the length, a title and a short description), and a watch page with the player, the written steps and the other videos beside it. Every step has its time: press one to jump the video to it, and the step being shown lights up. The videos are short and silent (Add a product, Edit a product, Categories and sub-categories, Add a discount, Add a coupon, Settings, Connect the e-mail account). Every signed-in account sees every video; the button that opens the screen ("Add a product", ...) shows only to accounts that may use that screen.
 
 The files live in `admin-frontend/public/help/`: `<slug>.mp4`, `<slug>.jpg` (the picture shown before play) and `videos.json` (titles, steps, lengths, the permission each video needs). `npm run build` copies them to `backend/public/admin-assets/help`. The videos are small (about 0.4 to 1 MB, 35 to 65 seconds, 1280 x 760) so they load fast on a phone.
 

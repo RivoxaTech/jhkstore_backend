@@ -125,7 +125,7 @@ async function showFailed() {
             </span>
           </div>
           <dl v-if="status && advanced" class="np-tech" data-testid="queue-tech">
-            <div><dt>Mailer</dt><dd>{{ status.mailer }}<small v-if="status.mailer === 'log'"> (writes to the log: nothing is sent)</small></dd></div>
+            <div><dt>Mailer</dt><dd>{{ status.mailer }}<small v-if="status.mailer === 'log'"> (writes to the log: nothing is sent)</small><small v-else-if="status.mail_account === 'panel'"> (the account of Settings, E-mail)</small><small v-else-if="status.mail_account === 'env'"> (the MAIL_* values of the server)</small></dd></div>
             <div><dt>Sender address</dt><dd>{{ status.from_address }}</dd></div>
             <div><dt>Queue</dt><dd>{{ status.queue_connection }}</dd></div>
             <div><dt>Waiting</dt><dd data-testid="pending-jobs">{{ status.pending_jobs }}</dd></div>

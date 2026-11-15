@@ -286,8 +286,8 @@ class SettingsPhaseATest extends TestCase
         $this->actingAsAdmin('admin', everything: false);
 
         $res = $this->getJson(self::ADMIN.'/settings')->assertOk();
-        $this->assertSame([], array_column($res->json('tabs'), 'key'));          // every field of the tab is technical: no tab without settings.advanced
-        $this->putJson(self::ADMIN.'/settings', ['order_number_prefix' => 'WEB'])->assertForbidden();
+        $this->assertSame(['orders_delivery'], array_column($res->json('tabs'), 'key'));   // the tab is technical as a whole: its own switch opens it
+        $this->putJson(self::ADMIN.'/settings', ['order_number_prefix' => 'WEB'])->assertOk();
         $this->putJson(self::ADMIN.'/settings', ['min_order_amount' => 10])->assertForbidden();   // the minimum order lives in the Delivery tab
 
         $this->actingAsAdmin('developer');

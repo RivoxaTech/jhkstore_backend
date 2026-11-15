@@ -45,6 +45,40 @@ class AdminPwaTest extends TestCase
         $this->assertSame('Admin', $m['short_name']);
     }
 
+    public function test_the_help_videos_are_served_with_byte_ranges_so_that_a_step_can_jump(): void
+    {
+        $dir = public_path('admin-assets/help');
+        $made = ! is_dir($dir);
+        if ($made) {
+            mkdir($dir, 0777, true);
+        }
+        $file = $dir.'/zz-test.mp4';
+        file_put_contents($file, str_repeat('0123456789', 100));
+
+        try {
+            $whole = $this->get('/admin/help-media/zz-test.mp4')->assertOk();
+            $this->assertSame('video/mp4', $whole->headers->get('Content-Type'));
+            $this->assertSame('1000', (string) $whole->headers->get('Content-Length'));
+
+            $part = $this->get('/admin/help-media/zz-test.mp4', ['Range' => 'bytes=100-199'])->assertStatus(206);
+            $this->assertSame('bytes 100-199/1000', $part->headers->get('Content-Range'));
+            $this->assertSame('100', (string) $part->headers->get('Content-Length'));
+        } finally {
+            @unlink($file);
+            if ($made) {
+                @rmdir($dir);
+            }
+        }
+
+        $this->get('/admin/help-media/missing.mp4')->assertNotFound();
+        // only plain names of videos and pictures: anything else is not this route (the panel's shell answers, never a file of the server)
+        foreach (['..%2F..%2F.env', 'notes.txt', '..%2Fadmin-sw.js'] as $odd) {
+            $res = $this->get('/admin/help-media/'.$odd);
+            $this->assertNotSame('video/mp4', $res->headers->get('Content-Type'));
+            $this->assertStringNotContainsString('APP_KEY', (string) $res->getContent());
+        }
+    }
+
     public function test_the_icons_and_the_offline_page_exist(): void
     {
         foreach (['admin-sw.js', 'admin-offline.html', 'favicon.ico'] as $file) {

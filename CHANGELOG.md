@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-16 – The mail account from the panel, access that now works, Help like a video site (branch `lean-store`)
+
+### Added
+- **Settings → E-mail** (the developer's tab): the account that sends every e-mail can be set in the panel instead of `.env`: mail server, port, encryption (TLS, SSL, none), user name, password, sender address, and a switch *Send with this mail account*. The password is stored encrypted and never shown again (only whether it is set). Off = the `MAIL_*` values of the server are used, exactly as before. A quick-setup card fills the server, port and encryption for Gmail, Outlook, Brevo, Mailgun or a cPanel host (with the tip each one needs, e.g. Gmail wants an app password), and *Send test* sends a real test e-mail through the saved account so a wrong password or port shows as an error there. `MailServer` puts the account into Laravel's mail configuration before a mail is sent; a queue worker does it before every job, so a change in the panel is followed without a restart. New permission `settings.mail` (the developer has it; migration `2026_11_15_000001` adds it to existing shops: run `php artisan migrate`). The Notifications status shows whether the panel's account or the server's is in use.
+- **Help is laid out like a video site**: a grid, three videos in a row, each with its picture, length, title, description and topic; a search box; a watch page with the player, the written steps **each with its time** (press a step to jump the video to it; the step being shown lights up) and the other videos beside it. A seventh video, *Connect the e-mail account*, recorded against a small local mail server so the test e-mail really goes through. Every account now sees every video; the "Open the screen" button shows only for screens the account may use.
+- `/admin/help-media/{video}`: the videos are served by Laravel with byte ranges, because the built-in server of `php artisan serve` cannot seek in a plain file (a step would restart the video at 0).
+
+### Fixed
+- **Access that did not take effect**: switching on a technical Settings tab (Footer & Social, Currency & Tax, Orders & Delivery, SEO, Branding, Banners) for the admin in Access Control showed nothing, because a second master switch (`settings.advanced`) was also needed. A tab that is technical as a whole now opens with its own switch. A single technical field inside a client tab (the store name in General, the delivery time in Delivery, the mail sender in Notifications, the hook address in Website) still needs `settings.advanced`. The Access Control screen and `docs/ACCESS_CONTROL.md` say so.
+- The master mail switch of the E-mail tab takes the whole row; the encryption choice has readable names.
+
 ## 2026-11-15 – Help videos, the admin as an installable app, favicons, plain policy pages (branch `lean-store`)
 
 ### Added

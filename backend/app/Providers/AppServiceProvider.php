@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Domain\Customer\Phone;
+use App\Domain\Notification\MailServer;
 use App\Domain\Notification\PushSender;
 use App\Domain\Notification\QueueHealth;
 use App\Domain\Notification\WebPushSender;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
@@ -104,6 +106,10 @@ class AppServiceProvider extends ServiceProvider
         // and a stamp from them would make the next notification believe a worker is running and wait in the queue for ever.
         Event::listen(JobProcessed::class, fn (JobProcessed $e) => $e->connectionName === 'sync' || QueueHealth::recordActivity());
         Event::listen(JobFailed::class, fn (JobFailed $e) => $e->connectionName === 'sync' || QueueHealth::recordActivity());
+
+        // The mail account of Settings > E-mail goes into the mail configuration before every queued job: a worker that runs for days follows a change
+        // made in the panel without a restart (the request that sends a mail by itself, and the test e-mail, apply it too).
+        Event::listen(JobProcessing::class, fn () => app(MailServer::class)->apply());
 
         // The test push button: a handful a minute.
         RateLimiter::for('test-push', fn (Request $request) => Limit::perMinute(5)->by('test-push|'.$request->user()?->getAuthIdentifier()));

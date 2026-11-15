@@ -41,7 +41,7 @@ Edit `backend/.env`:
 | `CART_PER_MINUTE`, `COUPON_PER_MINUTE`, `PAYMENT_PROOF_PER_MINUTE`, `PAYMENT_PROOF_PER_ORDER_HOUR`, `PAYMENT_PROOF_MAX_KB` | optional: limits of the cart, the coupon check and the bank transfer proof upload (defaults 60, 30, 10, 10, 4096; see `backend/config/shop.php`) |
 | `SESSION_LIFETIME` | minutes an admin panel session stays valid without activity (default 120) |
 | `QUEUE_CONNECTION` | `database` (the default): order e-mails and push messages are queued, see step 3 |
-| `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | the client's mail server (`MAIL_MAILER=log` only writes mails to `backend/storage/logs/laravel.log`: fine for development, never for production) |
+| `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | the client's mail server (or leave them and set the account in the panel instead: **Settings → E-mail**, the developer's tab, see below) (`MAIL_MAILER=log` only writes mails to `backend/storage/logs/laravel.log`: fine for development, never for production) |
 | `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | admin push notifications: run `php artisan shop:vapid`, copy the three lines and set the subject to `mailto:you@client.example` (on Windows PHP may need `OPENSSL_CONF` pointing at its `openssl.cnf`). Empty = push is off |
 | `PRODUCT_VIDEO_MAX_KB`, `PRODUCT_VIDEO_POSTER_MAX_KB` | optional: size limit of an uploaded product video and its poster (defaults 51200 = 50 MB and 2048) |
 | `WHOLESALE_PER_HOUR`, `WHOLESALE_PER_PHONE_HOUR` | optional: wholesale requests an hour per IP and per phone number (default 5 each) |
@@ -60,6 +60,8 @@ cd ../admin-frontend && npm install && npm run build && cd ../backend     # admi
 ```
 
 **Cron.** Add the entry `* * * * * php artisan schedule:run`. It runs the daily jobs: removal of expired admin API tokens and `shop:prune-carts` (deletes carts that were not touched for 30 days). Without it the carts table only grows.
+
+**The mail account in the panel.** Instead of `MAIL_*` in `.env` the developer can set the account that sends the e-mails in **Settings → E-mail**: pick a common service (Gmail, Outlook, Brevo, Mailgun, cPanel) to fill in the server, port and encryption, type the user name, the password (stored encrypted, never shown again) and the sender address, switch on *Send with this mail account*, save, and press *Send test* (sent at once with the saved account, so a wrong password shows as an error there). Off = the `.env` values are used. A queue worker follows a change without a restart (it applies the account before every job). The tab belongs to the developer; to let the client manage it, switch the *E-mail account* permission on in Access Control. **Send e-mails** (Notifications tab) must be on, and the sender address must be one the account may send as (Gmail and Outlook also need an app password).
 
 **Queue worker.** E-mails and push notifications are queued (after the order is saved, so a slow or broken mail server never delays or fails an order). Something has to work the queue; pick one:
 

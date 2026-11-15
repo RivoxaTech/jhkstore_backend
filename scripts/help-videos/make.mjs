@@ -11,6 +11,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { launch, Recorder, ROOT, samplePictures, sleep } from './lib.mjs'
 import { FLOWS } from './flows.mjs'
+import { startSink } from './smtp-sink.mjs'
 
 const BASE = (process.env.HELP_BASE || 'http://127.0.0.1:8012').replace(/\/$/, '')
 const OUT = process.env.HELP_OUT || path.join(ROOT, 'admin-frontend', 'public', 'help')
@@ -46,21 +47,24 @@ async function main() {
   for (const flow of FLOWS) {
     if (only.length && !only.includes(flow.slug)) continue
     console.log(`recording ${flow.slug} ...`)
+    const sink = flow.needs === 'smtp' ? await startSink(Number(process.env.HELP_SMTP_PORT || 2525)) : null
     const r = await Recorder.open(await session(flow.as || 'admin'))
     await r.page.goto(url(flow.start || ''), { waitUntil: 'networkidle0' })
     await sleep(600)
     await r.start()
     try {
-      await flow.run(r, { pictures })
+      await flow.run(r, { pictures, smtpPort: sink?.port })
     } catch (e) {
       console.log(`  FAILED: ${e.message}`)
       await r.page.screenshot({ path: path.join(ROOT, 'scripts', 'help-videos', `.failed-${flow.slug}.png`) }).catch(() => {})
       await r.page.close()
+      await sink?.close()
       continue
     }
     const meta = await r.finish({ slug: flow.slug, outDir: OUT })
     await r.page.close()
-    made.set(flow.slug, { slug: flow.slug, title: flow.title, summary: flow.summary, can: flow.can || null, open: flow.open || null, duration: meta.duration, bytes: meta.bytes, steps: meta.steps })
+    await sink?.close()
+    made.set(flow.slug, { slug: flow.slug, title: flow.title, summary: flow.summary, topic: flow.topic || null, can: flow.can || null, open: flow.open || null, duration: meta.duration, bytes: meta.bytes, steps: meta.steps })
     console.log(`  ${flow.slug}: ${meta.duration}s, ${(meta.bytes / 1048576).toFixed(2)} MB, ${meta.steps.length} steps`)
   }
 

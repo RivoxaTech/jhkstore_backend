@@ -163,7 +163,7 @@ class AccessControlTest extends TestCase
             'dashboard.view', 'products.view', 'products.manage', 'categories.view', 'categories.manage', 'orders.view', 'orders.manage',
             'customers.view', 'customers.export', 'settings.general', 'settings.branding', 'settings.banners', 'settings.footer',
             'settings.currency_tax', 'settings.orders_delivery', 'settings.seo', 'access.manage',
-            'settings.theme', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'settings.website', 'settings.advanced',
+            'settings.theme', 'settings.store', 'settings.delivery', 'settings.payments', 'settings.notifications', 'settings.mail', 'settings.website', 'settings.advanced',
             'discounts.view', 'discounts.manage', 'coupons.view', 'coupons.manage', 'orders.export', 'wholesale.view', 'wholesale.manage',
         ], AdminAccess::all());
         $this->assertSame(['developer', 'admin'], AdminAccess::ROLES);

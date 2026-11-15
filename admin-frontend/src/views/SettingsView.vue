@@ -12,6 +12,7 @@ import TableSkeleton from '@/components/TableSkeleton.vue'
 import BannersPanel from '@/components/BannersPanel.vue'
 import DeliveryZonesPanel from '@/components/DeliveryZonesPanel.vue'
 import NotificationsPanel from '@/components/NotificationsPanel.vue'
+import MailSetupCard from '@/components/MailSetupCard.vue'
 import ThemePreview from '@/components/ThemePreview.vue'
 import WebsiteStatusCard from '@/components/WebsiteStatusCard.vue'
 
@@ -208,7 +209,7 @@ function showField(f) {
 const shown = (s) => s.fields.filter(showField)
 // a section with wide controls (links, accounts, pictures) or many fields takes the whole row and lays its fields out in two columns
 const wide = (s) => shown(s).some(f => ['links', 'accounts', 'file'].includes(f.type)) || shown(s).length > 3
-const full = (f) => ['text', 'links', 'accounts', 'file'].includes(f.type) || f.key === 'delivery_method'
+const full = (f) => ['text', 'links', 'accounts', 'file'].includes(f.type) || f.key === 'delivery_method' || f.key === 'mail_custom'
 </script>
 
 <template>
@@ -262,6 +263,8 @@ const full = (f) => ['text', 'links', 'accounts', 'file'].includes(f.type) || f.
               <p class="hint" style="margin-top: 8px; font-size: 11.5px">A product card drawn with the values above. Save to publish them to the storefront. The admin panel keeps its own look.</p>
             </div>
           </section>
+
+          <MailSetupCard v-if="activeTab.key === 'mail'" :form="form" :dirty="dirty" style="grid-column: 1 / -1" />
 
           <DeliveryZonesPanel v-if="activeTab.key === 'delivery'" :method="method" style="grid-column: 1 / -1" />
         </template>

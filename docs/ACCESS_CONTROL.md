@@ -24,7 +24,7 @@ Both accounts are created by the seeder from `backend/.env`: `SEED_DEVELOPER_USE
 | `customers.view` / `customers.export` | the customers list and the abandoned carts tab / the CSV downloads of both | ✔ | off, can be switched on |
 | `settings.general` | Settings → General: contact details (e-mail, phone, address, support hours, WhatsApp). Store name, tagline, country and phone country code need `settings.advanced` | ✔ | ✔ |
 | `settings.branding` | Settings → Branding (logo, favicon; technical) | – | ✔ |
-| `settings.banners` | Settings → Banners (create, edit, delete, reorder, activate, placements, pictures; technical, also needs `settings.advanced`) | – | ✔ |
+| `settings.banners` | Settings → Banners (create, edit, delete, reorder, activate, placements, pictures; technical) | – | ✔ |
 | `settings.footer` | Settings → Footer & Social (links, footer texts, agency credit; technical) | – | ✔ |
 | `settings.currency_tax` | Settings → Currency & Tax (technical) | – | ✔ |
 | `settings.orders_delivery` | Settings → Orders & Delivery (order number prefix, cash on delivery limit; technical) | – | ✔ |
@@ -34,8 +34,9 @@ Both accounts are created by the seeder from `backend/.env`: `SEED_DEVELOPER_USE
 | `settings.delivery` | Settings → Delivery (method, fee, free-delivery limit, minimum order, delivery text, the zones table). Delivery time in days and the unmatched-address rule need `settings.advanced` | ✔ | ✔ |
 | `settings.payments` | Settings → Payments (methods, bank accounts) | ✔ | ✔ |
 | `settings.notifications` | Settings → Notifications: the events table (customer e-mail, owner e-mail, admin push), test e-mail, notification status. Sender name, reply-to, owner address and tracking link need `settings.advanced` | ✔ | ✔ |
+| `settings.mail` | Settings → E-mail: the mail account that sends the e-mails (server, port, encryption, user, password, sender address) and a test e-mail; technical | – | ✔ |
 | `settings.website` | Settings → Website: the status of the website rebuild (pending changes, last request, last result), the **Rebuild website now** button and the automatic-rebuild switch. The hook address, hook secret and the wait time are technical and need `settings.advanced`. The tab is the developer's: the admin panel does not show it to the shop owner's admin account, even with this permission | ✔ | ✔ |
-| `settings.advanced` | The technical fields of every tab the user may open, see the map below. Also the failed-jobs list and the queue details of the notification status | **off**, can be switched on | ✔ (fixed) |
+| `settings.advanced` | The single technical fields inside the client tabs (store name, delivery time, mail sender, hook address, ...), see the map below. Also the failed-jobs list and the queue details of the notification status | **off**, can be switched on | ✔ (fixed) |
 | `access.manage` | the Access Control screen | **never** | ✔ (fixed) |
 
 The list lives in `App\Domain\Auth\AdminAccess` (`GROUPS`); the admin's starting list is `ADMIN_DEFAULTS`. Adding a Settings tab later = one entry in `SettingController::TABS`, its setting definitions in `Settings::DEFINITIONS`, and a `settings.<tab>` line in `AdminAccess::GROUPS`; the Access Control screen, the API checks and the tab list of the panel follow from those. When an update adds a permission, `AdminAccess::sync()` (the seeder) creates it and gives it to a role that already exists **only if it is in that role's defaults**; what the developer switched is never overridden.
@@ -47,13 +48,13 @@ Every setting has a **tier** (`Settings::access()`; the lists are `Settings::ADV
 * `client`: the admin may get it by default (contact details, store open or closed, delivery method and fees, payment switches, which e-mails and push messages go out).
 * `advanced`: technical. Shown in the panel with a small "Developer" tag.
 
-A field is **visible and writable only if the user has the permission of its tab AND (the field is `client` OR the user holds `settings.advanced`)**. The API enforces it on `GET /admin/settings` (the field, its value and its tab are simply not sent) and on `PUT /admin/settings` and the picture endpoints (403 for any forbidden key; a request that mixes allowed and forbidden keys changes nothing). A tab with none of its fields visible is hidden (the Banners tab holds the banner manager, which is technical: its routes need `settings.banners` **and** `settings.advanced`). `settings.theme` stays developer only whatever else is switched on. The developer's `settings.advanced` is fixed on; the admin's starts off. `AdminAccess::sync()` on an existing database creates the new permission, gives it to the developer, and never changes what the developer switched for the admin.
+A field is **visible and writable only if the user has the permission of its tab**, and, for a single technical field inside a client tab (the store name in General, the delivery time and the unmatched-address rule in Delivery, the mail sender and the owner address in Notifications, the hook address in Website), **also `settings.advanced`**. A tab that is technical as a whole (Branding, Banners, Footer & Social, Currency & Tax, Orders & Delivery, SEO, Theme, E-mail) opens with its own permission alone: when the developer switches it on for the admin, the admin gets the whole tab. The API enforces it on `GET /admin/settings` (the field, its value and its tab are simply not sent) and on `PUT /admin/settings` and the picture endpoints (403).
 
 The Access Control screen lists, under every permission, what it covers (screens, tabs, the individual settings in a collapsible list) and a tag: `Client` or `Developer / advanced`. The data comes from `GET /admin/access-control` (`tier`, `covers`, `fields` on every permission), built from the same definitions the API enforces.
 
 ### The map: setting → tier → permission
 
-Generated from `Settings::DEFINITIONS` (a test checks that every setting has a row). "Permission" is the tab permission; an `advanced` row also needs `settings.advanced`.
+Generated from `Settings::DEFINITIONS` (a test checks that every setting has a row). "Permission" is the tab permission. An `advanced` row inside a client tab (General, Delivery, Notifications, Website) also needs `settings.advanced`; an `advanced` row inside a technical tab (Branding, Footer & Social, Currency & Tax, Orders & Delivery, SEO, Theme, E-mail) needs only the tab permission.
 
 | Setting key | Label | Tab | Tier | Permission |
 |---|---|---|---|---|
@@ -66,25 +67,25 @@ Generated from `Settings::DEFINITIONS` (a test checks that every setting has a r
 | `default_phone_country_code` | Default phone country code | General | advanced | `settings.general` + `settings.advanced` |
 | `support_hours` | Support hours | General | client | `settings.general` |
 | `whatsapp_number` | WhatsApp number | General | client | `settings.general` |
-| `store_logo` | Logo | Branding | advanced | `settings.branding` + `settings.advanced` |
-| `store_favicon` | Favicon | Branding | advanced | `settings.branding` + `settings.advanced` |
-| `social_links` | Social and footer links | Footer & Social | advanced | `settings.footer` + `settings.advanced` |
-| `footer_text` | Footer text | Footer & Social | advanced | `settings.footer` + `settings.advanced` |
-| `footer_copyright` | Copyright text | Footer & Social | advanced | `settings.footer` + `settings.advanced` |
-| `agency_name` | Agency name | Footer & Social | advanced | `settings.footer` + `settings.advanced` |
-| `agency_url` | Agency link | Footer & Social | advanced | `settings.footer` + `settings.advanced` |
-| `agency_logo` | Agency logo | Footer & Social | advanced | `settings.footer` + `settings.advanced` |
-| `seo_meta_title` | Default meta title | SEO | advanced | `settings.seo` + `settings.advanced` |
-| `seo_meta_description` | Default meta description | SEO | advanced | `settings.seo` + `settings.advanced` |
-| `seo_share_image` | Default share image | SEO | advanced | `settings.seo` + `settings.advanced` |
-| `currency_code` | Currency code | Currency & Tax | advanced | `settings.currency_tax` + `settings.advanced` |
-| `currency_symbol` | Currency symbol | Currency & Tax | advanced | `settings.currency_tax` + `settings.advanced` |
-| `currency_decimals` | Decimals | Currency & Tax | advanced | `settings.currency_tax` + `settings.advanced` |
-| `tax_rate` | Default tax rate (%) | Currency & Tax | advanced | `settings.currency_tax` + `settings.advanced` |
-| `tax_inclusive` | Prices include tax | Currency & Tax | advanced | `settings.currency_tax` + `settings.advanced` |
-| `tax_label` | Tax label | Currency & Tax | advanced | `settings.currency_tax` + `settings.advanced` |
-| `order_number_prefix` | Order number prefix | Orders & Delivery | advanced | `settings.orders_delivery` + `settings.advanced` |
-| `cod_max_amount` | Cash on delivery limit | Orders & Delivery | advanced | `settings.orders_delivery` + `settings.advanced` |
+| `store_logo` | Logo | Branding | advanced | `settings.branding` |
+| `store_favicon` | Favicon | Branding | advanced | `settings.branding` |
+| `social_links` | Social and footer links | Footer & Social | advanced | `settings.footer` |
+| `footer_text` | Footer text | Footer & Social | advanced | `settings.footer` |
+| `footer_copyright` | Copyright text | Footer & Social | advanced | `settings.footer` |
+| `agency_name` | Agency name | Footer & Social | advanced | `settings.footer` |
+| `agency_url` | Agency link | Footer & Social | advanced | `settings.footer` |
+| `agency_logo` | Agency logo | Footer & Social | advanced | `settings.footer` |
+| `seo_meta_title` | Default meta title | SEO | advanced | `settings.seo` |
+| `seo_meta_description` | Default meta description | SEO | advanced | `settings.seo` |
+| `seo_share_image` | Default share image | SEO | advanced | `settings.seo` |
+| `currency_code` | Currency code | Currency & Tax | advanced | `settings.currency_tax` |
+| `currency_symbol` | Currency symbol | Currency & Tax | advanced | `settings.currency_tax` |
+| `currency_decimals` | Decimals | Currency & Tax | advanced | `settings.currency_tax` |
+| `tax_rate` | Default tax rate (%) | Currency & Tax | advanced | `settings.currency_tax` |
+| `tax_inclusive` | Prices include tax | Currency & Tax | advanced | `settings.currency_tax` |
+| `tax_label` | Tax label | Currency & Tax | advanced | `settings.currency_tax` |
+| `order_number_prefix` | Order number prefix | Orders & Delivery | advanced | `settings.orders_delivery` |
+| `cod_max_amount` | Cash on delivery limit | Orders & Delivery | advanced | `settings.orders_delivery` |
 | `store_open` | Store is open | Store | client | `settings.store` |
 | `store_closed_message` | Message while the store is closed | Store | client | `settings.store` |
 | `checkout_notice` | Checkout notice | Store | client | `settings.store` |
@@ -121,19 +122,26 @@ Generated from `Settings::DEFINITIONS` (a test checks that every setting has a r
 | `push_on_proof` | Push: payment proof uploaded | Notifications | client | `settings.notifications` |
 | `push_on_wholesale` | Push: new wholesale request | Notifications | client | `settings.notifications` |
 | `storefront_track_url` | Order tracking page | Notifications | advanced | `settings.notifications` + `settings.advanced` |
+| `mail_custom` | Send with this mail account | E-mail | advanced | `settings.mail` |
+| `mail_host` | Mail server (host) | E-mail | advanced | `settings.mail` |
+| `mail_port` | Port | E-mail | advanced | `settings.mail` |
+| `mail_encryption` | Encryption | E-mail | advanced | `settings.mail` |
+| `mail_username` | Username | E-mail | advanced | `settings.mail` |
+| `mail_password` | Password | E-mail | advanced | `settings.mail` |
+| `mail_from_address` | Sender address | E-mail | advanced | `settings.mail` |
 | `push_enabled` | Admin push notifications | Notifications | client | `settings.notifications` |
-| `theme_primary` | Primary colour | Theme | advanced | `settings.theme` + `settings.advanced` |
-| `theme_primary_contrast` | Text on the primary colour | Theme | advanced | `settings.theme` + `settings.advanced` |
-| `theme_accent` | Accent colour | Theme | advanced | `settings.theme` + `settings.advanced` |
-| `theme_bg` | Page background | Theme | advanced | `settings.theme` + `settings.advanced` |
-| `theme_surface` | Card background | Theme | advanced | `settings.theme` + `settings.advanced` |
-| `theme_text` | Text colour | Theme | advanced | `settings.theme` + `settings.advanced` |
-| `theme_muted` | Muted text colour | Theme | advanced | `settings.theme` + `settings.advanced` |
-| `theme_border` | Border colour | Theme | advanced | `settings.theme` + `settings.advanced` |
-| `theme_font_heading` | Heading font | Theme | advanced | `settings.theme` + `settings.advanced` |
-| `theme_font_body` | Body font | Theme | advanced | `settings.theme` + `settings.advanced` |
-| `theme_radius` | Corner radius | Theme | advanced | `settings.theme` + `settings.advanced` |
-| `theme_shadow` | Shadow | Theme | advanced | `settings.theme` + `settings.advanced` |
+| `theme_primary` | Primary colour | Theme | advanced | `settings.theme` |
+| `theme_primary_contrast` | Text on the primary colour | Theme | advanced | `settings.theme` |
+| `theme_accent` | Accent colour | Theme | advanced | `settings.theme` |
+| `theme_bg` | Page background | Theme | advanced | `settings.theme` |
+| `theme_surface` | Card background | Theme | advanced | `settings.theme` |
+| `theme_text` | Text colour | Theme | advanced | `settings.theme` |
+| `theme_muted` | Muted text colour | Theme | advanced | `settings.theme` |
+| `theme_border` | Border colour | Theme | advanced | `settings.theme` |
+| `theme_font_heading` | Heading font | Theme | advanced | `settings.theme` |
+| `theme_font_body` | Body font | Theme | advanced | `settings.theme` |
+| `theme_radius` | Corner radius | Theme | advanced | `settings.theme` |
+| `theme_shadow` | Shadow | Theme | advanced | `settings.theme` |
 | `rebuild_enabled` | Rebuild the website automatically | Website | client | `settings.website` |
 | `rebuild_hook_url` | Rebuild hook address | Website | advanced | `settings.website` + `settings.advanced` |
 | `rebuild_hook_secret` | Rebuild hook secret (stored encrypted, never returned, shown only as set / not set) | Website | advanced | `settings.website` + `settings.advanced` |

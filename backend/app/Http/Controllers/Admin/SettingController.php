@@ -31,6 +31,7 @@ class SettingController extends Controller
         'payments' => ['Payments', ['payments']],
         'store' => ['Store', ['store']],
         'notifications' => ['Notifications', ['notifications']],
+        'mail' => ['E-mail', ['mail']],
         'theme' => ['Theme', ['theme']],
         'seo' => ['SEO', ['seo']],
         'website' => ['Website', ['website']],
@@ -50,6 +51,7 @@ class SettingController extends Controller
         'payments' => 'Payment methods',
         'store' => 'Store status and notices',
         'notifications' => 'E-mails and admin notifications',
+        'mail' => 'Mail account that sends the e-mails',
         'theme' => 'Colours, fonts and corners of the storefront',
         'seo' => 'Search engines and sharing',
         'website' => 'Rebuild of the website',
@@ -126,6 +128,7 @@ class SettingController extends Controller
      */
     private function checkCombination(Settings $settings, array $data): void
     {
+        $this->checkMailAccount($settings, $data);
         $paymentKeys = ['pay_cod_enabled', 'pay_bank_enabled', 'pay_bank_accounts'];
         if (array_intersect($paymentKeys, array_keys($data)) === []) {
             return;
@@ -143,6 +146,23 @@ class SettingController extends Controller
         if ($bank && $active->isEmpty()) {
             $key = $blame('pay_bank_enabled', 'pay_bank_accounts');
             throw ValidationException::withMessages([$key => ['Add at least one active bank account before you turn bank transfer on.']]);
+        }
+    }
+
+    /** Switching the own mail account on needs a server and a sender address (the values sent are merged over the stored ones). */
+    private function checkMailAccount(Settings $settings, array $data): void
+    {
+        if (array_intersect(['mail_custom', 'mail_host', 'mail_from_address'], array_keys($data)) === []) {
+            return;
+        }
+        $value = fn (string $key) => array_key_exists($key, $data) ? $data[$key] : $settings->get($key);
+        if (! filter_var($value('mail_custom'), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+        foreach (['mail_host' => 'Enter the mail server before you switch this on.', 'mail_from_address' => 'Enter the sender address before you switch this on.'] as $key => $message) {
+            if (trim((string) $value($key)) === '') {
+                throw ValidationException::withMessages([array_key_exists($key, $data) ? $key : 'mail_custom' => [$message]]);
+            }
         }
     }
 
@@ -176,11 +196,14 @@ class SettingController extends Controller
         throw new \LogicException("Setting [$key] is not shown in any tab.");
     }
 
-    /** The permission of the setting's tab AND, for a technical (`advanced`) field, `settings.advanced`. Used for every read and every write. */
+    /**
+     * The permission of the setting's tab AND, for a single technical field of a client tab (Settings::ADVANCED_KEYS), `settings.advanced`. A tab that is
+     * technical as a whole opens with its own permission. Used for every read and every write.
+     */
     public static function mayUse(Admin $admin, string $key): bool
     {
         return AdminAccess::allows($admin, 'settings.'.self::tabOf($key))
-            && (Settings::access($key) === Settings::CLIENT || AdminAccess::allows($admin, AdminAccess::SETTINGS_ADVANCED));
+            && (! Settings::needsAdvancedPermission($key) || AdminAccess::allows($admin, AdminAccess::SETTINGS_ADVANCED));
     }
 
     private function mayEdit(Admin $admin, string $key): bool
@@ -215,7 +238,6 @@ class SettingController extends Controller
             ] + ($def[1] === 'secret' ? ['is_set' => $settings->isSet($key)] : []) + ($def[1] === 'file' ? ['upload' => $uploads[$key]] : []) + ($def[1] === 'choice' ? ['options' => Settings::CHOICES[$key]] : []);
         }
 
-        $advanced = AdminAccess::allows($admin, AdminAccess::SETTINGS_ADVANCED);
         $tabs = [];
         foreach (self::TABS as $key => [$label, $groups]) {
             if (! AdminAccess::allows($admin, 'settings.'.$key)) {
@@ -223,7 +245,7 @@ class SettingController extends Controller
             }
             $shown = array_values(array_filter(array_map(fn ($g) => $sections[$g], $groups), fn ($s) => $s['fields'] !== []));
             $panel = self::PANELS[$key] ?? null;
-            if ($shown === [] && ! ($panel === Settings::CLIENT || ($panel === Settings::ADVANCED && $advanced))) {
+            if ($shown === [] && $panel === null) {   // a tab with no field and no panel of its own is left out
                 continue;
             }
             $tabs[] = ['key' => $key, 'label' => $label, 'sections' => $shown];

@@ -90,8 +90,8 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin', 'store
     });
 
     // Banners live in the Settings > Banners tab (multipart for the pictures; reorder = the whole order of a placement)
-    // (technical, so also `settings.advanced`: two middleware = both are needed)
-    Route::middleware(['admin.can:settings.banners', 'admin.can:settings.advanced'])->group(function () {
+    // (the tab is technical as a whole: its own permission is the decision)
+    Route::middleware('admin.can:settings.banners')->group(function () {
         Route::get('banners/options', [BannerController::class, 'options']);
         Route::get('banners', [BannerController::class, 'index']);
         Route::get('banners/{banner}', [BannerController::class, 'show'])->whereNumber('banner');
@@ -173,7 +173,7 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin', 'store
     });
 
     // The Notifications tab: queue and mail status, a test e-mail
-    Route::middleware('admin.can:settings.notifications')->group(function () {
+    Route::middleware('admin.can:settings.notifications,settings.mail')->group(function () {
         Route::get('notifications/status', [NotificationController::class, 'status']);
         Route::post('notifications/test-email', [NotificationController::class, 'testEmail'])->middleware('throttle:test-email');
         Route::get('notifications/failed-jobs', [NotificationController::class, 'failedJobs'])->middleware('admin.can:settings.advanced');   // technical: job names and times only
@@ -195,8 +195,8 @@ Route::middleware(['auth:admin,sanctum', 'actor:admin', 'throttle:admin', 'store
     });
 
     // Settings: each tab has its own permission (settings.<tab>); the controller checks it per key, here any tab opens the page
-    Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.general,settings.branding,settings.banners,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications,settings.website');
-    Route::put('settings', [SettingController::class, 'update'])->middleware('admin.can:settings.general,settings.branding,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications,settings.website');
+    Route::get('settings', [SettingController::class, 'show'])->middleware('admin.can:settings.general,settings.branding,settings.banners,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications,settings.mail,settings.website');
+    Route::put('settings', [SettingController::class, 'update'])->middleware('admin.can:settings.general,settings.branding,settings.footer,settings.currency_tax,settings.orders_delivery,settings.seo,settings.theme,settings.store,settings.delivery,settings.payments,settings.notifications,settings.mail,settings.website');
     // pictures: logo, favicon (Branding tab), share-image (SEO tab) and agency-logo (Footer & Social tab); the controller checks the tab of the picture
     Route::post('settings/{slot}', [SettingController::class, 'uploadFile'])->whereIn('slot', ['logo', 'favicon', 'share-image', 'agency-logo'])->middleware('admin.can:settings.branding,settings.seo,settings.footer');
     Route::delete('settings/{slot}', [SettingController::class, 'deleteFile'])->whereIn('slot', ['logo', 'favicon', 'share-image', 'agency-logo'])->middleware('admin.can:settings.branding,settings.seo,settings.footer');

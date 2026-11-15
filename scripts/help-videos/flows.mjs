@@ -8,6 +8,7 @@ export const FLOWS = [
   // ------------------------------------------------------------------------------------------------------------------------------ products
   {
     slug: 'add-product',
+    topic: 'Products',
     title: 'Add a product',
     summary: 'A new toy from the first field to the website: category, name, price, stock, pictures and the Active status.',
     can: 'products.manage',
@@ -47,6 +48,7 @@ export const FLOWS = [
 
   {
     slug: 'edit-product',
+    topic: 'Products',
     title: 'Edit a product',
     summary: 'Find a product, change its status from the list, then change its price and stock, and add another option.',
     can: 'products.manage',
@@ -87,6 +89,7 @@ export const FLOWS = [
   // ------------------------------------------------------------------------------------------------------------------------------ categories
   {
     slug: 'categories',
+    topic: 'Categories',
     title: 'Categories and sub-categories',
     summary: 'Add a category, then a sub-category inside it. Products are placed in them when you add or edit a product.',
     can: 'categories.manage',
@@ -120,6 +123,7 @@ export const FLOWS = [
   // ------------------------------------------------------------------------------------------------------------------------------ discount
   {
     slug: 'add-discount',
+    topic: 'Discounts',
     title: 'Add a discount',
     summary: 'A discount lowers prices by itself, with no code. Choose how much, on what, and for how long.',
     can: 'discounts.manage',
@@ -158,6 +162,7 @@ export const FLOWS = [
   // ------------------------------------------------------------------------------------------------------------------------------ coupon
   {
     slug: 'add-coupon',
+    topic: 'Coupons',
     title: 'Add a coupon',
     summary: 'A coupon is a code customers type at checkout. Set the code, the amount, and limits such as a minimum order.',
     can: 'coupons.manage',
@@ -197,6 +202,7 @@ export const FLOWS = [
   // ------------------------------------------------------------------------------------------------------------------------------ settings
   {
     slug: 'settings',
+    topic: 'Settings',
     title: 'Settings',
     summary: 'A tour of Settings: your contact details, delivery, payments and notifications, and how to save a change.',
     can: 'settings.*',
@@ -230,6 +236,51 @@ export const FLOWS = [
       await r.ring(await r.locate('#panel-notifications > *'), 2400)
       await r.page.evaluate(() => window.__hvRing(null))
       await r.step('Every change shows on the website after the next rebuild, about 1 to 3 minutes', { pause: 3000 })
+    },
+  },
+
+// ------------------------------------------------------------------------------------------------------------------------------ the mail account
+  {
+    slug: 'mail-account',
+    topic: 'Settings',
+    title: 'Connect the e-mail account',
+    summary: 'Set the mail account that sends order e-mails to your customers: the server, the login and the sender address, then send a test.',
+    can: 'settings.mail',
+    as: 'developer',
+    needs: 'smtp',
+    open: { route: 'settings', text: 'Open Settings' },
+    start: 'settings',
+    async run(r, ctx) {
+      await r.title('Connect the e-mail account', 'So order e-mails reach your customers')
+      await r.step('Open Settings and the E-mail tab')
+      await r.click('#tab-mail', { pause: 1200 })
+      await r.step('Press your mail service to fill in the server, the port and the encryption')
+      await r.click('[data-preset="Gmail"]', { pause: 400 })
+      await r.ring(await r.locate('[data-testid="mail-preset-note"]'), 2600)
+      await r.page.evaluate(() => window.__hvRing(null))
+      await r.step('Or type the mail server your provider gave you (here a test server is used)')
+      await r.type('#s-mail_host', '127.0.0.1', { clear: true })
+      await r.type('#s-mail_port', String(ctx.smtpPort), { clear: true })
+      await r.choose('#s-mail_encryption', 'None')
+      await r.step('Type the user name, the password and the sender address')
+      await r.type('#s-mail_username', 'shop@myshop.com')
+      await r.type('#s-mail_password', 'an-app-password')
+      await r.type('#s-mail_from_address', 'shop@myshop.com')
+      await r.step('Switch on Send with this mail account')
+      await r.click('label.switch:has(#s-mail_custom)', { pause: 700 })
+      await r.step('Press Save changes')
+      await r.click('[data-testid="save-settings"]', { pause: 1800 })
+      await r.step('Send a test e-mail to an address of yours. If it is not sent, the message says why')
+      await r.type('#mail-test-to', 'owner@myshop.com')
+      await r.click('[data-testid="send-test-email"]', { pause: 400 })
+      await r.page.waitForSelector('[data-testid="test-email-result"]', { timeout: 20000 })
+      await r.ring(await r.locate('[data-testid="test-email-result"]'), 2600)
+      await r.page.evaluate(() => window.__hvRing(null))
+      await r.step('Last, check that Send e-mails is on in the Notifications tab')
+      await r.click('#tab-notifications', { pause: 1200 })
+      await r.ring(await r.locate('label[for="s-mail_enabled"]'), 2600)
+      await r.page.evaluate(() => window.__hvRing(null))
+      await r.step('Done. Order e-mails now go out with this account', { pause: 2800 })
     },
   },
 ]

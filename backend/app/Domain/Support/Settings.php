@@ -43,14 +43,18 @@ class Settings
         'delivery_unmatched' => ['block', 'owner_confirms', 'flat'],
         'theme_font_heading' => self::FONTS,
         'theme_font_body' => self::FONTS,
+        'mail_encryption' => ['tls', 'ssl', 'none'],
         'theme_radius' => ['0px', '4px', '8px', '12px', '16px', '999px'],
         'theme_shadow' => ['none', 'soft', 'medium'],
     ];
 
     /**
-     * Who may see and change a setting, on top of the permission of its tab: `client` (the admin may get it by default) or `advanced` (technical:
-     * the admin needs the permission `settings.advanced`, which only the developer has by default). Everything is `client` unless listed here
-     * or in ADVANCED_GROUPS. docs/ACCESS_CONTROL.md has the full table (a test keeps it complete).
+     * The tier of a setting: `client` (the admin may get it by default) or `advanced` (technical, shown with a "Developer" tag). Everything is `client` unless
+     * listed in ADVANCED_KEYS or in ADVANCED_GROUPS. docs/ACCESS_CONTROL.md has the full table (a test keeps it complete).
+     *
+     * What the tier means for access: a tab that is technical as a whole (ADVANCED_GROUPS: footer, currency, tax, SEO, branding, the mail account ...) opens with
+     * its own permission (`settings.<tab>`): when the developer switches it on for the admin, the admin gets the whole tab. A single technical field
+     * inside a client tab (ADVANCED_KEYS: the store name in General, the mail sender in Notifications ...) also needs the permission `settings.advanced`.
      */
     public const ADVANCED_KEYS = [
         'store_name', 'store_tagline', 'store_country', 'default_phone_country_code',
@@ -60,7 +64,7 @@ class Settings
     ];
 
     /** Every setting of these groups is `advanced` (branding, footer and agency credit, SEO, currency, tax, order numbers and the cash limit, theme). */
-    public const ADVANCED_GROUPS = ['branding', 'footer', 'seo', 'currency', 'tax', 'orders', 'theme'];
+    public const ADVANCED_GROUPS = ['branding', 'footer', 'seo', 'currency', 'tax', 'orders', 'theme', 'mail'];
 
     public const CLIENT = 'client';
 
@@ -146,7 +150,7 @@ class Settings
         'pay_bank_accounts' => ['payments', 'accounts', [], 'Bank accounts', 'Any number of accounts, shown in this order.'],
 
         // --- notifications: e-mails to customers and the owner (queued, see App\Mail), and the admin push switch
-        'mail_enabled' => ['notifications', 'bool', false, 'Send e-mails', 'Master switch. Off: no e-mail is sent. The mail server (MAIL_* in .env) and the queue worker must be set up first, see docs/NEW_CLIENT.md.'],
+        'mail_enabled' => ['notifications', 'bool', false, 'Send e-mails', 'Master switch. Off: no e-mail is sent. The mail account is set in the E-mail tab (or MAIL_* in .env) and the queue worker must be running, see docs/NEW_CLIENT.md.'],
         'mail_from_name' => ['notifications', 'string', '', 'Sender name', 'The name customers see on the e-mail. Empty = the store name.'],
         'mail_reply_to' => ['notifications', 'string', '', 'Reply-to address', 'Where a customer\'s reply goes. Empty = the store e-mail.'],
         'notify_admin_email' => ['notifications', 'string', '', 'Owner e-mail for alerts', 'Gets an alert for every new order, payment proof and wholesale request. Empty = no alerts.'],
@@ -165,6 +169,15 @@ class Settings
         'push_on_wholesale' => ['notifications', 'bool', true, 'Push: new wholesale request'],
         'storefront_track_url' => ['notifications', 'string', '', 'Order tracking page', 'The storefront page that tracks an order, e.g. https://shop.example/track. E-mails link to it as ?order=NUMBER (the customer is asked for the phone number).'],
         'push_enabled' => ['notifications', 'bool', false, 'Admin push notifications', 'Browser notifications for new orders, payment proofs and wholesale requests (needs the VAPID keys in .env: php artisan shop:vapid).'],
+
+        // --- mail (technical tab): the account that sends every e-mail. Off = the server's own MAIL_* values (.env) are used. See App\Domain\Notification\MailServer.
+        'mail_custom' => ['mail', 'bool', false, 'Send with this mail account', 'On: e-mails are sent with the account below. Off: the MAIL_* values of the server (.env) are used.'],
+        'mail_host' => ['mail', 'string', '', 'Mail server (host)', 'For example smtp.gmail.com, smtp-relay.brevo.com or mail.yourdomain.com.'],
+        'mail_port' => ['mail', 'int', 587, 'Port', '587 with TLS, 465 with SSL, 25 or 2525 without encryption.', 1, 65535],
+        'mail_encryption' => ['mail', 'choice', 'tls', 'Encryption', 'TLS (STARTTLS) goes with port 587, SSL with port 465.'],
+        'mail_username' => ['mail', 'string', '', 'Username', 'Usually the full e-mail address of the account.'],
+        'mail_password' => ['mail', 'secret', '', 'Password', 'Stored encrypted; it is never shown again, only whether it is set. Gmail and Outlook need an app password, not the normal one.'],
+        'mail_from_address' => ['mail', 'string', '', 'Sender address', 'The address customers see. Use the address of the account above, or one it is allowed to send as.'],
 
         // --- theme (developer only): the storefront reads these through GET /store/settings
         'theme_primary' => ['theme', 'color', '#2563EB', 'Primary colour', 'Buttons and links.'],
@@ -200,6 +213,14 @@ class Settings
         $def = self::DEFINITIONS[$key] ?? throw new \InvalidArgumentException("Unknown setting [$key].");
 
         return in_array($key, self::ADVANCED_KEYS, true) || in_array($def[0], self::ADVANCED_GROUPS, true) ? self::ADVANCED : self::CLIENT;
+    }
+
+    /** Does a single technical field of a client tab need `settings.advanced` on top of the permission of its tab? (A whole technical tab does not: its own permission is the decision.) */
+    public static function needsAdvancedPermission(string $key): bool
+    {
+        self::access($key);   // unknown keys throw
+
+        return in_array($key, self::ADVANCED_KEYS, true);
     }
 
     /** Typed value of a setting (the stored one, or the declared default). */
@@ -435,6 +456,9 @@ class Settings
             'announcement_text' => ['nullable', 'string', 'max:160'],
             'delivery_eta_text' => ['nullable', 'string', 'max:120'],
             'pay_bank_instructions' => ['nullable', 'string', 'max:1000'],
+            'mail_host' => ['nullable', 'string', 'max:190', 'regex:/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/'],
+            'mail_username' => ['nullable', 'string', 'max:190'],
+            'mail_from_address' => ['nullable', 'email', 'max:190'],
             'mail_from_name' => ['nullable', 'string', 'max:80'],
             'mail_reply_to' => ['nullable', 'email', 'max:190'],
             'notify_admin_email' => ['nullable', 'email', 'max:190'],

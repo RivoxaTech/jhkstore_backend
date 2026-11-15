@@ -121,6 +121,7 @@ class Notifier
     /** On the queue when a worker takes jobs; otherwise sent right after the response (people never wait for it, and nothing sits in the queue for ever). */
     private function sendMail(string $to, \Illuminate\Contracts\Mail\Mailable $mail): void
     {
+        app(MailServer::class)->apply();   // the mail account of Settings > E-mail (a queue worker applies it itself before every job)
         if (! $this->workerMissing()) {
             Mail::to($to)->queue($mail);
 

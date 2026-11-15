@@ -43,6 +43,7 @@ const OPTION_LABELS = {
   delivery_method: { flat: 'Flat fee', free: 'Always free', free_above: 'Free above an amount', zones: 'By delivery zone', owner_confirms: 'The owner confirms the fee' },
   delivery_unmatched: { block: 'Refuse the order', owner_confirms: 'The owner confirms the fee', flat: 'Use the flat delivery charge' },
   theme_radius: { '999px': '999px (pill)', '0px': '0px (square)' },
+  mail_encryption: { tls: 'TLS (STARTTLS)', ssl: 'SSL', none: 'None' },
 }
 const optionLabel = (value) => OPTION_LABELS[f.value.key]?.[value] || (f.value.key.startsWith('theme_font') ? value : value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, ' '))
 
