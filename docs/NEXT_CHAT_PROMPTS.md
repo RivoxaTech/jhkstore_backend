@@ -7,22 +7,18 @@ Three ready prompts, to paste into a new AI chat. **Start prompt** is the short 
 ## Start prompt (type this in the new chat)
 
 ```
-This is the JHK Store project. The folder is now called jhkstore (it was DentalKart_backend). We are going live. Your memory of earlier sessions is empty: the docs of the repository are the source of truth.
+This is the JHK Store project. The folder is called jhkstore (it was DentalKart_backend). We are going live. Your memory of earlier sessions is empty: the docs of the repository are the source of truth.
 
 Before you do anything, read, in this order: docs/NEXT_CHAT_PROMPTS.md (the section "Prompt 1: the project so far" is your briefing and your rules: keep them), docs/GO_LIVE.md, docs/HANDOVER.md, the top of CHANGELOG.md and the last sections of docs/QA_REPORT.md. Then tell me in a few lines what you understood and what you will do first.
 
-Repositories: the old origin (https://github.com/startxlaravel02/DentalKart_backend.git) is going away. I am giving you TWO new, empty GitHub repositories:
-1. BACKEND repository: <PASTE LINK>  = backend/ + admin-frontend/ (the admin panel is built into the backend, so they stay together) + docs/ + scripts/ + README.md + CHANGELOG.md
-2. STOREFRONT repository: <PASTE LINK>  = the content of frontend/ at the root of the repository (Cloudflare Pages builds it)
-The work is on the local branch lean-store and has never been pushed. Do not push, do not change a remote and do not delete anything until I say so: first show me the plan and the exact commands.
+The code is ONE repository, already connected: origin = https://github.com/RivoxaTech/jhkstore_backend.git (backend/, admin-frontend/, frontend/, docs/, scripts/ in one repository; the old startxlaravel02 remote was removed). The whole history was pushed there as main (the local working branch is lean-store). Check with git remote -v and git log. Nothing may be lost: do not rewrite history, do not force-push, do not delete branches. From now on: work on a branch, commit, and push only when I say "push".
 
 What I want, in this order (ask me before anything destructive):
-1. Clean the repository: delete design/ and docs/BUILD_PLAN_ONE_GO.md and docs/BUILD_PROGRESS.md, and decide scripts/ with me as docs/GO_LIVE.md explains.
-2. Prepare the split into the two repositories as described in docs/GO_LIVE.md ("If you use two repositories"), with history. Fix what the split breaks (frontend/tests/journey.mjs reaches into backend/, the Cloudflare root directory, the links in the docs), update the docs, run the test suites.
-3. After I say "push", attach the two remotes and push.
-4. Walk me through the go-live checklist of docs/GO_LIVE.md.
-5. Then do the speed session: "Prompt 2" in docs/NEXT_CHAT_PROMPTS.md.
+1. Check that the repository is in order (remote, branches, a fresh clone builds and the tests pass). Then clean it with me: docs/BUILD_PLAN_ONE_GO.md and docs/BUILD_PROGRESS.md can go, and decide scripts/ as docs/GO_LIVE.md explains (design/ is already deleted).
+2. Walk me through the go-live checklist of docs/GO_LIVE.md (server, .env, Cloudflare Pages, mail, queue, backups).
+3. Then do the speed session: "Prompt 2" in docs/NEXT_CHAT_PROMPTS.md.
 ```
+
 
 ---
 
@@ -34,7 +30,7 @@ You are taking over a finished-but-not-yet-live online toy shop that I (the owne
 
 A monorepo, one per client: `backend/` (Laravel 13, PHP 8.3, MySQL 8.4), `admin-frontend/` (Vue 3 + Vite + Pinia admin panel, built into `backend/public/admin-assets` and served by Laravel at `/admin`), `frontend/` (Nuxt 4 static storefront, `nuxt generate`, meant for Cloudflare Pages), `docs/` (the guides: start with `docs/HANDOVER.md`, then `NEW_CLIENT.md`, `GO_LIVE.md`, `ACCESS_CONTROL.md`, `SETTINGS.md`, `STOREFRONT.md`, `HELP_AND_APP.md`, `PERFORMANCE.md`, `QA_REPORT.md`, `CHANGELOG.md` at the root), `scripts/` (our own test tools and the Help video maker), `design/` (old reference pictures, nothing reads them).
 
-The folder is called `jhkstore` (it was `DentalKart_backend`). Git: the old remote `origin` = `https://github.com/startxlaravel02/DentalKart_backend.git` (see `git remote -v`) is going away. I will give you **two** new repositories: a **backend repository** (`backend/` + `admin-frontend/` + `docs/` + `scripts/`, the panel is built into the backend so they stay together) and a **storefront repository** (the content of `frontend/` at its root, built by Cloudflare Pages); `docs/GO_LIVE.md` has the plan and the commands. The work is on the local branch `lean-store` (about 110 commits ahead of `main`) and has never been pushed. Commit locally, commit messages end with the trailer `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
+The folder is called `jhkstore` (it was `DentalKart_backend`). Git: **one repository**, `origin` = `https://github.com/RivoxaTech/jhkstore_backend.git` (the old `startxlaravel02` remote was removed). The whole history was pushed there as `main` (the local branch `lean-store`, which contains the old `main` too). Do not rewrite history, do not force-push, do not delete branches; work on a branch and push only when I say so. Commit locally, commit messages end with the trailer `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
 
 ### The shop in one paragraph
 
@@ -75,7 +71,7 @@ Phases A to C (payments, promotions, delivery, compact product form, settings ti
 
 ### What I want now
 
-I am going live. (1) Help me clean the repository (`docs/GO_LIVE.md` has my notes: `design/` can go, decide about `scripts/`), (2) attach the new GitHub repository I give you (do not push until I say), (3) walk me through the go-live checklist in `docs/GO_LIVE.md`, (4) then, if I ask, do the speed work of prompt 2.
+I am going live. (1) Check the repository is in order and help me clean it (`docs/GO_LIVE.md` has my notes: `design/` is already deleted, decide about `scripts/` and the two `BUILD_*` notes), (2) walk me through the go-live checklist in `docs/GO_LIVE.md`, (3) then, if I ask, do the speed work of prompt 2.
 
 ---
 

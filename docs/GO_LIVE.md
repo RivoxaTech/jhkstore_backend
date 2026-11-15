@@ -38,7 +38,7 @@ What goes where, what to leave out, how to arrange the repositories, and the che
 
 ## 4. One repository or three?
 
-**Keep one repository** (a "monorepo": `backend/`, `admin-frontend/`, `frontend/`, `docs/`), one per client.
+**Decision taken: one repository** (`https://github.com/RivoxaTech/jhkstore_backend.git`). **Keep one repository** (a "monorepo": `backend/`, `admin-frontend/`, `frontend/`, `docs/`), one per client.
 
 * The panel is built **into** the backend and talks to the API on the same address, so they always have to match: one change often touches both. Three repositories would make every such change three commits and three releases that can drift apart.
 * The tests (`flow-ui`, the journey, the adversarial run) use the three parts together.
@@ -47,7 +47,7 @@ What goes where, what to leave out, how to arrange the repositories, and the che
 
 Two repositories (backend + admin together, storefront alone) is the only split that makes sense, and only if a different person or company works on the storefront and must not see the backend. **Do not split the admin panel from the backend.**
 
-### If you use two repositories (the plan)
+### If you ever use two repositories (an option, not the decision)
 
 * **Backend repository** = `backend/` + `admin-frontend/` (the panel is built into the backend: they stay together) + `docs/` + `scripts/` + `README.md` + `CHANGELOG.md`. It is deployed to cPanel / the VPS.
 * **Storefront repository** = the content of `frontend/` **at the root of the repository** (so `package.json` and `nuxt.config.ts` are in the top folder). Cloudflare Pages builds it: **root directory empty**, build command `npm run generate`, output `.output/public`.
@@ -71,18 +71,13 @@ Two repositories (backend + admin together, storefront alone) is the only split 
 
   (`git rm -r frontend` keeps the old storefront files in the backend repository's past commits. For a repository without them, copy the folders into a new folder, `git init`, commit and push instead.)
 
-## 5. Moving to a new GitHub repository
+## 5. The GitHub repository
 
-* The project is connected to `origin` = `https://github.com/startxlaravel02/DentalKart_backend.git`. The work is on the branch `lean-store` (109 commits ahead of `main`); `main` is the older version.
-* Nothing has ever been pushed from the development sessions.
-* To attach ONE new, empty repository and send everything, with the history (for two repositories see the plan above):
-
-  ```
-  git remote set-url origin https://github.com/NEW-OWNER/NEW-REPO.git
-  git push -u origin lean-store:main
-  ```
-* For a repository **without** the history (a clean start): delete `design/` (and anything else you do not want to ship), then `git checkout --orphan clean && git add -A && git commit -m "Initial version"` and push that branch as `main`.
-* The history was checked: it contains no passwords or keys (only the three `.env.example` files). It does contain the pictures of `design/`, which is one more reason to start clean if you delete that folder.
+* **The project is connected to `origin` = `https://github.com/RivoxaTech/jhkstore_backend.git`** (one repository with `backend/`, `admin-frontend/`, `frontend/`, `docs/`, `scripts/`). The old connection (`https://github.com/startxlaravel02/DentalKart_backend.git`) was removed from this folder; it is not used any more.
+* The whole history was pushed, branch `lean-store` as `main` of the new repository (the old `main` is part of that history: nothing was left behind). Check at any time: `git remote -v`, `git log --oneline origin/main`.
+* The history was checked before it was sent: it contains no passwords or keys (only the three `.env.example` files). It still contains the pictures of the old `design/` folder (deleted in the last commit).
+* Later work: commit on a branch, push the branch, merge on GitHub. If you ever want a different repository, the same two commands do it: `git remote set-url origin NEW_URL` and `git push -u origin main`.
+* If you later split the storefront into its own repository (only worth it if a different team works on it): the content of `frontend/` becomes the root of that repository (Cloudflare root directory left empty), `git subtree split --prefix=frontend -b storefront-only main` keeps its history (21 commits), and `frontend/tests/journey.mjs` has to move to the backend repository because it reads `backend/storage/logs/laravel.log`. **Never split the admin panel from the backend.**
 
 ## 6. The checklist for the day
 
