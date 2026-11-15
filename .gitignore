@@ -10,3 +10,7 @@ Thumbs.db
 .idea/
 .vscode/
 /shots/
+
+# the help video maker's scratch files
+/scripts/help-videos/.tmp/
+/scripts/help-videos/.failed-*.png

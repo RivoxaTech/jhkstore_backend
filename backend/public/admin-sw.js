@@ -1,14 +1,32 @@
 /*
- * Service worker of the admin panel (scope /admin/): shows the push notifications the server sends (new order, payment proof to check, new
- * wholesale request, the test notification) and opens the right screen when one is clicked. It caches nothing and does not touch any request.
- * The panel registers it only when an admin presses the bell button (that is also when the browser asks for permission).
+ * Service worker of the admin panel (scope /admin/). Two jobs:
+ *  1. It makes the panel an installable app (PWA): when the panel is open and the network is gone, a page load shows a small "You are offline"
+ *     page (admin-offline.html, kept in its own cache) instead of the browser's error. Nothing else is cached or touched: the API, the scripts,
+ *     the pictures and every order always come from the network, so the panel never shows old data.
+ *  2. It shows the push notifications the server sends (new order, payment proof to check, new wholesale request, the test notification) and
+ *     opens the right screen when one is clicked. The browser asks for permission only when an admin presses the bell button.
  *
  * A notification stays on screen until it is clicked (`requireInteraction`), carries the store logo as its icon when the server sends one, and has
  * a `tag` per order (a newer message about the same order replaces the older one). The sound is the system's own: a site cannot change it. So the
  * worker also tells every open panel tab about the message, and the panel plays its own chime (see AdminLayout.vue).
  */
-self.addEventListener('install', () => self.skipWaiting())
-self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
+const CACHE = 'admin-offline-v1'
+const OFFLINE = '/admin-offline.html'
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE).then((cache) => cache.add(new Request(OFFLINE, { cache: 'reload' }))).catch(() => { /* no offline page: the browser's own message shows */ }).then(() => self.skipWaiting()),
+  )
+})
+self.addEventListener('activate', (event) => event.waitUntil(
+  caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()),
+))
+
+// only the loading of a page is handled (and only to show the offline page when the network is gone); every other request is left to the browser
+self.addEventListener('fetch', (event) => {
+  if (event.request.mode !== 'navigate') return
+  event.respondWith(fetch(event.request).catch(() => caches.match(OFFLINE).then((page) => page || Response.error())))
+})
 
 // a path of this site only (never //other-site), else the panel's start page
 const safePath = (value) => (typeof value === 'string' && /^\/(?!\/)/.test(value) ? value : '/admin/')

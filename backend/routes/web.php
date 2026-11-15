@@ -1,10 +1,14 @@
 <?php
 
+use App\Http\Controllers\AdminManifestController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+// The app manifest of the admin panel (installable app); a real route, so the catch-all below does not answer it with the HTML shell.
+Route::get('/admin/manifest.webmanifest', AdminManifestController::class);
 
 // Admin panel (Vue single-page app built from /admin-frontend into backend/public/admin-assets).
 // Every /admin/... URL gets the app shell; its JS/CSS are static files under /admin-assets.

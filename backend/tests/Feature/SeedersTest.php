@@ -52,6 +52,8 @@ class SeedersTest extends TestCase
         $this->assertSame(40, Product::count());
         $this->assertSame(6, DB::table('categories')->count());
         $this->assertSame(7, DB::table('tags')->where('is_system', true)->count());
+        // the sample discount has a scope the admin panel knows (it once said 'category' and the list showed "undefined")
+        $this->assertContains((string) DB::table('discounts')->value('scope'), \App\Domain\Promotion\Models\Discount::SCOPES);
         // some categories have sub-categories, one has none
         $withSubs = DB::table('sub_categories')->distinct()->count('category_id');
         $this->assertGreaterThanOrEqual(4, $withSubs);

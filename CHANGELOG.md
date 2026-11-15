@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-15 – Help videos, the admin as an installable app, favicons, plain policy pages (branch `lean-store`)
+
+### Added
+- **Help** (last item of the admin sidebar, for every signed-in account): short silent how-to videos with the steps written under each one: Add a product, Edit a product, Categories and sub-categories, Add a discount, Add a coupon, Settings. A video is shown only to accounts that may use its screen (the owner's account sees 3, the developer 6). 35 to 65 seconds each, 0.4 to 1 MB, 1280 x 760, step banner across the top, mouse pointer and click pulse. The files are `admin-frontend/public/help/`; `scripts/help-videos` (`make.mjs`, `flows.mjs`, `lib.mjs`) records them again from the real panel in a few minutes (see `docs/HELP_AND_APP.md`); the written steps are the banner texts, so they always match the pictures.
+- **The admin panel is an installable app (PWA)**: a manifest made by Laravel at `/admin/manifest.webmanifest` (store name + "Admin", start page /admin/, standalone), the icon set (`favicon.svg`, `favicon.ico`, 96 px png, apple touch icon, 192 and 512 px app icons) in `admin-frontend/public`, the meta tags in `index.html`, an install button in the top bar (Chrome, Edge, Android), the theme colour follows the light / dark theme. The service worker `admin-sw.js` is now registered as soon as the panel opens and shows a small "You are offline" page (`admin-offline.html`) when a page is opened without a connection; it caches nothing else, so no old data is ever shown. Push notifications work as before.
+- The storefront uses the same icon set when no favicon is uploaded in Settings (the uploaded one still wins), plus the apple touch icon and `site.webmanifest`.
+- Tests: `AdminPwaTest` (manifest, short name, files), `flow-ui` UI-T1 / UI-T2 (Help list by permission, the video loads, steps, manifest, icons, service worker, offline page), a seeder check.
+
+### Changed
+- **The four policy pages** (Shipping, Returns, Terms and conditions, Privacy) are plain, short, friendly texts written for a shop in Mauritius (delivery all over Mauritius, Rodrigues a little longer, a 14 day change-of-mind return, refunds back the way you paid, the Data Protection Act 2017, the laws of Mauritius). The "this page is a general template" notes are gone. No long dashes. The shop owner should still read them and change anything that is not how they work (`frontend/app/content/*.ts`).
+
+### Fixed
+- The demo seeder made its sample discount with the scope `category` (the panel knows `categories`), so the Discounts list showed "undefined (1)" and the discount never applied. Found while recording the discount video.
+- `public/favicon.ico` of the backend was an empty file; it is the real icon now.
+
 ## 2026-11-13 – BRN on the wholesale form, copy icons for delivery details, optional IBAN, long figures on the cards (branch `lean-store`)
 
 ### Added

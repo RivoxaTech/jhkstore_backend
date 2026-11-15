@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { reapplyPrimary } from '@/utils/theme.js'
 
 let nextId = 1
@@ -23,11 +23,21 @@ export const useUiStore = defineStore('ui', () => {
 
   // light or dark panel: kept in this browser, applied to <html data-theme> (index.html applies it before the first paint)
   const theme = ref(read('admin_theme') === 'dark' ? 'dark' : 'light')
+  // the "Install the app" prompt of the browser (Chrome, Edge, Android): kept until the person presses the install button in the top bar
+  const installEvent = shallowRef(null)
+  async function installApp() {
+    const e = installEvent.value
+    if (!e) return
+    installEvent.value = null
+    try { await e.prompt() } catch { /* the browser refused: nothing to do */ }
+  }
+  const themeColor = (t) => document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'dark' ? '#161c26' : '#ffffff')
   function toggleTheme() {
     theme.value = theme.value === 'dark' ? 'light' : 'dark'
     write('admin_theme', theme.value)
     document.documentElement.dataset.theme = theme.value
     reapplyPrimary()   // the store's colour is worked out for the light or the dark panel
+    themeColor(theme.value)   // the colour of the app's title bar
   }
 
   function toggleSidebar() {
@@ -52,5 +62,5 @@ export const useUiStore = defineStore('ui', () => {
 
   const dismiss = (id) => { toasts.value = toasts.value.filter(t => t.id !== id) }
 
-  return { sidebarCollapsed, mobileSidebarOpen, toasts, pendingOrders, newWholesale, ordersVersion, wholesaleVersion, productsVersion, soundMuted, soundReady, theme, toggleTheme, setMuted, toggleSidebar, toast, dismiss }
+  return { sidebarCollapsed, mobileSidebarOpen, toasts, pendingOrders, newWholesale, ordersVersion, wholesaleVersion, productsVersion, soundMuted, soundReady, theme, toggleTheme, installEvent, installApp, setMuted, toggleSidebar, toast, dismiss }
 })

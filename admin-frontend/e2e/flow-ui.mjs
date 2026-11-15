@@ -121,14 +121,14 @@ const d = await open()   // developer
 try {
   // ============================================================ A2: the developer sees no orders
   await login(d.page, DEV)
-  check(JSON.stringify(await nav(d.page)) === JSON.stringify(['Dashboard', 'Products', 'Categories', 'Discounts', 'Coupons', 'Settings', 'Access Control']), 'UI-A2 developer sidebar: no Orders, no Customers', await nav(d.page))
+  check(JSON.stringify(await nav(d.page)) === JSON.stringify(['Dashboard', 'Products', 'Categories', 'Discounts', 'Coupons', 'Settings', 'Access Control', 'Help']), 'UI-A2 developer sidebar: no Orders, no Customers', await nav(d.page))
   check(!(await bodyHas(d.page, /Orders today|Revenue today|Pending orders|JHK-|ZED-/)), 'UI-A2 the developer dashboard shows no order figure, revenue or order number')
   await goto(d.page, 'orders')
   check(d.page.url().endsWith('/forbidden'), 'UI-A2 /admin/orders shows "no access" to the developer')
 
   // ============================================================ A3: switches change the admin's screens
   await login(a.page, ADMIN)
-  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Wholesale', 'Customers', 'Discounts', 'Coupons', 'Settings']), 'UI-A3 admin starts with Dashboard, Orders, Customers, Wholesale, Discounts, Coupons, Settings', await nav(a.page))
+  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Wholesale', 'Customers', 'Discounts', 'Coupons', 'Settings', 'Help']), 'UI-A3 admin starts with Dashboard, Orders, Customers, Wholesale, Discounts, Coupons, Settings', await nav(a.page))
   await goto(a.page, 'products')
   check(a.page.url().endsWith('/forbidden'), 'UI-A3 admin cannot open Products by default')
   await goto(d.page, 'access-control')
@@ -137,7 +137,7 @@ try {
   await tap(d.page, '[data-testid="save-admin"]')
   await toast(d.page, /saved|updated/)
   await a.page.reload({ waitUntil: 'networkidle0' })
-  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Wholesale', 'Customers', 'Products', 'Categories', 'Discounts', 'Coupons', 'Settings']), 'UI-A3 after the developer switches them on: Products and Categories appear in the admin sidebar', await nav(a.page))
+  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Wholesale', 'Customers', 'Products', 'Categories', 'Discounts', 'Coupons', 'Settings', 'Help']), 'UI-A3 after the developer switches them on: Products and Categories appear in the admin sidebar', await nav(a.page))
   await goto(a.page, 'categories')
   check(await a.page.evaluate(() => [...document.querySelectorAll('button')].some((b) => b.textContent.includes('Add category'))), 'UI-A3 the admin can use the Categories screen (Add category button)')
   await goto(d.page, 'access-control')
@@ -146,7 +146,7 @@ try {
   await tap(d.page, '[data-testid="save-admin"]')
   await toast(d.page, /saved|updated/)
   await a.page.reload({ waitUntil: 'networkidle0' })
-  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Wholesale', 'Customers', 'Discounts', 'Coupons', 'Settings']), 'UI-A3 switched off again: they disappear from the sidebar', await nav(a.page))
+  check(JSON.stringify(await nav(a.page)) === JSON.stringify(['Dashboard', 'Orders', 'Wholesale', 'Customers', 'Discounts', 'Coupons', 'Settings', 'Help']), 'UI-A3 switched off again: they disappear from the sidebar', await nav(a.page))
   const audits = db("SELECT changes FROM audit_logs WHERE action = 'access.updated' ORDER BY id DESC LIMIT 2")
   check(audits.length === 2 && /products\.manage/.test(audits[0].changes) && /products\.manage/.test(audits[1].changes), 'UI-A3 both switch changes are in the audit log', audits.map((x) => x.changes.slice(0, 90)))
 
@@ -1167,6 +1167,47 @@ try {
   const fits = await a.page.$eval('[data-kpi="sales"] .kpi__value', (e) => ({ h: Math.round(e.getBoundingClientRect().height), oneLine: e.getBoundingClientRect().height < 40 }))
   check(fits.oneLine, 'UI-S6 a very long figure stays on one line in its card', fits)
 
+
+  // ============================================================ UI-T: Help (the how-to videos) and the installable app (manifest, service worker, offline page)
+  await goto(a.page, 'help')
+  await a.page.waitForSelector('[data-testid="help"]', { timeout: 15000 })
+  const slugs = await a.page.$$eval('[data-video]', (e) => e.map((x) => x.dataset.video))
+  check(slugs.includes('add-discount') && slugs.includes('add-coupon') && slugs.includes('settings') && !slugs.includes('add-product'), 'UI-T1 Help lists the videos of the screens this account may use, and not the others', slugs)
+  const meta = await a.page.$eval('[data-testid="help-video"]', (v) => new Promise((res) => { const done = () => res({ dur: Math.round(v.duration), w: v.videoWidth, err: v.error ? v.error.code : null }); if (v.readyState >= 1) done(); else { v.addEventListener('loadedmetadata', done); v.addEventListener('error', done); v.load() } }))
+  check(meta.dur >= 20 && meta.w === 1280 && !meta.err, 'UI-T1 the video loads (length and picture size)', meta)
+  check((await a.page.$$eval('.help__steps li', (l) => l.length)) >= 5, 'UI-T1 the steps are written under the video')
+  await tap(a.page, '[data-video="settings"]')
+  await a.page.waitForFunction(() => location.search.includes('v=settings'), { timeout: 5000 })
+  check((await textOf(a.page, '.help__body h2')) === 'Settings', 'UI-T1 another video can be chosen', await textOf(a.page, '.help__body h2'))
+  check(/Help/.test(await textOf(a.page, '.sidebar__nav')), 'UI-T1 Help is in the sidebar')
+  await goto(d.page, 'help')
+  await d.page.waitForSelector('[data-testid="help"]', { timeout: 15000 })
+  const devSlugs = await d.page.$$eval('[data-video]', (e) => e.map((x) => x.dataset.video))
+  check(devSlugs.includes('add-product') && devSlugs.includes('edit-product') && devSlugs.includes('categories'), 'UI-T1 the developer also sees the catalogue videos', devSlugs)
+
+  const man = await a.page.evaluate(async () => { const r = await fetch(document.querySelector('link[rel="manifest"]').href); return { ok: r.ok, type: r.headers.get('content-type'), j: await r.json() } })
+  check(man.ok && /manifest\+json/.test(man.type) && man.j.start_url === '/admin/' && man.j.scope === '/admin/' && man.j.display === 'standalone' && /Admin$/.test(man.j.name), 'UI-T2 the app manifest carries the store name, the start page and the standalone display', man.j.name)
+  const iconsOk = await a.page.evaluate(async (icons) => (await Promise.all(icons.map((i) => fetch(i.src).then((r) => r.ok)))).every(Boolean), man.j.icons)
+  const head = await a.page.evaluate(() => ({ apple: !!document.querySelector('link[rel="apple-touch-icon"]'), svg: !!document.querySelector('link[rel="icon"][type="image/svg+xml"]'), theme: !!document.querySelector('meta[name="theme-color"]') }))
+  check(iconsOk && head.apple && head.svg && head.theme, 'UI-T2 the icons of the manifest load, and the page has the favicon, the apple touch icon and the theme colour', head)
+  await a.page.evaluate(() => navigator.serviceWorker.ready)
+  await a.page.reload({ waitUntil: 'networkidle0' })   // from now on the worker controls the panel
+  const sw = await a.page.evaluate(async () => ({ controlled: Boolean(navigator.serviceWorker.controller), cached: (await (await caches.open('admin-offline-v1')).keys()).length }))
+  check(sw.controlled && sw.cached === 1, 'UI-T2 the service worker controls the panel and keeps the offline page', sw)
+  const swTarget = await a.browser.waitForTarget((t) => t.type() === 'service_worker', { timeout: 10000 })
+  const swCdp = await swTarget.createCDPSession()
+  const net = (offline) => swCdp.send('Network.emulateNetworkConditions', { offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
+  await swCdp.send('Network.enable')
+  await net(true)
+  await a.page.setOfflineMode(true)
+  await a.page.goto(`${BASE}/admin/orders`, { waitUntil: 'load' }).catch(() => {})
+  const offlineShown = /You are offline/.test(await a.page.evaluate(() => document.body.innerText))
+  await a.page.setOfflineMode(false)
+  await net(false)
+  check(offlineShown, 'UI-T2 without a connection the panel shows the "You are offline" page, not the browser error')
+  await goto(a.page, '')
+  check(!!(await a.page.$('.sidebar__nav')), 'UI-T2 and works again when the connection is back')
+  for (let i = a.problems.length - 1; i >= 0; i--) if (/ERR_INTERNET_DISCONNECTED/.test(a.problems[i])) a.problems.splice(i, 1)   // the failed request of the offline test is expected
 
   // ============================================================ UI-R: profile, password, theme, the plain sidebar, the logout icon
   await goto(a.page, '')

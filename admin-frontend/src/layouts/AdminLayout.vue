@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { Activity, BadgePercent, BellRing, ChevronsLeft, ChevronsRight, FolderTree, KeyRound, LayoutDashboard, LogOut, Menu, Moon, Package, Search, Settings, ShoppingBag, Store, Sun, Ticket, Users, Volume2, VolumeX } from '@lucide/vue'
+import { Activity, BadgePercent, BellRing, ChevronsLeft, ChevronsRight, Download, FolderTree, KeyRound, LayoutDashboard, LifeBuoy, LogOut, Menu, Moon, Package, Search, Settings, ShoppingBag, Store, Sun, Ticket, Users, Volume2, VolumeX } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useCatalogStore } from '@/stores/catalog.js'
@@ -167,8 +167,9 @@ const NAV = [
   { to: 'coupons', text: 'Coupons', icon: Ticket, can: 'coupons.view', on: (r) => String(r.name).startsWith('coupon') },
   { to: 'settings', text: 'Settings', icon: Settings, can: 'settings.*', on: named('settings'), system: true },
   { to: 'access-control', text: 'Access Control', icon: KeyRound, can: 'access.manage', on: named('access-control'), system: true },
+  { to: 'help', text: 'Help', icon: LifeBuoy, on: named('help'), system: true },   // for everyone who is signed in: the how-to videos
 ]
-const items = computed(() => NAV.filter((i) => auth.can(i.can)))
+const items = computed(() => NAV.filter((i) => !i.can || auth.can(i.can)))
 
 async function logout() {
   await auth.logout()
@@ -221,6 +222,7 @@ async function logout() {
           <button class="icon-btn" type="button" data-testid="notification-status-btn" title="Notification status" aria-label="Notification status" :aria-expanded="statusOpen" @click.stop="statusOpen = !statusOpen"><Activity :size="17" /></button>
           <div v-if="statusOpen" class="status-pop" role="dialog" aria-label="Notification status"><NotificationStatusCard compact bare /></div>
         </div>
+        <button v-if="ui.installEvent" class="icon-btn" type="button" data-testid="install-app" title="Install the admin panel as an app" aria-label="Install the admin panel as an app" @click="ui.installApp()"><Download :size="17" /></button>
         <button class="icon-btn" type="button" data-testid="theme-toggle" :aria-pressed="ui.theme === 'dark'" :title="ui.theme === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'" :aria-label="ui.theme === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'" @click="ui.toggleTheme()">
           <Sun v-if="ui.theme === 'dark'" :size="17" /><Moon v-else :size="17" />
         </button>

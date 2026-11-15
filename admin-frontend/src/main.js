@@ -5,6 +5,7 @@ import router, { updateDocumentTitle } from './router/index.js'
 import { onUnauthorized } from '@/api/client.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSiteStore } from '@/stores/site.js'
+import { useUiStore } from '@/stores/ui.js'
 import { installPopovers } from '@/utils/popovers.js'
 import './assets/styles.css'
 
@@ -42,5 +43,14 @@ new MutationObserver(() => { if (!labelling) labelling = requestAnimationFrame(l
 phone.addEventListener?.('change', labelTables)
 
 installPopovers()   // the panel's own drop-down list and calendar (utils/popovers.js)
+
+// The panel is an installable app (PWA): the browser offers "Install" through this event (the button sits in the top bar), and the service worker
+// (the offline page and the push notifications) is registered as soon as the panel opens.
+const ui = useUiStore()
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); ui.installEvent = e })
+window.addEventListener('appinstalled', () => { ui.installEvent = null })
+if (import.meta.env.PROD && window.isSecureContext && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/admin-sw.js', { scope: '/admin/' }).catch(() => { /* the panel works without it */ }))
+}
 
 app.mount('#app')

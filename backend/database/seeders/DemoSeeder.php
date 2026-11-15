@@ -226,7 +226,7 @@ class DemoSeeder extends Seeder
 
     private function promotions(): void
     {
-        Discount::query()->firstOrCreate(['name' => 'Spring toy sale'], ['type' => 'percent', 'value' => 10, 'scope' => 'category', 'is_active' => true, 'priority' => 0])
+        Discount::query()->firstOrCreate(['name' => 'Spring toy sale'], ['type' => 'percent', 'value' => 10, 'scope' => 'categories', 'is_active' => true, 'priority' => 0])
             ->targets()->firstOrCreate(['type' => 'category', 'target_id' => Category::query()->where('slug', 'arts-crafts')->value('id')]);
 
         Coupon::query()->firstOrCreate(['code' => 'WELCOME10'], ['name' => 'Welcome: 10% off', 'type' => 'percent', 'value' => 10, 'scope' => 'store', 'is_active' => true, 'min_order' => 30, 'max_discount' => 20]);
