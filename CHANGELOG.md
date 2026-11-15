@@ -8,6 +8,7 @@
 - `/admin/help-media/{video}`: the videos are served by Laravel with byte ranges, because the built-in server of `php artisan serve` cannot seek in a plain file (a step would restart the video at 0).
 
 ### Fixed
+- **Login failed with "There is no permission named `settings.mail`"** on a database that had not run `php artisan migrate` after the update. A permission that an update adds but the database does not have yet is now added on the spot (the same as the migration does, with its default; what the developer switched on or off stays), so neither the login nor a page can fail because of it. `php artisan migrate` is still the right way to update.
 - **Access that did not take effect**: switching on a technical Settings tab (Footer & Social, Currency & Tax, Orders & Delivery, SEO, Branding, Banners) for the admin in Access Control showed nothing, because a second master switch (`settings.advanced`) was also needed. A tab that is technical as a whole now opens with its own switch. A single technical field inside a client tab (the store name in General, the delivery time in Delivery, the mail sender in Notifications, the hook address in Website) still needs `settings.advanced`. The Access Control screen and `docs/ACCESS_CONTROL.md` say so.
 - The master mail switch of the E-mail tab takes the whole row; the encryption choice has readable names.
 

@@ -4,6 +4,7 @@ namespace App\Domain\Auth;
 
 use App\Domain\Auth\Models\Admin;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -237,7 +238,20 @@ class AdminAccess
             return false;
         }
 
-        return $admin->hasPermissionTo($permission, self::GUARD);
+        try {
+            return $admin->hasPermissionTo($permission, self::GUARD);
+        } catch (PermissionDoesNotExist) {
+            // A database that has not run the latest migration yet (a permission was added by an update): add what is missing, with its default, right now,
+            // instead of failing the login or the page. The same as `php artisan migrate` does; what the developer switched on or off stays.
+            self::sync();
+            $admin->unsetRelation('roles')->unsetRelation('permissions');
+
+            try {
+                return $admin->hasPermissionTo($permission, self::GUARD);
+            } catch (PermissionDoesNotExist) {
+                return false;
+            }
+        }
     }
 
     /** @return list<string> the permissions the admin effectively has (what the panel uses to hide screens, tabs and buttons) */

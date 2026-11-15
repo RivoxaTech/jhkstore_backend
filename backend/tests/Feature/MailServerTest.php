@@ -114,6 +114,27 @@ class MailServerTest extends TestCase
         $this->putJson(self::ADMIN.'/settings', ['mail_host' => 'smtp.example.test'])->assertOk();
     }
 
+    public function test_a_permission_missing_from_a_database_that_was_not_migrated_yet_is_added_on_the_spot(): void
+    {
+        // an old database: the permission row of the new tab does not exist (the migration has not run), the login must still work
+        $this->makeAdmin('developer', 'dev-tester');
+        $this->makeAdmin('admin', 'owner-tester');
+        $drop = function () {
+            \Spatie\Permission\Models\Permission::where('name', 'settings.mail')->delete();
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        };
+
+        $drop();
+        $res = $this->postJson(self::ADMIN.'/auth/login', ['login' => 'dev-tester', 'password' => 'secret-pass'])->assertOk();
+        $this->assertContains('settings.mail', $res->json('admin.permissions') ?? []);   // the developer has the new permission, the login did not fail
+
+        $drop();
+        $this->app['auth']->forgetGuards();
+        $res = $this->postJson(self::ADMIN.'/auth/login', ['login' => 'owner-tester', 'password' => 'secret-pass'])->assertOk();   // the admin is not locked out either
+        $this->assertNotContains('settings.mail', $res->json('admin.permissions') ?? []);   // and starts without it
+        $this->assertDatabaseHas('permissions', ['name' => 'settings.mail']);
+    }
+
     public function test_the_test_e_mail_goes_through_the_account_of_the_panel(): void
     {
         $this->actingAsAdmin('developer');
