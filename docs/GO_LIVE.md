@@ -47,11 +47,35 @@ What goes where, what to leave out, how to arrange the repositories, and the che
 
 Two repositories (backend + admin together, storefront alone) is the only split that makes sense, and only if a different person or company works on the storefront and must not see the backend. **Do not split the admin panel from the backend.**
 
+### If you use two repositories (the plan)
+
+* **Backend repository** = `backend/` + `admin-frontend/` (the panel is built into the backend: they stay together) + `docs/` + `scripts/` + `README.md` + `CHANGELOG.md`. It is deployed to cPanel / the VPS.
+* **Storefront repository** = the content of `frontend/` **at the root of the repository** (so `package.json` and `nuxt.config.ts` are in the top folder). Cloudflare Pages builds it: **root directory empty**, build command `npm run generate`, output `.output/public`.
+* What the split touches, to fix when you do it:
+  * `frontend/tests/journey.mjs` reads `backend/storage/logs/laravel.log` and uses the backend scripts through a sibling folder: move it to the backend repository (for example `scripts/journey.mjs`) or make the paths configurable. `frontend/tests/e2e.mjs` and `perf.mjs` only need the API address and stay with the storefront.
+  * The links between the guides (the storefront guide lives in the backend repository's `docs/`; give the storefront repository a short `README.md` with its environment variables and the Cloudflare steps).
+  * The deploy hook, `FRONTEND_URLS` and `NUXT_PUBLIC_API_BASE` do not change.
+* The history can be kept for both (checked: the storefront alone is 21 commits):
+
+  ```
+  # storefront repository: only the history of frontend/, with its files at the root
+  git subtree split --prefix=frontend -b storefront-only lean-store
+  git push STOREFRONT_URL storefront-only:main
+
+  # backend repository: everything except frontend/
+  git checkout -b backend-only lean-store
+  git rm -r frontend design docs/BUILD_PLAN_ONE_GO.md docs/BUILD_PROGRESS.md
+  git commit -m "Storefront moved to its own repository"
+  git push BACKEND_URL backend-only:main
+  ```
+
+  (`git rm -r frontend` keeps the old storefront files in the backend repository's past commits. For a repository without them, copy the folders into a new folder, `git init`, commit and push instead.)
+
 ## 5. Moving to a new GitHub repository
 
 * The project is connected to `origin` = `https://github.com/startxlaravel02/DentalKart_backend.git`. The work is on the branch `lean-store` (109 commits ahead of `main`); `main` is the older version.
 * Nothing has ever been pushed from the development sessions.
-* To attach a new, empty repository and send everything, with the history:
+* To attach ONE new, empty repository and send everything, with the history (for two repositories see the plan above):
 
   ```
   git remote set-url origin https://github.com/NEW-OWNER/NEW-REPO.git
