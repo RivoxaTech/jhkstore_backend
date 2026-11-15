@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-16 (2) – Go-live notes (branch `lean-store`)
+
+### Added
+- `docs/GO_LIVE.md`: what runs where, what must not be uploaded to the server, the decision about `design/` (nothing reads it: delete) and `scripts/` (our test tools and the Help video maker: never deployed, keep in the development repository), one repository instead of three and why, how to attach a new GitHub repository (with or without history), the production checklist, and the first things to check if the live shop feels slow (the CORS preflight: `max_age` is 0 in `backend/config/cors.php`).
+- `docs/NEXT_CHAT_PROMPTS.md`: a prompt that gives a new AI chat the whole project and its rules, and a prompt for a focused speed session (add to cart, page changes, place order).
+
 ## 2026-11-16 – The mail account from the panel, access that now works, Help like a video site (branch `lean-store`)
 
 ### Added

@@ -77,6 +77,8 @@ The server's `APP_URL` must match the port it serves, and the port must be in `S
 | [docs/STOREFRONT-API.md](docs/STOREFRONT-API.md) | The public API: settings and theme, catalogue, sitemap, cart, quote, coupons, orders, bank transfer proof, tracking, wholesale |
 | [docs/ACCESS_CONTROL.md](docs/ACCESS_CONTROL.md) | The two accounts, the permission list, the setting tiers, the hard rules |
 | [docs/SETTINGS.md](docs/SETTINGS.md) | Every setting, its default and what it does; how to add a tab |
+| [docs/GO_LIVE.md](docs/GO_LIVE.md) | **Going live:** what goes where, what to leave out, one repository or three, moving to a new GitHub repository, the checklist for the day, speed after launch |
+| [docs/NEXT_CHAT_PROMPTS.md](docs/NEXT_CHAT_PROMPTS.md) | Ready prompts for a new AI chat: the project so far and its rules, and a focused speed session |
 | [docs/HELP_AND_APP.md](docs/HELP_AND_APP.md) | The Help section (how-to videos, how to make them again) and the admin panel as an installable app |
 | [docs/FEATURES.md](docs/FEATURES.md) | What is built, what was removed |
 | [docs/QA_REPORT.md](docs/QA_REPORT.md) | The checks run on the whole product and their results |
