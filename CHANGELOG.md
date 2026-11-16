@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-16 (3) – Speed of the customer side (branch `speed-session`)
+
+### Faster
+Measured with `frontend/tests/perf-actions.mjs` and a 150 ms round trip added to every API call (method and numbers: [docs/PERFORMANCE.md](docs/PERFORMANCE.md), "The customer side").
+- **The browser now remembers the CORS preflight** (`backend/config/cors.php`: `max_age` 0 to 7200, `CORS_MAX_AGE`). Before, every cart, quote and order call was preceded by an `OPTIONS` request and cost two round trips. The third add to cart of a visit: 575 to 423 ms; a new quote after an address change: 1202 to 987 ms. After the update run `php artisan config:cache` again.
+- **Place order**: the checkout waited for a full cart read (and its preflight) before showing the order page, and the order page read the order it had just received again. Both are gone: 1401 to 840 ms, 3 calls to 1. The cart is shown empty at once (the order already emptied it on the server); a cart read that was on its way is thrown away so it cannot bring old lines back.
+- **One cart read** when the checkout and the layout (or the page and the drawer) ask at the same moment.
+
+### Added
+- `frontend/tests/perf-actions.mjs` (add to cart, checkout, place order, page change: time, calls, preflights, with `--net none|rtt150|fast4g`) and `frontend/tests/delay-proxy.mjs` (a proxy that makes the API "far away").
+- A test that the preflight of the cart, quote and order calls carries `Access-Control-Max-Age: 7200`.
+- `docs/GO_LIVE.md` section 7: the steps only the hosting can do (no redirect in front of the API, Cloudflare cache rules for `/api/v1/store/*` and `/storage/*`, HTTP/2 and 3, Brotli, OPcache, `config:cache`).
+
+### Changed
+- `README.md` and the prompt in `docs/NEXT_CHAT_PROMPTS.md` no longer say that `design/` exists (it was deleted).
+
 ## 2026-11-16 (2) – Go-live notes (branch `lean-store`)
 
 ### Added

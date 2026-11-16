@@ -104,9 +104,19 @@ Cloudflare Pages: the two environment variables, the deploy hook pasted in **Set
 
 If adding to the cart, redirecting or placing an order feels slow on the live site, measure first (the browser's Network tab, and `docs/PERFORMANCE.md`). The usual causes, in the order to check them:
 
-1. **CORS preflight.** The storefront and the API are on different addresses, so every cart, quote and order request is first preceded by an `OPTIONS` request. `backend/config/cors.php` has `'max_age' => 0`, which stops the browser from remembering the answer; set it to `7200`.
+1. **CORS preflight.** The storefront and the API are on different addresses, so a cart, quote or order request is first preceded by an `OPTIONS` request (because of the `X-Cart-Token` / `Idempotency-Key` headers and the JSON body). `max_age` in `backend/config/cors.php` used to be `0`, which stopped the browser from remembering the answer, so every call cost two round trips. **It is now 7200** (`CORS_MAX_AGE` in `.env`, the most Chrome keeps; Firefox keeps up to 24 hours): the browser asks once per address for two hours. After the update run `php artisan config:cache` again.
 2. Server distance and PHP set-up: OPcache, `config:cache`, PHP-FPM instead of a slow shared set-up, the database on the same machine.
-3. Work done during the request that could wait until after it.
+3. Work done during the request that could wait until after it (the order already sends its e-mails and push after the response).
 4. Pictures from the API address: put Cloudflare in front of the API address so `/storage/*` and the public GET calls are cached at the edge.
 
-[NEXT_CHAT_PROMPTS.md](NEXT_CHAT_PROMPTS.md) has a ready prompt for a focused speed session.
+The numbers before and after the speed session, and how to measure again, are in [PERFORMANCE.md](PERFORMANCE.md) ("The customer side"). [NEXT_CHAT_PROMPTS.md](NEXT_CHAT_PROMPTS.md) keeps the prompt of that session.
+
+### What only the hosting can do (steps for you, not changed in the code)
+
+Do these once on the live set-up, then check each with the browser's Network tab (open the site, add a toy to the cart, press F12):
+
+1. **No redirect in front of the API.** Open `https://api.yourshop.com/api/v1/store/settings` exactly as the storefront has it in `NUXT_PUBLIC_API_BASE`: it must answer `200` at once. A redirect (`http` to `https`, `www`, a trailing slash) costs another round trip and a browser **refuses to follow a redirect on a preflight**, so the call fails. Use the final address in `NUXT_PUBLIC_API_BASE` and have `https` only.
+2. **Check the preflight is remembered.** In the Network tab filter `cart`, add a toy twice: the first call shows an `OPTIONS` row, the second one should not. If it does, look at the `OPTIONS` answer's headers for `Access-Control-Max-Age: 7200` (if it is missing, `config:cache` was not run again or a proxy strips it).
+3. **Cloudflare in front of the API address** (an orange cloud DNS record for `api.yourshop.com`): *SSL/TLS* mode **Full (strict)**, *Speed → Optimization*: HTTP/2 and HTTP/3 on, Brotli on, *Always Use HTTPS* on. The catalogue answers (`/store/settings`, `/products`, `/categories`, `/banners`) already send `Cache-Control: public, s-maxage=300, stale-while-revalidate=60` and an ETag: Cloudflare honours that for JSON only when a **Cache Rule** says so. Rule 1: URI path starts with `/api/v1/store/` and method is GET and there is no `X-Cart-Token` → *Eligible for cache*, *Edge TTL: use cache-control header if present*, *Browser TTL: respect origin*. Rule 2: URI path starts with `/storage/` → *Eligible for cache*, Edge TTL 1 month (the pictures never change under the same name). Never cache `/api/v1/admin/*` and never a POST (Cloudflare does neither by default). Check a second `GET /products` shows `cf-cache-status: HIT`.
+4. **PHP on the server**: OPcache on (`opcache.enable=1`, `opcache.validate_timestamps=0` after you upload, restart PHP when you deploy), `php artisan config:cache route:cache event:cache view:cache`, `composer install --no-dev --optimize-autoloader`, PHP-FPM or LiteSpeed (not plain CGI, which starts PHP for every request and cannot send an answer before the e-mail work is done).
+5. **The API server near your customers**: the customers are in Mauritius; a server in Europe adds about 150 to 250 ms to every call, one in the Indian Ocean region or South Africa about 50 to 120 ms. A CDN cannot help a cart call (it is never cached), the distance can.

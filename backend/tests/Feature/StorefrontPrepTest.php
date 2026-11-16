@@ -241,6 +241,24 @@ class StorefrontPrepTest extends TestCase
         $this->assertStringContainsString('Origin', (string) $response->headers->get('Vary'));   // one cached copy per origin
     }
 
+    public function test_the_preflight_of_a_cart_call_may_be_remembered_by_the_browser(): void
+    {
+        config(['cors.allowed_origins' => ['https://shop.example.com']]);
+        foreach (['cart/items', 'checkout/quote', 'orders'] as $path) {
+            $response = $this->call('OPTIONS', self::STORE.'/'.$path, [], [], [], [
+                'HTTP_ORIGIN' => 'https://shop.example.com', 'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'POST',
+                'HTTP_ACCESS_CONTROL_REQUEST_HEADERS' => 'content-type,x-cart-token,idempotency-key',
+            ]);
+            $this->assertSame(204, $response->getStatusCode(), $path);
+            $this->assertSame('https://shop.example.com', $response->headers->get('Access-Control-Allow-Origin'), $path);
+            $this->assertSame('7200', $response->headers->get('Access-Control-Max-Age'), $path.': max_age 0 makes the browser ask again before every call');
+        }
+        // another origin is never echoed back (with one configured origin the library answers with that one, which the browser then refuses)
+        $this->assertNotSame('https://evil.example.com', $this->call('OPTIONS', self::STORE.'/orders', [], [], [], [
+            'HTTP_ORIGIN' => 'https://evil.example.com', 'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'POST',
+        ])->headers->get('Access-Control-Allow-Origin'));
+    }
+
     public function test_a_pages_dev_pattern_can_be_allowed_and_nothing_else_is(): void
     {
         config(['cors.allowed_origins' => [], 'cors.allowed_origins_patterns' => ['#^https://[a-z0-9-]+\.my-store\.pages\.dev$#']]);

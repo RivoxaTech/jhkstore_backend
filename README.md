@@ -10,7 +10,7 @@ A neutral, reusable e-commerce base: **products, categories and orders**, plus t
 | [`admin-frontend/`](admin-frontend) | The Vue 3 admin panel (developer and client accounts). Its production build goes into `backend/public/admin-assets` | with the backend (built locally and uploaded, or built on the server when Node exists) |
 | [`frontend/`](frontend) | The customer storefront: Nuxt, prerendered as a **static site**; price, stock, cart and checkout are live from the API | **Cloudflare Pages** (the same build also runs on cPanel, Netlify or Vercel) |
 
-Also at the root: [`docs/`](docs) (the guides, start with [HANDOVER.md](docs/HANDOVER.md)), [`scripts/`](scripts) (the real-HTTP flow check), [`design/`](design) (the reference screenshot, logo and banner backgrounds of the storefront design) and [CHANGELOG.md](CHANGELOG.md).
+Also at the root: [`docs/`](docs) (the guides, start with [HANDOVER.md](docs/HANDOVER.md)), [`scripts/`](scripts) (our test tools and the Help video maker, never deployed) and [CHANGELOG.md](CHANGELOG.md).
 
 ## Run it locally
 
