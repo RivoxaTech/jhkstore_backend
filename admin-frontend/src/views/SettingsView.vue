@@ -42,8 +42,10 @@ const files = ref({})         // setting key -> picture url
 const form = reactive({})     // the values being edited
 let keySeq = 0
 
-// the "Website" (rebuild hook) tab is the developer's: the shop owner's admin account does not see it (the storefront shows live data, nothing is rebuilt by hand)
-const visibleTabs = computed(() => tabs.value.filter(t => t.key !== 'website' || auth.can('settings.advanced')))
+// the "Website" tab (rebuild status and the "Rebuild website now" button) is for everybody who has `settings.website`, the shop owner included: the storefront shows
+// the shop's live data, but what Google reads (the texts, the sitemap) only changes with a rebuild, so the owner has to be able to ask for one after adding products.
+// The hook address, secret and wait time stay hidden from an account without `settings.advanced` (the API does not send them).
+const visibleTabs = computed(() => tabs.value)
 const isBanners = computed(() => activeKey.value === 'banners')
 const isNotifications = computed(() => activeKey.value === 'notifications')
 const isWebsite = computed(() => activeKey.value === 'website')

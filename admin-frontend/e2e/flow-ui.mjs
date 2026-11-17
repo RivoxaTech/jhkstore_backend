@@ -1076,10 +1076,13 @@ try {
     check(!(await d.page.evaluate(() => document.documentElement.outerHTML)).includes(SECRET), 'UI-H1 the secret is nowhere in the page')
     await d.page.waitForFunction(() => document.querySelector('[data-testid="rebuild-now"]') && !document.querySelector('[data-testid="rebuild-now"]').disabled, { timeout: 15000 }).catch(() => {})   // the status card reloads after the save
     check(!(await d.page.$eval('[data-testid="rebuild-now"]', (e) => e.disabled)), 'UI-H1 with a hook set, the button is on')
-    // the shop owner's admin account does not get the Website tab at all (it is the developer's)
+    // the shop owner's admin account has the Website tab with the status and the Rebuild button (so a rebuild for Google can be asked for after adding products),
+    // but not the technical fields (hook address, secret, wait time)
     await goto(a.page, 'settings?tab=website')
-    await a.page.waitForSelector('[role="tablist"]', { timeout: 15000 })
-    check(!(await a.page.$('[data-testid="rebuild-now"]')) && !(await a.page.$$eval('[role="tab"]', (ts) => ts.some((t) => /^\s*Website\s*$/.test(t.innerText)))), 'UI-H1 the shop owner (admin) has no Website tab and no Rebuild button')
+    await a.page.waitForSelector('[data-testid="rebuild-now"]', { timeout: 15000 }).catch(() => {})
+    check(!!(await a.page.$('[data-testid="rebuild-now"]')) && (await a.page.$$eval('[role="tab"]', (ts) => ts.some((t) => /^\s*Website\s*$/.test(t.innerText)))), 'UI-H1 the shop owner (admin) has the Website tab and the Rebuild button')
+    check(!(await a.page.$('#s-rebuild_hook_url')) && !(await a.page.$('#s-rebuild_hook_secret')) && !(await a.page.$('#s-rebuild_debounce_seconds')), 'UI-H1 the shop owner does not see the hook address, the secret or the wait time')
+    check(!(await a.page.$eval('[data-testid="rebuild-now"]', (e) => e.disabled)), 'UI-H1 the owner can press Rebuild website now once the developer set the hook')
     await d.page.screenshot({ path: path.join(OUT, 'website-tab-developer.png') })
     // clear the secret with the Clear button
     await tap(d.page, '[data-testid="secret-clear"]')
