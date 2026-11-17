@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-17 – A page opened directly now shows the live product (branch `live-refresh-fix`)
+
+### Fixed
+- **A baked product (and home, category) page that was opened DIRECTLY (a link, a search result, a reload) never asked the API for the live data**, so an edited name, price or stock showed only after the next rebuild; only a page reached by clicking inside the site was live. Cause: the page's refresh runs in `onMounted`, while Nuxt still counts as hydrating, and `useFastData` answered every call of that time from the baked data. A refresh that was asked for is now always a real call (`frontend/app/composables/useFastData.ts`). Checked against a site generated BEFORE the shop was changed: an edited name and price, a product created after the build (by its link, on the home page, on its category page and in the shop list) all show within about 0.6 s without any rebuild. Test: `frontend/tests/e2e.mjs` S3 (a page opened directly reads `/products/<slug>`).
+
+### Changed
+- A direct page load now makes 1 (product page) to 5 (home page) API reads, which used to be 0. They are GET calls that carry `Cache-Control: public, s-maxage=300` (a CDN in front of the API answers them without PHP): see `docs/GO_LIVE.md` section 7.
+- `docs/GO_LIVE.md`: how often the storefront really has to be rebuilt (not after every edit: a nightly or manual rebuild is enough) and how to stay well below the 500 builds a month of the free Cloudflare Pages plan.
+
 ## 2026-11-16 (3) – Speed of the customer side (branch `speed-session`)
 
 ### Faster
