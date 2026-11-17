@@ -48,7 +48,7 @@ What the split means in daily work:
 * **The panel and the API must match**: the panel is built into the backend and talks to the API on the same address. After a change in either, check that the other still works (`backend/scripts/flow-check.mjs`, `admin-frontend` `npm run flow-ui`), and **deploy them together**: rebuild the panel, upload `backend/public/admin-assets` with the backend.
 * **A change that touches two parts is two commits in two repositories** (an API change and the storefront or panel change that uses it). Deploy the backend first, then the storefront.
 * **A new client** is a copy of each of the three repositories (a "use this as a template" click for each) and their own environment values.
-* **History**: the two new repositories kept the history of their folders (`git subtree split`, the storefront 22 and the panel about 80 commits). The backend repository kept everything, including the old copies of the other two folders in its past commits.
+* **History**: the two new repositories kept the history of their folders (`git subtree split`, the storefront 23 and the panel 63 commits). The backend repository kept everything, including the old copies of the other two folders in its past commits.
 
 ## 5. The GitHub repositories
 
