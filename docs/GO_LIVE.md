@@ -56,6 +56,8 @@ What the split means in daily work:
 * The history was checked before it was sent: it contains no passwords or keys (only the `.env.example` files).
 * Later work: commit on a branch, push the branch, merge on GitHub. **Cloudflare Pages builds the production branch of the storefront repository (`main`) only.**
 
+Deploying the backend and the admin panel with DeployDesk (build on GitHub, deploy to the cPanel server, rollback): [DEPLOYDESK.md](DEPLOYDESK.md).
+
 ## 6. The checklist for the day
 
 Backend `.env` on the server:
