@@ -91,3 +91,51 @@ The storefront is separate: it is rebuilt by its own host (see [GO_LIVE.md](GO_L
 | `/admin` shows "Admin panel is not built yet" | the admin project was not deployed to `backend/public/admin-assets` |
 | Login works on the API but the panel loops | `SANCTUM_STATEFUL_DOMAINS` and `APP_URL` in the server's `.env`, then `config:cache` |
 | GitHub error in DeployDesk | *Git accounts → Verify*, a new token |
+
+## F. What happened on the first deploy (2026-11-17)
+
+* **Two projects per repository.** A first import that failed (the GitHub token could not write) left half-made projects, and the second import made the real ones. Every name was in the list twice: the real one has the `v1` release and a workflow; open it and check that the address bar has the id that is in the workflow file (`/api/v1/ci/projects/<id>/...`). Do **not** press *Update workflow* ("Outdated" is expected: the backend workflow carries one extra step by hand, section A3) and do not delete the empty duplicates before you know what the *Danger zone* button removes.
+* **Targets** were added to the real projects: *Environments and targets → Production → Add target*: server `rivoxate (cpanel)`, remote path, strategy *In place*, *Preserved paths* left **empty** (the framework's safe defaults), *Delete files that are not in the release* off, *Redirect the site root to the public folder* off, no pre- or post-deploy commands yet (they need SSH). *Require approval before deploying* was switched off on Production (one person works on the shop). The health check URL stays empty until the API domain answers, or the first deploy rolls itself back.
+* **Dry run first** (Options step of the deploy dialog): 8,412 files to add, nothing written. Then the real deploy: **8,412 files, 32.8 MB, 13 seconds**, steps lock, preflight, back up, upload, health check, finish. Later deploys send only the changed files.
+* **The server's folder after the deploy**: `app`, `bootstrap`, `config`, `database`, `public`, `resources`, `routes`, `storage`, `vendor`, `artisan`, `composer.json`, `.env.example`, `.gitignore`, plus three files of the tool: `.deploydesk-state.json` (its record of what is on the server, 1.3 MB, outside `public/`), `.env.production` (one empty line, from the workflow's "build variables" step: harmless, and never put secrets into the panel's build variables) and **`.env`**. No `.git`, `tests`, `docs` or `scripts` (the cleanup step works).
+* **`.env` is made by DeployDesk on the first deploy** with three lines: `APP_KEY=base64:...` (a new key), `APP_ENV=production`, `APP_DEBUG=false`. It is a *preserved* file: later deploys do not touch it. Fill in the rest (section A4, template below). If that key was ever shown to somebody (a screenshot, a chat), make a new one **before** the first login or the first saved setting: `php artisan key:generate --force`. Never do it later: the mail password and the hook secret are stored encrypted with it and would be lost.
+
+### The production `.env` (fill in the angle brackets; write it with the cPanel File Manager editor, never in a repository or a chat)
+```
+APP_NAME="JHK Store"
+APP_ENV=production
+APP_KEY=<keep the line DeployDesk made, or the new one>
+APP_DEBUG=false
+APP_URL=https://<api domain>
+APP_TIMEZONE=Indian/Mauritius
+LOG_CHANNEL=stack
+LOG_STACK=single
+LOG_LEVEL=warning
+
+DB_CONNECTION=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_DATABASE=<cpanel prefix_database>
+DB_USERNAME=<cpanel prefix_user>
+DB_PASSWORD=<the database password>
+
+SESSION_DRIVER=file
+CACHE_STORE=file
+SESSION_SECURE_COOKIE=true
+QUEUE_CONNECTION=database
+
+MAIL_MAILER=log
+# set the real mail account in the panel: Settings > E-mail (then send the test e-mail)
+
+FRONTEND_URLS=https://<shop domain>
+SANCTUM_STATEFUL_DOMAINS=<api domain, without https://>
+
+SEED_DEVELOPER_USERNAME=developer
+SEED_DEVELOPER_PASSWORD=<12 or more characters, not the user name>
+SEED_ADMIN_USERNAME=admin
+SEED_ADMIN_PASSWORD=<12 or more characters, not the user name>
+
+PRODUCT_VIDEO_MAX_KB=51200
+ADMIN_TOKEN_MINUTES=720
+```
+`SESSION_DRIVER=file` and `CACHE_STORE=file` save database queries on every request (the host limits CPU and processes). After the file is saved: `cd /home/rivoxate/jhkstore/backend`, `php artisan migrate --force --seed`, `php artisan storage:link`, `php artisan config:cache && php artisan route:cache && php artisan event:cache && php artisan view:cache`, and the cron lines of A4 step 5.
