@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-17 (3) – The repository root is the Laravel app
+
+### Changed
+- The files of the `backend/` folder moved to the **root of the `jhkstore_backend` repository** (a pure rename of 351 files, on top of the existing history: `git log --follow <file>` still reaches the old commits). The three repositories now look alike (the project at the root), and a deploy tool needs no sub-directory. On a computer the three are cloned side by side in one ordinary folder (`backend/`, `admin-frontend/`, `frontend/`, see `README.md`); that folder is not a repository any more. Paths in the guides still start at that folder (`backend/app/...`); inside this repository drop the leading `backend/`. On the server the app goes into a folder of your choice (for example `/home/USER/jhkstore/backend`) with the document root at its `public/`.
+- `README.md` and `docs/GO_LIVE.md` (sections 1, 2 and 4) say so.
+
 ## 2026-11-17 (2) – Three repositories, a tidier tree (branch `three-repos`)
 
 ### Changed

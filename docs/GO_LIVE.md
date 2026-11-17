@@ -7,22 +7,22 @@ What goes where, what to leave out, how to arrange the repositories, and the che
 | Part | Repository | Where it lives | What is deployed |
 |---|---|---|---|
 | Storefront (customers) | [jhkstore_frontend](https://github.com/RivoxaTech/jhkstore_frontend) | Cloudflare Pages | Cloudflare builds it from the repository: **root directory empty**, build command `npm run generate`, output `.output/public`. Environment: `NUXT_PUBLIC_API_BASE`, `NUXT_PUBLIC_SITE_URL`, `NODE_VERSION=24`. See [STOREFRONT.md](STOREFRONT.md). |
-| API + admin panel | [jhkstore_backend](https://github.com/RivoxaTech/jhkstore_backend) (the folder `backend/`) | cPanel (PKWebHost) or a VPS | `backend/` with `vendor/` (made with `composer install --no-dev --optimize-autoloader`) and the built panel in `backend/public/admin-assets` (made on your computer from the admin repository, see below). The domain's document root points at `backend/public`. |
+| API + admin panel | [jhkstore_backend](https://github.com/RivoxaTech/jhkstore_backend) (the repository root is the Laravel app) | cPanel (PKWebHost) or a VPS | The app with `vendor/` (made with `composer install --no-dev --optimize-autoloader`, by CI or on your computer) and the built panel in `public/admin-assets` (made from the admin repository, see below), in a folder on the server such as `/home/USER/jhkstore/backend`. The domain's document root points at its `public/` folder. |
 | Admin panel source | [jhkstore_admin-frontend](https://github.com/RivoxaTech/jhkstore_admin-frontend) | nowhere | Only its **build output** goes to the server (inside `backend/public/admin-assets`). The source stays in its repository. |
 
 ## 2. What must NOT be uploaded to the server
 
-Only the folder `backend/` of the backend repository goes to the server. Inside it, leave out:
+The backend repository (its whole root) goes to the server, into a folder outside the web root. Leave out:
 
 | Leave out | Why |
 |---|---|
 | `.git`, every `node_modules` | Not needed to run, large |
-| `backend/docs/`, `backend/scripts/` | Guides and our test tools: nothing in the running shop reads them |
-| `backend/tests`, `backend/phpunit.xml`, `backend/.phpunit.result.cache` | Tests |
-| `backend/.env` of your computer | Write a **new** production `.env` on the server (see section 6) |
-| `backend/storage/app/public/*`, `backend/storage/app/private/*`, `backend/storage/logs/*` | Your test pictures, test payment screenshots and logs. A live shop starts empty. |
-| `backend/serve-fast.cmd` | A Windows helper for your computer |
-| `backend/database/seeders/DemoSeeder.php` | Sample toys. Never run it on a live shop (the file may stay; do not run it). |
+| `docs/`, `scripts/` | Guides and our test tools: nothing in the running shop reads them |
+| `tests/`, `phpunit.xml`, `.phpunit.result.cache` | Tests |
+| `.env` of your computer | Write a **new** production `.env` on the server (see section 6) |
+| `storage/app/public/*`, `storage/app/private/*`, `storage/logs/*` | Your test pictures, test payment screenshots and logs. A live shop starts empty. |
+| `serve-fast.cmd` | A Windows helper for your computer |
+| `database/seeders/DemoSeeder.php` | Sample toys. Never run it on a live shop (the file may stay; do not run it). |
 
 The other two repositories are never uploaded: the storefront is built by Cloudflare, the admin panel is built on your computer and only its output is uploaded.
 
@@ -38,7 +38,7 @@ The other two repositories are never uploaded: the storefront is built by Cloudf
 
 **Decision taken: three repositories, one per part** (they were one repository until 2026-11-17):
 
-* [jhkstore_backend](https://github.com/RivoxaTech/jhkstore_backend): the folder `backend/` (the Laravel API; it serves the admin panel's build), the guides in `backend/docs/`, `backend/scripts/`, `backend/CHANGELOG.md` and the project `README.md`.
+* [jhkstore_backend](https://github.com/RivoxaTech/jhkstore_backend): the Laravel API at the root of the repository (it serves the admin panel's build), the guides in `docs/`, `scripts/`, `CHANGELOG.md` and the project `README.md`.
 * [jhkstore_admin-frontend](https://github.com/RivoxaTech/jhkstore_admin-frontend): the admin panel and the Help video maker, at the root of the repository.
 * [jhkstore_frontend](https://github.com/RivoxaTech/jhkstore_frontend): the storefront, at the root of the repository (so Cloudflare Pages has no root directory to set).
 

@@ -11,7 +11,7 @@ This is the JHK Store project, in THREE git repositories cloned side by side in 
 
 Before you do anything, read, in this order: backend/docs/NEXT_CHAT_PROMPTS.md (the section "Prompt 1: the project so far" is your briefing and your rules: keep them), backend/docs/GO_LIVE.md, backend/docs/HANDOVER.md, the top of backend/CHANGELOG.md and the last sections of backend/docs/QA_REPORT.md. Then tell me in a few lines what you understood and what you will do first.
 
-The repositories: backend = https://github.com/RivoxaTech/jhkstore_backend.git (the folder backend/, the guides in backend/docs/, backend/scripts/), admin panel = https://github.com/RivoxaTech/jhkstore_admin-frontend.git, storefront = https://github.com/RivoxaTech/jhkstore_frontend.git. Check each with git remote -v and git log. Nothing may be lost: do not rewrite history, do not force-push, do not delete branches. From now on: work on a branch, commit, and push only when I say "push".
+The repositories: backend = https://github.com/RivoxaTech/jhkstore_backend.git (the repository root is the Laravel app; the guides are in docs/, the check scripts in scripts/; on the computer it is the folder jhkstore/backend), admin panel = https://github.com/RivoxaTech/jhkstore_admin-frontend.git, storefront = https://github.com/RivoxaTech/jhkstore_frontend.git. Check each with git remote -v and git log. Nothing may be lost: do not rewrite history, do not force-push, do not delete branches. From now on: work on a branch, commit, and push only when I say "push".
 
 What I want, in this order (ask me before anything destructive):
 1. Check that the three repositories are in order (remotes, branches, a fresh clone of each builds and the tests pass).
