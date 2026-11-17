@@ -4,9 +4,8 @@ use App\Http\Controllers\AdminHelpMediaController;
 use App\Http\Controllers\AdminManifestController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// The address of the API has no page of its own: whoever opens it lands in the admin panel.
+Route::redirect('/', '/admin');
 
 // The app manifest of the admin panel (installable app); a real route, so the catch-all below does not answer it with the HTML shell.
 Route::get('/admin/manifest.webmanifest', AdminManifestController::class);

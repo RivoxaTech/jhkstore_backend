@@ -1,14 +1,16 @@
-# Shop Admin (Vue 3)
+# JHK Store: admin panel (Vue 3)
 
-Admin panel for the lean store backend in the parent folder (Vue 3, Vite, Pinia, Vue Router, plain CSS).
+Admin panel for the shop (Vue 3, Vite, Pinia, Vue Router, plain CSS), an installable app (PWA). It is one of three repositories: the Laravel API and **all the guides** (`backend/docs/`) are in [jhkstore_backend](https://github.com/RivoxaTech/jhkstore_backend), the storefront is [jhkstore_frontend](https://github.com/RivoxaTech/jhkstore_frontend). Clone the three side by side in folders named `backend`, `admin-frontend` and `frontend` (see the README of the backend repository): the build writes into `../backend/public/admin-assets`, and the tests (`npm run flow-ui`) use the backend next to it.
 It manages products, categories, orders, the customers list and the store settings. The panel carries the
 name and logo of the store it manages: they come from the store settings, nothing is hard-coded.
 
 ```bash
 npm install
 npm run dev        # http://localhost:5190   (the backend must run on http://localhost:8002, and `APP_URL` in `backend/.env` must be that address: picture links are built from it)
-npm run build      # -> ../backend/public/admin-assets, served by Laravel at http://localhost:8002/admin
+npm run build      # -> ../backend/public/admin-assets, served by Laravel at http://localhost:8002/admin (ADMIN_BUILD_OUT=/absolute/path puts it somewhere else)
 ```
+
+The built panel is **not** in any repository: build it on your computer and upload `backend/public/admin-assets` to the server together with the backend. `tools/help-videos/` records the Help videos again from the real panel when it looks different (see `backend/docs/HELP_AND_APP.md`).
 
 ## Sign in
 

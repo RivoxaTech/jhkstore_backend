@@ -9,8 +9,8 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-export const ROOT = path.resolve(here, '..', '..')
-const pptr = path.join(ROOT, 'admin-frontend', 'node_modules', 'puppeteer-core', 'lib', 'puppeteer', 'puppeteer-core.js')
+export const ROOT = path.resolve(here, '..', '..')   // the admin panel repository (this folder is tools/help-videos)
+const pptr = path.join(ROOT, 'node_modules', 'puppeteer-core', 'lib', 'puppeteer', 'puppeteer-core.js')
 export const puppeteer = (await import(pathToFileURL(pptr).href)).default
 
 export const W = 1280

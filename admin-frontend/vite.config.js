@@ -3,7 +3,8 @@ import { defineConfig, loadEnv } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 
 // Dev:   npm run dev   -> http://localhost:5190  (proxies /api and /sanctum to the Laravel backend)
-// Build: npm run build -> ../backend/public/admin-assets (Laravel serves the app at /admin, same origin as the API)
+// Build: npm run build -> ../backend/public/admin-assets (Laravel serves the app at /admin, same origin as the API). The backend is its own repository: with both
+//        cloned side by side that folder is right; ADMIN_BUILD_OUT=/path/to/backend/public/admin-assets puts the build somewhere else (an absolute path).
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const backend = env.BACKEND_URL || 'http://localhost:8002'   // php artisan serve --port=8002 (run in backend/)
@@ -28,7 +29,7 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     build: {
-      outDir: '../backend/public/admin-assets',
+      outDir: env.ADMIN_BUILD_OUT || '../backend/public/admin-assets',
       emptyOutDir: true,
       chunkSizeWarningLimit: 600,
     },

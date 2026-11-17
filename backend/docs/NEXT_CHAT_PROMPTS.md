@@ -7,14 +7,14 @@ Three ready prompts, to paste into a new AI chat. **Start prompt** is the short 
 ## Start prompt (type this in the new chat)
 
 ```
-This is the JHK Store project. The folder is called jhkstore (it was DentalKart_backend). We are going live. Your memory of earlier sessions is empty: the docs of the repository are the source of truth.
+This is the JHK Store project, in THREE git repositories cloned side by side in one folder (jhkstore/backend, jhkstore/admin-frontend, jhkstore/frontend). We are going live. Your memory of earlier sessions is empty: the docs (backend/docs/) are the source of truth.
 
-Before you do anything, read, in this order: docs/NEXT_CHAT_PROMPTS.md (the section "Prompt 1: the project so far" is your briefing and your rules: keep them), docs/GO_LIVE.md, docs/HANDOVER.md, the top of CHANGELOG.md and the last sections of docs/QA_REPORT.md. Then tell me in a few lines what you understood and what you will do first.
+Before you do anything, read, in this order: backend/docs/NEXT_CHAT_PROMPTS.md (the section "Prompt 1: the project so far" is your briefing and your rules: keep them), backend/docs/GO_LIVE.md, backend/docs/HANDOVER.md, the top of backend/CHANGELOG.md and the last sections of backend/docs/QA_REPORT.md. Then tell me in a few lines what you understood and what you will do first.
 
-The code is ONE repository, already connected: origin = https://github.com/RivoxaTech/jhkstore_backend.git (backend/, admin-frontend/, frontend/, docs/, scripts/ in one repository; the old startxlaravel02 remote was removed). The whole history was pushed there as main (the local working branch is lean-store). Check with git remote -v and git log. Nothing may be lost: do not rewrite history, do not force-push, do not delete branches. From now on: work on a branch, commit, and push only when I say "push".
+The repositories: backend = https://github.com/RivoxaTech/jhkstore_backend.git (the folder backend/, the guides in backend/docs/, backend/scripts/), admin panel = https://github.com/RivoxaTech/jhkstore_admin-frontend.git, storefront = https://github.com/RivoxaTech/jhkstore_frontend.git. Check each with git remote -v and git log. Nothing may be lost: do not rewrite history, do not force-push, do not delete branches. From now on: work on a branch, commit, and push only when I say "push".
 
 What I want, in this order (ask me before anything destructive):
-1. Check that the repository is in order (remote, branches, a fresh clone builds and the tests pass). Then clean it with me: docs/BUILD_PLAN_ONE_GO.md and docs/BUILD_PROGRESS.md can go, and decide scripts/ as docs/GO_LIVE.md explains (design/ is already deleted).
+1. Check that the three repositories are in order (remotes, branches, a fresh clone of each builds and the tests pass).
 2. Walk me through the go-live checklist of docs/GO_LIVE.md (server, .env, Cloudflare Pages, mail, queue, backups).
 3. Then do the speed session: "Prompt 2" in docs/NEXT_CHAT_PROMPTS.md.
 ```
@@ -28,9 +28,9 @@ You are taking over a finished-but-not-yet-live online toy shop that I (the owne
 
 ### The repository
 
-A monorepo, one per client: `backend/` (Laravel 13, PHP 8.3, MySQL 8.4), `admin-frontend/` (Vue 3 + Vite + Pinia admin panel, built into `backend/public/admin-assets` and served by Laravel at `/admin`), `frontend/` (Nuxt 4 static storefront, `nuxt generate`, meant for Cloudflare Pages), `docs/` (the guides: start with `docs/HANDOVER.md`, then `NEW_CLIENT.md`, `GO_LIVE.md`, `ACCESS_CONTROL.md`, `SETTINGS.md`, `STOREFRONT.md`, `HELP_AND_APP.md`, `PERFORMANCE.md`, `QA_REPORT.md`, `CHANGELOG.md` at the root), `scripts/` (our own test tools and the Help video maker). (The old `design/` folder of reference pictures was deleted; it is still in the git history.)
+Three repositories, one set per client, cloned side by side: `backend/` (Laravel 13, PHP 8.3, MySQL 8.4; repository jhkstore_backend; it also holds `backend/docs/` (the guides: start with `HANDOVER.md`, then `NEW_CLIENT.md`, `GO_LIVE.md`, `ACCESS_CONTROL.md`, `SETTINGS.md`, `STOREFRONT.md`, `HELP_AND_APP.md`, `PERFORMANCE.md`, `QA_REPORT.md`), `backend/CHANGELOG.md` and `backend/scripts/` (flow-check, adversarial, flow-db)), `admin-frontend/` (repository jhkstore_admin-frontend: Vue 3 + Vite + Pinia admin panel, built into `backend/public/admin-assets` and served by Laravel at `/admin`; also `tools/help-videos`, the Help video maker), `frontend/` (repository jhkstore_frontend: Nuxt 4 static storefront, `nuxt generate`, Cloudflare Pages with an empty root directory). (They were one repository until 2026-11-17; the old `design/` folder of reference pictures was deleted and is still in the git history.)
 
-The folder is called `jhkstore` (it was `DentalKart_backend`). Git: **one repository**, `origin` = `https://github.com/RivoxaTech/jhkstore_backend.git` (the old `startxlaravel02` remote was removed). The whole history was pushed there as `main` (the local branch `lean-store`, which contains the old `main` too). Do not rewrite history, do not force-push, do not delete branches; work on a branch and push only when I say so. Commit locally, commit messages end with the trailer `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
+The folder is called `jhkstore` (it was `DentalKart_backend`). Git: the three remotes are named above; the old `startxlaravel02` remote was removed. Do not rewrite history, do not force-push, do not delete branches; work on a branch and push only when I say so. Commit locally, commit messages end with the trailer `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
 
 ### The shop in one paragraph
 
@@ -58,7 +58,7 @@ Phases A to C (payments, promotions, delivery, compact product form, settings ti
 ### How to test (nothing is trusted until these pass)
 
 * `cd backend && php artisan test` (PHPUnit on database `jhkstore_test`; about 607 tests, 1 skipped).
-* Browser suites (headless Chrome, scratch database **`jhkstore_shots`**, never the real dev database): `admin-frontend/e2e/flow-ui.mjs` (the panel, about 242 checks), `frontend/tests/e2e.mjs` (storefront, 151), `scripts/adversarial.mjs` (165), `frontend/tests/journey.mjs` (a customer and the owner, 100), `scripts/flow-check.mjs` (real HTTP, about 1.5 hours, run alone). Build the panel first (`cd admin-frontend && npm run build`) and generate the storefront for the e2e/journey.
+* Browser suites (headless Chrome, scratch database **`jhkstore_shots`**, never the real dev database): `admin-frontend/e2e/flow-ui.mjs` (the panel, about 242 checks), `frontend/tests/e2e.mjs` (storefront, 151), `backend/scripts/adversarial.mjs` (165), `frontend/tests/journey.mjs` (a customer and the owner, 100), `backend/scripts/flow-check.mjs` (real HTTP, about 1.5 hours, run alone). Build the panel first (`cd admin-frontend && npm run build`) and generate the storefront for the e2e/journey.
 * Known and accepted: sorting by price on a category with an automatic discount can look off by a hair (the list sorts by the stored price, the card shows the discounted one); one order-search test can fail once when an id collides with digits of a test phone number (it passes on re-run).
 
 ### Rules of work (keep them)
@@ -71,7 +71,7 @@ Phases A to C (payments, promotions, delivery, compact product form, settings ti
 
 ### What I want now
 
-I am going live. (1) Check the repository is in order and help me clean it (`docs/GO_LIVE.md` has my notes: `design/` is already deleted, decide about `scripts/` and the two `BUILD_*` notes), (2) walk me through the go-live checklist in `docs/GO_LIVE.md`, (3) then, if I ask, do the speed work of prompt 2.
+I am going live. (1) Check the three repositories are in order, (2) walk me through the go-live checklist in `backend/docs/GO_LIVE.md`, (3) then, if I ask, do the speed work of prompt 2 (it was done on 2026-11-16: the numbers are in `backend/docs/PERFORMANCE.md`, "The customer side").
 
 ---
 

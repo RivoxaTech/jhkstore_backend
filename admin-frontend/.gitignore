@@ -2,3 +2,7 @@ node_modules
 dist
 .env
 .env.local
+
+# the Help video maker (tools/help-videos): scratch files
+/tools/help-videos/.tmp/
+/tools/help-videos/.failed-*.png

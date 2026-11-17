@@ -2,7 +2,7 @@
 
 The platform is **one deployment per client**: a separate copy of the code, its own database and its own `backend/.env`. Nothing is shared between clients at runtime.
 
-**Layout.** The repository has three apps: `backend/` (the Laravel API, run every `php artisan` and `composer` command inside it), `admin-frontend/` (the admin panel, built into `backend/public/admin-assets`) and `frontend/` (the static storefront, see [STOREFRONT.md](STOREFRONT.md)). On **cPanel** the backend goes into a folder of its own with the domain's document root pointing at `backend/public`; the storefront goes to Cloudflare Pages (or a second cPanel folder, see STOREFRONT.md).
+**Layout.** The project is three repositories, cloned side by side in folders named `backend/` (the Laravel API: the repository `jhkstore_backend`; run every `php artisan` and `composer` command inside this folder), `admin-frontend/` (the admin panel, repository `jhkstore_admin-frontend`, built into `backend/public/admin-assets`) and `frontend/` (the static storefront, repository `jhkstore_frontend`, see [STOREFRONT.md](STOREFRONT.md)). The guides are in `backend/docs/`. On **cPanel** the backend goes into a folder of its own with the domain's document root pointing at `backend/public`; the storefront goes to Cloudflare Pages (or a second cPanel folder, see STOREFRONT.md).
 
 ## 1. Create the project
 

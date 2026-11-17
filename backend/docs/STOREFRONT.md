@@ -117,7 +117,7 @@ npm run test:e2e     # the browser tests (the API on 8002 with the demo data and
 ## Deploy on Cloudflare Pages
 
 1. Cloudflare dashboard → *Workers & Pages* → *Create* → *Pages* → connect the Git repository.
-2. **Production branch**: the branch you deploy (for example `main`). **Root directory**: `frontend`. **Framework preset**: Nuxt.js (or None). **Build command**: `npm run generate`. **Build output directory**: `.output/public`.
+2. **Production branch**: the branch you deploy (for example `main`). **Root directory**: empty (the storefront is the repository `jhkstore_frontend`, its `package.json` is at the root). **Framework preset**: Nuxt.js (or None). **Build command**: `npm run generate`. **Build output directory**: `.output/public`.
 3. **Environment variables** (Production and Preview): `NUXT_PUBLIC_API_BASE` = `https://api.example.com/api/v1/store`, `NUXT_PUBLIC_SITE_URL` = `https://www.example.com`, and `NODE_VERSION` = `24` (Nuxt 4 and its modules need Node 22.22.3 or newer, or 24.15 or newer).
 4. Save and deploy. The first build must reach the API from Cloudflare's build machines (the API domain has to be public; behind Cloudflare's proxy it is fine).
 5. **Custom domain**: *Custom domains* → add `www.example.com` (and redirect the bare domain to it). Then update `NUXT_PUBLIC_SITE_URL` and rebuild once.

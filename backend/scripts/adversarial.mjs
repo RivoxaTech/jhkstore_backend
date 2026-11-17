@@ -14,8 +14,7 @@ import zlib from 'node:zlib'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const ROOT = path.join(REPO, 'backend')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')   // the Laravel app (this folder is backend/scripts)
 const BASE = process.env.FLOW_BASE || 'http://127.0.0.1:8002'
 const BASE2 = process.env.FLOW_BASE2 || 'http://127.0.0.1:8003'
 const DEV = [process.env.FLOW_DEV_USER || 'developer', process.env.FLOW_DEV_PASSWORD || 'developer']
@@ -57,7 +56,7 @@ const store = (route, extra) => get(`store/${route}`, undefined, extra)
 const idOf = (r) => r.json?.data?.id ?? r.json?.id
 const st = (r) => `HTTP ${r.status} ${short(r.json ?? r.text, 150)}`
 
-function db(sql) { return JSON.parse(execFileSync('php', [path.join(REPO, 'scripts', 'flow-db.php'), sql], { cwd: ROOT, encoding: 'utf8' })) }
+function db(sql) { return JSON.parse(execFileSync('php', [path.join(ROOT, 'scripts', 'flow-db.php'), sql], { cwd: ROOT, encoding: 'utf8' })) }
 const dbOne = (sql) => db(sql)[0]
 // writes are only for aging data in the SCRATCH database (carts, tokens): refuse any other
 function dbw(sql) {

@@ -3,7 +3,7 @@
 //   1. Run the backend on a SCRATCH database with the demo data (never on a real shop: the videos add a product, a category, a discount, a coupon and
 //      change a few settings):   php artisan migrate:fresh --seed && php artisan db:seed --class=DemoSeeder && php artisan serve --port=8012
 //   2. Build the panel:          cd admin-frontend && npm run build
-//   3. Make the videos:          HELP_BASE=http://127.0.0.1:8012 FFMPEG=/path/to/ffmpeg node scripts/help-videos/make.mjs [slug ...]
+//   3. Make the videos:          HELP_BASE=http://127.0.0.1:8012 FFMPEG=/path/to/ffmpeg node tools/help-videos/make.mjs [slug ...]
 //
 // It writes admin-frontend/public/help/<slug>.mp4 + <slug>.jpg (the poster) and videos.json (titles, written steps, lengths: the Help screen reads it).
 // Build the panel again afterwards so the files are copied to backend/public/admin-assets/help. A video is about a minute and about a megabyte.
@@ -14,7 +14,7 @@ import { FLOWS } from './flows.mjs'
 import { startSink } from './smtp-sink.mjs'
 
 const BASE = (process.env.HELP_BASE || 'http://127.0.0.1:8012').replace(/\/$/, '')
-const OUT = process.env.HELP_OUT || path.join(ROOT, 'admin-frontend', 'public', 'help')
+const OUT = process.env.HELP_OUT || path.join(ROOT, 'public', 'help')
 // the catalogue (products, categories) belongs to the developer account; the owner's account does the rest, so each video is recorded as the right one
 const ACCOUNTS = { developer: [process.env.HELP_DEV_USER || 'developer', process.env.HELP_DEV_PASS || 'developer'], admin: [process.env.HELP_USER || 'admin', process.env.HELP_PASS || 'admin'] }
 const only = process.argv.slice(2)
@@ -23,7 +23,7 @@ const url = (p) => `${BASE}/admin/${p}`
 // ---------------------------------------------------------------------------------------------------------------------------------- main
 async function main() {
   const browser = await launch()
-  const pictures = await samplePictures(browser, path.join(ROOT, 'scripts', 'help-videos', '.tmp'))
+  const pictures = await samplePictures(browser, path.join(ROOT, 'tools', 'help-videos', '.tmp'))
 
   // one signed-in browser session per account (not recorded)
   const sessions = {}
@@ -56,7 +56,7 @@ async function main() {
       await flow.run(r, { pictures, smtpPort: sink?.port })
     } catch (e) {
       console.log(`  FAILED: ${e.message}`)
-      await r.page.screenshot({ path: path.join(ROOT, 'scripts', 'help-videos', `.failed-${flow.slug}.png`) }).catch(() => {})
+      await r.page.screenshot({ path: path.join(ROOT, 'tools', 'help-videos', `.failed-${flow.slug}.png`) }).catch(() => {})
       await r.page.close()
       await sink?.close()
       continue
@@ -71,7 +71,7 @@ async function main() {
   const ordered = FLOWS.map((f) => made.get(f.slug)).filter(Boolean)
   fs.mkdirSync(OUT, { recursive: true })
   fs.writeFileSync(listFile, JSON.stringify({ videos: ordered }, null, 2) + '\n')
-  fs.rmSync(path.join(ROOT, 'scripts', 'help-videos', '.tmp'), { recursive: true, force: true })
+  fs.rmSync(path.join(ROOT, 'tools', 'help-videos', '.tmp'), { recursive: true, force: true })
   await browser.close()
 }
 

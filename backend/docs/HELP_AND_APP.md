@@ -12,10 +12,10 @@ The videos are recordings of the real panel, made by a script, so they can be re
 
 1. Run the backend on a **scratch database** with the demo data. The script adds a product, a category, a discount and a coupon and changes the contact settings, so never point it at a real shop: `php artisan migrate:fresh --seed && php artisan db:seed --class=DemoSeeder && php artisan serve --port=8012`.
 2. Build the panel: `cd admin-frontend && npm run build`.
-3. You need Chrome and `ffmpeg` (any build with libx264). Then, from the repo root: `HELP_BASE=http://127.0.0.1:8012 FFMPEG=/path/to/ffmpeg node scripts/help-videos/make.mjs` (or add a slug to make one video: `... make.mjs add-coupon`).
+3. You need Chrome and `ffmpeg` (any build with libx264). Then, from the root of the admin panel repository (`admin-frontend/`): `HELP_BASE=http://127.0.0.1:8012 FFMPEG=/path/to/ffmpeg node tools/help-videos/make.mjs` (or add a slug to make one video: `... make.mjs add-coupon`).
 4. Build the panel again so the new files are copied, and commit `admin-frontend/public/help`.
 
-`scripts/help-videos/flows.mjs` has one flow per video. Every `r.step('...')` is both the banner across the top of the video and the numbered step under it on the Help screen, so the text always matches the pictures. To add a video, add a flow there (slug, title, summary, the permission, which account records it, the steps). Product and category videos are recorded as the developer account, the rest as the owner's account.
+`tools/help-videos/flows.mjs` has one flow per video. Every `r.step('...')` is both the banner across the top of the video and the numbered step under it on the Help screen, so the text always matches the pictures. To add a video, add a flow there (slug, title, summary, the permission, which account records it, the steps). Product and category videos are recorded as the developer account, the rest as the owner's account.
 
 ## The admin panel as an app (PWA)
 

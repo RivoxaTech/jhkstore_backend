@@ -29,12 +29,6 @@ trait TargetsProducts
         return $type !== null && $id !== null && $this->targets->contains(fn ($t) => $t->type === $type && (int) $t->target_id === $id);
     }
 
-    /** live = active and inside its date window; an empty start / end is open-ended. */
-    public function isLive(): bool
-    {
-        return $this->is_active && ! ($this->starts_at && $this->starts_at->isFuture()) && ! ($this->ends_at && $this->ends_at->isPast());
-    }
-
     /** live | scheduled | expired | inactive */
     public function state(): string
     {

@@ -35,12 +35,6 @@ function shopParts(date) {
   return out
 }
 
-/** Today's date in the store's time zone as YYYY-MM-DD (the value of a date input). */
-export function todayISO(date = new Date()) {
-  const p = shopParts(date)
-  return `${p.year}-${p.month}-${p.day}`
-}
-
 /** An instant (ISO text from the API) as the value of a datetime-local input: YYYY-MM-DDTHH:mm in the store's time zone. */
 export function toInputValue(value) {
   if (!value) return ''
@@ -48,12 +42,6 @@ export function toInputValue(value) {
   if (Number.isNaN(d.getTime())) return ''
   const p = shopParts(d)
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`
-}
-
-/** The calendar day N days before today in the store's time zone (YYYY-MM-DD). */
-export function daysAgoISO(days) {
-  const [y, m, d] = todayISO().split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d - days)).toISOString().slice(0, 10)
 }
 
 export function timeAgo(value) {

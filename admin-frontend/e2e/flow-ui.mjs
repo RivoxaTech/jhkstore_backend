@@ -33,7 +33,7 @@ const ADMIN_DEFAULTS = ['dashboard.view', 'orders.view', 'orders.manage', 'order
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0
 const check = (ok, label, actual) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${actual === undefined ? '' : `  -> ${typeof actual === 'string' ? actual : JSON.stringify(actual)}`}`); if (!ok) failures++ }
-const db = (sql) => JSON.parse(execFileSync('php', [path.join(REPO, 'scripts', 'flow-db.php'), sql], { cwd: ROOT, encoding: 'utf8' }))
+const db = (sql) => JSON.parse(execFileSync('php', [path.join(ROOT, 'scripts', 'flow-db.php'), sql], { cwd: ROOT, encoding: 'utf8' }))
 
 // a flat PNG for the file inputs
 function crc32(buf) { let c = 0xffffffff; for (const b of buf) { c ^= b; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1 } return (c ^ 0xffffffff) >>> 0 }

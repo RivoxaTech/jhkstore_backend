@@ -12,5 +12,7 @@ Thumbs.db
 /shots/
 
 # the help video maker's scratch files
-/scripts/help-videos/.tmp/
-/scripts/help-videos/.failed-*.png
+
+# The other two repositories of the project live in these folders when they are cloned next to backend/ (see README.md): never part of this repository
+/admin-frontend/
+/frontend/

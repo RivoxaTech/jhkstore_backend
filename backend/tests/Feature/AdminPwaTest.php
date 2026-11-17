@@ -84,8 +84,11 @@ class AdminPwaTest extends TestCase
         foreach (['admin-sw.js', 'admin-offline.html', 'favicon.ico'] as $file) {
             $this->assertFileExists(public_path($file));
         }
-        foreach (['web-app-manifest-192x192.png', 'web-app-manifest-512x512.png', 'apple-touch-icon.png', 'favicon-96x96.png', 'favicon.svg'] as $file) {
-            $this->assertFileExists(base_path('../admin-frontend/public/'.$file));
+        // the icons belong to the admin panel repository: checked when it is next to this one (the usual layout), skipped in a backend-only checkout
+        if (is_dir(base_path('../admin-frontend/public'))) {
+            foreach (['web-app-manifest-192x192.png', 'web-app-manifest-512x512.png', 'apple-touch-icon.png', 'favicon-96x96.png', 'favicon.svg'] as $file) {
+                $this->assertFileExists(base_path('../admin-frontend/public/'.$file));
+            }
         }
     }
 }

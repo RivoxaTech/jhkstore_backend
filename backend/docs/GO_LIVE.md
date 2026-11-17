@@ -4,80 +4,57 @@ What goes where, what to leave out, how to arrange the repositories, and the che
 
 ## 1. What runs where
 
-| Part | Folder | Where it lives | What is deployed |
+| Part | Repository | Where it lives | What is deployed |
 |---|---|---|---|
-| Storefront (customers) | `frontend/` | Cloudflare Pages | Cloudflare builds it: root directory `frontend`, build command `npm run generate`, output `.output/public`. Environment: `NUXT_PUBLIC_API_BASE`, `NUXT_PUBLIC_SITE_URL`. See [STOREFRONT.md](STOREFRONT.md). |
-| API + admin panel | `backend/` (the panel is built into it) | cPanel or a VPS | `backend/` with `vendor/` (made with `composer install --no-dev --optimize-autoloader`) and the built panel in `backend/public/admin-assets` (made on your computer with `cd admin-frontend && npm run build`). The domain's document root points at `backend/public`. |
-| Admin panel source | `admin-frontend/` | nowhere | Only its build output goes to the server. The source stays in the repository. |
+| Storefront (customers) | [jhkstore_frontend](https://github.com/RivoxaTech/jhkstore_frontend) | Cloudflare Pages | Cloudflare builds it from the repository: **root directory empty**, build command `npm run generate`, output `.output/public`. Environment: `NUXT_PUBLIC_API_BASE`, `NUXT_PUBLIC_SITE_URL`, `NODE_VERSION=24`. See [STOREFRONT.md](STOREFRONT.md). |
+| API + admin panel | [jhkstore_backend](https://github.com/RivoxaTech/jhkstore_backend) (the folder `backend/`) | cPanel (PKWebHost) or a VPS | `backend/` with `vendor/` (made with `composer install --no-dev --optimize-autoloader`) and the built panel in `backend/public/admin-assets` (made on your computer from the admin repository, see below). The domain's document root points at `backend/public`. |
+| Admin panel source | [jhkstore_admin-frontend](https://github.com/RivoxaTech/jhkstore_admin-frontend) | nowhere | Only its **build output** goes to the server (inside `backend/public/admin-assets`). The source stays in its repository. |
 
 ## 2. What must NOT be uploaded to the server
+
+Only the folder `backend/` of the backend repository goes to the server. Inside it, leave out:
 
 | Leave out | Why |
 |---|---|
 | `.git`, every `node_modules` | Not needed to run, large |
-| `admin-frontend/` (source), `frontend/` | The server only needs the built panel; the storefront is built by Cloudflare |
-| `design/`, `scripts/`, `docs/` | Reference pictures, test tools and guides: nothing in the running shop reads them |
+| `backend/docs/`, `backend/scripts/` | Guides and our test tools: nothing in the running shop reads them |
 | `backend/tests`, `backend/phpunit.xml`, `backend/.phpunit.result.cache` | Tests |
 | `backend/.env` of your computer | Write a **new** production `.env` on the server (see section 6) |
 | `backend/storage/app/public/*`, `backend/storage/app/private/*`, `backend/storage/logs/*` | Your test pictures, test payment screenshots and logs. A live shop starts empty. |
 | `backend/serve-fast.cmd` | A Windows helper for your computer |
-| `frontend/.nuxt`, `frontend/.output`, `frontend/dist` | Build leftovers (git ignores them; delete the old `frontend/dist` folder) |
 | `backend/database/seeders/DemoSeeder.php` | Sample toys. Never run it on a live shop (the file may stay; do not run it). |
 
-## 3. The `design/` and `scripts/` folders
+The other two repositories are never uploaded: the storefront is built by Cloudflare, the admin panel is built on your computer and only its output is uploaded.
 
-* **`design/`** (reference pictures and old logos): nothing in the code reads it. **Delete it from the live repository.** The pictures a shop shows (logo, banners, favicon) are uploaded in the admin panel.
-* **`scripts/`**: the shop does not need it to run, so it is never deployed. It holds our own tools:
-  * `flow-check.mjs` and `adversarial.mjs`: checks that try the whole shop over real HTTP,
-  * `flow-db.php`: used by `admin-frontend/e2e/flow-ui.mjs` (the browser test of the panel),
-  * `help-videos/`: records the Help videos again when the panel looks different (see [HELP_AND_APP.md](HELP_AND_APP.md)).
+## 3. The tools folders
 
-  Delete it only if you accept losing those automatic checks and the video maker. A good middle way: keep it in the development repository and leave it out of what you hand to a client.
-* `docs/BUILD_PLAN_ONE_GO.md` and `docs/BUILD_PROGRESS.md` are internal build notes and can be deleted. Keep the other guides.
-* `frontend/scripts/serve-static.mjs` is a different file (it serves the built storefront for `npm run preview`): leave it.
+* **`backend/scripts/`**: `flow-check.mjs` and `adversarial.mjs` (checks that try the whole shop over real HTTP) and `flow-db.php` (used by them and by the panel's browser test). Never deployed.
+* **`admin-frontend/tools/help-videos/`** (admin repository): records the Help videos again when the panel looks different (see [HELP_AND_APP.md](HELP_AND_APP.md)).
+* **`frontend/tests/`** (storefront repository): the browser tests, the speed tests and the journey (a customer and the shop owner in one browser session).
+* `frontend/scripts/serve-static.mjs` serves the built storefront for `npm run preview`.
+* The old `design/` folder (reference pictures) was deleted; it is still in the git history. The pictures a shop shows (logo, banners, favicon) are uploaded in the admin panel.
 
-## 4. One repository or three?
+## 4. Three repositories
 
-**Decision taken: one repository** (`https://github.com/RivoxaTech/jhkstore_backend.git`). **Keep one repository** (a "monorepo": `backend/`, `admin-frontend/`, `frontend/`, `docs/`), one per client.
+**Decision taken: three repositories, one per part** (they were one repository until 2026-11-17):
 
-* The panel is built **into** the backend and talks to the API on the same address, so they always have to match: one change often touches both. Three repositories would make every such change three commits and three releases that can drift apart.
-* The tests (`flow-ui`, the journey, the adversarial run) use the three parts together.
-* A new client is one "use this repository as a template" click (see NEW_CLIENT.md).
-* Cloudflare Pages can build one folder of a repository (root directory `frontend`), so the storefront still deploys on its own. Set "build watch paths" to `frontend/*` if you do not want a rebuild after every backend commit.
+* [jhkstore_backend](https://github.com/RivoxaTech/jhkstore_backend): the folder `backend/` (the Laravel API; it serves the admin panel's build), the guides in `backend/docs/`, `backend/scripts/`, `backend/CHANGELOG.md` and the project `README.md`.
+* [jhkstore_admin-frontend](https://github.com/RivoxaTech/jhkstore_admin-frontend): the admin panel and the Help video maker, at the root of the repository.
+* [jhkstore_frontend](https://github.com/RivoxaTech/jhkstore_frontend): the storefront, at the root of the repository (so Cloudflare Pages has no root directory to set).
 
-Two repositories (backend + admin together, storefront alone) is the only split that makes sense, and only if a different person or company works on the storefront and must not see the backend. **Do not split the admin panel from the backend.**
+What the split means in daily work:
 
-### If you ever use two repositories (an option, not the decision)
+* **Clone them side by side**, in folders named `backend`, `admin-frontend` and `frontend` (see the `README.md`). The admin build (`npm run build`) writes into `../backend/public/admin-assets` (or `ADMIN_BUILD_OUT`), `flow-ui` and the journey use the backend next to them, the backend tests look at `../admin-frontend` only when it is there.
+* **The panel and the API must match**: the panel is built into the backend and talks to the API on the same address. After a change in either, check that the other still works (`backend/scripts/flow-check.mjs`, `admin-frontend` `npm run flow-ui`), and **deploy them together**: rebuild the panel, upload `backend/public/admin-assets` with the backend.
+* **A change that touches two parts is two commits in two repositories** (an API change and the storefront or panel change that uses it). Deploy the backend first, then the storefront.
+* **A new client** is a copy of each of the three repositories (a "use this as a template" click for each) and their own environment values.
+* **History**: the two new repositories kept the history of their folders (`git subtree split`, the storefront 22 and the panel about 80 commits). The backend repository kept everything, including the old copies of the other two folders in its past commits.
 
-* **Backend repository** = `backend/` + `admin-frontend/` (the panel is built into the backend: they stay together) + `docs/` + `scripts/` + `README.md` + `CHANGELOG.md`. It is deployed to cPanel / the VPS.
-* **Storefront repository** = the content of `frontend/` **at the root of the repository** (so `package.json` and `nuxt.config.ts` are in the top folder). Cloudflare Pages builds it: **root directory empty**, build command `npm run generate`, output `.output/public`.
-* What the split touches, to fix when you do it:
-  * `frontend/tests/journey.mjs` reads `backend/storage/logs/laravel.log` and uses the backend scripts through a sibling folder: move it to the backend repository (for example `scripts/journey.mjs`) or make the paths configurable. `frontend/tests/e2e.mjs` and `perf.mjs` only need the API address and stay with the storefront.
-  * The links between the guides (the storefront guide lives in the backend repository's `docs/`; give the storefront repository a short `README.md` with its environment variables and the Cloudflare steps).
-  * The deploy hook, `FRONTEND_URLS` and `NUXT_PUBLIC_API_BASE` do not change.
-* The history can be kept for both (checked: the storefront alone is 21 commits):
+## 5. The GitHub repositories
 
-  ```
-  # storefront repository: only the history of frontend/, with its files at the root
-  git subtree split --prefix=frontend -b storefront-only lean-store
-  git push STOREFRONT_URL storefront-only:main
-
-  # backend repository: everything except frontend/
-  git checkout -b backend-only lean-store
-  git rm -r frontend design docs/BUILD_PLAN_ONE_GO.md docs/BUILD_PROGRESS.md
-  git commit -m "Storefront moved to its own repository"
-  git push BACKEND_URL backend-only:main
-  ```
-
-  (`git rm -r frontend` keeps the old storefront files in the backend repository's past commits. For a repository without them, copy the folders into a new folder, `git init`, commit and push instead.)
-
-## 5. The GitHub repository
-
-* **The project is connected to `origin` = `https://github.com/RivoxaTech/jhkstore_backend.git`** (one repository with `backend/`, `admin-frontend/`, `frontend/`, `docs/`, `scripts/`). The old connection (`https://github.com/startxlaravel02/DentalKart_backend.git`) was removed from this folder; it is not used any more.
-* The whole history was pushed, branch `lean-store` as `main` of the new repository (the old `main` is part of that history: nothing was left behind). Check at any time: `git remote -v`, `git log --oneline origin/main`.
-* The history was checked before it was sent: it contains no passwords or keys (only the three `.env.example` files). It still contains the pictures of the old `design/` folder (deleted in the last commit).
-* Later work: commit on a branch, push the branch, merge on GitHub. If you ever want a different repository, the same two commands do it: `git remote set-url origin NEW_URL` and `git push -u origin main`.
-* If you later split the storefront into its own repository (only worth it if a different team works on it): the content of `frontend/` becomes the root of that repository (Cloudflare root directory left empty), `git subtree split --prefix=frontend -b storefront-only main` keeps its history (21 commits), and `frontend/tests/journey.mjs` has to move to the backend repository because it reads `backend/storage/logs/laravel.log`. **Never split the admin panel from the backend.**
+* `origin` of the backend repository = `https://github.com/RivoxaTech/jhkstore_backend.git`; the storefront is `https://github.com/RivoxaTech/jhkstore_frontend.git`, the panel `https://github.com/RivoxaTech/jhkstore_admin-frontend.git`. The old `startxlaravel02` repository is not used any more.
+* The history was checked before it was sent: it contains no passwords or keys (only the `.env.example` files).
+* Later work: commit on a branch, push the branch, merge on GitHub. **Cloudflare Pages builds the production branch of the storefront repository (`main`) only.**
 
 ## 6. The checklist for the day
 
@@ -98,7 +75,7 @@ On the server:
 * HTTPS everywhere (an `http://` API under an `https://` site is blocked by the browser).
 * Back up the database and `storage/app/public` + `storage/app/private` (pictures and payment proofs) every day.
 
-Cloudflare Pages: the two environment variables, the deploy hook pasted in **Settings → Website** (see NEW_CLIENT.md section 6b), then place a test order on the live site, check the e-mail, the push notification and the invoice.
+Cloudflare Pages (the `jhkstore_frontend` repository): the two environment variables, the deploy hook pasted in **Settings → Website** (see NEW_CLIENT.md section 6b), then place a test order on the live site, check the e-mail, the push notification and the invoice.
 
 ## 7. Speed after launch
 

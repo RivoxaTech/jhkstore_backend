@@ -66,7 +66,7 @@ class SettingsAccessTest extends TestCase
 
     public function test_the_docs_list_every_setting_with_its_tier_and_permission(): void
     {
-        $docs = file_get_contents(base_path('../docs/ACCESS_CONTROL.md'));
+        $docs = file_get_contents(base_path('docs/ACCESS_CONTROL.md'));
         foreach (Settings::DEFINITIONS as $key => $def) {
             $this->assertMatchesRegularExpression('/\|\s*`'.$key.'`\s*\|[^\n]*\|\s*(client|advanced)\s*\|\s*`settings\.'.SettingController::tabOf($key).'`/', $docs, "docs/ACCESS_CONTROL.md has no row for $key");
         }

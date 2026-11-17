@@ -139,12 +139,6 @@ class AdminAccess
         return array_merge(...array_map(fn ($g) => array_keys($g[1]), array_values(self::GROUPS)));
     }
 
-    /** @return array<string,string> permission => label */
-    public static function labels(): array
-    {
-        return array_merge(...array_map(fn ($g) => $g[1], array_values(self::GROUPS)));
-    }
-
     /** Permissions a role can never hold. */
     public static function forbidden(string $role): array
     {

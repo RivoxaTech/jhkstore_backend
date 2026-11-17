@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-17 (2) – Three repositories, a tidier tree (branch `three-repos`)
+
+### Changed
+- **The project is now three repositories**, one per part: [jhkstore_backend](https://github.com/RivoxaTech/jhkstore_backend) (this one: the folder `backend/`, the guides in `backend/docs/`, `backend/scripts/`, this CHANGELOG), [jhkstore_admin-frontend](https://github.com/RivoxaTech/jhkstore_admin-frontend) (the admin panel and the Help video maker, now `tools/help-videos/`) and [jhkstore_frontend](https://github.com/RivoxaTech/jhkstore_frontend) (the storefront; Cloudflare Pages needs no root directory any more). The two new repositories kept the history of their folders. For development they are cloned side by side (`backend/`, `admin-frontend/`, `frontend/`): the admin build writes into `../backend/public/admin-assets` (or `ADMIN_BUILD_OUT`), `flow-ui` and the journey use the backend next to them. `README.md` and `docs/GO_LIVE.md` (sections 1 to 5) say how.
+- The guides moved from `docs/` to `backend/docs/`, `scripts/` to `backend/scripts/` (`flow-check`, `adversarial`, `flow-db.php`), this CHANGELOG to `backend/CHANGELOG.md`. The tests that read the guides look in `backend/docs`; the one that looks at the admin icons only runs when the admin repository is next to the backend.
+- `https://<api address>/` now redirects to `/admin` (it showed the Laravel welcome page).
+
+### Removed (nothing used them)
+- The Laravel default front-end scaffold of the backend: `package.json`, `vite.config.js`, `.npmrc`, `resources/css`, `resources/js` and `welcome.blade.php`.
+- Two admin components no screen imported (`TagsModal.vue`, `QuickTagsModal.vue`), the unused `todayISO` / `daysAgoISO` of the panel, `AdminAccess::labels()`, `TargetsProducts::isLive()`, the two internal build notes `BUILD_PLAN_ONE_GO.md` and `BUILD_PROGRESS.md`, and a leftover `frontend/dist` build folder (it was not tracked).
+
 ## 2026-11-17 – A page opened directly now shows the live product (branch `live-refresh-fix`)
 
 ### Fixed
