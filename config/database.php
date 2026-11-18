@@ -58,7 +58,9 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
-            'engine' => null,
+            // InnoDB, always: transactions and row locks protect the stock, the coupons and the orders. A host whose MySQL defaults to MyISAM has neither
+            // (and limits a key to 1000 bytes, so the first migration fails with error 1071): leaving this to the server is not safe.
+            'engine' => env('DB_ENGINE', 'InnoDB'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
                 // `php artisan serve` opens a new MySQL connection for every request (about 15 ms on Windows). Locally it is kept open between
@@ -81,7 +83,9 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
-            'engine' => null,
+            // InnoDB, always: transactions and row locks protect the stock, the coupons and the orders. A host whose MySQL defaults to MyISAM has neither
+            // (and limits a key to 1000 bytes, so the first migration fails with error 1071): leaving this to the server is not safe.
+            'engine' => env('DB_ENGINE', 'InnoDB'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],

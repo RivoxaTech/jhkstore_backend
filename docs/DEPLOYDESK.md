@@ -139,3 +139,10 @@ PRODUCT_VIDEO_MAX_KB=51200
 ADMIN_TOKEN_MINUTES=720
 ```
 `SESSION_DRIVER=file` and `CACHE_STORE=file` save database queries on every request (the host limits CPU and processes). After the file is saved: `cd /home/rivoxate/jhkstore/backend`, `php artisan migrate --force --seed`, `php artisan storage:link`, `php artisan config:cache && php artisan route:cache && php artisan event:cache && php artisan view:cache`, and the cron lines of A4 step 5.
+
+### G. The first migration on PKWebHost (2026-11-18)
+* **`SQLSTATE 1045 Access denied`** was the database password in `.env` (the host `localhost` was right; MySQL names the host it found). Give the database user a password of letters and digits, test it alone with `mysql -u USER -p DATABASE -e "select 1"`, then write it in `.env` as `DB_PASSWORD="..."`.
+* **`SQLSTATE 1071 Specified key was too long; max key length is 1000 bytes`**: that MySQL defaults to MyISAM. The code now asks for InnoDB (`DB_ENGINE`, release after `v1`). If a migration died half way, drop what it made and start again: `php artisan db:wipe --force` (only on a database that holds nothing yet), then `php artisan migrate --force --seed`.
+* The Terminal's `php` is 7.4: use `alias php=/opt/cpanel/ea-php83/root/usr/bin/php` in the Terminal window, and the full path `/opt/cpanel/ea-php83/root/usr/bin/php` in cron lines and DeployDesk post-deploy commands. `curl` and `exif` are not loaded in that PHP: ask the host to install `ea-php83-php-curl` and `ea-php83-php-exif` (needed for push notifications and picture uploads).
+* The admin panel is **not** a site of its own: it is deployed into `backend/public/admin-assets` and opens at `https://<api domain>/admin`. A copy at the root of another sub-domain does not work (the build looks for `/admin-assets/...`).
+* The storefront needs `NUXT_PUBLIC_API_BASE=https://<api domain>/api/v1/store` in the host's build settings, otherwise it is built with the local default `http://127.0.0.1:8002/...`; and that storefront address must be in the server's `FRONTEND_URLS`.

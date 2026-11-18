@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-18 – InnoDB is now explicit (found on the first migration on the live host)
+
+### Fixed
+- **The first migration failed on PKWebHost** (`SQLSTATE 1071 Specified key was too long; max key length is 1000 bytes`, on the `sessions` table). The project left the table engine to the server (`'engine' => null`), and that MySQL defaults to **MyISAM**, which limits a key to 1000 bytes. It would have been worse than a failed migration: MyISAM has no transactions and no row locks, and the checkout (stock, coupons, order numbers) relies on `lockForUpdate`. `config/database.php` now asks for **InnoDB** on `mysql` and `mariadb` (`DB_ENGINE`, default `InnoDB`). New test `DatabaseEngineTest` (the config, and every table of the test database is InnoDB).
+- After a migration that failed half way on such a host, the tables it did create are MyISAM: run `php artisan db:wipe --force` (it drops every table of that one database: only on a database that holds nothing yet) and migrate again.
+
 ## 2026-11-17 (3) – The repository root is the Laravel app
 
 ### Changed
