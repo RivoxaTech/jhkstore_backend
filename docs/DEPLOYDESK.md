@@ -147,3 +147,16 @@ ADMIN_TOKEN_MINUTES=720
 * The admin panel is **not** a site of its own: it is deployed into `backend/public/admin-assets` and opens at `https://<api domain>/admin`. A copy at the root of another sub-domain does not work (the build looks for `/admin-assets/...`).
 * The storefront needs `NUXT_PUBLIC_API_BASE=https://<api domain>/api/v1/store` in the host's build settings, otherwise it is built with the local default `http://127.0.0.1:8002/...`; and that storefront address must be in the server's `FRONTEND_URLS`.
 * **"Refusing to seed a weak developer password in production"** although `.env` has a long one: `php artisan config:cache` had been run before the seeder, and the old code read `.env` with the env helper (defaults only after caching). Fixed in the code (release after `v2`); until you have it, run `php artisan config:clear`, seed, then `php artisan config:cache` again. Always run `config:cache` **last**, and again after every change of `.env`.
+
+### H. A new install looks like the default shop (blue, "Store"): give it the client's look
+The theme, the contact details, the currency and the delivery fee are **settings in the database**, not in the code; a new server has a new database with neutral defaults (blue `#2563EB`, Inter, no logo, no phone), and the storefront and the admin panel both take their colours from it. Nothing is broken: write the settings once.
+
+* **By hand**: sign in to `https://<api domain>/admin` as the developer → Settings → Theme, Branding (logo, favicon), General, Currency & Tax, Delivery, Banners.
+* **Or with one command** for the plain values (colours, fonts, contact, currency, delivery), in the cPanel Terminal, one line (it uses `Settings::set()`: unknown keys are ignored, values are checked, the cache is cleared):
+```
+cd /home/rivoxate/jhkstore/backend
+/opt/cpanel/ea-php83/root/usr/bin/php artisan tinker --execute='app(App\Domain\Support\Settings::class)->set(["theme_primary"=>"#3BBFCC","theme_primary_contrast"=>"#FFFFFF","theme_accent"=>"#3BBFCC","theme_bg"=>"#F5FBFC","theme_surface"=>"#FFFFFF","theme_text"=>"#16242A","theme_muted"=>"#4F6469","theme_border"=>"#D9EDF0","theme_font_heading"=>"Poppins","theme_font_body"=>"Poppins","theme_radius"=>"16px","theme_shadow"=>"soft","store_tagline"=>"Play. Learn. Grow.","store_email"=>"jhkconceptltd@gmail.com","store_phone"=>"+230 5260 4550","whatsapp_number"=>"+230 5260 4550","currency_code"=>"MUR","currency_symbol"=>"RS","currency_decimals"=>2,"delivery_method"=>"flat","delivery_fee"=>150]); echo "settings written";'
+```
+* **Pictures cannot be written like this** (logo, favicon, banners, product pictures are uploads): do them in the admin panel (the host must have the PHP `exif` extension first).
+* **Then rebuild the storefront** (Cloudflare → Deployments → retry the build): the colours and texts the search engines read are baked into the pages at build time. The admin panel takes the new colour at its next page load.
+* After every deploy, and after every change of `.env`: `php artisan config:cache` (a cached configuration from an older release can lack a new setting).
