@@ -135,7 +135,7 @@ class ExportsTest extends TestCase
 
         $this->uploadProof($bank)->assertOk();
         $this->actingAsAdmin();
-        $this->assertSame(['count' => 3, 'pending' => 2, 'proofs' => 1], Arr::except($this->getJson(self::ADMIN.'/orders/pending-count')->json(), 'version'));   // the screenshot needs a second look
+        $this->assertSame(['count' => 2, 'pending' => 2, 'proofs' => 1], Arr::except($this->getJson(self::ADMIN.'/orders/pending-count')->json(), 'version'));   // the screenshot needs a second look
 
         $this->postJson(self::ADMIN."/orders/{$bank->id}/payment/verify")->assertOk();
         $this->postJson(self::ADMIN."/orders/{$cod->id}/status", ['status' => 'confirmed'])->assertOk();

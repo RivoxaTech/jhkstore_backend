@@ -128,6 +128,18 @@ npm run test:e2e     # the browser tests (the API on 8002 with the demo data and
 
 `_headers` adds the cache rules (hashed files for a year, HTML always revalidated) and basic security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`). It deliberately has **no Content-Security-Policy**: a wrong one would break the checkout; add one once the final hosts are known.
 
+## Deploy on Cloudflare **Workers** (static assets): what `wrangler.jsonc` and `worker/index.js` are for
+
+A Cloudflare project made as a **Worker** (address `<name>.<account>.workers.dev`, "Workers Builds") is not Cloudflare *Pages*, and one thing differs: **the `_redirects` rewrite rules (`/product/* /200.html 200`) do not work there**: the Worker turns them into a redirect to `/200`, or answers `404` with an empty page. The visible symptom: a toy added after the last build, and the order page after a reload (`/order/ORD-...`), end on "This page can't be found (HTTP ERROR 404)".
+
+The repository therefore carries the setting itself:
+
+* `wrangler.jsonc`: the Worker's name (`jhkstore-frontend`, **it must be the name of the Worker that already exists**, or a second one is made), the static files (`./.output/public`, served first) and the small script `worker/index.js`.
+* `worker/index.js`: runs only for an address that is not a file of the build. `/product/<slug>`, `/category/<slug>[/<sub>]` and `/order/<number>` get the **app shell** (`200.html`) **with their own address and the status 200**: the shell then loads the page from the API. Any other unknown address gets the friendly 404 page with the status 404. (Serving the home page instead does not work: the app then goes back to `/`.) Tested with Cloudflare's own local runner (`npx wrangler dev`) and a real browser.
+* The `_redirects` file of the repository was renamed `public/_redirects.example`: **Cloudflare Pages and Netlify** need it as `_redirects` (copy it back), a Worker must not have it.
+
+In the Cloudflare dashboard (the Worker → Settings → **Build**): Root directory empty (`/`), **Build command `npm run generate`**, **Deploy command `npx wrangler deploy`** (nothing added to it: no `--assets`), Build variables `NUXT_PUBLIC_API_BASE`, `NUXT_PUBLIC_SITE_URL`, `NODE_VERSION=24`. Check the build log of the first build after a change of these settings: "Uploaded N files" and "Deployed".
+
 ## Host the same build on cPanel
 
 1. Build locally (`npm run generate` with the production `.env`) or on the server if Node exists.

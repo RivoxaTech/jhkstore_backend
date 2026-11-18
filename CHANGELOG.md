@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-19 – Fixes found on the live site
+
+### Fixed
+- **A toy added after the last build, and the order page after a reload, ended on "This page can't be found (HTTP 404)"** on the Cloudflare Worker. The `_redirects` rewrite rules only work on Cloudflare Pages and Netlify: in a Worker with static assets they become a redirect to `/200` or an empty 404. The repository now has `wrangler.jsonc` and `worker/index.js`: a product, category or order address that the build did not make gets the app shell (`200.html`) with its own address and the status 200; any other unknown address gets the friendly 404 page. `public/_redirects` is now `public/_redirects.example` (copy it back for Pages / Netlify). Tested with Cloudflare's local runner (`wrangler dev`) and a real browser. Cloudflare must use build command `npm run generate` and deploy command `npx wrangler deploy` (docs/STOREFRONT.md).
+- **The wholesale form's toy list and the shop's category chips were frozen at the last build** (empty on a new install, until a rebuild). Both are read again from the API when the page is shown, like the prices.
+- **The Orders badge counted one order twice** when its bank transfer proof was waiting (once as pending, once as a proof). The badge (`count` of `GET admin/orders/pending-count` and `admin/badges`) is now the number of orders that wait; `proofs` is still sent and the panel adds it to its chime, so a proof for an order that was already waiting still rings.
+
+### Changed
+- **Bank accounts are shown line by line** (Bank / Title / Account No / IBAN) with the copy icon right behind the value, at the checkout and on the order page (`BankAccountCard.vue`).
+- **The address of an order** in the admin panel is one labelled line per piece (Name, Phone, E-mail, Address, Area, Landmark, City, Postcode, Country, Full address), each with its own copy icon; "Copy all" stays.
+- `docs/DEPLOYDESK.md`: push notifications (keys, switch, cron) and the Cloudflare deploy hook for the *Rebuild website now* button.
+
 ## 2026-11-18 – InnoDB is now explicit (found on the first migration on the live host)
 
 ### Fixed

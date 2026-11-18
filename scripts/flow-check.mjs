@@ -1182,7 +1182,7 @@ try {
   const pc = await get('admin/orders/pending-count', A)
   const dbPending = dbOne("SELECT COUNT(*) n FROM orders WHERE status = 'pending'").n
   const dbProofs = dbOne("SELECT COUNT(*) n FROM payments p JOIN orders o ON o.id = p.payable_id WHERE p.payable_type = 'order' AND p.proof_status = 'submitted' AND o.status = 'pending'").n
-  check(pc.status === 200 && pc.json.pending === dbPending && pc.json.proofs === dbProofs && pc.json.count === dbPending + dbProofs && (await get('admin/orders/pending-count', D)).status === 403, 'GET /admin/orders/pending-count = pending orders + payment proofs to check (the database agrees); the developer gets 403', pc.json)
+  check(pc.status === 200 && pc.json.pending === dbPending && pc.json.proofs === dbProofs && pc.json.count === dbPending && (await get('admin/orders/pending-count', D)).status === 403, 'GET /admin/orders/pending-count = pending orders + payment proofs to check (the database agrees); the developer gets 403', pc.json)
   await adminSubs(['dashboard.view', 'products.view'])
   const restricted = await dash('', A)
   check(restricted.status === 200 && restricted.json.catalog && !('orders' in restricted.json) && !('wholesale' in restricted.json) && !('customers' in restricted.json), 'an admin with only products.view gets only the catalogue section', Object.keys(restricted.json))

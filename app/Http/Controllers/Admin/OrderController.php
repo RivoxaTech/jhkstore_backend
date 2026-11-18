@@ -93,7 +93,7 @@ class OrderController extends Controller
             ->when($request->query('to'), fn ($q, $d) => $q->where('orders.created_at', '<', date('Y-m-d', strtotime($d.' +1 day')).' 00:00:00'));
     }
 
-    /** The number behind the sidebar badge: pending orders plus bank transfer payment proofs waiting to be checked. */
+    /** The number behind the sidebar badge: the orders waiting for the shop (pending); `proofs` = how many of them have a bank transfer proof to check. */
     public function pendingCount(): JsonResponse
     {
         // `version` changes whenever an order is placed or changes (status, payment proof): the panel polls it and reloads the list it shows when it moved.

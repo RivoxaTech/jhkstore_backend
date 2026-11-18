@@ -12,7 +12,11 @@ use App\Domain\Wholesale\Models\WholesaleRequest;
  */
 class Badges
 {
-    /** Pending orders plus bank transfer payment proofs waiting to be checked. */
+    /**
+     * `count` (the badge) is the number of ORDERS that wait for the shop: the pending ones. An order whose bank transfer proof is waiting to be checked is
+     * still ONE order (it is pending too), so the badge does not count it twice. `proofs` says how many of them have a proof to check: the panel adds it to
+     * its chime, so a proof that arrives for an order that was already waiting still rings.
+     */
     public static function orders(): array
     {
         $pending = Order::query()->where('status', 'pending')->count();
@@ -21,7 +25,7 @@ class Badges
         $o = Order::query()->selectRaw('count(*) as c, max(id) as m, max(updated_at) as u')->first();
         $p = Payment::query()->where('payable_type', Payment::ORDER)->max('updated_at');
 
-        return ['count' => $pending + $proofs, 'pending' => $pending, 'proofs' => $proofs, 'version' => md5($o->c.'|'.$o->m.'|'.$o->u.'|'.$p)];
+        return ['count' => $pending, 'pending' => $pending, 'proofs' => $proofs, 'version' => md5($o->c.'|'.$o->m.'|'.$o->u.'|'.$p)];
     }
 
     /** Requests that are still `new`. */
