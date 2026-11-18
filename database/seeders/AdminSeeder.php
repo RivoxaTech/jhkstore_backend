@@ -18,19 +18,10 @@ class AdminSeeder extends Seeder
 {
     public function run(): void
     {
+        // from config/shop.php (which reads .env): the env helper gives only its defaults after `php artisan config:cache`
         $accounts = [
-            AdminAccess::DEVELOPER => [
-                'username' => env('SEED_DEVELOPER_USERNAME', 'developer'),
-                'password' => env('SEED_DEVELOPER_PASSWORD', 'developer'),
-                'name' => env('SEED_DEVELOPER_NAME', 'Developer'),
-                'email' => env('SEED_DEVELOPER_EMAIL'),
-            ],
-            AdminAccess::ADMIN => [
-                'username' => env('SEED_ADMIN_USERNAME', 'admin'),
-                'password' => env('SEED_ADMIN_PASSWORD', 'admin'),
-                'name' => env('SEED_ADMIN_NAME', 'Administrator'),
-                'email' => env('SEED_ADMIN_EMAIL'),
-            ],
+            AdminAccess::DEVELOPER => config('shop.seed.developer'),
+            AdminAccess::ADMIN => config('shop.seed.admin'),
         ];
 
         // The demo credentials are for local development only.

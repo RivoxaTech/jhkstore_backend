@@ -18,8 +18,27 @@ return [
 
     'honeypot_field' => env('SHOP_HONEYPOT_FIELD', 'hp_extra'),
 
+    // The two admin accounts the seeder creates (docs/ACCESS_CONTROL.md). They are read through config(), never env(): once `php artisan config:cache` has run,
+    // env() outside the config folder returns only its default, and the seeder would see 'developer' / 'developer' and refuse (or create weak accounts).
+    'seed' => [
+        'developer' => [
+            'username' => env('SEED_DEVELOPER_USERNAME', 'developer'),
+            'password' => env('SEED_DEVELOPER_PASSWORD', 'developer'),
+            'name' => env('SEED_DEVELOPER_NAME', 'Developer'),
+            'email' => env('SEED_DEVELOPER_EMAIL'),
+        ],
+        'admin' => [
+            'username' => env('SEED_ADMIN_USERNAME', 'admin'),
+            'password' => env('SEED_ADMIN_PASSWORD', 'admin'),
+            'name' => env('SEED_ADMIN_NAME', 'Administrator'),
+            'email' => env('SEED_ADMIN_EMAIL'),
+        ],
+    ],
+
     // Request limits of the public endpoints (the limiters are defined in App\Providers\AppServiceProvider). Per IP unless stated.
     'rate' => [
+        'public_per_minute' => (int) env('PUBLIC_PER_MINUTE', 240),               // reads of the catalogue
+        'admin_per_minute' => (int) env('ADMIN_PER_MINUTE', 600),                 // per admin
         'quote_per_minute' => (int) env('QUOTE_PER_MINUTE', 60),
         'checkout_per_minute' => (int) env('CHECKOUT_PER_MINUTE', 10),
         'checkout_per_hour' => (int) env('CHECKOUT_PER_HOUR', 60),

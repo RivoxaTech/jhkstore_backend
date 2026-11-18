@@ -212,18 +212,18 @@ class AccessControlTest extends TestCase
     public function test_the_seeder_refuses_weak_passwords_in_production(): void
     {
         $this->app['env'] = 'production';
-        foreach (['SEED_DEVELOPER_PASSWORD', 'SEED_ADMIN_PASSWORD'] as $weak) {
-            putenv('SEED_DEVELOPER_PASSWORD=a-long-strong-password');
-            putenv('SEED_ADMIN_PASSWORD=another-strong-password');
-            putenv("$weak=short");
+        // the seeder reads config(), which reads .env: setting the config is what a production .env does (and survives `php artisan config:cache`)
+        foreach (['developer', 'admin'] as $weak) {
+            config([
+                'shop.seed.developer.password' => 'a-long-strong-password',
+                'shop.seed.admin.password' => 'another-strong-password',
+                "shop.seed.$weak.password" => 'short',
+            ]);
             try {
                 (new \Database\Seeders\AdminSeeder)->run();
-                $this->fail("a weak $weak must be refused");
+                $this->fail("a weak $weak password must be refused");
             } catch (\RuntimeException $e) {
                 $this->assertStringContainsString('weak', $e->getMessage());
-            } finally {
-                putenv('SEED_DEVELOPER_PASSWORD');
-                putenv('SEED_ADMIN_PASSWORD');
             }
         }
         $this->assertSame(0, Admin::count());

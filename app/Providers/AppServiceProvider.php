@@ -49,10 +49,10 @@ class AppServiceProvider extends ServiceProvider
         }
 
         // Public read endpoints (settings, banners, categories, products) and the quote: 240 a minute per IP (PUBLIC_PER_MINUTE).
-        RateLimiter::for('public', fn (Request $request) => Limit::perMinute((int) env('PUBLIC_PER_MINUTE', 240))->by($request->ip()));
+        RateLimiter::for('public', fn (Request $request) => Limit::perMinute((int) config('shop.rate.public_per_minute'))->by($request->ip()));
 
         // Admin API: 600 a minute per admin (ADMIN_PER_MINUTE) - generous for the panel, a ceiling for a runaway script.
-        RateLimiter::for('admin', fn (Request $request) => Limit::perMinute((int) env('ADMIN_PER_MINUTE', 600))->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
+        RateLimiter::for('admin', fn (Request $request) => Limit::perMinute((int) config('shop.rate.admin_per_minute'))->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
 
         // Changing the password: 5 a minute per admin (the current password is checked, so this is a guess limit).
         RateLimiter::for('password', fn (Request $request) => Limit::perMinute(5)->by('password|'.$request->user()?->getAuthIdentifier()));
