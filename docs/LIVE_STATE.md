@@ -64,3 +64,7 @@ This page is the **handover of the live deployment**. A new person (or a new AI 
 
 ## 6. How to work with the owner
 Short steps, "where to go and what to put", in the owner's language (Roman Urdu or English, follow the last message). Never ask for or store a password, key or token; screenshots with secrets are to be avoided. Push only after the tests are green and say what was pushed; a push to `main` starts a build. Never run `db:wipe`, `migrate:fresh`, `DemoSeeder` on the live server. The owner's local servers (API 8002, `nuxt dev` 3000, Vite 5190, database `jhkstore_db`) are the owner's: do not stop them; use the scratch database `jhkstore_shots` and other ports for tests.
+
+## 7. Settings that make this host work (2026-11-19)
+* `.env` on the server: `SHOP_JOBS_AFTER_RESPONSE=true` (then `php artisan config:cache` with `/opt/alt/php83/usr/bin/php`). The cron-started queue worker needs up to 60 seconds to take a job; with this switch the push and the mails of an order are sent by the web request right after its response, so the owner hears of an order at once. No process stands idle. The cron jobs stay (the scheduler, retries, other jobs).
+* The panel makes a cover for every uploaded video by itself (a frame of the video, taken in the browser); an own cover picture chosen before the video wins. Older videos without a cover show a thumbnail from the video file.

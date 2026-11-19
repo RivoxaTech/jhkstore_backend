@@ -100,6 +100,22 @@ class WorkerFallbackTest extends TestCase
         Mail::assertNotSent(OrderPlacedMail::class);
     }
 
+    public function test_jobs_can_be_sent_after_the_response_even_when_a_worker_exists(): void
+    {
+        // a cron-started worker takes up to a minute: with the switch on, the order's mail does not wait for it
+        config(['queue.default' => 'database', 'shop.jobs_after_response' => true]);
+        QueueHealth::recordHeartbeat();   // a worker was seen a moment ago
+        $this->assertSame('running', QueueHealth::status()['state']);
+        $this->assertTrue(QueueHealth::workerMissing());
+        Mail::fake();
+
+        $this->order();
+
+        Mail::assertSent(OrderPlacedMail::class, fn ($mail) => $mail->hasTo('buyer@example.test'));
+        Mail::assertNotQueued(OrderPlacedMail::class);
+        $this->assertSame(0, DB::table('jobs')->count());
+    }
+
     public function test_the_fallback_can_be_switched_off(): void
     {
         config(['queue.default' => 'database', 'shop.jobs_without_worker' => false]);

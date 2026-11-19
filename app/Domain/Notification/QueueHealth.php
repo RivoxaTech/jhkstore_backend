@@ -40,6 +40,9 @@ class QueueHealth
      */
     public static function workerMissing(): bool
     {
+        if (config('shop.jobs_after_response', false)) {
+            return true;   // asked for: people never wait for a cron-started worker (SHOP_JOBS_AFTER_RESPONSE)
+        }
         if (! config('shop.jobs_without_worker', true)) {
             return false;
         }

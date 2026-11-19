@@ -16,6 +16,10 @@ return [
     // No queue worker seen: send the mails and pushes of an order right after the response instead of leaving them waiting in the queue.
     'jobs_without_worker' => (bool) env('SHOP_JOBS_WITHOUT_WORKER', true),
 
+    // Always send the mails and pushes of an order right after the response, even when a worker exists. For a host where the worker is started by a
+    // cron job once a minute: a job would wait up to 60 seconds for it, the owner would hear of an order a minute late. Costs no standing process.
+    'jobs_after_response' => (bool) env('SHOP_JOBS_AFTER_RESPONSE', false),
+
     'honeypot_field' => env('SHOP_HONEYPOT_FIELD', 'hp_extra'),
 
     // The two admin accounts the seeder creates (docs/ACCESS_CONTROL.md). They are read through config(), never env(): once `php artisan config:cache` has run,

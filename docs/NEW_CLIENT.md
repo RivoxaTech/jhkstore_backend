@@ -67,7 +67,7 @@ cd ../admin-frontend && npm install && npm run build && cd ../backend     # admi
 
 1. **A worker** (VPS, recommended): `php artisan queue:work --tries=3` kept alive by supervisor or systemd, restarted after each deployment (`php artisan queue:restart`).
 2. **Cron** (shared hosting, no long-running process): `* * * * * php artisan queue:work --stop-when-empty --max-time=55` (a mail can be up to a minute late).
-3. **Nothing** (the safety net): when no worker is seen (see the *Queue worker* line of Settings → Notifications), the mails and pushes of an order are sent by the web request itself, right after its response (`SHOP_JOBS_WITHOUT_WORKER=false` switches this off), so they are never stuck in the `jobs` table. A worker or the cron stays better: it retries and takes the load off the web server.
+3. **Nothing** (the safety net; or, on a host whose worker is started by a cron job once a minute, `SHOP_JOBS_AFTER_RESPONSE=true` sends them right after the response so they do not wait up to a minute): when no worker is seen (see the *Queue worker* line of Settings → Notifications), the mails and pushes of an order are sent by the web request itself, right after its response (`SHOP_JOBS_WITHOUT_WORKER=false` switches this off), so they are never stuck in the `jobs` table. A worker or the cron stays better: it retries and takes the load off the web server.
 
 **On your own computer** `php artisan serve` starts the queue listener and the scheduler next to the server (so mails, push and the *Queue worker* card work without more terminals) and switches PHP's OPcache on (about six times faster answers). `--no-helpers` and `--no-opcache` leave them out. It does this only when `APP_ENV=local`.
 
