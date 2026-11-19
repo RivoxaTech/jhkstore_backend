@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Domain\Catalog\Models\Product;
+use App\Domain\Catalog\ProductVideos;
 use App\Domain\Support\Models\AuditLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\BuildsShop;
 use Tests\TestCase;
@@ -176,6 +178,42 @@ class ProductExtrasTest extends TestCase
         $this->postVideo($product, $this->videoFile('c.mp4', 10))->assertStatus(422)->assertJsonValidationErrors('video');   // at most two
 
         $this->assertSame(2, DB::table('media')->where('collection_name', 'video')->count());
+    }
+
+    public function test_a_video_that_php_refused_says_why_and_is_logged(): void
+    {
+        $product = $this->product();
+        $this->actingAsAdmin('developer');
+        Log::spy();
+
+        $path = tempnam(sys_get_temp_dir(), 'vid');
+        file_put_contents($path, 'partial');
+        $cases = [
+            UPLOAD_ERR_PARTIAL => 'interrupted',
+            UPLOAD_ERR_INI_SIZE => 'larger than its limit',
+            UPLOAD_ERR_NO_TMP_DIR => 'temporary folder',
+            UPLOAD_ERR_CANT_WRITE => 'could not save the file',
+        ];
+        foreach ($cases as $code => $words) {
+            $file = new UploadedFile($path, 'clip.mp4', 'video/mp4', $code, true);
+            $this->postVideo($product, $file)->assertStatus(422)->assertJsonPath('errors.video.0', fn ($m) => str_contains($m, $words));
+        }
+        @unlink($path);
+
+        Log::shouldHaveReceived('warning')->with('Video upload refused', \Mockery::on(fn ($c) => $c['php_error'] === UPLOAD_ERR_PARTIAL && array_key_exists('post_max_size', $c)))->once();
+        $this->assertSame(0, DB::table('media')->where('collection_name', 'video')->count());
+    }
+
+    public function test_the_panel_is_told_the_real_upload_limit_not_more_than_php_allows(): void
+    {
+        $this->actingAsAdmin('developer');
+        ini_set('memory_limit', '256M');
+        $this->assertSame(268435456, ProductVideos::iniBytes('memory_limit'));
+        $this->assertSame(0, ProductVideos::iniBytes('no_such_setting'));
+
+        $max = (float) $this->getJson(self::ADMIN.'/products/options')->assertOk()->json('video.max_mb');
+        $this->assertLessThanOrEqual(round((int) config('shop.video.max_kb') / 1024, 1), $max);
+        $this->assertSame(round(ProductVideos::effectiveMaxKb() / 1024, 1), $max);
     }
 
     public function test_videos_can_be_reordered_get_a_new_poster_and_be_deleted_with_it(): void

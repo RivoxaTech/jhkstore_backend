@@ -43,7 +43,7 @@ class ProductController extends Controller
             'tags' => Tag::query()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'slug', 'color', 'is_active']),
             'currency' => ['code' => $settings->currencyCode(), 'symbol' => $settings->currencySymbol(), 'decimals' => $settings->decimals()],
             'statuses' => ProductStatus::values(),
-            'video' => ['max_files' => (int) config('shop.video.max_files'), 'max_mb' => round((int) config('shop.video.max_kb') / 1024, 1), 'poster_max_mb' => round((int) config('shop.video.poster_max_kb') / 1024, 1), 'types' => ['video/mp4', 'video/webm']],
+            'video' => ['max_files' => (int) config('shop.video.max_files'), 'max_mb' => round(ProductVideos::effectiveMaxKb() / 1024, 1), 'poster_max_mb' => round((int) config('shop.video.poster_max_kb') / 1024, 1), 'types' => ['video/mp4', 'video/webm']],
             'content_tabs' => collect(ProductContentTab::TABS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label])->values(),
         ]);
     }

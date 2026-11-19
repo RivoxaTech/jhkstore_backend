@@ -22,6 +22,31 @@ class ProductVideos
 
     private const VIMEO = ['vimeo.com', 'www.vimeo.com', 'player.vimeo.com'];
 
+    /**
+     * What one uploaded video may weigh, in KB: the shop's own limit, or PHP's (the smaller of `upload_max_filesize` and `post_max_size`) when the
+     * server allows less. The panel shows this one, so it never promises 50 MB on a host that stops at 20.
+     */
+    public static function effectiveMaxKb(): int
+    {
+        $kb = (int) config('shop.video.max_kb');
+        foreach (['upload_max_filesize', 'post_max_size'] as $key) {
+            $bytes = self::iniBytes($key);
+            if ($bytes > 0) {
+                $kb = min($kb, intdiv($bytes, 1024));
+            }
+        }
+
+        return $kb;
+    }
+
+    /** A php.ini size ("20M", "1G", "512K") in bytes; 0 when unset or unlimited. */
+    public static function iniBytes(string $key): int
+    {
+        $value = ini_get($key);
+
+        return is_string($value) && $value !== '' ? max(0, (int) ini_parse_quantity($value)) : 0;
+    }
+
     /** @return list<array{url:string, poster_url:?string, mime:?string, source:string}> */
     public static function forStore(Product $product): array
     {

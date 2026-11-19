@@ -9,11 +9,13 @@ Three ready prompts, to paste into a new AI chat. **Start prompt** is the short 
 ```
 This is the JHK Store project, in THREE git repositories cloned side by side in one folder (jhkstore/backend, jhkstore/admin-frontend, jhkstore/frontend). We are going live. Your memory of earlier sessions is empty: the docs (backend/docs/) are the source of truth.
 
-Before you do anything, read, in this order: backend/docs/NEXT_CHAT_PROMPTS.md (the section "Prompt 1: the project so far" is your briefing and your rules: keep them), backend/docs/GO_LIVE.md, backend/docs/HANDOVER.md, the top of backend/CHANGELOG.md and the last sections of backend/docs/QA_REPORT.md. Then tell me in a few lines what you understood and what you will do first.
+Before you do anything, read, in this order: backend/docs/LIVE_STATE.md (what runs where today, what is done, the traps, the OPEN ITEMS), backend/docs/NEXT_CHAT_PROMPTS.md (the section "Prompt 1: the project so far" is your briefing and your rules: keep them), backend/docs/GO_LIVE.md, backend/docs/HANDOVER.md, the top of backend/CHANGELOG.md and the last sections of backend/docs/QA_REPORT.md. Then tell me in a few lines what you understood and what you will do first.
 
 The repositories: backend = https://github.com/RivoxaTech/jhkstore_backend.git (the repository root is the Laravel app; the guides are in docs/, the check scripts in scripts/; on the computer it is the folder jhkstore/backend), admin panel = https://github.com/RivoxaTech/jhkstore_admin-frontend.git, storefront = https://github.com/RivoxaTech/jhkstore_frontend.git. Check each with git remote -v and git log. Nothing may be lost: do not rewrite history, do not force-push, do not delete branches. From now on: work on a branch, commit, and push only when I say "push".
 
-What I want, in this order (ask me before anything destructive):
+STATE (2026-11-19): the shop is DEPLOYED (API and panel on the PKWebHost cPanel at api.jhkconcept.com, storefront on a Cloudflare Worker, deploys by DeployDesk). Work first on the open items of backend/docs/LIVE_STATE.md section 5 (video upload, push notifications, Cloudflare build settings, the rebuild hook, host ticket for PHP curl and exif, mail, load test), one at a time, with short steps and where to click, and ask me for the screenshot or log you need. Never ask me for a password or a key. The storefront stays static (decision: GO_LIVE.md section 8).
+
+The older plan below is done unless the open items say otherwise:
 1. Check that the three repositories are in order (remotes, branches, a fresh clone of each builds and the tests pass).
 2. Walk me through the go-live checklist of docs/GO_LIVE.md (server, .env, Cloudflare Pages, mail, queue, backups).
 3. Then do the speed session: "Prompt 2" in docs/NEXT_CHAT_PROMPTS.md.

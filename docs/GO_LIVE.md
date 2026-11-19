@@ -115,3 +115,31 @@ Cloudflare Pages' free plan allows about 500 builds a month (check the current l
 Without a rebuild the admin cannot break anything: orders, prices and stock never depended on it.
 
 **The price of "live": a visitor's page now costs one to five API reads** (the product page one, the home page five). They are cacheable for everybody (`s-maxage=300`): put Cloudflare (the free proxy, no build limit, not Pages) in front of the API address with the cache rule of this section, otherwise every page view runs PHP on the host. On a host with a limit on processes or CPU this matters more than the builds do.
+
+
+## 8. Static or server-rendered storefront? (decision of 2026-11-19)
+
+**Question:** the storefront is a *static* Nuxt site. Does it need a build to show a new product or category? Would the normal Nuxt (a Node server, "SSR") on the cPanel be better, and what does it cost in processes and SEO?
+
+**What needs a rebuild and what does not (static, as it is now)**
+
+| Change in the admin panel | Visible to visitors | Needs a rebuild? |
+|---|---|---|
+| Price, stock, sold out, a new product, a new category, the wholesale list, the cart, orders | at once: the pages read them from the API when they open (a product page that the build did not make is served by the app shell) | **No** |
+| Theme colours, logo, texts baked in the HTML (first paint) | a very short flash of the old look, then the live value; the HTML itself changes at the next build | only for the first paint and for Google |
+| What search engines read: the HTML of each product page, its title, description, JSON-LD, `sitemap.xml` | after the next build | **Yes** (nightly, or the owner presses *Rebuild website now*) |
+
+"Real time" is a property of the code (the pages ask the API), **not** of the host: static files on Cloudflare, on cPanel or anywhere else behave the same.
+
+**Server-rendered (a Node server on this cPanel): not recommended here**
+* It runs a Node process all the time and renders every page on every visit. On this host a Node site already uses most of the 22 processes of the account (the Next.js site `Rivoxa-Tech`), the limit is 100 for the whole account, and a second project is to come. SSR means more processes, more memory (about 150 to 300 MB) and more CPU per visitor, and it fails when the limit is hit (508 errors for **all** the sites of the account).
+* The code is built for static output (no server routes, `useFastData`, the app shell): changing it to SSR is a project of its own, with risk, only to remove the SEO delay of new products.
+* If instant SEO ever becomes important: SSR on a platform made for it (a small VPS, or Cloudflare Workers on the paid plan), **not** on the shared host.
+
+**Static on the cPanel itself** (instead of Cloudflare) is possible and costs **no process** (LiteSpeed serves files): a third DeployDesk project builds the storefront on GitHub and uploads `.output/public` to the domain's folder; `public/.htaccess.example` gives the fallback to `200.html`. It removes the Cloudflare build limit and the Worker. It loses the CDN: the server is far from Mauritius, so pages load slower, and the domain's DNS is on the host's nameservers (no Cloudflare proxy). A rebuild button would need DeployDesk's webhook (to be checked with its author).
+
+**Recommendation**
+1. **Keep the static storefront** on the Cloudflare Worker (CDN, free, with the shell fallback), live data from the API, **a nightly rebuild plus the owner's button** for Google. This already removes "a build just to show products".
+2. Do not run a Node/SSR site on this cPanel.
+3. The API is what costs processes (PHP, short, but concurrent under traffic): measure it (load test) before adding the owner's second project; a cache in front of the public GET answers (LiteSpeed cache, or Cloudflare when the DNS can be moved) is the next step if the numbers say so.
+4. Revisit only if the owner wants to leave Cloudflare (then: static on the cPanel through DeployDesk) or needs instant SEO (then: SSR on a VPS).
