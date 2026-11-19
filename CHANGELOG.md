@@ -3,8 +3,12 @@
 ## 2026-11-19 – Fixes found on the live site
 
 ### Added
+- **"Website online" in Settings → Website**: after "Rebuild website now" the panel could only say "Last result: OK" (the hosting accepted the request), never when the new version was online. Every storefront build now writes `/build.json` with its start time; the new setting **Address of your website** (`website_url`, https, developer) lets the server read it, and the card shows Online / Building... / Not online yet / Cannot tell, looks again every 8 seconds while a rebuild is on its way and says when it is online. Tests: `WebsiteRebuildTest`.
 - **`SHOP_JOBS_AFTER_RESPONSE=true`**: the pushes and mails of an order (and the test push) are sent right after the response even when a queue worker exists. On a host where a cron job starts the worker once a minute, the owner heard of an order up to 60 seconds late. Default off. Test: `WorkerFallbackTest`.
 - **Every uploaded video gets a cover**: the admin panel takes a frame of the video in the browser and sends it as the poster unless an own picture was chosen; a video without a cover shows a thumbnail from the file (it showed an empty cloud icon). Checked in real Chrome with a real mp4 (7 KB JPEG in 0.3 s; a file that is not a video gives no cover and the upload goes on).
+
+### Changed
+- The separate "poster picture" button next to "Upload video" is gone: the cover is taken from the video, and each uploaded video has its own picture icon to replace it.
 
 ### Fixed
 - **A product video of 6 MB failed on the live host with a message that blamed the size** although `upload_max_filesize` (20M), `post_max_size` (80M) and the temp folder were fine. Laravel answers every refused upload with the same "uploaded" message and hides PHP's real reason. The upload request now names it (limit, **interrupted: only a part arrived**, no temp folder, cannot write, file larger than `post_max_size`), writes `Video upload refused` with the PHP error code, sizes and limits to `storage/logs/laravel.log`, and the panel shows the answer number when the host's own error page comes back. The panel is told the **real** limit (the smaller of the shop's 50 MB and PHP's two limits) instead of always "50 MB". Tests: `ProductExtrasTest` (reasons, log, limit).

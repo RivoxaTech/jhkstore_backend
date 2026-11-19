@@ -316,6 +316,55 @@ class WebsiteRebuildTest extends TestCase
         $this->postJson(self::ADMIN.'/website/rebuild')->assertOk()->assertJsonPath('result.ok', false)->assertJsonPath('warning', true);
     }
 
+    public function test_the_panel_can_tell_when_the_new_version_is_online(): void
+    {
+        $rebuild = app(Rebuild::class);
+        $site = 'https://shop.example';
+        $requested = now()->subMinutes(2)->toIso8601String();
+
+        // no website address: nothing to read
+        $this->assertSame('no_address', $rebuild->live($requested)['state']);
+
+        app(Settings::class)->set(['website_url' => $site]);
+
+        // what the site answers for /build.json, changed from step to step (a later Http::fake() would not replace the first)
+        $answer = Http::response(['built_at' => now()->subHours(3)->toIso8601String()]);
+        Http::fake([$site.'/build.json*' => function () use (&$answer) {
+            return $answer;
+        }]);
+
+        // the site still serves the build from before the request: on its way
+        $this->assertSame('building', $rebuild->live($requested)['state']);
+
+        // a build that started after the request is online
+        Cache::flush();
+        $answer = Http::response(['built_at' => now()->subMinute()->toIso8601String()]);
+        $live = $rebuild->live($requested);
+        $this->assertSame('live', $live['state']);
+        $this->assertNotNull($live['built_at']);
+
+        // nothing was ever requested from here: whatever is online is "live"
+        $this->assertSame('live', $rebuild->live(null)['state']);
+
+        // asked more than a quarter of an hour ago and still the old build: stuck
+        Cache::flush();
+        $answer = Http::response(['built_at' => now()->subDay()->toIso8601String()]);
+        $this->assertSame('stuck', $rebuild->live(now()->subMinutes(20)->toIso8601String())['state']);
+
+        // no build.json (an old build, a wrong address) or an error page
+        Cache::flush();
+        $answer = Http::response('Not found', 404);
+        $this->assertSame('unreachable', $rebuild->live($requested)['state']);
+        Cache::flush();
+        $answer = Http::response('<html>oops</html>', 200);
+        $this->assertSame('unreachable', $rebuild->live($requested)['state']);
+
+        // the status endpoint carries it, and a website address that is not https is refused
+        $this->actingAsAdmin('developer');
+        $this->getJson(self::ADMIN.'/website/status')->assertOk()->assertJsonStructure(['live' => ['state', 'built_at']]);
+        $this->putJson(self::ADMIN.'/settings', ['website_url' => 'http://shop.example'])->assertStatus(422);
+    }
+
     public function test_the_button_needs_a_hook_address(): void
     {
         $this->actingAsAdmin('admin', everything: false);

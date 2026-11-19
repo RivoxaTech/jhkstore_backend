@@ -131,6 +131,43 @@ class Rebuild
         return $result;
     }
 
+    /**
+     * Which version of the website is online. Every build of the storefront writes `/build.json` ({"built_at": "..."}, the time the build started);
+     * the server reads it from the website's address (setting `website_url`). A rebuild asked for after that time is still on its way.
+     *
+     * @return array{state: string, built_at: ?string}  state: no_address | unreachable | live | building | stuck
+     */
+    public function live(?string $requestedAt): array
+    {
+        $base = rtrim((string) $this->settings->get('website_url'), '/');
+        if (! str_starts_with($base, 'https://')) {
+            return ['state' => 'no_address', 'built_at' => null];
+        }
+
+        $builtAt = Cache::remember('website.live.built_at.'.md5($base), 10, function () use ($base) {
+            try {
+                $response = Http::timeout(4)->connectTimeout(3)->acceptJson()->get($base.'/build.json', ['t' => time()]);
+                $at = $response->successful() ? $response->json('built_at') : null;
+            } catch (\Throwable) {
+                return null;
+            }
+
+            return is_string($at) && strtotime($at) !== false ? $at : null;
+        });
+        if ($builtAt === null) {
+            return ['state' => 'unreachable', 'built_at' => null];
+        }
+
+        $requested = $requestedAt ? strtotime($requestedAt) : false;
+        $state = match (true) {
+            $requested === false || strtotime($builtAt) >= $requested => 'live',
+            time() - $requested <= 15 * 60 => 'building',
+            default => 'stuck',
+        };
+
+        return ['state' => $state, 'built_at' => date('c', strtotime($builtAt))];
+    }
+
     /** What the Website tab shows. Never the address or the secret: only whether they are set. */
     public function status(): array
     {
@@ -144,6 +181,7 @@ class Rebuild
             'pending_changes' => $this->pending(),
             'waiting' => Cache::has(self::SCHEDULED),
             'last_requested_at' => Cache::get(self::LAST_REQUESTED),
+            'live' => $this->live(Cache::get(self::LAST_REQUESTED)),
             'last_result' => $last ? ['ok' => (bool) $last['ok'], 'error' => $last['error'], 'at' => $last['at']] : null,
             'warning' => $last && ! $last['ok'],
         ];

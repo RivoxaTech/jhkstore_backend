@@ -143,6 +143,7 @@ Generated from `Settings::DEFINITIONS` (a test checks that every setting has a r
 | `theme_radius` | Corner radius | Theme | advanced | `settings.theme` |
 | `theme_shadow` | Shadow | Theme | advanced | `settings.theme` |
 | `rebuild_enabled` | Rebuild the website automatically | Website | client | `settings.website` |
+| `website_url` | Address of your website | Website | advanced | `settings.website` + `settings.advanced` |
 | `rebuild_hook_url` | Rebuild hook address | Website | advanced | `settings.website` + `settings.advanced` |
 | `rebuild_hook_secret` | Rebuild hook secret (stored encrypted, never returned, shown only as set / not set) | Website | advanced | `settings.website` + `settings.advanced` |
 | `rebuild_debounce_seconds` | Wait after the last change (seconds) | Website | advanced | `settings.website` + `settings.advanced` |

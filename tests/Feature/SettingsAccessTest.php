@@ -45,7 +45,7 @@ class SettingsAccessTest extends TestCase
             'owner_mail_on_placed', 'owner_mail_on_proof', 'owner_mail_on_wholesale', 'push_enabled', 'push_on_placed', 'push_on_proof', 'push_on_wholesale', 'rebuild_enabled'];
         $advanced = ['store_name', 'store_tagline', 'store_country', 'default_phone_country_code', 'order_number_prefix', 'cod_max_amount', 'currency_code', 'currency_symbol', 'currency_decimals',
             'tax_rate', 'tax_inclusive', 'tax_label', 'delivery_unmatched', 'delivery_days', 'mail_from_name', 'mail_reply_to', 'notify_admin_email', 'storefront_track_url',
-            'rebuild_hook_url', 'rebuild_hook_secret', 'rebuild_debounce_seconds',
+            'website_url', 'rebuild_hook_url', 'rebuild_hook_secret', 'rebuild_debounce_seconds',
             'mail_custom', 'mail_host', 'mail_port', 'mail_encryption', 'mail_username', 'mail_password', 'mail_from_address',
             'social_links', 'footer_text', 'footer_copyright', 'agency_name', 'agency_url', 'agency_logo', 'seo_meta_title', 'seo_meta_description', 'seo_share_image', 'store_logo', 'store_favicon'];
 

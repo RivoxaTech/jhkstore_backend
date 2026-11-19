@@ -60,7 +60,7 @@ class Settings
         'store_name', 'store_tagline', 'store_country', 'default_phone_country_code',
         'delivery_days', 'delivery_unmatched',
         'mail_from_name', 'mail_reply_to', 'notify_admin_email', 'storefront_track_url',
-        'rebuild_hook_url', 'rebuild_hook_secret', 'rebuild_debounce_seconds',
+        'rebuild_hook_url', 'rebuild_hook_secret', 'rebuild_debounce_seconds', 'website_url',
     ];
 
     /** Every setting of these groups is `advanced` (branding, footer and agency credit, SEO, currency, tax, order numbers and the cash limit, theme). */
@@ -195,6 +195,7 @@ class Settings
 
         // --- website: the rebuild of the static storefront (docs/NEW_CLIENT.md). Not public: the storefront never sees these.
         'rebuild_enabled' => ['website', 'bool', false, 'Rebuild the website automatically', 'On: a change that customers can see (products, categories, banners, theme, ...) asks the hosting to rebuild the website, about two minutes after the last change.'],
+        'website_url' => ['website', 'string', '', 'Address of your website', 'The public address of the website (https only), e.g. https://www.example.com. Only used to read /build.json, so this panel can tell when a rebuild is online.'],
         'rebuild_hook_url' => ['website', 'string', '', 'Rebuild hook address', 'The deploy hook of the hosting (https only), e.g. the Cloudflare Pages deploy hook. It is called with an empty POST.'],
         'rebuild_hook_secret' => ['website', 'secret', '', 'Rebuild hook secret', 'Optional. Sent as the header X-Rebuild-Secret. Stored encrypted; it is never shown again, only whether it is set.'],
         'rebuild_debounce_seconds' => ['website', 'int', 120, 'Wait after the last change (seconds)', 'Edits made within this time cause a single rebuild.', 10, 3600],
@@ -382,7 +383,7 @@ class Settings
             if ($key === 'storefront_track_url') {
                 $out["$key.url"] = 'Enter a full web address starting with https://.';
             }
-            if ($key === 'rebuild_hook_url') {
+            if ($key === 'rebuild_hook_url' || $key === 'website_url') {
                 $out["$key.url"] = 'Enter a full web address starting with https://.';
             }
             if ($key === 'agency_url') {
@@ -464,6 +465,7 @@ class Settings
             'notify_admin_email' => ['nullable', 'email', 'max:190'],
             'storefront_track_url' => ['nullable', 'url:http,https', 'max:255'],
             'rebuild_hook_url' => ['nullable', 'url:https', 'max:500'],
+            'website_url' => ['nullable', 'url:https', 'max:255'],
         ];
 
         return array_intersect_key($overrides, $rules) + $rules;
