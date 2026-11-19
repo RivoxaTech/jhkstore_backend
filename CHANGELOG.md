@@ -2,6 +2,9 @@
 
 ## 2026-11-19 – Fixes found on the live site
 
+### Fixed (storefront build)
+- **A Cloudflare build failed with "The API is not reachable ... nuxt generate needs it"** a few seconds after the backend was being deployed, and the message did not say why. The build now asks the API up to 4 times (5, 10 and 15 seconds apart, a backend in the middle of its own deploy answers again soon) and the error names the reason (`HTTP 503`, `ECONNREFUSED`, a certificate error ...). Checked: against the live API (builds, `build.json` written) and against a dead address (stops with exit 1 and the reason). A failed build never replaces the live site.
+
 ### Added
 - **"Website online" in Settings → Website**: after "Rebuild website now" the panel could only say "Last result: OK" (the hosting accepted the request), never when the new version was online. Every storefront build now writes `/build.json` with its start time; the new setting **Address of your website** (`website_url`, https, developer) lets the server read it, and the card shows Online / Building... / Not online yet / Cannot tell, looks again every 8 seconds while a rebuild is on its way and says when it is online. Tests: `WebsiteRebuildTest`.
 - **`SHOP_JOBS_AFTER_RESPONSE=true`**: the pushes and mails of an order (and the test push) are sent right after the response even when a queue worker exists. On a host where a cron job starts the worker once a minute, the owner heard of an order up to 60 seconds late. Default off. Test: `WorkerFallbackTest`.
