@@ -32,6 +32,18 @@ class PasswordChangeTest extends TestCase
         $this->postJson('/api/v1/admin/auth/login', ['login' => 'tester', 'password' => 'a-new-secret-1'])->assertOk();
     }
 
+    public function test_the_panel_is_told_the_shortest_password_this_server_accepts(): void
+    {
+        $this->actingAsAdmin();
+        $this->getJson('/api/v1/admin/auth/me')->assertOk()->assertJsonPath('admin.password_min', 8);   // the tests run in the testing environment
+
+        $this->app['env'] = 'production';
+        $this->getJson('/api/v1/admin/auth/me')->assertOk()->assertJsonPath('admin.password_min', 12);
+        // 8 to 11 characters are refused there, with the number the page showed
+        $this->putJson(self::URL, $this->body(['password' => 'eleven-char', 'password_confirmation' => 'eleven-char']))
+            ->assertStatus(422)->assertJsonPath('errors.password.0', 'The new password needs at least 12 characters.');
+    }
+
     public function test_the_developer_can_change_theirs_too(): void
     {
         $dev = $this->actingAsAdmin('developer');

@@ -77,7 +77,7 @@ class AuthController extends Controller
     public function password(Request $request): JsonResponse
     {
         $admin = $request->user();
-        $min = app()->environment('production') ? 12 : 8;
+        $min = $this->passwordMin();
         $data = $request->validate([
             'current_password' => ['required', 'string'],
             'password' => ['required', 'string', "min:$min", 'max:128', 'confirmed', 'different:current_password', 'not_in:'.$admin->username],
@@ -105,9 +105,16 @@ class AuthController extends Controller
         return response()->json(['admin' => $this->payload($request->user())]);
     }
 
+    /** The shortest password this server accepts (12 in production, 8 elsewhere): the Profile page shows and checks the same number. */
+    private function passwordMin(): int
+    {
+        return app()->environment('production') ? 12 : 8;
+    }
+
     private function payload(Admin $admin): array
     {
         return [
+            'password_min' => $this->passwordMin(),
             'id' => $admin->id,
             'username' => $admin->username,
             'name' => $admin->name,

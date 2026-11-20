@@ -11,6 +11,7 @@
 - **Every uploaded video gets a cover**: the admin panel takes a frame of the video in the browser and sends it as the poster unless an own picture was chosen; a video without a cover shows a thumbnail from the file (it showed an empty cloud icon). Checked in real Chrome with a real mp4 (7 KB JPEG in 0.3 s; a file that is not a video gives no cover and the upload goes on).
 
 ### Changed
+- **Profile → Change password**: the page said "At least 8 characters (12 on a live server)" and accepted 8 to 11 characters, which the live server then refused. The server now tells the panel the real minimum (`password_min` in `auth/me` and the login answer: 12 in production, 8 elsewhere), and the form shows a live checklist (long enough, not your username, different from the current password, both new passwords the same); the button turns on when all are met. Checked in real Chrome (desktop and phone, no sideways scrolling). Test: `PasswordChangeTest`.
 - The separate "poster picture" button next to "Upload video" is gone: the cover is taken from the video, and each uploaded video has its own picture icon to replace it.
 
 ### Fixed
