@@ -54,7 +54,7 @@ class ProductVideos
         $out = [];
         foreach (self::uploads($product) as $media) {
             $poster = $posters[$media->id] ?? null;
-            $out[] = ['url' => MediaUrl::media($media), 'poster_url' => $poster ? MediaUrl::media($poster) : null, 'mime' => $media->mime_type, 'source' => 'upload'];
+            $out[] = ['url' => MediaUrl::media($media), 'poster_url' => $poster ? MediaUrl::media($poster) : null, 'mime' => $media->mime_type, 'source' => 'upload', 'uploaded_at' => $media->created_at?->toIso8601String()];   // the date search engines ask for with a video
         }
         if ($embed = self::embed((string) $product->video_url)) {
             $out[] = ['url' => $embed['url'], 'poster_url' => null, 'mime' => $embed['mime'], 'source' => 'embed'];

@@ -149,7 +149,8 @@ class ProductExtrasTest extends TestCase
 
         $public = $this->flushHeaders()->getJson(self::STORE."/products/{$product->slug}")->assertOk()->json('data.videos');
         $this->assertCount(1, $public);
-        $this->assertSame(['url', 'poster_url', 'mime', 'source'], array_keys($public[0]));
+        $this->assertSame(['url', 'poster_url', 'mime', 'source', 'uploaded_at'], array_keys($public[0]));
+        $this->assertNotNull($public[0]['uploaded_at']);
         $this->assertSame('upload', $public[0]['source']);
         $this->assertSame('video/mp4', $public[0]['mime']);
         $this->assertSame($video['url'], $public[0]['url']);

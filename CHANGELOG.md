@@ -2,6 +2,12 @@
 
 ## 2026-11-19 – Fixes found on the live site
 
+### Added (SEO of the storefront, 2026-11-21)
+- **Structured data (schema.org JSON-LD) on every kind of page**, built from what the shop has and nothing else (`app/utils/schema.ts`, unit tests in `tests/seo-schema.mjs`): Organization with contact point, address and `sameAs` social links; WebSite with search; `CollectionPage` + `ItemList` on the shop and category pages; `Product` with `url`, `sku`, an `Offer`/`AggregateOffer` with currency, availability and seller; a `VideoObject` for uploaded product videos (the public API now sends `uploaded_at` for them); `WebPage` / `AboutPage` on the information pages. Shipping and return terms for Google Shopping are added when the store country is set as a two-letter code (Settings → General) and the delivery fee is flat.
+- **Head tags:** `hreflang` (en, x-default), `og:locale`, `og:image:alt`, `twitter:image:alt`, `product:price:*` and `product:availability` for Facebook / Pinterest / WhatsApp, full snippet and video preview allowed in `robots`, `preconnect` to the API address (a faster first picture).
+- **Sitemap and robots:** the home and shop entries carry the date of the newest change; `robots.txt` also keeps `/200` and `/404` (the app shell and the error page the Cloudflare Worker serves) out of the index; `/build.json` is `noindex`.
+- Tests: `tests/seo-schema.mjs` (20 checks), 13 new browser checks (S14b) in `tests/e2e.mjs`, `ProductExtrasTest` (the video date). `docs/STOREFRONT.md` has the table of what each page says and the one-time steps that are not code (Search Console, Always Use HTTPS, share picture).
+
 ### Fixed (storefront build)
 - **A Cloudflare build failed with "The API is not reachable ... nuxt generate needs it"** a few seconds after the backend was being deployed, and the message did not say why. The build now asks the API up to 4 times (5, 10 and 15 seconds apart, a backend in the middle of its own deploy answers again soon) and the error names the reason (`HTTP 503`, `ECONNREFUSED`, a certificate error ...). Checked: against the live API (builds, `build.json` written) and against a dead address (stops with exit 1 and the reason). A failed build never replaces the live site.
 

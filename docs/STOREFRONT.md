@@ -158,3 +158,22 @@ In the Cloudflare dashboard (the Worker → Settings → **Build**): Root direct
 - [ ] A test order with cash on delivery, a test order with bank transfer and a screenshot upload, tracking by order number and phone, a coupon, the wholesale form: all done on the live site, then the test orders cancelled
 - [ ] The e-mail setting *Order tracking page* (`storefront_track_url`) is `https://www.example.com/track`
 - [ ] Search Console: the sitemap `https://www.example.com/sitemap.xml` is submitted
+
+## SEO: what every page tells the search engines (2026-11-21)
+
+Everything below is written into the HTML at build time (`useSeo`, `app/utils/schema.ts`), so a crawler sees it without running any script. Nothing is invented: a field is only written when the shop has the value. The builders have unit tests (`node tests/seo-schema.mjs`) and the generated site is checked by `tests/e2e.mjs` (S14 and S14b).
+
+| Where | What |
+|---|---|
+| every page | own title and description, canonical address, `hreflang` (en and x-default), Open Graph and Twitter tags with the picture and its description, `og:locale`, `robots` with `max-image-preview:large, max-snippet:-1, max-video-preview:-1`; a filtered, searched, cart, checkout, tracking or order view is `noindex` |
+| home | `Organization` (logo, contact point, address and `sameAs` links to the social profiles, when set in the settings) and `WebSite` with the search box |
+| shop and category pages | `CollectionPage` with an `ItemList` of the first 24 toys, and the breadcrumb |
+| product page | `Product` (url, sku, pictures, category), an `Offer` (or `AggregateOffer` for several options) with price, currency, availability and seller, a `VideoObject` for every **uploaded** video that has a cover and a date, the breadcrumb, and the price and stock as `product:*` tags for Facebook, Pinterest and WhatsApp |
+| information pages | `WebPage` (`AboutPage` for About) and the breadcrumb |
+| `sitemap.xml` | every product (with its picture and date), category, sub-category and the text pages; the home and shop pages carry the date of the newest change; no `/contact` (it redirects) |
+| `robots.txt` | blocks the cart, checkout, tracking, order pages and the app shell `/200` and `/404`; names the sitemap |
+| `build.json` | `noindex` through the headers file; the admin panel reads it |
+
+**Shipping and return data for Google Shopping** (`OfferShippingDetails`, `MerchantReturnPolicy`) is added to the offer only when the shop has the facts: a **flat** delivery fee, an ISO currency code (MUR, not "Rs") and the **store country as a two-letter code** (Settings → General → Country, for example `MU`). Without the country they are left out, on purpose: they cannot be stated correctly.
+
+**Not code, to do once per shop:** add the domain to Google Search Console (a Domain property, verified with a DNS TXT record) and send `https://<domain>/sitemap.xml`; the same in Bing Webmaster Tools; switch on "Always Use HTTPS" in Cloudflare; upload a default share picture (1200 x 630) in Settings → SEO; replace test products and categories before launch; real product text (not a copy of the same sentence) and a picture on every product do more for ranking than any tag.
