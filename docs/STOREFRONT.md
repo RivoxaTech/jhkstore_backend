@@ -50,7 +50,7 @@ A product or category that is created **after** the last build has no HTML file.
 
 ## Editing a client's texts
 
-* **`app/config/site.ts`**: the menu, the label of the hero button while the admin panel has no hero banner, the four trust-bar items (Safe & Non-Toxic, Fast Delivery, 24/7 Support, Easy Returns), the footer link lists, the "Our Collection" heading (`{count}` = products shown; `*words*` = accent colour) and how many products the home page shows (`homeLimit`, 12).
+* **`app/config/site.ts`**: the menu, the label of the hero button while the admin panel has no hero banner, the four trust-bar items (Safe & Non-Toxic, Fast Delivery, Premium Goods, Certified Item), the footer link lists, the "Our Collection" heading (`{count}` = products shown; `*words*` = accent colour) and how many products the home page shows (`homeLimit`, 12).
 * **`app/content/*.ts`**: the five static pages. Plain TypeScript objects (title, description, blocks: headings, paragraphs, lists, a note, features, a call to action). `{store}`, `{email}`, `{phone}`, `{address}` and `{hours}` are filled from the store settings. Sections that clients usually change are marked `EDIT PER CLIENT`; the policies are **generic templates, not legal advice**: the client must review them.
 * **No analytics, advertising or tracking script of any kind** is in the site; do not add one without updating the privacy policy.
 

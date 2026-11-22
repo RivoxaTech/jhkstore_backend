@@ -2,6 +2,15 @@
 
 ## 2026-11-19 – Fixes found on the live site
 
+## 2026-11-22 – Checkout, trust bar, test e-mail
+
+### Changed
+- **Checkout:** the Area, Postcode and Country fields are gone from the form (the database columns stay; an order simply has none of them), the City field is full width, and every line of "Your order" has a **− / +** quantity stepper. A change is shown at once, the server prices the cart again and the totals (and the delivery, which knows the city) follow; the new quantity is the one in the server cart. Note for delivery zones: a zone that matches by area or postcode can no longer match an order made on the storefront (it would fall under the "address outside every zone" rule); city zones work as before. Tests: `tests/e2e.mjs` S6 (no extra fields, + / − and the server cart).
+- **Trust bar under the hero:** "24/7 Support" became **Premium Goods** (gem icon, "Quality You Can Trust") and "Easy Returns" became **Certified Item** (badge icon, "Checked & Approved"); `app/config/site.ts`.
+
+### Fixed
+- **The test e-mail said "sent" although nothing could arrive.** On a server whose `MAIL_MAILER` is `log` (the default of the `.env` DeployDesk makes) the message is only written to `storage/logs/laravel.log`. The test now says so ("Not sent: this server only writes e-mails into a log file ... fill in Settings → E-mail") instead of reporting success, and a real SMTP failure comes with one sentence of advice (wrong password / Gmail App Password, host blocks outgoing mail so use the hosting's own mail account, port and encryption mismatch, sender address). Tests: `MailHintsTest`.
+
 ### Added (SEO of the storefront, 2026-11-21)
 - **Structured data (schema.org JSON-LD) on every kind of page**, built from what the shop has and nothing else (`app/utils/schema.ts`, unit tests in `tests/seo-schema.mjs`): Organization with contact point, address and `sameAs` social links; WebSite with search; `CollectionPage` + `ItemList` on the shop and category pages; `Product` with `url`, `sku`, an `Offer`/`AggregateOffer` with currency, availability and seller; a `VideoObject` for uploaded product videos (the public API now sends `uploaded_at` for them); `WebPage` / `AboutPage` on the information pages. Shipping and return terms for Google Shopping are added when the store country is set as a two-letter code (Settings → General) and the delivery fee is flat.
 - **Head tags:** `hreflang` (en, x-default), `og:locale`, `og:image:alt`, `twitter:image:alt`, `product:price:*` and `product:availability` for Facebook / Pinterest / WhatsApp, full snippet and video preview allowed in `robots`, `preconnect` to the API address (a faster first picture).

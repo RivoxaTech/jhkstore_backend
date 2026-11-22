@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Auth\AdminAccess;
+use App\Domain\Notification\MailHints;
 use App\Domain\Notification\MailServer;
 use App\Domain\Notification\Models\PushSubscription;
 use App\Domain\Notification\PushLog;
@@ -77,10 +78,19 @@ class NotificationController extends Controller
         }
 
         app(MailServer::class)->apply();   // the account of Settings > E-mail, as saved
+        // the "log" mailer only writes the message into storage/logs/laravel.log: it never reaches a mailbox, so it must not be reported as sent
+        if (config('mail.default') === 'log') {
+            return response()->json([
+                'message' => 'Not sent: this server only writes e-mails into a log file, it has no mail account yet. Open Settings, E-mail, fill in the mail server, port, user name and password, switch "Send with this mail account" on, save, and send the test again.',
+                'code' => 'mail_not_configured',
+            ], 502);
+        }
         try {
             Mail::to($to)->send(new TestMail);
         } catch (\Throwable $e) {
-            return response()->json(['message' => 'The test e-mail could not be sent: '.$e->getMessage(), 'code' => 'mail_failed'], 502);
+            $hint = MailHints::for($e->getMessage());
+
+            return response()->json(['message' => 'The test e-mail could not be sent: '.$e->getMessage().($hint ? " $hint" : ''), 'code' => 'mail_failed', 'hint' => $hint], 502);
         }
         Audit::log($request->user(), 'notifications.test_email', null, ['to' => $to]);
 
