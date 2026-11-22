@@ -2,9 +2,13 @@
 
 ## 2026-11-19 – Fixes found on the live site
 
-## 2026-11-22 – Checkout, trust bar, test e-mail
+## 2026-11-22 – Checkout, trust bar, test e-mail, product form
 
 ### Changed
+- **Product form, one option = the product.** A product with a single option showed its name and SKU twice (the product's and the option's). The "Options and pricing" table now shows only what belongs to that option (old price, price, stock, alert level, weight / pictures); Default, Name, SKU and Active appear when a second option is added (the first option keeps the product's name and SKU), and disappear again when it is removed (the remaining option takes the product name). Existing products are not changed until they are saved.
+- **Video chosen before a new product is saved:** it now shows its cover (taken from the video) in the list and has the same "change cover picture" icon as a video of a saved product; the chosen cover is uploaded with the video when the product is saved.
+- The help videos **Add a product** and **Edit a product** were recorded again with the new form.
+- Tests: `e2e/flow-ui.mjs` UI-B5 (no second name and SKU, Add option brings them back, remove hides them, the public name is the product name); checked in real Chrome on the scratch copy: a new product with a video and an own cover saves with one option, price 55 and the video with its cover.
 - **Checkout:** the Area, Postcode and Country fields are gone from the form (the database columns stay; an order simply has none of them), the City field is full width, and every line of "Your order" has a **− / +** quantity stepper. A change is shown at once, the server prices the cart again and the totals (and the delivery, which knows the city) follow; the new quantity is the one in the server cart. Note for delivery zones: a zone that matches by area or postcode can no longer match an order made on the storefront (it would fall under the "address outside every zone" rule); city zones work as before. Tests: `tests/e2e.mjs` S6 (no extra fields, + / − and the server cart).
 - **Trust bar under the hero:** "24/7 Support" became **Premium Goods** (gem icon, "Quality You Can Trust") and "Easy Returns" became **Certified Item** (badge icon, "Checked & Approved"); `app/config/site.ts`.
 
